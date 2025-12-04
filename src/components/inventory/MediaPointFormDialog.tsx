@@ -1,0 +1,417 @@
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Label } from '../ui/label';
+import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
+import { Button } from '../ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Badge } from '../ui/badge';
+import { X } from 'lucide-react';
+import { MediaPoint, MediaType } from '../../types';
+import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
+
+interface MediaPointFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mediaPoint?: MediaPoint | null;
+  onSave: (data: Partial<MediaPoint>) => void;
+}
+
+export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }: MediaPointFormDialogProps) {
+  const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
+  const [formData, setFormData] = useState<Partial<MediaPoint>>({
+    type: MediaType.OOH,
+    showInMediaKit: false,
+    addressCountry: 'Brasil',
+    socialClasses: [],
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (mediaPoint) {
+      setFormData(mediaPoint);
+      setType(mediaPoint.type);
+    } else {
+      setFormData({
+        type: MediaType.OOH,
+        showInMediaKit: false,
+        addressCountry: 'Brasil',
+        socialClasses: [],
+      });
+      setType(MediaType.OOH);
+    }
+  }, [mediaPoint, open]);
+
+  const handleTypeChange = (newType: MediaType) => {
+    setType(newType);
+    setFormData(prev => ({ ...prev, type: newType, subcategory: undefined }));
+  };
+
+  const updateField = (field: keyof MediaPoint, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const toggleSocialClass = (classValue: string) => {
+    const current = formData.socialClasses || [];
+    const updated = current.includes(classValue)
+      ? current.filter(c => c !== classValue)
+      : [...current, classValue];
+    updateField('socialClasses', updated);
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name?.trim()) {
+      newErrors.name = 'Nome do ponto é obrigatório';
+    }
+    if (!formData.addressCity?.trim()) {
+      newErrors.addressCity = 'Cidade é obrigatória';
+    }
+    if (!formData.addressState?.trim()) {
+      newErrors.addressState = 'Estado é obrigatório';
+    }
+    if (formData.latitude === undefined || formData.latitude === null) {
+      newErrors.latitude = 'Latitude é obrigatória';
+    }
+    if (formData.longitude === undefined || formData.longitude === null) {
+      newErrors.longitude = 'Longitude é obrigatória';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSave = () => {
+    if (!validateForm()) {
+      return;
+    }
+
+    onSave({
+      ...formData,
+      type,
+      updatedAt: new Date(),
+      ...(mediaPoint ? {} : { 
+        id: `mp${Date.now()}`,
+        companyId: 'c1',
+        createdAt: new Date(),
+      }),
+    });
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      type: MediaType.OOH,
+      showInMediaKit: false,
+      addressCountry: 'Brasil',
+      socialClasses: [],
+    });
+    setErrors({});
+    onOpenChange(false);
+  };
+
+  const subcategories = type === MediaType.OOH ? OOH_SUBCATEGORIES : DOOH_SUBCATEGORIES;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
+          </DialogTitle>
+        </DialogHeader>
+
+        <Tabs value={type} onValueChange={(v) => handleTypeChange(v as MediaType)}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value={MediaType.OOH}>OOH</TabsTrigger>
+            <TabsTrigger value={MediaType.DOOH}>DOOH</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={type} className="space-y-6 mt-6">
+            {/* Informações Básicas */}
+            <div className="space-y-4">
+              <h3 className="text-gray-900 border-b pb-2">Informações Básicas</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome do Ponto *</Label>
+                  <Input
+                    placeholder="Ex: Outdoor Av. Paulista 1000"
+                    value={formData.name || ''}
+                    onChange={(e) => updateField('name', e.target.value)}
+                    className={errors.name ? 'border-red-500' : ''}
+                  />
+                  {errors.name && <p className="text-xs text-red-600">{errors.name}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Subcategoria</Label>
+                  <Select
+                    value={formData.subcategory || ''}
+                    onValueChange={(value) => updateField('subcategory', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a subcategoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subcategories.map((sub) => (
+                        <SelectItem key={sub} value={sub}>{sub}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  placeholder="Descreva o ponto de mídia..."
+                  value={formData.description || ''}
+                  onChange={(e) => updateField('description', e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div className="space-y-4">
+              <h3 className="text-gray-900 border-b pb-2">Localização</h3>
+              
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>CEP</Label>
+                  <Input
+                    placeholder="00000-000"
+                    value={formData.addressZipcode || ''}
+                    onChange={(e) => updateField('addressZipcode', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label>Rua/Avenida</Label>
+                  <Input
+                    placeholder="Ex: Avenida Paulista"
+                    value={formData.addressStreet || ''}
+                    onChange={(e) => updateField('addressStreet', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Número</Label>
+                  <Input
+                    placeholder="1000"
+                    value={formData.addressNumber || ''}
+                    onChange={(e) => updateField('addressNumber', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label>Bairro</Label>
+                  <Input
+                    placeholder="Ex: Bela Vista"
+                    value={formData.addressDistrict || ''}
+                    onChange={(e) => updateField('addressDistrict', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Cidade *</Label>
+                  <Input
+                    placeholder="São Paulo"
+                    value={formData.addressCity || ''}
+                    onChange={(e) => updateField('addressCity', e.target.value)}
+                    className={errors.addressCity ? 'border-red-500' : ''}
+                  />
+                  {errors.addressCity && <p className="text-xs text-red-600">{errors.addressCity}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Estado *</Label>
+                  <Select
+                    value={formData.addressState || ''}
+                    onValueChange={(value) => updateField('addressState', value)}
+                  >
+                    <SelectTrigger className={errors.addressState ? 'border-red-500' : ''}>
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BRAZILIAN_STATES.map((state) => (
+                        <SelectItem key={state} value={state}>{state}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.addressState && <p className="text-xs text-red-600">{errors.addressState}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>País</Label>
+                  <Input
+                    value={formData.addressCountry || 'Brasil'}
+                    onChange={(e) => updateField('addressCountry', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Latitude *</Label>
+                  <Input
+                    type="number"
+                    step="0.000001"
+                    placeholder="-23.561414"
+                    value={formData.latitude || ''}
+                    onChange={(e) => updateField('latitude', parseFloat(e.target.value))}
+                    className={errors.latitude ? 'border-red-500' : ''}
+                  />
+                  {errors.latitude && <p className="text-xs text-red-600">{errors.latitude}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label>Longitude *</Label>
+                  <Input
+                    type="number"
+                    step="0.000001"
+                    placeholder="-46.655881"
+                    value={formData.longitude || ''}
+                    onChange={(e) => updateField('longitude', parseFloat(e.target.value))}
+                    className={errors.longitude ? 'border-red-500' : ''}
+                  />
+                  {errors.longitude && <p className="text-xs text-red-600">{errors.longitude}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Dados Comerciais */}
+            <div className="space-y-4">
+              <h3 className="text-gray-900 border-b pb-2">Dados Comerciais e Audiência</h3>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Impactos Diários</Label>
+                  <Input
+                    type="number"
+                    placeholder="85000"
+                    value={formData.dailyImpressions || ''}
+                    onChange={(e) => updateField('dailyImpressions', parseInt(e.target.value) || null)}
+                  />
+                  {!formData.dailyImpressions && (
+                    <p className="text-xs text-amber-600">⚠️ Recomendado preencher</p>
+                  )}
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label>Ambiente</Label>
+                  <Select
+                    value={formData.environment || ''}
+                    onValueChange={(value) => updateField('environment', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o ambiente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ENVIRONMENTS.map((env) => (
+                        <SelectItem key={env} value={env}>{env}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Classes Sociais Atendidas (socialClasses)</Label>
+                <div className="flex gap-2">
+                  {SOCIAL_CLASSES.map((classValue) => (
+                    <Badge
+                      key={classValue}
+                      variant={formData.socialClasses?.includes(classValue) ? 'default' : 'outline'}
+                      className="cursor-pointer"
+                      onClick={() => toggleSocialClass(classValue)}
+                    >
+                      {classValue}
+                      {formData.socialClasses?.includes(classValue) && (
+                        <X className="w-3 h-3 ml-1" />
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Preço Mensal (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="8500.00"
+                    value={formData.basePriceMonth || ''}
+                    onChange={(e) => updateField('basePriceMonth', parseFloat(e.target.value) || null)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Preço Semanal (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="2500.00"
+                    value={formData.basePriceWeek || ''}
+                    onChange={(e) => updateField('basePriceWeek', parseFloat(e.target.value) || null)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Preço Diário (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="450.00"
+                    value={formData.basePriceDay || ''}
+                    onChange={(e) => updateField('basePriceDay', parseFloat(e.target.value) || null)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Mídia Kit */}
+            <div className="space-y-4">
+              <h3 className="text-gray-900 border-b pb-2">Visibilidade</h3>
+              
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="showInMediaKit"
+                  checked={formData.showInMediaKit || false}
+                  onChange={(e) => updateField('showInMediaKit', e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="showInMediaKit" className="cursor-pointer">
+                  Exibir este ponto no Mídia Kit público (showInMediaKit)
+                </Label>
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-900 mb-2">💡 Próximo passo</p>
+              <p className="text-sm text-blue-700">
+                Após criar o ponto, você poderá adicionar <strong>unidades (MediaUnit)</strong> - 
+                faces para OOH ou telas para DOOH - com preços e características específicas através da opção 
+                "Gerenciar unidades" no menu do ponto.
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <Button variant="outline" onClick={handleCancel}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave}>
+            {mediaPoint ? 'Salvar Alterações' : 'Salvar Ponto'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

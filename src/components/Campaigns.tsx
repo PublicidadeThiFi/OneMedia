@@ -1,0 +1,206 @@
+import { useState, useMemo } from 'react';
+import { Card, CardContent } from './ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Campaign, CampaignStatus } from '../types';
+import { mockCampaigns, getProposalById } from '../lib/mockData';
+import { CampaignList } from './campaigns/CampaignList';
+import { CampaignInstallationsView } from './campaigns/CampaignInstallationsView';
+import { CampaignDetailsDrawer } from './campaigns/CampaignDetailsDrawer';
+import { CampaignBookingDialog } from './campaigns/CampaignBookingDialog';
+import { CampaignReportDialog } from './campaigns/CampaignReportDialog';
+import { CampaignBillingDrawer } from './campaigns/CampaignBillingDrawer';
+
+export function Campaigns() {
+  // TODO: Integrar com API real
+  const [campaigns] = useState<Campaign[]>(mockCampaigns);
+
+  // Dialogs e Drawers
+  const [detailsDrawerCampaign, setDetailsDrawerCampaign] = useState<Campaign | null>(null);
+  const [detailsDrawerTab, setDetailsDrawerTab] = useState<string>('summary');
+  const [bookingDialogCampaign, setBookingDialogCampaign] = useState<Campaign | null>(null);
+  const [reportDialogCampaign, setReportDialogCampaign] = useState<Campaign | null>(null);
+  const [billingDrawerCampaign, setBillingDrawerCampaign] = useState<Campaign | null>(null);
+
+  // Estatísticas calculadas
+  const stats = useMemo(() => {
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const emVeiculacao = campaigns.filter((c) => c.status === CampaignStatus.EM_VEICULACAO);
+    const emInstalacao = campaigns.filter((c) => c.status === CampaignStatus.EM_INSTALACAO);
+    
+    const finalizadasMes = campaigns.filter((c) => {
+      if (c.status !== CampaignStatus.FINALIZADA) return false;
+      const endDate = new Date(c.endDate);
+      return endDate.getMonth() === currentMonth && endDate.getFullYear() === currentYear;
+    });
+
+    const valorEmVeiculacao = emVeiculacao.reduce((sum, c) => {
+      const proposal = getProposalById(c.proposalId);
+      return sum + (proposal?.totalAmount || 0);
+    }, 0);
+
+    return {
+      emVeiculacao: emVeiculacao.length,
+      emInstalacao: emInstalacao.length,
+      finalizadasMes: finalizadasMes.length,
+      valorEmVeiculacao,
+    };
+  }, [campaigns]);
+
+  // Campanhas por status
+  const activeCampaigns = useMemo(
+    () =>
+      campaigns.filter(
+        (c) => c.status === CampaignStatus.EM_INSTALACAO || c.status === CampaignStatus.EM_VEICULACAO
+      ),
+    [campaigns]
+  );
+
+  const finishedCampaigns = useMemo(
+    () => campaigns.filter((c) => c.status === CampaignStatus.FINALIZADA),
+    [campaigns]
+  );
+
+  // Handlers
+  const handleViewDetails = (campaign: Campaign, tab: string = 'summary') => {
+    setDetailsDrawerCampaign(campaign);
+    setDetailsDrawerTab(tab);
+  };
+
+  const handleGenerateBooking = (campaign: Campaign) => {
+    setBookingDialogCampaign(campaign);
+  };
+
+  const handleGenerateReport = (campaign: Campaign) => {
+    setReportDialogCampaign(campaign);
+  };
+
+  const handleViewBilling = (campaign: Campaign) => {
+    setBillingDrawerCampaign(campaign);
+  };
+
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-gray-900 mb-2">Campanhas</h1>
+        <p className="text-gray-600">
+          Acompanhe campanhas em execução (Campaign + CampaignItem)
+        </p>
+      </div>
+
+      {/* Cards de Estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-gray-600 text-sm mb-1">Em Veiculação</p>
+            <p className="text-gray-900">{stats.emVeiculacao}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-gray-600 text-sm mb-1">Em Instalação</p>
+            <p className="text-gray-900">{stats.emInstalacao}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-gray-600 text-sm mb-1">Finalizadas (Mês)</p>
+            <p className="text-gray-900">{stats.finalizadasMes}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+          <CardContent className="pt-6">
+            <p className="text-gray-600 text-sm mb-1">Valor em Veiculação</p>
+            <p className="text-gray-900">
+              R${' '}
+              {stats.valorEmVeiculacao.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="active" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="active">Em Andamento</TabsTrigger>
+          <TabsTrigger value="finished">Finalizadas</TabsTrigger>
+          <TabsTrigger value="installations">Instalações OOH</TabsTrigger>
+        </TabsList>
+
+        {/* Tab: Em Andamento */}
+        <TabsContent value="active">
+          <CampaignList
+            campaigns={activeCampaigns}
+            showAllActions={true}
+            onViewDetails={handleViewDetails}
+            onGenerateBooking={handleGenerateBooking}
+            onGenerateReport={handleGenerateReport}
+            onViewBilling={handleViewBilling}
+          />
+        </TabsContent>
+
+        {/* Tab: Finalizadas */}
+        <TabsContent value="finished">
+          <CampaignList
+            campaigns={finishedCampaigns}
+            showAllActions={false}
+            onViewDetails={handleViewDetails}
+            onGenerateReport={handleGenerateReport}
+          />
+        </TabsContent>
+
+        {/* Tab: Instalações OOH */}
+        <TabsContent value="installations">
+          <CampaignInstallationsView
+            campaigns={campaigns}
+            onViewDetails={(campaign) => handleViewDetails(campaign, 'installations')}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Info do Fluxo */}
+      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+        <p className="text-sm text-blue-900 mb-2">💡 Fluxo de Campanhas</p>
+        <p className="text-sm text-blue-700">
+          Campanha é criada automaticamente quando Proposta é aprovada. Status:{' '}
+          <strong>EM_INSTALACAO</strong> (OOH sendo instalado) → <strong>EM_VEICULACAO</strong> (no
+          ar) → <strong>FINALIZADA</strong>
+        </p>
+      </div>
+
+      {/* Dialogs e Drawers */}
+      <CampaignDetailsDrawer
+        open={!!detailsDrawerCampaign}
+        onOpenChange={(open) => !open && setDetailsDrawerCampaign(null)}
+        campaign={detailsDrawerCampaign}
+        defaultTab={detailsDrawerTab}
+      />
+
+      <CampaignBookingDialog
+        open={!!bookingDialogCampaign}
+        onOpenChange={(open) => !open && setBookingDialogCampaign(null)}
+        campaign={bookingDialogCampaign}
+      />
+
+      <CampaignReportDialog
+        open={!!reportDialogCampaign}
+        onOpenChange={(open) => !open && setReportDialogCampaign(null)}
+        campaign={reportDialogCampaign}
+      />
+
+      <CampaignBillingDrawer
+        open={!!billingDrawerCampaign}
+        onOpenChange={(open) => !open && setBillingDrawerCampaign(null)}
+        campaign={billingDrawerCampaign}
+      />
+    </div>
+  );
+}

@@ -1,0 +1,485 @@
+// Types baseados no schema Prisma
+
+export enum CompanySubscriptionStatus {
+  TRIAL = 'TRIAL',
+  ACTIVE = 'ACTIVE',
+  PAST_DUE = 'PAST_DUE',
+  CANCELED = 'CANCELED',
+}
+
+export enum UserStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
+
+export enum TwoFactorType {
+  TOTP = 'TOTP',
+  EMAIL = 'EMAIL',
+  SMS = 'SMS',
+}
+
+export enum UserRoleType {
+  ADMINISTRATIVO = 'ADMINISTRATIVO',
+  FINANCEIRO = 'FINANCEIRO',
+  COMERCIAL = 'COMERCIAL',
+  TI = 'TI',
+}
+
+export enum MediaType {
+  OOH = 'OOH',
+  DOOH = 'DOOH',
+}
+
+export enum UnitType {
+  FACE = 'FACE',
+  SCREEN = 'SCREEN',
+}
+
+export enum Orientation {
+  FLUXO = 'FLUXO',
+  CONTRA_FLUXO = 'CONTRA_FLUXO',
+}
+
+export enum ClientStatus {
+  LEAD = 'LEAD',
+  PROSPECT = 'PROSPECT',
+  CLIENTE = 'CLIENTE',
+  INATIVO = 'INATIVO',
+}
+
+export enum ProductType {
+  PRODUTO = 'PRODUTO',
+  SERVICO = 'SERVICO',
+}
+
+export enum PriceType {
+  UNITARIO = 'UNITARIO',
+  A_PARTIR_DE = 'A_PARTIR_DE',
+  PACOTE = 'PACOTE',
+}
+
+export enum ProposalStatus {
+  RASCUNHO = 'RASCUNHO',
+  ENVIADA = 'ENVIADA',
+  APROVADA = 'APROVADA',
+  REPROVADA = 'REPROVADA',
+  EXPIRADA = 'EXPIRADA',
+}
+
+export enum CampaignStatus {
+  RASCUNHO = 'RASCUNHO',
+  APROVADA = 'APROVADA',
+  AGUARDANDO_MATERIAL = 'AGUARDANDO_MATERIAL',
+  EM_INSTALACAO = 'EM_INSTALACAO',
+  ATIVA = 'ATIVA',
+  EM_VEICULACAO = 'EM_VEICULACAO',
+  FINALIZADA = 'FINALIZADA',
+  CANCELADA = 'CANCELADA',
+}
+
+export enum ReservationStatus {
+  RESERVADA = 'RESERVADA',
+  CONFIRMADA = 'CONFIRMADA',
+  CANCELADA = 'CANCELADA',
+}
+
+export enum BillingStatus {
+  ABERTA = 'ABERTA',
+  PAGA = 'PAGA',
+  VENCIDA = 'VENCIDA',
+  CANCELADA = 'CANCELADA',
+}
+
+export enum PaymentMethod {
+  PIX = 'PIX',
+  BOLETO = 'BOLETO',
+  CARTAO = 'CARTAO',
+  TRANSFERENCIA = 'TRANSFERENCIA',
+}
+
+export enum CashFlowType {
+  RECEITA = 'RECEITA',
+  DESPESA = 'DESPESA',
+  TRANSFERENCIA = 'TRANSFERENCIA',
+  IMPOSTO = 'IMPOSTO',
+  PESSOAS = 'PESSOAS',
+}
+
+export enum PaymentType {
+  A_VISTA = 'A_VISTA',
+  PARCELADO = 'PARCELADO',
+}
+
+export enum PlatformSubscriptionStatus {
+  TESTE = 'TESTE',
+  ATIVA = 'ATIVA',
+  EM_ATRASO = 'EM_ATRASO',
+  CANCELADA = 'CANCELADA',
+}
+
+export enum OwnerRegime {
+  DER = 'DER',
+  ADMIN_PUBLICA = 'ADMIN_PUBLICA',
+  AREA_PARTICULAR = 'AREA_PARTICULAR',
+}
+
+export enum MessageDirection {
+  IN = 'IN',
+  OUT = 'OUT',
+}
+
+export enum MessageChannel {
+  EMAIL = 'EMAIL',
+  WHATSAPP = 'WHATSAPP',
+  SYSTEM = 'SYSTEM',
+}
+
+export enum MessageSenderType {
+  USER = 'USER',
+  CLIENTE = 'CLIENTE',
+}
+
+export enum ActivityResourceType {
+  CLIENTE = 'CLIENTE',
+  PROPOSTA = 'PROPOSTA',
+  MIDIA = 'MIDIA',
+  USUARIO = 'USUARIO',
+  ASSINATURA = 'ASSINATURA',
+  NF = 'NF',
+  INTEGRACAO = 'INTEGRACAO',
+}
+
+// Interfaces baseadas nos modelos Prisma
+
+export interface Company {
+  id: string;
+  name: string;
+  cnpj?: string;
+  email?: string;
+  phone?: string;
+  site?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  addressZipcode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressCountry?: string;
+  defaultProposalNotes?: string;
+  notificationPrefs?: any;
+  integrations?: any;
+  planId?: string;
+  pointsLimit?: number;
+  storageLimitMb?: number;
+  usersLimit?: number;
+  subscriptionStatus?: CompanySubscriptionStatus;
+  trialEndsAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface User {
+  id: string;
+  companyId?: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  phone?: string;
+  isSuperAdmin: boolean;
+  twoFactorEnabled: boolean;
+  twoFactorType?: TwoFactorType;
+  twoFactorSecret?: string;
+  status: UserStatus;
+  lastLoginAt?: Date;
+  lastLoginIp?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UserRole {
+  userId: string;
+  role: UserRoleType;
+}
+
+export interface MediaPoint {
+  id: string;
+  companyId: string;
+  type: MediaType;
+  subcategory?: string;
+  name: string;
+  description?: string;
+  addressZipcode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressCountry?: string;
+  latitude?: number;
+  longitude?: number;
+  dailyImpressions?: number;
+  socialClasses: string[];
+  environment?: string;
+  showInMediaKit: boolean;
+  basePriceMonth?: number;
+  basePriceWeek?: number;
+  basePriceDay?: number;
+  mainImageUrl?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  units?: MediaUnit[];
+  owners?: MediaPointOwner[];
+}
+
+export interface MediaUnit {
+  id: string;
+  companyId: string;
+  mediaPointId: string;
+  unitType: UnitType;
+  label: string;
+  orientation?: Orientation;
+  widthM?: number;
+  heightM?: number;
+  insertionsPerDay?: number;
+  resolutionWidthPx?: number;
+  resolutionHeightPx?: number;
+  priceMonth?: number;
+  priceWeek?: number;
+  priceDay?: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MediaPointOwner {
+  id: string;
+  companyId: string;
+  mediaPointId: string;
+  ownerName: string;
+  ownerDocument?: string;
+  regime?: OwnerRegime;
+  derMonthlyFee?: number;
+  rentValue?: number;
+  fixedExpenseDueDay?: number;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Client {
+  id: string;
+  companyId: string;
+  contactName: string;
+  email?: string;
+  phone?: string;
+  companyName?: string;
+  cnpj?: string;
+  role?: string;
+  addressZipcode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressCountry?: string;
+  status: ClientStatus;
+  origin?: string;
+  notes?: string;
+  ownerUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Product {
+  id: string;
+  companyId: string;
+  name: string;
+  description?: string;
+  category?: string;
+  type: ProductType;
+  priceType: PriceType;
+  basePrice: number;
+  isAdditional: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Proposal {
+  id: string;
+  companyId: string;
+  clientId: string;
+  responsibleUserId: string;
+  title?: string;
+  status: ProposalStatus;
+  totalAmount: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  conditionsText?: string;
+  validUntil?: Date;
+  publicHash?: string;
+  approvedAt?: Date;
+  rejectedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  client?: Client;
+  items?: ProposalItem[];
+}
+
+export interface ProposalItem {
+  id: string;
+  companyId: string;
+  proposalId: string;
+  mediaUnitId?: string;
+  productId?: string;
+  description: string;
+  startDate?: Date;
+  endDate?: Date;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Campaign {
+  id: string;
+  companyId: string;
+  proposalId: string;
+  clientId: string;
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  status: CampaignStatus;
+  totalAmountCents?: number;
+  approvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  client?: Client;
+  items?: CampaignItem[];
+}
+
+export interface CampaignItem {
+  id: string;
+  companyId: string;
+  campaignId: string;
+  mediaUnitId: string;
+  startDate: Date;
+  endDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Reservation {
+  id: string;
+  companyId: string;
+  mediaUnitId: string;
+  campaignId?: string;
+  proposalId?: string;
+  startDate: Date;
+  endDate: Date;
+  status: ReservationStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface BillingInvoice {
+  id: string;
+  companyId: string;
+  clientId: string;
+  proposalId?: string;
+  campaignId?: string;
+  dueDate: Date;
+  amount: number; // Valor em reais (para compatibilidade)
+  amountCents?: number; // Valor em centavos (novo padrão)
+  status: BillingStatus;
+  paymentMethod?: PaymentMethod;
+  gatewayInvoiceId?: string;
+  generateNf: boolean;
+  paidAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  client?: Client;
+}
+
+export interface CashTransaction {
+  id: string;
+  companyId: string;
+  date: Date;
+  description: string;
+  partnerName?: string;
+  categoryId?: string;
+  tags: string[];
+  amount: number;
+  flowType: CashFlowType;
+  paymentType?: PaymentType;
+  paymentMethod?: PaymentMethod;
+  isPaid: boolean;
+  billingInvoiceId?: string;
+  mediaPointId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TransactionCategory {
+  id: string;
+  companyId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PlatformPlan {
+  id: string;
+  name: string;
+  minPoints: number;
+  maxPoints?: number;
+  monthlyPrice: number;
+  isPopular: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PlatformSubscription {
+  id: string;
+  companyId: string;
+  planId: string;
+  maxOwnersPerMediaPoint: number; // 1, 2, 3 ou 4 proprietários por ponto
+  addonExtraStorage: boolean;
+  status: PlatformSubscriptionStatus;
+  startAt?: Date;
+  endAt?: Date;
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  gatewayCustomerId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ActivityLog {
+  id: string;
+  companyId?: string;
+  userId?: string;
+  resourceType: ActivityResourceType;
+  resourceId: string;
+  action: string;
+  details?: any;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Message {
+  id: string;
+  companyId: string;
+  proposalId?: string;
+  campaignId?: string;
+  direction: MessageDirection;
+  channel: MessageChannel;
+  senderType: MessageSenderType;
+  senderName: string;
+  senderContact: string;
+  contentText: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
