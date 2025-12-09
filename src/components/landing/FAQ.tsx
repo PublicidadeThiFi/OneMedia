@@ -7,10 +7,10 @@ export function FAQ() {
   const faqs = [
     {
       question: 'Preciso ter conhecimento técnico para usar?',
-      answer: 'Não! O OOH Manager foi desenvolvido para ser intuitivo e fácil de usar. Se você usa planilhas hoje, conseguirá usar a plataforma sem dificuldades. Além disso, oferecemos suporte completo via e-mail e WhatsApp.',
+      answer: 'Não! O OneMedia foi desenvolvido para ser intuitivo e fácil de usar. Se você usa planilhas hoje, conseguirá usar a plataforma sem dificuldades. Além disso, oferecemos suporte completo via e-mail e WhatsApp.',
     },
     {
-      question: 'O OOH Manager funciona para OOH e DOOH?',
+      question: 'O OneMedia funciona para OOH e DOOH?',
       answer: 'Sim! A plataforma atende tanto veículos de mídia tradicional (outdoor, busdoor, relógios de rua) quanto mídia digital (painéis LED, telas programáticas). Você pode gerenciar ambos no mesmo sistema.',
     },
     {

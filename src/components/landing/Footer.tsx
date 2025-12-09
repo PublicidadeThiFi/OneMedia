@@ -38,7 +38,7 @@ export function Footer() {
               <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">OOH</span>
               </div>
-              <span className="text-lg text-gray-900">OOH Manager</span>
+              <span className="text-lg text-gray-900">OneMedia</span>
             </div>
             <p className="text-sm text-gray-600">
               Gestão de Mídia Exterior — Inventário, propostas, campanhas e financeiro em uma só plataforma.
@@ -77,7 +77,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-gray-600">
-            © {new Date().getFullYear()} OOH Manager. Todos os direitos reservados.
+            © {new Date().getFullYear()} OneMedia. Todos os direitos reservados.
           </p>
 
           <div className="flex items-center gap-4">

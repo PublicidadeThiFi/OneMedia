@@ -1,6 +1,6 @@
 /**
  * MainApp - Internal application shell
- * Renders the sidebar and main content area for the OOH Manager application
+ * Renders the sidebar and main content area for the OneMedia application
  * This is the authenticated user's main interface after login
  */
 
@@ -155,7 +155,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
                 <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-sm">OOH</span>
                 </div>
-                <span className="text-lg text-gray-900">OOH Manager</span>
+                <span className="text-lg text-gray-900">OneMedia</span>
               </div>
             </div>
 

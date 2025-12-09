@@ -1,4 +1,4 @@
-# Guia Definitivo de Integração Backend - OOH Manager
+# Guia Definitivo de Integração Backend - OneMedia
 
 ## Índice
 
@@ -26,7 +26,7 @@
 
 ### 1.1. Objetivo do Guia
 
-Este documento serve como **mapa definitivo de integração** entre o frontend React do OOH Manager e o backend NestJS + Prisma + PostgreSQL. Ele mapeia:
+Este documento serve como **mapa definitivo de integração** entre o frontend React do OneMedia e o backend NestJS + Prisma + PostgreSQL. Ele mapeia:
 
 - **Onde cada API será chamada** no frontend
 - **Que arquivos e componentes serão modificados**
@@ -3275,7 +3275,7 @@ const handleSubmit = async (data: Partial<CashTransaction>) => {
 
 ## Conclusão
 
-Este guia mapeia **todos os pontos de integração** entre o frontend OOH Manager e o backend NestJS + Prisma.
+Este guia mapeia **todos os pontos de integração** entre o frontend OneMedia e o backend NestJS + Prisma.
 
 **Próximos passos:**
 
@@ -3294,4 +3294,4 @@ Este guia mapeia **todos os pontos de integração** entre o frontend OOH Manage
 
 **Documento criado em:** 09/12/2024  
 **Versão:** 1.0  
-**Autor:** Equipe OOH Manager
+**Autor:** Equipe OneMedia

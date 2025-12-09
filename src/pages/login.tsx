@@ -49,7 +49,7 @@ export default function Login() {
             <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">OOH</span>
             </div>
-            <span className="text-base sm:text-lg text-gray-900">OOH Manager</span>
+            <span className="text-base sm:text-lg text-gray-900">OneMedia</span>
           </button>
           <button
             onClick={() => navigate('/')}

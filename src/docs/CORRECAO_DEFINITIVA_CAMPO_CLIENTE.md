@@ -474,7 +474,7 @@ Se encontrar qualquer problema após essas correções:
 **Status Final:** ✅ **TOTALMENTE FUNCIONAL**  
 **Data:** 08/12/2024  
 **Versão:** 1.0 - Correção Definitiva  
-**Autor:** Sistema OOH Manager - Plataforma SaaS
+**Autor:** Sistema OneMedia - Plataforma SaaS
 
 ---
 

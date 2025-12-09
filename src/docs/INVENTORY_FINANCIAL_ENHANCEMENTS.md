@@ -1,4 +1,4 @@
-# Ajustes de Inventário e Financeiro - OOH Manager
+# Ajustes de Inventário e Financeiro - OneMedia
 ## Documento de Implementação
 
 **Data:** 09 de Dezembro de 2024  
@@ -9,7 +9,7 @@
 
 ## 📋 Sumário
 
-Este documento detalha todas as implementações realizadas nos módulos de **Inventário** e **Financeiro** do OOH Manager, conforme requisitos do cliente para gestão completa de mídia OOH/DOOH.
+Este documento detalha todas as implementações realizadas nos módulos de **Inventário** e **Financeiro** do OneMedia, conforme requisitos do cliente para gestão completa de mídia OOH/DOOH.
 
 ---
 
@@ -404,7 +404,7 @@ model CashTransaction {
 - [x] Categorias específicas para custos de ponto (Energia do Ponto, Taxa DER, Aluguel de Área, Manutenção do Ponto)
 - [x] Campo de data de vencimento/validade visível e funcional
 - [x] Listagem preparada para mostrar ponto e vencimento (campo mediaPointId mapeado)
-- [x] Design consistente com o restante do OOH Manager
+- [x] Design consistente com o restante do OneMedia
 
 ---
 

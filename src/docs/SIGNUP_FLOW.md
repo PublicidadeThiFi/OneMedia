@@ -1,4 +1,4 @@
-# Fluxo de Cadastro (Signup) - OOH Manager
+# Fluxo de Cadastro (Signup) - OneMedia
 
 ## ✅ Status: 100% Funcional e Conforme
 

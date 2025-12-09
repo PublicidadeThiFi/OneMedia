@@ -415,6 +415,6 @@
 
 **✅ TODAS AS TAREFAS CONCLUÍDAS COM SUCESSO**
 
-**Autor:** Assistente de Código OOH Manager  
+**Autor:** Assistente de Código OneMedia  
 **Data de Conclusão:** 02/12/2024  
 **Próxima Etapa:** Integração com API backend

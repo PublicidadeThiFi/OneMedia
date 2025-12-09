@@ -2,7 +2,7 @@
 
 ## Data: 02/12/2024
 
-Este documento descreve os ajustes realizados no fluxo de Cadastro, Login e navegação do sistema OOH Manager.
+Este documento descreve os ajustes realizados no fluxo de Cadastro, Login e navegação do sistema OneMedia.
 
 ---
 
@@ -109,7 +109,7 @@ Após o login bem-sucedido (com ou sem 2FA), o usuário é redirecionado para `/
 
 O MainApp renderiza:
 - **Sidebar** (menu lateral esquerdo)
-  - Logo e título "OOH Manager"
+  - Logo e título "OneMedia"
   - Itens de menu (Dashboard, Inventário, Clientes, etc.)
   - Badge do plano atual (na parte inferior)
   
@@ -259,5 +259,5 @@ if (cleanPath.startsWith('/app')) {
 ---
 
 ## Autor
-Assistente de desenvolvimento - OOH Manager
+Assistente de desenvolvimento - OneMedia
 Data: 02/12/2024

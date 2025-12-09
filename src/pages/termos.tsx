@@ -10,7 +10,7 @@ export default function Termos() {
             <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">OOH</span>
             </div>
-            <span className="text-lg text-gray-900">OOH Manager</span>
+            <span className="text-lg text-gray-900">OneMedia</span>
           </a>
           <a
             href="/"
@@ -28,14 +28,14 @@ export default function Termos() {
           <section>
             <h2 className="text-gray-900 mb-3">1. Aceitação dos Termos</h2>
             <p className="text-gray-600">
-              Ao acessar e usar o OOH Manager, você concorda em cumprir e estar vinculado a estes Termos de Uso.
+              Ao acessar e usar o OneMedia, você concorda em cumprir e estar vinculado a estes Termos de Uso.
             </p>
           </section>
 
           <section>
             <h2 className="text-gray-900 mb-3">2. Descrição do Serviço</h2>
             <p className="text-gray-600">
-              O OOH Manager é uma plataforma SaaS para gestão de mídia OOH/DOOH, incluindo inventário, propostas, campanhas e financeiro.
+              O OneMedia é uma plataforma SaaS para gestão de mídia OOH/DOOH, incluindo inventário, propostas, campanhas e financeiro.
             </p>
           </section>
 
@@ -56,7 +56,7 @@ export default function Termos() {
           <section>
             <h2 className="text-gray-900 mb-3">5. Propriedade Intelectual</h2>
             <p className="text-gray-600">
-              Todo o conteúdo, recursos e funcionalidades do OOH Manager são de propriedade exclusiva da empresa e protegidos por direitos autorais.
+              Todo o conteúdo, recursos e funcionalidades do OneMedia são de propriedade exclusiva da empresa e protegidos por direitos autorais.
             </p>
           </section>
 

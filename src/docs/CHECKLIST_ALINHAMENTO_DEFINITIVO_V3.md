@@ -470,7 +470,7 @@
 
 **Arquivo:** `/components/Sidebar.tsx`
 
-- [x] Logo OOH Manager
+- [x] Logo OneMedia
 - [x] 12 itens do menu:
   1. [x] Dashboard
   2. [x] Inventário
@@ -504,7 +504,7 @@
   - [x] Botão "Sair"
 - [x] Mobile:
   - [x] Menu hamburguer
-  - [x] Logo OOH Manager
+  - [x] Logo OneMedia
   - [x] Nome do usuário (oculto em telas muito pequenas)
   - [x] Botão "Sair"
 - [x] Usa `useAuth()` context
@@ -1105,7 +1105,7 @@
 
 ## 🎉 Conclusão
 
-O frontend do OOH Manager está **100% pronto para integração com o backend NestJS + Prisma**.
+O frontend do OneMedia está **100% pronto para integração com o backend NestJS + Prisma**.
 
 **Principais conquistas:**
 

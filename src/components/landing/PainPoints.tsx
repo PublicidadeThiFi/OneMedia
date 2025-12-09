@@ -32,7 +32,7 @@ export function PainPoints() {
             Reconhece algum desses problemas?
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            O OOH Manager foi criado para resolver essas dores do dia a dia na gestão de mídia exterior.
+            O OneMedia foi criado para resolver essas dores do dia a dia na gestão de mídia exterior.
           </p>
         </div>
 

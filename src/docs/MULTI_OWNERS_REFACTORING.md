@@ -398,5 +398,5 @@ A refatoração foi concluída com sucesso! O sistema agora usa um modelo numér
 
 ---
 
-**Autor:** Assistente de Código OOH Manager  
+**Autor:** Assistente de Código OneMedia  
 **Revisão:** Concluída em 02/12/2024

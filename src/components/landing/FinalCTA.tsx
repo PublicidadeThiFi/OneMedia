@@ -11,7 +11,7 @@ export function FinalCTA() {
           Pronto para sair das planilhas?
         </h2>
         <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-          Comece agora seu teste gratuito de 30 dias e veja o OOH Manager funcionando 
+          Comece agora seu teste gratuito de 30 dias e veja o OneMedia funcionando 
           com seus próprios pontos de mídia.
         </p>
 

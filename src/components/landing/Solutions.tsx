@@ -66,7 +66,7 @@ export function Solutions() {
             A plataforma completa para gerir sua mídia OOH/DOOH
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Do cadastro do ponto até a cobrança final, o OOH Manager conecta inventário, 
+            Do cadastro do ponto até a cobrança final, o OneMedia conecta inventário, 
             propostas, campanhas, financeiro e mídia kit.
           </p>
         </div>

@@ -1,4 +1,4 @@
-# 📘 Frontend OOH Manager - Overview de Integração com API
+# 📘 Frontend OneMedia - Overview de Integração com API
 
 **Data:** 02/12/2024  
 **Versão:** 3.0 - Alinhamento Definitivo v2 + Infra + Prisma
@@ -7,7 +7,7 @@
 
 ## 🎯 Objetivo
 
-Este documento descreve o estado final do frontend do OOH Manager após o alinhamento completo com:
+Este documento descreve o estado final do frontend do OneMedia após o alinhamento completo com:
 
 - **Documento funcional v2** (Escopo_GestãoDeMídia_v2.pdf)
 - **Documento de Infra** (Infra.pdf)

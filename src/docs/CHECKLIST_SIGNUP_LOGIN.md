@@ -353,4 +353,4 @@ Sistema pronto para testes e uso! 🚀
 ---
 
 **Data**: 02/12/2024  
-**Autor**: Assistente de desenvolvimento - OOH Manager
+**Autor**: Assistente de desenvolvimento - OneMedia

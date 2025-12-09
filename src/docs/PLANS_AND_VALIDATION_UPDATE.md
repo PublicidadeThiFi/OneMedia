@@ -1,4 +1,4 @@
-# Atualização de Planos e Validações - OOH Manager
+# Atualização de Planos e Validações - OneMedia
 
 ## Data: Dezembro 2024
 

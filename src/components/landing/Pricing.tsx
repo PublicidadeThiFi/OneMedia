@@ -8,7 +8,7 @@ export function Pricing() {
   const [showAddonTooltip, setShowAddonTooltip] = useState(false);
 
   const includes = [
-    'Todos os módulos do OOH Manager',
+    'Todos os módulos do OneMedia',
     'Multiusuário',
     'Suporte por e-mail/WhatsApp',
     'Teste grátis de 30 dias (sem cartão)',

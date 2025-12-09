@@ -46,7 +46,7 @@ export function Sidebar({ currentPage, onNavigate, isSuperAdmin, isMobile = fals
   return (
     <div className="w-64 md:w-64 bg-white border-r border-gray-200 flex flex-col h-full overflow-y-auto">
       <div className="p-6 border-b border-gray-200">
-        <h1 className="text-indigo-600">OOH Manager</h1>
+        <h1 className="text-indigo-600">OneMedia</h1>
         <p className="text-gray-500 text-sm mt-1">Gestão de Mídia Exterior</p>
       </div>
       

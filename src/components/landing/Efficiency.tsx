@@ -58,11 +58,11 @@ export function Efficiency() {
             </div>
           </div>
 
-          {/* With OOH Manager */}
+          {/* With OneMedia */}
           <div>
             <div className="flex items-center gap-3 mb-6">
               <CheckCircle2 className="w-8 h-8 text-green-600" />
-              <h3 className="text-gray-900">Com OOH Manager</h3>
+              <h3 className="text-gray-900">Com OneMedia</h3>
             </div>
 
             <div className="space-y-4">

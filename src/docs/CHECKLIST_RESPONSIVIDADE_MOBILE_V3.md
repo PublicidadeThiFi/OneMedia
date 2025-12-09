@@ -1,7 +1,7 @@
-# ✅ Checklist - Responsividade Mobile OOH Manager
+# ✅ Checklist - Responsividade Mobile OneMedia
 
 **Data:** 02/12/2024  
-**Objetivo:** Ajustar responsividade de telas chave do OOH Manager para dispositivos móveis, mantendo todo fluxo, textos, campos e regras exatamente como estão.
+**Objetivo:** Ajustar responsividade de telas chave do OneMedia para dispositivos móveis, mantendo todo fluxo, textos, campos e regras exatamente como estão.
 
 ---
 
@@ -46,7 +46,7 @@
         <div className="w-8 h-8 bg-[#4F46E5] rounded-lg">
           <span className="text-white font-bold text-sm">OOH</span>
         </div>
-        <span className="text-lg text-gray-900">OOH Manager</span>
+        <span className="text-lg text-gray-900">OneMedia</span>
       </div>
     </div>
 
@@ -64,7 +64,7 @@
 
 **Componentes:**
 - ✅ Ícone de menu hamburguer (Menu icon)
-- ✅ Logo OOH Manager
+- ✅ Logo OneMedia
 - ✅ Nome do usuário (visível em sm+)
 - ✅ Email do usuário (visível em md+)
 - ✅ Botão "Sair"
@@ -209,7 +209,7 @@ const handleNavigate = (page: Page) => {
         <div className="w-8 h-8 bg-[#4F46E5] rounded-lg">
           <span className="text-white font-bold text-sm">OOH</span>
         </div>
-        <span className="text-lg text-gray-900">OOH Manager</span>
+        <span className="text-lg text-gray-900">OneMedia</span>
       </div>
     </div>
 
@@ -468,7 +468,7 @@ interface SidebarProps {
       <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
         <span className="text-white font-bold text-sm">OOH</span>
       </div>
-      <span className="text-base sm:text-lg text-gray-900">OOH Manager</span>
+      <span className="text-base sm:text-lg text-gray-900">OneMedia</span>
     </button>
     <button className="text-sm text-gray-600 hover:text-[#4F46E5]">
       Voltar ao site
@@ -722,7 +722,7 @@ xl: 1280px  /* Extra large devices */
 - [ ] Abrir /app/dashboard em mobile (< 768px)
 - [ ] Verificar que sidebar não está visível
 - [ ] Verificar que menu hamburguer está visível no topo
-- [ ] Verificar que logo OOH Manager está visível
+- [ ] Verificar que logo OneMedia está visível
 - [ ] Clicar no hamburguer
 - [ ] Verificar que drawer aparece da esquerda
 - [ ] Verificar que overlay escuro aparece
