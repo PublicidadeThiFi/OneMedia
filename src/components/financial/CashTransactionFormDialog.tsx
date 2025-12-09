@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { CashTransaction, CashFlowType, PaymentType, PaymentMethod } from '../../types';
 import { mockTransactionCategories } from '../../lib/mockDataFinance';
 import { parseDateFromHtmlInput } from '../../lib/dateUtils';
+import { getMediaPointsForCompany, CURRENT_COMPANY_ID } from '../../lib/mockDataCentral';
 
 interface CashTransactionFormDialogProps {
   open: boolean;
@@ -15,9 +16,12 @@ interface CashTransactionFormDialogProps {
 }
 
 export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransactionFormDialogProps) {
+  const mediaPoints = getMediaPointsForCompany(CURRENT_COMPANY_ID);
+  
   const [formData, setFormData] = useState({
     flowType: CashFlowType.RECEITA,
     date: '',
+    dueDate: '', // NOVO: data de vencimento
     amount: '',
     description: '',
     partnerName: '',
@@ -27,7 +31,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
     paymentMethod: undefined as PaymentMethod | undefined,
     isPaid: true,
     billingInvoiceId: '',
-    mediaPointId: '',
+    mediaPointId: '', // Ponto de mídia vinculado
   });
 
   const handleSave = () => {
@@ -62,7 +66,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
       paymentMethod: formData.paymentMethod,
       isPaid: formData.isPaid,
       billingInvoiceId: formData.billingInvoiceId || undefined,
-      mediaPointId: formData.mediaPointId || undefined,
+      mediaPointId: formData.mediaPointId && formData.mediaPointId !== 'none' ? formData.mediaPointId : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -73,6 +77,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
     setFormData({
       flowType: CashFlowType.RECEITA,
       date: '',
+      dueDate: '', // NOVO: data de vencimento
       amount: '',
       description: '',
       partnerName: '',
@@ -92,6 +97,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
     setFormData({
       flowType: CashFlowType.RECEITA,
       date: '',
+      dueDate: '', // NOVO: data de vencimento
       amount: '',
       description: '',
       partnerName: '',
@@ -110,6 +116,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Nova Transação (CashTransaction)</DialogTitle>
+          <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -246,6 +253,50 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
             <Label htmlFor="isPaid" className="cursor-pointer">
               Já foi pago (isPaid)
             </Label>
+          </div>
+
+          {/* NOVOS CAMPOS: Ponto de Mídia e Data de Vencimento */}
+          <div className="p-3 bg-blue-50 rounded-lg space-y-3">
+            <p className="text-sm text-blue-900">
+              💡 Para despesas de pontos de mídia (energia, taxa DER, aluguel), vincule o ponto e defina o vencimento:
+            </p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Ponto de Mídia (opcional)</Label>
+                <Select 
+                  value={formData.mediaPointId} 
+                  onValueChange={(value) => setFormData({ ...formData, mediaPointId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o ponto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {mediaPoints.map((point) => (
+                      <SelectItem key={point.id} value={point.id}>
+                        {point.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  Use para despesas como energia, taxa DER, aluguel de área
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Data de Vencimento (opcional)</Label>
+                <Input 
+                  type="date" 
+                  value={formData.dueDate}
+                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                />
+                <p className="text-xs text-gray-500">
+                  Data de vencimento da taxa/despesa
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">

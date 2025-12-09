@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
@@ -7,8 +7,9 @@ import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
-import { X } from 'lucide-react';
-import { MediaPoint, MediaType } from '../../types';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { X, ChevronDown, Package } from 'lucide-react';
+import { MediaPoint, MediaType, ProductionCosts } from '../../types';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
 
 interface MediaPointFormDialogProps {
@@ -124,6 +125,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
           <DialogTitle>
             {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
           </DialogTitle>
+          <DialogDescription>
+            {mediaPoint ? 'Atualize os detalhes do ponto de mídia.' : 'Preencha os campos para cadastrar um novo ponto de mídia.'}
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={type} onValueChange={(v) => handleTypeChange(v as MediaType)}>
@@ -372,6 +376,104 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                 </div>
               </div>
             </div>
+
+            {/* Custos de Produção OOH (apenas para OOH) */}
+            {type === MediaType.OOH && (
+              <Collapsible defaultOpen={false}>
+                <div className="space-y-4">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-between bg-orange-50/50 hover:bg-orange-100/50 border-orange-200"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-orange-600" />
+                        <span className="text-gray-900">Custos de Produção OOH</span>
+                      </div>
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-4">
+                    <div className="p-4 bg-orange-50/30 rounded-lg border border-orange-100">
+                      <p className="text-sm text-gray-600 mb-4">
+                        Configure os custos padrão de produção para este ponto OOH. Estes valores
+                        serão usados como referência para orçamentos e cálculos de custo.
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Lona (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="R$ 0,00"
+                            value={formData.productionCosts?.lona || ''}
+                            onChange={(e) =>
+                              updateField('productionCosts', {
+                                ...formData.productionCosts,
+                                lona: parseFloat(e.target.value) || null,
+                              })
+                            }
+                          />
+                          <p className="text-xs text-gray-500">Material de impressão (lona/tecido)</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Adesivo (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="R$ 0,00"
+                            value={formData.productionCosts?.adesivo || ''}
+                            onChange={(e) =>
+                              updateField('productionCosts', {
+                                ...formData.productionCosts,
+                                adesivo: parseFloat(e.target.value) || null,
+                              })
+                            }
+                          />
+                          <p className="text-xs text-gray-500">Material adesivo</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Vinil (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="R$ 0,00"
+                            value={formData.productionCosts?.vinil || ''}
+                            onChange={(e) =>
+                              updateField('productionCosts', {
+                                ...formData.productionCosts,
+                                vinil: parseFloat(e.target.value) || null,
+                              })
+                            }
+                          />
+                          <p className="text-xs text-gray-500">Material vinílico (opcional)</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Montagem/Instalação (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="R$ 0,00"
+                            value={formData.productionCosts?.montagem || ''}
+                            onChange={(e) =>
+                              updateField('productionCosts', {
+                                ...formData.productionCosts,
+                                montagem: parseFloat(e.target.value) || null,
+                              })
+                            }
+                          />
+                          <p className="text-xs text-gray-500">Mão de obra para instalação</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            )}
 
             {/* Mídia Kit */}
             <div className="space-y-4">

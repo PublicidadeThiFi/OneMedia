@@ -83,6 +83,35 @@ export const mockTransactionCategories: TransactionCategory[] = [
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
   },
+  // NOVAS CATEGORIAS PARA CUSTOS DE PONTOS DE MÍDIA
+  {
+    id: 'cat9',
+    companyId: 'c1',
+    name: 'Energia do Ponto',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+  },
+  {
+    id: 'cat10',
+    companyId: 'c1',
+    name: 'Taxa DER',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+  },
+  {
+    id: 'cat11',
+    companyId: 'c1',
+    name: 'Aluguel de Área',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+  },
+  {
+    id: 'cat12',
+    companyId: 'c1',
+    name: 'Manutenção do Ponto',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+  },
 ];
 
 // ========================================

@@ -121,6 +121,14 @@ export enum OwnerRegime {
   DER = 'DER',
   ADMIN_PUBLICA = 'ADMIN_PUBLICA',
   AREA_PARTICULAR = 'AREA_PARTICULAR',
+  OUTRO = 'OUTRO',
+}
+
+export enum RentPeriodicity {
+  MENSAL = 'MENSAL',
+  TRIMESTRAL = 'TRIMESTRAL',
+  ANUAL = 'ANUAL',
+  OUTRO = 'OUTRO',
 }
 
 export enum MessageDirection {
@@ -227,10 +235,18 @@ export interface MediaPoint {
   basePriceWeek?: number;
   basePriceDay?: number;
   mainImageUrl?: string;
+  productionCosts?: ProductionCosts; // NOVO: custos de produção OOH
   createdAt: Date;
   updatedAt: Date;
   units?: MediaUnit[];
   owners?: MediaPointOwner[];
+}
+
+export interface ProductionCosts {
+  lona?: number | null;
+  adesivo?: number | null;
+  vinil?: number | null;
+  montagem?: number | null;
 }
 
 export interface MediaUnit {
@@ -248,6 +264,7 @@ export interface MediaUnit {
   priceMonth?: number;
   priceWeek?: number;
   priceDay?: number;
+  imageUrl?: string | null; // NOVO: imagem específica da face/tela
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -259,9 +276,11 @@ export interface MediaPointOwner {
   mediaPointId: string;
   ownerName: string;
   ownerDocument?: string;
+  ownerPhone?: string | null; // NOVO: contato do locador
   regime?: OwnerRegime;
   derMonthlyFee?: number;
   rentValue?: number;
+  rentPeriodicity?: RentPeriodicity | null; // NOVO: periodicidade do aluguel
   fixedExpenseDueDay?: number;
   notes?: string;
   createdAt: Date;

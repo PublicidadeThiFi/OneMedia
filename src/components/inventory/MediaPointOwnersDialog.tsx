@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -7,8 +7,8 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2 } from 'lucide-react';
-import { MediaPointOwner, OwnerRegime } from '../../types';
+import { Plus, Edit, Trash2, Lightbulb } from 'lucide-react';
+import { MediaPointOwner, OwnerRegime, RentPeriodicity } from '../../types';
 import { getOwnersForPoint } from '../../lib/mockData';
 import { getPlatformSubscriptionForCompany, CURRENT_COMPANY_ID } from '../../lib/mockDataSettings';
 
@@ -41,6 +41,7 @@ export function MediaPointOwnersDialog({
       case OwnerRegime.DER: return 'DER (Departamento de Estradas)';
       case OwnerRegime.ADMIN_PUBLICA: return 'Administração Pública';
       case OwnerRegime.AREA_PARTICULAR: return 'Área Particular';
+      case OwnerRegime.OUTRO: return 'Outro';
     }
   };
 
@@ -50,6 +51,17 @@ export function MediaPointOwnersDialog({
       case OwnerRegime.DER: return 'bg-blue-100 text-blue-800';
       case OwnerRegime.ADMIN_PUBLICA: return 'bg-purple-100 text-purple-800';
       case OwnerRegime.AREA_PARTICULAR: return 'bg-green-100 text-green-800';
+      case OwnerRegime.OUTRO: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPeriodicityLabel = (periodicity?: RentPeriodicity | null) => {
+    if (!periodicity) return '-';
+    switch (periodicity) {
+      case RentPeriodicity.MENSAL: return 'Mensal';
+      case RentPeriodicity.TRIMESTRAL: return 'Trimestral';
+      case RentPeriodicity.ANUAL: return 'Anual';
+      case RentPeriodicity.OUTRO: return 'Outro';
     }
   };
 
@@ -60,9 +72,9 @@ export function MediaPointOwnersDialog({
           <DialogTitle>
             Proprietários / Empresas vinculadas - {mediaPointName}
           </DialogTitle>
-          <p className="text-sm text-gray-600">
+          <DialogDescription>
             Gerencie os proprietários e empresas relacionadas a este ponto (MediaPointOwner)
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -259,97 +271,127 @@ function OwnerForm({ owner, onSave, onCancel }: OwnerFormProps) {
   };
 
   return (
-    <Card className="border-2 border-indigo-200">
+    <Card className="border-2 border-green-100 bg-green-50/30">
       <CardContent className="pt-6 space-y-4">
-        <h4 className="text-gray-900 mb-4">
-          {owner ? 'Editar Proprietário' : 'Novo Proprietário'}
-        </h4>
+        <div className="flex items-start gap-2 mb-4">
+          <Lightbulb className="w-5 h-5 text-green-600 mt-0.5" />
+          <div>
+            <h4 className="text-gray-900 mb-1">
+              {owner ? 'Editar Proprietário' : 'Informe os dados do pagamento de aluguel deste ponto de mídia'}
+            </h4>
+            <p className="text-sm text-gray-600">
+              Dados de propriedade e locação
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Nome do Proprietário / Empresa *</Label>
+            <Label>Nome do Proprietário/Locador *</Label>
             <Input
-              placeholder="Ex: Imóveis Paulista Ltda"
+              placeholder="Ex: João Silva, Empresa XYZ"
               value={formData.ownerName || ''}
               onChange={(e) => updateField('ownerName', e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label>CNPJ ou CPF</Label>
+            <Label>CPF/CNPJ</Label>
             <Input
-              placeholder="00.000.000/0000-00"
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
               value={formData.ownerDocument || ''}
               onChange={(e) => updateField('ownerDocument', e.target.value)}
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Regime</Label>
-          <Select
-            value={formData.regime || ''}
-            onValueChange={(value) => updateField('regime', value as OwnerRegime)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o regime" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={OwnerRegime.AREA_PARTICULAR}>
-                Área Particular
-              </SelectItem>
-              <SelectItem value={OwnerRegime.DER}>
-                DER (Departamento de Estradas)
-              </SelectItem>
-              <SelectItem value={OwnerRegime.ADMIN_PUBLICA}>
-                Administração Pública
-              </SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Contato</Label>
+            <Input
+              placeholder="(00) 00000-0000"
+              value={formData.ownerPhone || ''}
+              onChange={(e) => updateField('ownerPhone', e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Regime</Label>
+            <Select
+              value={formData.regime || ''}
+              onValueChange={(value) => updateField('regime', value as OwnerRegime)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o regime" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={OwnerRegime.AREA_PARTICULAR}>
+                  Área Particular
+                </SelectItem>
+                <SelectItem value={OwnerRegime.DER}>
+                  DER (Departamento de Estradas)
+                </SelectItem>
+                <SelectItem value={OwnerRegime.ADMIN_PUBLICA}>
+                  Administração Pública
+                </SelectItem>
+                <SelectItem value={OwnerRegime.OUTRO}>
+                  Outro
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          {formData.regime === OwnerRegime.DER ? (
-            <div className="space-y-2">
-              <Label>Taxa Mensal DER (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="2500.00"
-                value={formData.derMonthlyFee || ''}
-                onChange={(e) => updateField('derMonthlyFee', parseFloat(e.target.value) || null)}
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label>Valor do Aluguel (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="3500.00"
-                value={formData.rentValue || ''}
-                onChange={(e) => updateField('rentValue', parseFloat(e.target.value) || null)}
-              />
-            </div>
-          )}
-
           <div className="space-y-2">
-            <Label>Dia do Vencimento</Label>
+            <Label>Valor do Aluguel (R$)</Label>
             <Input
               type="number"
-              min="1"
-              max="31"
-              placeholder="10"
-              value={formData.fixedExpenseDueDay || ''}
-              onChange={(e) => updateField('fixedExpenseDueDay', parseInt(e.target.value) || null)}
+              step="0.01"
+              placeholder="R$ 0,00"
+              value={formData.rentValue || ''}
+              onChange={(e) => updateField('rentValue', parseFloat(e.target.value) || null)}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>Periodicidade</Label>
+            <Select
+              value={formData.rentPeriodicity || ''}
+              onValueChange={(value) => updateField('rentPeriodicity', value as RentPeriodicity)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a periodicidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={RentPeriodicity.MENSAL}>Mensal</SelectItem>
+                <SelectItem value={RentPeriodicity.TRIMESTRAL}>Trimestral</SelectItem>
+                <SelectItem value={RentPeriodicity.ANUAL}>Anual</SelectItem>
+                <SelectItem value={RentPeriodicity.OUTRO}>Outro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>
+            Dia de Vencimento
+            <span className="text-sm text-gray-500 ml-2">(opcional - dia do mês para vencimento do aluguel)</span>
+          </Label>
+          <Input
+            type="number"
+            min="1"
+            max="31"
+            placeholder="Ex: 5 (dia 5 de cada mês)"
+            value={formData.fixedExpenseDueDay || ''}
+            onChange={(e) => updateField('fixedExpenseDueDay', parseInt(e.target.value) || null)}
+          />
         </div>
 
         <div className="space-y-2">
           <Label>Observações</Label>
           <Textarea
-            placeholder="Ex: Contrato de locação de 24 meses renovável..."
+            placeholder="Informações adicionais sobre o aluguel..."
             value={formData.notes || ''}
             onChange={(e) => updateField('notes', e.target.value)}
             rows={3}

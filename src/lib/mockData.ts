@@ -1105,6 +1105,26 @@ export const getProductById = (productId: string): Product | undefined => {
   return mockProducts.find(product => product.id === productId);
 };
 
+// Helper functions para obter listas completas por companyId
+export const getAllMediaPointsForCompany = (companyId: string): MediaPoint[] => {
+  return mockMediaPoints.filter(point => point.companyId === companyId);
+};
+
+export const getAllMediaUnitsForCompany = (companyId: string): MediaUnit[] => {
+  return mockMediaUnits.filter(unit => unit.companyId === companyId);
+};
+
+export const getAllProductsForCompany = (companyId: string): Product[] => {
+  return mockProducts.filter(product => product.companyId === companyId);
+};
+
+export const getAllClientsForCompany = (companyId?: string): Client[] => {
+  // NO MODO MOCK: SEMPRE retorna clientes mockados da empresa c1
+  // Isso garante que o dropdown nunca fique vazio/bloqueado
+  // Ignorando completamente o companyId por enquanto
+  return mockClients.filter(client => client.companyId === 'c1');
+};
+
 // Helper functions específicos para Campaigns
 export const getProposalById = (proposalId: string): Proposal | undefined => {
   return mockProposals.find(proposal => proposal.id === proposalId);

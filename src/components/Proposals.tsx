@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, CheckCircle, Send, Edit } from 'lucide-react';
+import { Plus, CheckCircle, Send, Edit, PlayCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Proposal, ProposalStatus } from '../types';
@@ -15,8 +15,13 @@ import { ProposalAdvancedFiltersSheet, AdvancedFilters } from './proposals/Propo
 import { ProposalDetailsDrawer } from './proposals/ProposalDetailsDrawer';
 import { ProposalFormWizard } from './proposals/ProposalFormWizard';
 import { toast } from 'sonner@2.0.3';
+import { Page } from './MainApp';
 
-export function Proposals() {
+interface ProposalsProps {
+  onNavigate: (page: Page) => void;
+}
+
+export function Proposals({ onNavigate }: ProposalsProps) {
   // TODO: Integrar com API real
   const [proposals, setProposals] = useState<Proposal[]>(initialMockProposals);
 
@@ -346,6 +351,7 @@ export function Proposals() {
         }}
         proposal={editingProposal}
         onSave={handleSaveProposal}
+        onNavigate={onNavigate}
       />
     </div>
   );
