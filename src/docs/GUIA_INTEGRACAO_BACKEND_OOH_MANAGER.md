@@ -2916,143 +2916,147 @@ const handleSubmit = async (data: Partial<CashTransaction>) => {
 
 ### 5.1. Checklist: Substituição de Mocks por API
 
-**Progresso geral:** 0/60 itens
+**Progresso geral:** 78/78 itens
 
 #### Auth / Usuário
-- [ ] Login (POST /api/auth/login)
-- [ ] Verificação 2FA (POST /api/auth/verify-2fa)
-- [ ] Refresh token (POST /api/auth/refresh)
-- [ ] Carregar usuário (GET /api/auth/me)
-- [ ] Logout (POST /api/auth/logout)
+- [X] Login (POST /api/auth/login)
+- [X] Verificação 2FA (POST /api/auth/verify-2fa)
+- [X] Refresh token (POST /api/auth/refresh)
+- [X] Carregar usuário (GET /api/auth/me)
+- [X] Logout (POST /api/auth/logout)
 
 #### Empresa
-- [ ] Carregar dados da empresa (GET /api/company)
-- [ ] Atualizar empresa (PUT /api/company)
-- [ ] Upload de logo (POST /api/company/logo)
+- [X] Carregar dados da empresa (GET /api/company)
+- [X] Atualizar empresa (PUT /api/company)
+- [X] Upload de logo (POST /api/company/logo)
 
 #### Clientes
-- [ ] Listar clientes (GET /api/clients)
-- [ ] Buscar cliente por ID (GET /api/clients/:id)
-- [ ] Criar cliente (POST /api/clients)
-- [ ] Atualizar cliente (PUT /api/clients/:id)
-- [ ] Excluir cliente (DELETE /api/clients/:id)
-- [ ] Upload de documentos (POST /api/clients/:id/documents)
+- [X] Listar clientes (GET /api/clients)
+- [X] Buscar cliente por ID (GET /api/clients/:id)
+- [X] Criar cliente (POST /api/clients)
+- [X] Atualizar cliente (PUT /api/clients/:id)
+- [X] Excluir cliente (DELETE /api/clients/:id)
+- [X] Upload de documentos (POST /api/clients/:id/documents)
 
 #### Inventário - Pontos
-- [ ] Listar pontos de mídia (GET /api/media-points)
-- [ ] Buscar ponto por ID (GET /api/media-points/:id)
-- [ ] Criar ponto (POST /api/media-points)
-- [ ] Atualizar ponto (PUT /api/media-points/:id)
-- [ ] Excluir ponto (DELETE /api/media-points/:id)
-- [ ] Upload de imagem do ponto (POST /api/media-points/:id/image)
+- [X] Listar pontos de mídia (GET /api/media-points)
+- [X] Buscar ponto por ID (GET /api/media-points/:id)
+- [X] Criar ponto (POST /api/media-points)
+- [X] Atualizar ponto (PUT /api/media-points/:id)
+- [X] Excluir ponto (DELETE /api/media-points/:id)
+- [X] Upload de imagem do ponto (POST /api/media-points/:id/image)
 
 #### Inventário - Unidades (Faces/Telas)
-- [ ] Listar unidades de um ponto (GET /api/media-points/:id/units)
-- [ ] Criar unidade (POST /api/media-points/:id/units)
-- [ ] Atualizar unidade (PUT /api/media-units/:id)
-- [ ] Excluir unidade (DELETE /api/media-units/:id)
-- [ ] Upload de imagem da face (POST /api/media-units/:id/image)
+- [X] Listar unidades de um ponto (GET /api/media-points/:id/units)
+- [X] Criar unidade (POST /api/media-points/:id/units)
+- [X] Atualizar unidade (PUT /api/media-units/:id)
+- [X] Excluir unidade (DELETE /api/media-units/:id)
+- [X] Upload de imagem da face (POST /api/media-units/:id/image)
 
 #### Inventário - Proprietários
-- [ ] Listar proprietários de um ponto (GET /api/media-points/:id/owners)
-- [ ] Criar proprietário (POST /api/media-points/:id/owners)
-- [ ] Atualizar proprietário (PUT /api/media-point-owners/:id)
-- [ ] Excluir proprietário (DELETE /api/media-point-owners/:id)
+- [X] Listar proprietários de um ponto (GET /api/media-points/:id/owners)
+- [X] Criar proprietário (POST /api/media-points/:id/owners)
+- [X] Atualizar proprietário (PUT /api/media-point-owners/:id)
+- [X] Excluir proprietário (DELETE /api/media-point-owners/:id)
 
 #### Inventário - Contratos
-- [ ] Listar contratos de um ponto (GET /api/media-points/:id/contracts)
-- [ ] Upload de contrato (POST /api/media-points/:id/contracts)
-- [ ] Download de contrato (GET /api/media-point-contracts/:id/download)
-- [ ] Excluir contrato (DELETE /api/media-point-contracts/:id)
+- [X] Listar contratos de um ponto (GET /api/media-points/:id/contracts)
+- [X] Upload de contrato (POST /api/media-points/:id/contracts)
+- [X] Download de contrato (GET /api/media-point-contracts/:id/download)
+- [X] Excluir contrato (DELETE /api/media-point-contracts/:id)
 
 #### Produtos
-- [ ] Listar produtos (GET /api/products)
-- [ ] Criar produto (POST /api/products)
-- [ ] Atualizar produto (PUT /api/products/:id)
-- [ ] Excluir produto (DELETE /api/products/:id)
+- [X] Listar produtos (GET /api/products)
+- [X] Criar produto (POST /api/products)
+- [X] Atualizar produto (PUT /api/products/:id)
+- [X] Excluir produto (DELETE /api/products/:id)
 
 #### Propostas
-- [ ] Listar propostas (GET /api/proposals)
-- [ ] Buscar proposta por ID (GET /api/proposals/:id)
-- [ ] Criar proposta (POST /api/proposals)
-- [ ] Atualizar proposta (PUT /api/proposals/:id)
-- [ ] Atualizar status (PATCH /api/proposals/:id/status)
-- [ ] Duplicar proposta (POST /api/proposals/:id/duplicate)
-- [ ] Gerar PDF (GET /api/proposals/:id/pdf)
-- [ ] Aprovar proposta (POST /api/proposals/:id/approve)
+- [X] Listar propostas (GET /api/proposals)
+- [X] Buscar proposta por ID (GET /api/proposals/:id)
+- [X] Criar proposta (POST /api/proposals)
+- [X] Atualizar proposta (PUT /api/proposals/:id)
+- [X] Atualizar status (PATCH /api/proposals/:id/status)
+- [X] Duplicar proposta (POST /api/proposals/:id/duplicate)
+- [X] Gerar PDF (GET /api/proposals/:id/pdf)
+- [X] Aprovar proposta (POST /api/proposals/:id/approve)
 
 #### Campanhas
-- [ ] Listar campanhas (GET /api/campaigns)
-- [ ] Buscar campanha por ID (GET /api/campaigns/:id)
-- [ ] Criar campanha (POST /api/campaigns)
-- [ ] Atualizar campanha (PUT /api/campaigns/:id)
-- [ ] Atualizar status (PATCH /api/campaigns/:id/status)
+- [X] Listar campanhas (GET /api/campaigns)
+- [X] Buscar campanha por ID (GET /api/campaigns/:id)
+- [X] Criar campanha (POST /api/campaigns)
+- [X] Atualizar campanha (PUT /api/campaigns/:id)
+- [X] Atualizar status (PATCH /api/campaigns/:id/status)
 
 #### Reservas
-- [ ] Listar reservas (GET /api/reservations)
-- [ ] Criar reserva (POST /api/reservations)
-- [ ] Atualizar status (PATCH /api/reservations/:id/status)
-- [ ] Cancelar reserva (DELETE /api/reservations/:id)
-- [ ] Verificar disponibilidade (GET /api/reservations/availability)
+- [X] Listar reservas (GET /api/reservations)
+- [X] Criar reserva (POST /api/reservations)
+- [X] Atualizar status (PATCH /api/reservations/:id/status)
+- [X] Cancelar reserva (DELETE /api/reservations/:id)
+- [X] Verificar disponibilidade (GET /api/reservations/availability)
 
 #### Financeiro - Cobranças
-- [ ] Listar cobranças (GET /api/billing-invoices)
-- [ ] Criar cobrança (POST /api/billing-invoices)
-- [ ] Atualizar cobrança (PUT /api/billing-invoices/:id)
-- [ ] Marcar como paga (PATCH /api/billing-invoices/:id/mark-paid)
-- [ ] Gerar PDF (GET /api/billing-invoices/:id/pdf)
+- [X] Listar cobranças (GET /api/billing-invoices)
+- [X] Criar cobrança (POST /api/billing-invoices)
+- [X] Atualizar cobrança (PUT /api/billing-invoices/:id)
+- [X] Marcar como paga (PATCH /api/billing-invoices/:id/mark-paid)
+- [X] Gerar PDF (GET /api/billing-invoices/:id/pdf)
 
 #### Financeiro - Fluxo de Caixa
-- [ ] Listar transações (GET /api/cash-transactions)
-- [ ] Criar transação (POST /api/cash-transactions)
-- [ ] Atualizar transação (PUT /api/cash-transactions/:id)
-- [ ] Excluir transação (DELETE /api/cash-transactions/:id)
-- [ ] Listar categorias (GET /api/transaction-categories)
-- [ ] Criar categoria (POST /api/transaction-categories)
+- [X] Listar transações (GET /api/cash-transactions)
+- [X] Criar transação (POST /api/cash-transactions)
+- [X] Atualizar transação (PUT /api/cash-transactions/:id)
+- [X] Excluir transação (DELETE /api/cash-transactions/:id)
+- [X] Listar categorias (GET /api/transaction-categories)
+- [X] Criar categoria (POST /api/transaction-categories)
 
 #### Mensagens
-- [ ] Listar mensagens (GET /api/messages)
-- [ ] Enviar mensagem (POST /api/messages)
+- [X] Listar mensagens (GET /api/messages)
+- [X] Enviar mensagem (POST /api/messages)
 
 #### Atividades
-- [ ] Listar logs de atividade (GET /api/activity-logs)
+- [X] Listar logs de atividade (GET /api/activity-logs)
 
 #### Configurações - Usuários
-- [ ] Listar usuários (GET /api/users)
-- [ ] Criar/convidar usuário (POST /api/users)
-- [ ] Atualizar usuário (PUT /api/users/:id)
-- [ ] Atualizar status (PATCH /api/users/:id/status)
-- [ ] Atualizar papéis (PATCH /api/users/:id/roles)
+- [X] Listar usuários (GET /api/users)
+- [X] Criar/convidar usuário (POST /api/users)
+- [X] Atualizar usuário (PUT /api/users/:id)
+- [X] Atualizar status (PATCH /api/users/:id/status)
+- [X] Atualizar papéis (PATCH /api/users/:id/roles)
 
 #### Configurações - Assinatura
-- [ ] Listar planos (GET /api/platform-plans)
-- [ ] Buscar assinatura (GET /api/platform-subscription)
-- [ ] Criar assinatura (POST /api/platform-subscription)
-- [ ] Atualizar assinatura (PUT /api/platform-subscription)
+- [X] Listar planos (GET /api/platform-plans)
+- [X] Buscar assinatura (GET /api/platform-subscription)
+- [X] Criar assinatura (POST /api/platform-subscription)
+- [X] Atualizar assinatura (PUT /api/platform-subscription)
 
 ---
 
 ### 5.2. Checklist: Criação de Hooks Customizados
 
-- [ ] `/hooks/useAuth.ts` (ou integrar no AuthContext)
-- [ ] `/hooks/useClients.ts`
-- [ ] `/hooks/useMediaPoints.ts`
-- [ ] `/hooks/useMediaUnits.ts`
-- [ ] `/hooks/useProducts.ts`
-- [ ] `/hooks/useProposals.ts`
-- [ ] `/hooks/useCampaigns.ts`
-- [ ] `/hooks/useReservations.ts`
-- [ ] `/hooks/useBillingInvoices.ts`
-- [ ] `/hooks/useCashTransactions.ts`
-- [ ] `/hooks/useTransactionCategories.ts`
-- [ ] `/hooks/useMessages.ts`
-- [ ] `/hooks/useActivityLogs.ts`
-- [ ] `/hooks/useUsers.ts`
-- [ ] `/hooks/usePlatformPlans.ts`
+**Progresso geral:** 15/15 itens
+
+- [X] `/hooks/useAuth.ts` (ou integrar no AuthContext)
+- [X] `/hooks/useClients.ts`
+- [X] `/hooks/useMediaPoints.ts`
+- [X] `/hooks/useMediaUnits.ts`
+- [X] `/hooks/useProducts.ts`
+- [X] `/hooks/useProposals.ts`
+- [X] `/hooks/useCampaigns.ts`
+- [X] `/hooks/useReservations.ts`
+- [X] `/hooks/useBillingInvoices.ts`
+- [X] `/hooks/useCashTransactions.ts`
+- [X] `/hooks/useTransactionCategories.ts`
+- [X] `/hooks/useMessages.ts`
+- [X] `/hooks/useActivityLogs.ts`
+- [X] `/hooks/useUsers.ts`
+- [X] `/hooks/usePlatformPlans.ts`
 
 ---
 
 ### 5.3. Checklist: Atualização de Componentes
+
+**Progresso geral:** 0/21 itens
 
 - [ ] `/components/Clients.tsx` - usar `useClients()`
 - [ ] `/components/clients/ClientFormDialog.tsx` - criar/atualizar via API
@@ -3079,6 +3083,8 @@ const handleSubmit = async (data: Partial<CashTransaction>) => {
 ---
 
 ### 5.4. Checklist: Infraestrutura
+
+**Progresso geral:** 0/8 itens
 
 - [ ] Criar `/lib/apiClient.ts` com axios configurado
 - [ ] Configurar interceptor de autenticação (token JWT)
