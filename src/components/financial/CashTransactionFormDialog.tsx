@@ -1,22 +1,25 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { CashTransaction, CashFlowType, PaymentType, PaymentMethod } from '../../types';
-import { mockTransactionCategories } from '../../lib/mockDataFinance';
 import { parseDateFromHtmlInput } from '../../lib/dateUtils';
-import { getMediaPointsForCompany, CURRENT_COMPANY_ID } from '../../lib/mockDataCentral';
+import { useTransactionCategories } from '../../hooks/useTransactionCategories';
+import { useMediaPoints } from '../../hooks/useMediaPoints';
+import { Checkbox } from '../ui/checkbox';
 
 interface CashTransactionFormDialogProps {
   open: boolean;
-  onClose: () => void;
-  onSave: (transaction: CashTransaction) => void;
+  onOpenChange: (open: boolean) => void;
+  transaction: CashTransaction | null;
+  onSave: (data: Partial<CashTransaction>) => void;
 }
 
-export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransactionFormDialogProps) {
-  const mediaPoints = getMediaPointsForCompany(CURRENT_COMPANY_ID);
+export function CashTransactionFormDialog({ open, onOpenChange, transaction, onSave }: CashTransactionFormDialogProps) {
+  const { categories } = useTransactionCategories();
+  const { mediaPoints } = useMediaPoints({});
   
   const [formData, setFormData] = useState({
     flowType: CashFlowType.RECEITA,
@@ -33,6 +36,42 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
     billingInvoiceId: '',
     mediaPointId: '', // Ponto de mídia vinculado
   });
+
+  useEffect(() => {
+    if (transaction) {
+      setFormData({
+        flowType: transaction.flowType,
+        date: new Date(transaction.date).toISOString().slice(0, 10),
+        dueDate: '',
+        amount: String(transaction.amount ?? ''),
+        description: transaction.description,
+        partnerName: transaction.partnerName || '',
+        categoryId: transaction.categoryId || '',
+        tags: transaction.tags?.join(', ') || '',
+        paymentType: transaction.paymentType || PaymentType.A_VISTA,
+        paymentMethod: transaction.paymentMethod,
+        isPaid: transaction.isPaid,
+        billingInvoiceId: transaction.billingInvoiceId || '',
+        mediaPointId: transaction.mediaPointId || '',
+      });
+    } else {
+      setFormData({
+        flowType: CashFlowType.RECEITA,
+        date: '',
+        dueDate: '',
+        amount: '',
+        description: '',
+        partnerName: '',
+        categoryId: '',
+        tags: '',
+        paymentType: PaymentType.A_VISTA,
+        paymentMethod: undefined,
+        isPaid: true,
+        billingInvoiceId: '',
+        mediaPointId: '',
+      });
+    }
+  }, [transaction]);
 
   const handleSave = () => {
     // Validação básica
@@ -51,27 +90,23 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
       return;
     }
 
-    // Criar nova transação
-    const newTransaction: CashTransaction = {
-      id: `ct_${Date.now()}`,
-      companyId: 'c1',
+    // Payload parcial para criação/edição
+    const payload: Partial<CashTransaction> = {
       date: parseDateFromHtmlInput(formData.date),
       description: formData.description,
       partnerName: formData.partnerName || undefined,
       categoryId: formData.categoryId || undefined,
-      tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      tags: formData.tags ? formData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
       amount: parseFloat(formData.amount),
       flowType: formData.flowType,
       paymentType: formData.paymentType,
       paymentMethod: formData.paymentMethod,
-      isPaid: formData.isPaid,
+      isPaid: Boolean(formData.isPaid),
       billingInvoiceId: formData.billingInvoiceId || undefined,
       mediaPointId: formData.mediaPointId && formData.mediaPointId !== 'none' ? formData.mediaPointId : undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
     };
 
-    onSave(newTransaction);
+    onSave(payload);
 
     // Resetar formulário
     setFormData({
@@ -92,7 +127,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
   };
 
   const handleCancel = () => {
-    onClose();
+    onOpenChange(false);
     // Resetar formulário ao cancelar
     setFormData({
       flowType: CashFlowType.RECEITA,
@@ -112,10 +147,10 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Nova Transação (CashTransaction)</DialogTitle>
+          <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
           <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
         </DialogHeader>
 
@@ -124,7 +159,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
             <Label>Tipo de Transação (flowType) *</Label>
             <Select 
               value={formData.flowType} 
-              onValueChange={(value) => setFormData({ ...formData, flowType: value as CashFlowType })}
+              onValueChange={(value: string) => setFormData({ ...formData, flowType: value as CashFlowType })}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -145,7 +180,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
               <Input 
                 type="date" 
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -155,7 +190,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
                 step="0.01" 
                 placeholder="0,00" 
                 value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, amount: e.target.value })}
               />
             </div>
           </div>
@@ -165,7 +200,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
             <Input 
               placeholder="Ex: Pagamento de campanha" 
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
 
@@ -174,7 +209,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
             <Input 
               placeholder="Nome do cliente ou fornecedor" 
               value={formData.partnerName}
-              onChange={(e) => setFormData({ ...formData, partnerName: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, partnerName: e.target.value })}
             />
           </div>
 
@@ -183,13 +218,13 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
               <Label>Categoria (categoryId)</Label>
               <Select 
                 value={formData.categoryId} 
-                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+                onValueChange={(value: string) => setFormData({ ...formData, categoryId: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockTransactionCategories.map((cat) => (
+                  {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
                     </SelectItem>
@@ -202,7 +237,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
               <Input 
                 placeholder="Ex: campanha, março, urgente" 
                 value={formData.tags}
-                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, tags: e.target.value })}
               />
             </div>
           </div>
@@ -212,7 +247,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
               <Label>Tipo de Pagamento (paymentType)</Label>
               <Select 
                 value={formData.paymentType} 
-                onValueChange={(value) => setFormData({ ...formData, paymentType: value as PaymentType })}
+                onValueChange={(value: string) => setFormData({ ...formData, paymentType: value as PaymentType })}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -227,7 +262,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
               <Label>Modo de Pagamento (paymentMethod)</Label>
               <Select 
                 value={formData.paymentMethod} 
-                onValueChange={(value) => setFormData({ ...formData, paymentMethod: value as PaymentMethod })}
+                onValueChange={(value: string) => setFormData({ ...formData, paymentMethod: value as PaymentMethod })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -243,14 +278,11 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
           </div>
 
           <div className="flex items-center gap-2">
-            <input 
-              type="checkbox" 
-              id="isPaid" 
-              className="rounded" 
+            <Checkbox 
               checked={formData.isPaid}
-              onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
+              onCheckedChange={(checked: boolean | 'indeterminate') => setFormData({ ...formData, isPaid: Boolean(checked) })}
             />
-            <Label htmlFor="isPaid" className="cursor-pointer">
+            <Label className="cursor-pointer">
               Já foi pago (isPaid)
             </Label>
           </div>
@@ -266,7 +298,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
                 <Label>Ponto de Mídia (opcional)</Label>
                 <Select 
                   value={formData.mediaPointId} 
-                  onValueChange={(value) => setFormData({ ...formData, mediaPointId: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, mediaPointId: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o ponto" />
@@ -290,7 +322,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
                 <Input 
                   type="date" 
                   value={formData.dueDate}
-                  onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })}
                 />
                 <p className="text-xs text-gray-500">
                   Data de vencimento da taxa/despesa
@@ -301,7 +333,7 @@ export function CashTransactionFormDialog({ open, onClose, onSave }: CashTransac
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar Transação</Button>
+            <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
           </div>
         </div>
       </DialogContent>

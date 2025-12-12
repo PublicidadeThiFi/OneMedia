@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Campaign, CampaignStatus } from '../types';
-import { mockCampaigns, getProposalById } from '../lib/mockData';
+import { useCampaigns } from '../hooks/useCampaigns';
 import { CampaignList } from './campaigns/CampaignList';
 import { CampaignInstallationsView } from './campaigns/CampaignInstallationsView';
 import { CampaignDetailsDrawer } from './campaigns/CampaignDetailsDrawer';
@@ -11,8 +11,13 @@ import { CampaignReportDialog } from './campaigns/CampaignReportDialog';
 import { CampaignBillingDrawer } from './campaigns/CampaignBillingDrawer';
 
 export function Campaigns() {
-  // TODO: Integrar com API real
-  const [campaigns] = useState<Campaign[]>(mockCampaigns);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  const { campaigns, total, loading, error, refetch, createCampaign, updateCampaign } = useCampaigns({
+    search: searchQuery || undefined,
+    status: statusFilter === 'all' ? undefined : (statusFilter as CampaignStatus | string),
+  });
 
   // Dialogs e Drawers
   const [detailsDrawerCampaign, setDetailsDrawerCampaign] = useState<Campaign | null>(null);
@@ -36,8 +41,8 @@ export function Campaigns() {
     });
 
     const valorEmVeiculacao = emVeiculacao.reduce((sum, c) => {
-      const proposal = getProposalById(c.proposalId);
-      return sum + (proposal?.totalAmount || 0);
+      const valor = c.totalAmountCents ? c.totalAmountCents / 100 : 0;
+      return sum + valor;
     }, 0);
 
     return {
@@ -82,6 +87,8 @@ export function Campaigns() {
 
   return (
     <div className="p-8">
+      {loading && <div>Carregando campanhas...</div>}
+      {!loading && error && <div>Erro ao carregar campanhas.</div>}
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-gray-900 mb-2">Campanhas</h1>

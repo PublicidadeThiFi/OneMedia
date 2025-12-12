@@ -13,20 +13,21 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { Product, ProductType } from '../types';
-import { mockProducts as initialMockProducts } from '../lib/mockData';
+import { useProducts } from '../hooks/useProducts';
 import { ProductFiltersBar } from './products/ProductFiltersBar';
 import { ProductsGrid } from './products/ProductsGrid';
 import { ProductFormDialog } from './products/ProductFormDialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function Products() {
-  // TODO: Integrar com API real
-  const [products, setProducts] = useState<Product[]>(initialMockProducts);
-  
-  // Filtros
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
+  const { products, loading, error, refetch, createProduct, updateProduct, deleteProduct } = useProducts({
+    search: searchQuery || undefined,
+    type: typeFilter === 'all' ? undefined : (typeFilter as ProductType | string),
+  });
+  
   // Dialogs
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -66,35 +67,20 @@ export function Products() {
   }, [products, searchQuery, typeFilter]);
 
   // Handlers
-  const handleSaveProduct = (productData: Partial<Product>) => {
-    if (editingProduct) {
-      // Atualizar produto existente
-      setProducts(prev => prev.map(p => 
-        p.id === editingProduct.id 
-          ? { 
-              ...p, 
-              ...productData,
-              updatedAt: new Date(),
-            } as Product 
-          : p
-      ));
-      toast.success('Produto atualizado com sucesso!');
-    } else {
-      // Criar novo produto
-      const newProduct: Product = {
-        id: `prod${Date.now()}`,
-        companyId: 'c1', // Mock company ID
-        ...productData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as Product;
-      
-      setProducts(prev => [...prev, newProduct]);
-      toast.success('Produto cadastrado com sucesso!');
+  const handleSaveProduct = async (productData: Partial<Product>) => {
+    try {
+      if (editingProduct?.id) {
+        await updateProduct(editingProduct.id, productData);
+        toast.success('Produto atualizado com sucesso!');
+      } else {
+        await createProduct(productData);
+        toast.success('Produto cadastrado com sucesso!');
+      }
+      setIsFormDialogOpen(false);
+      setEditingProduct(null);
+    } catch (e) {
+      toast.error('Erro ao salvar produto');
     }
-    
-    setIsFormDialogOpen(false);
-    setEditingProduct(null);
   };
 
   const handleNewProduct = () => {
@@ -111,16 +97,22 @@ export function Products() {
     setDeletingProduct(product);
   };
 
-  const confirmDelete = () => {
-    if (deletingProduct) {
-      setProducts(prev => prev.filter(p => p.id !== deletingProduct.id));
+  const confirmDelete = async () => {
+    if (!deletingProduct) return;
+    try {
+      await deleteProduct(deletingProduct.id);
       toast.success('Produto excluído com sucesso!');
+    } catch {
+      toast.error('Erro ao excluir produto');
+    } finally {
       setDeletingProduct(null);
     }
   };
 
   return (
     <div className="p-8">
+      {loading && <div>Carregando produtos...</div>}
+      {!loading && error && <div>Erro ao carregar produtos.</div>}
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -181,7 +173,7 @@ export function Products() {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             typeFilter={typeFilter}
-            onTypeChange={setTypeFilter}
+            onTypeChange={(value: string) => setTypeFilter(value)}
           />
         </CardContent>
       </Card>
@@ -203,9 +195,9 @@ export function Products() {
       />
 
       {/* Dialogs */}
-      <ProductFormDialog
+            <ProductFormDialog
         open={isFormDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {   // 🔧 tipamos o parâmetro
           setIsFormDialogOpen(open);
           if (!open) setEditingProduct(null);
         }}
@@ -213,7 +205,12 @@ export function Products() {
         onSave={handleSaveProduct}
       />
 
-      <AlertDialog open={!!deletingProduct} onOpenChange={(open) => !open && setDeletingProduct(null)}>
+      <AlertDialog
+        open={!!deletingProduct}
+        onOpenChange={(open: boolean) => {   // 🔧 idem aqui
+          if (!open) setDeletingProduct(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
@@ -232,6 +229,7 @@ export function Products() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 }

@@ -3056,29 +3056,29 @@ const handleSubmit = async (data: Partial<CashTransaction>) => {
 
 ### 5.3. Checklist: Atualização de Componentes
 
-**Progresso geral:** 0/21 itens
+**Progresso geral:** 21/21 itens
 
-- [ ] `/components/Clients.tsx` - usar `useClients()`
-- [ ] `/components/clients/ClientFormDialog.tsx` - criar/atualizar via API
-- [ ] `/components/Inventory.tsx` - usar `useMediaPoints()`
-- [ ] `/components/inventory/MediaPointFormDialog.tsx` - criar/atualizar via API
-- [ ] `/components/inventory/MediaUnitsDialog.tsx` - CRUD via API
-- [ ] `/components/inventory/MediaPointOwnersDialog.tsx` - CRUD via API
-- [ ] `/components/inventory/MediaPointContractsDialog.tsx` - upload/download via API
-- [ ] `/components/Products.tsx` - usar `useProducts()`
-- [ ] `/components/Proposals.tsx` - usar `useProposals()`
-- [ ] `/components/proposals/ProposalFormWizard.tsx` - criar/atualizar via API
-- [ ] `/components/Campaigns.tsx` - usar `useCampaigns()`
-- [ ] `/components/Reservations.tsx` - usar `useReservations()`
-- [ ] `/components/financial/FinancialCharges.tsx` - usar `useBillingInvoices()`
-- [ ] `/components/financial/CashFlow.tsx` - usar `useCashTransactions()`
-- [ ] `/components/financial/CashTransactionFormDialog.tsx` - criar/atualizar via API
-- [ ] `/components/Messages.tsx` - usar `useMessages()`
-- [ ] `/components/Activities.tsx` - usar `useActivityLogs()`
-- [ ] `/components/settings/UsersSettings.tsx` - usar `useUsers()`
-- [ ] `/components/settings/SubscriptionSettings.tsx` - usar assinatura via API
-- [ ] `/contexts/AuthContext.tsx` - substituir mockAuth por apiClient
-- [ ] `/contexts/CompanyContext.tsx` - substituir mockDataCentral por apiClient
+- [X] `/components/Clients.tsx` - usar `useClients()`
+- [X] `/components/clients/ClientFormDialog.tsx` - criar/atualizar via API
+- [X] `/components/Inventory.tsx` - usar `useMediaPoints()`
+- [X] `/components/inventory/MediaPointFormDialog.tsx` - criar/atualizar via API
+- [X] `/components/inventory/MediaUnitsDialog.tsx` - CRUD via API
+- [X] `/components/inventory/MediaPointOwnersDialog.tsx` - CRUD via API
+- [X] `/components/inventory/MediaPointContractsDialog.tsx` - upload/download via API
+- [X] `/components/Products.tsx` - usar `useProducts()`
+- [X] `/components/Proposals.tsx` - usar `useProposals()`
+- [X] `/components/proposals/ProposalFormWizard.tsx` - criar/atualizar via API
+- [X] `/components/Campaigns.tsx` - usar `useCampaigns()`
+- [X] `/components/Reservations.tsx` - usar `useReservations()`
+- [X] `/components/financial/FinancialCharges.tsx` - usar `useBillingInvoices()`
+- [X] `/components/financial/CashFlow.tsx` - usar `useCashTransactions()`
+- [X] `/components/financial/CashTransactionFormDialog.tsx` - criar/atualizar via API
+- [X] `/components/Messages.tsx` - usar `useMessages()`
+- [X] `/components/Activities.tsx` - usar `useActivityLogs()`
+- [X] `/components/settings/UsersSettings.tsx` - usar `useUsers()`
+- [X] `/components/settings/SubscriptionSettings.tsx` - usar assinatura via API
+- [X] `/contexts/AuthContext.tsx` - substituir mockAuth por apiClient
+- [X] `/contexts/CompanyContext.tsx` - substituir mockDataCentral por apiClient
 
 ---
 

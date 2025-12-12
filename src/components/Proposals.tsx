@@ -3,18 +3,13 @@ import { Plus, CheckCircle, Send, Edit, PlayCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Proposal, ProposalStatus } from '../types';
-import {
-  mockProposals as initialMockProposals,
-  getCampaignForProposal,
-  getBillingStatusForProposal,
-  getClientById,
-} from '../lib/mockData';
+import { useProposals } from '../hooks/useProposals';
 import { ProposalFiltersBar } from './proposals/ProposalFiltersBar';
 import { ProposalsTable } from './proposals/ProposalsTable';
 import { ProposalAdvancedFiltersSheet, AdvancedFilters } from './proposals/ProposalAdvancedFiltersSheet';
 import { ProposalDetailsDrawer } from './proposals/ProposalDetailsDrawer';
 import { ProposalFormWizard } from './proposals/ProposalFormWizard';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Page } from './MainApp';
 
 interface ProposalsProps {
@@ -22,12 +17,16 @@ interface ProposalsProps {
 }
 
 export function Proposals({ onNavigate }: ProposalsProps) {
-  // TODO: Integrar com API real
-  const [proposals, setProposals] = useState<Proposal[]>(initialMockProposals);
-
   // Filtros básicos
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Hook de propostas (API)
+  const { proposals, total, loading, error, refetch, createProposal, updateProposal } = useProposals({
+    search: searchQuery || undefined,
+    status: statusFilter === 'all' ? undefined : (statusFilter as ProposalStatus | string),
+    // Passaremos filtros adicionais via front (advancedFilters) por enquanto
+  });
 
   // Filtros avançados
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
@@ -45,7 +44,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
   const [detailsDrawerProposal, setDetailsDrawerProposal] = useState<Proposal | null>(null);
 
-  // Cards de estatísticas
+  // Cards de estatísticas (baseado na lista atual)
   const stats = useMemo(() => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
@@ -79,35 +78,21 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   // Filtros aplicados
   const filteredProposals = useMemo(() => {
     return proposals.filter((proposal) => {
-      // Busca textual (título ou cliente)
-      const client = getClientById(proposal.clientId);
+      // Busca textual (título ou cliente embutido)
       const searchText = searchQuery.toLowerCase();
       const matchesSearch =
         !searchQuery ||
         (proposal.title?.toLowerCase().includes(searchText) ?? false) ||
-        (client?.companyName?.toLowerCase().includes(searchText) ?? false) ||
-        (client?.contactName?.toLowerCase().includes(searchText) ?? false);
+        (proposal.client?.companyName?.toLowerCase().includes(searchText) ?? false) ||
+        (proposal.client?.contactName?.toLowerCase().includes(searchText) ?? false);
 
       // Filtro de status básico
-      const matchesStatusFilter =
-        statusFilter === 'all' || proposal.status === statusFilter;
+      const matchesStatusFilter = statusFilter === 'all' || proposal.status === statusFilter;
 
       // Filtros avançados - Status da proposta
       const matchesProposalStatuses =
         advancedFilters.proposalStatuses.length === 0 ||
         advancedFilters.proposalStatuses.includes(proposal.status);
-
-      // Filtros avançados - Status da campanha
-      const matchesCampaignStatus = !advancedFilters.campaignStatus || (() => {
-        const campaign = getCampaignForProposal(proposal.id);
-        return campaign?.status === advancedFilters.campaignStatus;
-      })();
-
-      // Filtros avançados - Status financeiro
-      const matchesBillingStatus = !advancedFilters.billingStatus || (() => {
-        const billingStatus = getBillingStatusForProposal(proposal.id);
-        return billingStatus === advancedFilters.billingStatus;
-      })();
 
       // Filtros avançados - Responsável
       const matchesResponsible =
@@ -117,23 +102,23 @@ export function Proposals({ onNavigate }: ProposalsProps) {
       // Filtros avançados - Período de criação
       const matchesCreatedFrom = !advancedFilters.createdFrom || (() => {
         const createdDate = new Date(proposal.createdAt);
-        const fromDate = new Date(advancedFilters.createdFrom);
+        const fromDate = new Date(advancedFilters.createdFrom as string);
         return createdDate >= fromDate;
       })();
 
       const matchesCreatedTo = !advancedFilters.createdTo || (() => {
         const createdDate = new Date(proposal.createdAt);
-        const toDate = new Date(advancedFilters.createdTo);
+        const toDate = new Date(advancedFilters.createdTo as string);
         toDate.setHours(23, 59, 59, 999);
         return createdDate <= toDate;
       })();
+
+      // Ignorando momentaneamente filtros dependentes de dados externos (campanha/financeiro)
 
       return (
         matchesSearch &&
         matchesStatusFilter &&
         matchesProposalStatuses &&
-        matchesCampaignStatus &&
-        matchesBillingStatus &&
         matchesResponsible &&
         matchesCreatedFrom &&
         matchesCreatedTo
@@ -156,63 +141,43 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     setDetailsDrawerProposal(proposal);
   };
 
-  const handleSendProposal = (proposal: Proposal) => {
-    // Mudar status para ENVIADA e gerar publicHash
-    const updatedProposal: Proposal = {
-      ...proposal,
-      status: ProposalStatus.ENVIADA,
-      publicHash: proposal.publicHash || generatePublicHash(),
-      updatedAt: new Date(),
-    };
-
-    setProposals(prev => prev.map(p => p.id === proposal.id ? updatedProposal : p));
-    toast.success(`Proposta enviada. Link público: /p/${updatedProposal.publicHash}`);
+  const handleSendProposal = async (proposal: Proposal) => {
+    try {
+      await updateProposal(proposal.id, { status: ProposalStatus.ENVIADA });
+      toast.success('Proposta enviada.');
+      refetch();
+    } catch {
+      toast.error('Erro ao enviar proposta');
+    }
   };
 
-  const handleSaveProposal = (proposalData: Partial<Proposal>) => {
-    if (editingProposal) {
-      // Atualizar proposta existente
-      setProposals(prev =>
-        prev.map(p =>
-          p.id === editingProposal.id
-            ? {
-                ...p,
-                ...proposalData,
-                updatedAt: new Date(),
-              } as Proposal
-            : p
-        )
-      );
-      toast.success('Proposta atualizada com sucesso!');
-    } else {
-      // Criar nova proposta
-      const newProposal: Proposal = {
-        id: `pr${Date.now()}`,
-        companyId: 'c1',
-        ...proposalData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as Proposal;
-
-      setProposals(prev => [...prev, newProposal]);
-      toast.success('Proposta criada com sucesso!');
+  const handleSaveProposal = async (proposalData: Partial<Proposal>) => {
+    try {
+      if (editingProposal?.id) {
+        await updateProposal(editingProposal.id, proposalData);
+        toast.success('Proposta atualizada com sucesso!');
+      } else {
+        await createProposal(proposalData);
+        toast.success('Proposta criada com sucesso!');
+      }
+      setIsFormWizardOpen(false);
+      setEditingProposal(null);
+      refetch();
+    } catch {
+      toast.error('Erro ao salvar proposta');
     }
-
-    setIsFormWizardOpen(false);
-    setEditingProposal(null);
   };
 
   const handleApplyAdvancedFilters = (filters: AdvancedFilters) => {
     setAdvancedFilters(filters);
   };
 
-  // Helper para gerar hash público mock
-  const generatePublicHash = () => {
-    return Math.random().toString(36).substring(2, 15);
-  };
+  // Hash público será gerado pelo backend quando aplicável
 
   return (
     <div className="p-8">
+      {loading && <div>Carregando propostas...</div>}
+      {!loading && error && <div>Erro ao carregar propostas.</div>}
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -293,7 +258,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             statusFilter={statusFilter}
-            onStatusChange={setStatusFilter}
+            onStatusChange={(value: string) => setStatusFilter(value)}
             onOpenAdvancedFilters={() => setIsAdvancedFiltersOpen(true)}
           />
         </CardContent>

@@ -1,8 +1,7 @@
 import { Calendar } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Campaign, CampaignStatus, MediaType } from '../../types';
-import { getClientById, getProposalById, getItemsForProposal, getMediaUnitById, getMediaPointByMediaUnit } from '../../lib/mockData';
+import { Campaign, CampaignStatus } from '../../types';
 
 interface CampaignInstallationsViewProps {
   campaigns: Campaign[];
@@ -13,21 +12,10 @@ export function CampaignInstallationsView({
   campaigns,
   onViewDetails,
 }: CampaignInstallationsViewProps) {
-  // Filtrar campanhas OOH apenas
   const oohCampaigns = campaigns.filter((campaign) => {
-    const proposal = getProposalById(campaign.proposalId);
-    if (!proposal) return false;
-    
-    const items = getItemsForProposal(proposal.id);
-    const hasOohUnits = items.some((item) => {
-      if (!item.mediaUnitId) return false;
-      const unit = getMediaUnitById(item.mediaUnitId);
-      if (!unit) return false;
-      const point = getMediaPointByMediaUnit(unit.id);
-      return point?.type === MediaType.OOH;
-    });
-    
-    return hasOohUnits;
+    const items = campaign.items || [];
+    const hasUnits = items.some((item) => !!item.mediaUnitId);
+    return hasUnits;
   });
 
   // Calcular estatísticas
@@ -88,9 +76,8 @@ export function CampaignInstallationsView({
         ) : (
           <div className="space-y-3">
             {oohCampaigns.map((campaign) => {
-              const client = getClientById(campaign.clientId);
-              const proposal = getProposalById(campaign.proposalId);
-              const items = proposal ? getItemsForProposal(proposal.id) : [];
+              const client = campaign.client;
+              const items = campaign.items || [];
               const unitsCount = items.filter((item) => item.mediaUnitId).length;
 
               return (

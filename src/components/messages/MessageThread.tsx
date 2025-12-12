@@ -113,8 +113,8 @@ export function MessageThread({ messages }: MessageThreadProps) {
             >
               <span>{message.senderName}</span>
               <span>
-                {message.createdAt.toLocaleDateString('pt-BR')} às{' '}
-                {message.createdAt.toLocaleTimeString('pt-BR', {
+                {new Date(message.createdAt).toLocaleDateString('pt-BR')} às{' '}
+                {new Date(message.createdAt).toLocaleTimeString('pt-BR', {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}

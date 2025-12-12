@@ -121,10 +121,13 @@ export function ProductFormDialog({
             <Label htmlFor="type">
               Tipo <span className="text-red-500">*</span>
             </Label>
-            <Select 
-              value={formData.type} 
-              onValueChange={(value) => setFormData({ ...formData, type: value as ProductType })}
-            >
+                      <Select 
+            value={formData.type} 
+            onValueChange={(value: string) =>
+              setFormData({ ...formData, type: value as ProductType })
+            }
+          >
+
               <SelectTrigger id="type">
                 <SelectValue />
               </SelectTrigger>
@@ -181,10 +184,13 @@ export function ProductFormDialog({
               <Label htmlFor="priceType">
                 Tipo de Preço <span className="text-red-500">*</span>
               </Label>
-              <Select 
-                value={formData.priceType} 
-                onValueChange={(value) => setFormData({ ...formData, priceType: value as PriceType })}
-              >
+                        <Select 
+            value={formData.priceType} 
+            onValueChange={(value: string) =>
+              setFormData({ ...formData, priceType: value as PriceType })
+            }
+          >
+
                 <SelectTrigger id="priceType">
                   <SelectValue />
                 </SelectTrigger>
@@ -217,13 +223,14 @@ export function ProductFormDialog({
 
           {/* Checkbox Adicional */}
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="isAdditional"
-              checked={formData.isAdditional}
-              onCheckedChange={(checked) => 
-                setFormData({ ...formData, isAdditional: checked === true })
-              }
-            />
+                      <Checkbox
+            id="isAdditional"
+            checked={formData.isAdditional}
+            onCheckedChange={(checked: boolean | 'indeterminate') =>
+              setFormData({ ...formData, isAdditional: checked === true })
+            }
+          />
+
             <Label htmlFor="isAdditional" className="cursor-pointer">
               Este é um item adicional (pode ser incluído em propostas)
             </Label>

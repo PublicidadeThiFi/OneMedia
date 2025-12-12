@@ -5,15 +5,28 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ChevronLeft, ChevronRight, Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { CashFlowType, PaymentType, PaymentMethod, CashTransaction } from '../../types';
-import { mockCashTransactions, getCategoryById } from '../../lib/mockDataFinance';
 import { CashTransactionFormDialog } from './CashTransactionFormDialog';
+import { useCashTransactions } from '../../hooks/useCashTransactions';
+import { useTransactionCategories } from '../../hooks/useTransactionCategories';
+import { toast } from 'sonner';
 
 export function CashFlow() {
-  // Estado local para gerenciar transações em memória
-  const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>(mockCashTransactions);
+  // Filtros de período
   const [currentMonth, setCurrentMonth] = useState<number>(1); // 0-11, iniciando em fevereiro (1) = 2024
   const [currentYear, setCurrentYear] = useState<number>(2024);
   const [isNewTransactionOpen, setIsNewTransactionOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<CashTransaction | null>(null);
+
+  // Calcular range de datas para o hook
+  const { dateFrom, dateTo } = useMemo(() => {
+    const start = new Date(currentYear, currentMonth, 1);
+    const end = new Date(currentYear, currentMonth + 1, 0);
+    const toIso = (d: Date) => d.toISOString().slice(0, 10);
+    return { dateFrom: toIso(start), dateTo: toIso(end) };
+  }, [currentMonth, currentYear]);
+
+  const { transactions, loading, error, refetch, createTransaction, updateTransaction, deleteTransaction } = useCashTransactions({ dateFrom, dateTo });
+  const { categories } = useTransactionCategories();
 
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -39,12 +52,7 @@ export function CashFlow() {
   };
 
   // Filtrar transações pelo mês/ano atual
-  const visibleTransactions = useMemo(() => {
-    return cashTransactions.filter(tx => {
-      const txDate = new Date(tx.date);
-      return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
-    });
-  }, [cashTransactions, currentMonth, currentYear]);
+  const visibleTransactions = useMemo(() => transactions, [transactions]);
 
   // Calcular cards de resumo com base nas transações visíveis
   const summary = useMemo(() => {
@@ -74,9 +82,21 @@ export function CashFlow() {
     };
   }, [visibleTransactions]);
 
-  const handleSaveTransaction = (newTransaction: CashTransaction) => {
-    setCashTransactions(prev => [...prev, newTransaction]);
-    setIsNewTransactionOpen(false);
+  const handleSaveTransaction = async (payload: Partial<CashTransaction>) => {
+    try {
+      if (editingTransaction) {
+        await updateTransaction(editingTransaction.id, payload);
+        toast.success('Transação atualizada com sucesso');
+        setEditingTransaction(null);
+      } else {
+        await createTransaction(payload);
+        toast.success('Transação criada com sucesso');
+      }
+      setIsNewTransactionOpen(false);
+      refetch();
+    } catch (err) {
+      toast.error('Falha ao salvar transação');
+    }
   };
 
   const getFlowTypeLabel = (flowType: CashFlowType) => {
@@ -109,6 +129,8 @@ export function CashFlow() {
 
   return (
     <div className="space-y-6">
+      {loading && <div>Carregando lançamentos...</div>}
+      {!loading && error && <div>Erro ao carregar lançamentos.</div>}
       {/* Month Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -123,7 +145,7 @@ export function CashFlow() {
           </Button>
         </div>
 
-        <Button className="gap-2" onClick={() => setIsNewTransactionOpen(true)}>
+        <Button className="gap-2" onClick={() => { setEditingTransaction(null); setIsNewTransactionOpen(true); }}>
           <Plus className="w-4 h-4" />
           Nova Transação
         </Button>
@@ -206,16 +228,17 @@ export function CashFlow() {
                           <th className="px-6 py-3 text-left text-gray-600 text-sm">Tipo</th>
                           <th className="px-6 py-3 text-left text-gray-600 text-sm">Modo</th>
                           <th className="px-6 py-3 text-left text-gray-600 text-sm">Status</th>
+                          <th className="px-6 py-3 text-left text-gray-600 text-sm">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {filteredTransactions.map((transaction) => {
-                          const category = transaction.categoryId ? getCategoryById(transaction.categoryId) : undefined;
+                          const category = transaction.categoryId ? categories.find((c) => c.id === transaction.categoryId) : undefined;
                           
                           return (
                             <tr key={transaction.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4 text-gray-600">
-                                {transaction.date.toLocaleDateString('pt-BR')}
+                                {new Date(transaction.date).toLocaleDateString('pt-BR')}
                               </td>
                               <td className="px-6 py-4">
                                 <div>
@@ -255,6 +278,30 @@ export function CashFlow() {
                                   {transaction.isPaid ? 'Pago' : 'Pendente'}
                                 </Badge>
                               </td>
+                              <td className="px-6 py-4 space-x-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => { setEditingTransaction(transaction); setIsNewTransactionOpen(true); }}
+                                >
+                                  Editar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteTransaction(transaction.id);
+                                      toast.success('Transação excluída');
+                                      refetch();
+                                    } catch (err) {
+                                      toast.error('Falha ao excluir transação');
+                                    }
+                                  }}
+                                >
+                                  Excluir
+                                </Button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -279,7 +326,13 @@ export function CashFlow() {
       {/* Dialog de Nova Transação */}
       <CashTransactionFormDialog
         open={isNewTransactionOpen}
-        onClose={() => setIsNewTransactionOpen(false)}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setIsNewTransactionOpen(false);
+            setEditingTransaction(null);
+          }
+        }}
+        transaction={editingTransaction}
         onSave={handleSaveTransaction}
       />
     </div>

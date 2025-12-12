@@ -61,7 +61,7 @@ export function MessageInputBar({ onSend, onAttach, disabled = false }: MessageI
         <Input
           placeholder="Digite sua mensagem..."
           value={messageText}
-          onChange={(e) => setMessageText(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMessageText(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
         />

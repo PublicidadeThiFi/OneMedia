@@ -3,17 +3,8 @@ import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
-import { Campaign, MediaType, BillingStatus } from '../../types';
+import { Campaign, BillingStatus } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
-import {
-  getClientById,
-  getUserById,
-  getProposalById,
-  getItemsForProposal,
-  getMediaUnitById,
-  getMediaPointByMediaUnit,
-  getBillingInvoicesForCampaign,
-} from '../../lib/mockData';
 
 interface CampaignDetailsDrawerProps {
   open: boolean;
@@ -29,26 +20,11 @@ export function CampaignDetailsDrawer({
   defaultTab = 'summary',
 }: CampaignDetailsDrawerProps) {
   if (!campaign) return null;
-
-  const client = getClientById(campaign.clientId);
-  const proposal = getProposalById(campaign.proposalId);
-  const user = proposal ? getUserById(proposal.responsibleUserId) : undefined;
-  const items = proposal ? getItemsForProposal(proposal.id) : [];
-  const mediaItems = items.filter((item) => item.mediaUnitId);
-  const invoices = getBillingInvoicesForCampaign(campaign.id);
-
-  // Contar unidades OOH vs DOOH
-  const oohCount = mediaItems.filter((item) => {
-    const unit = item.mediaUnitId ? getMediaUnitById(item.mediaUnitId) : undefined;
-    const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-    return point?.type === MediaType.OOH;
-  }).length;
-
-  const doohCount = mediaItems.filter((item) => {
-    const unit = item.mediaUnitId ? getMediaUnitById(item.mediaUnitId) : undefined;
-    const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-    return point?.type === MediaType.DOOH;
-  }).length;
+  const client = campaign.client;
+  const mediaItems = (campaign.items || []).filter((item) => item.mediaUnitId);
+  const oohCount = mediaItems.length; // Sem tipo de ponto disponível aqui
+  const doohCount = 0;
+  const invoices: any[] = [];
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -67,12 +43,12 @@ export function CampaignDetailsDrawer({
                   {new Date(campaign.startDate).toLocaleDateString('pt-BR')} -{' '}
                   {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
                 </span>
-                {proposal && (
+                {campaign.totalAmountCents && (
                   <>
                     <span>•</span>
                     <span>
                       R${' '}
-                      {proposal.totalAmount.toLocaleString('pt-BR', {
+                      {(campaign.totalAmountCents / 100).toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -115,7 +91,7 @@ export function CampaignDetailsDrawer({
 
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Responsável</p>
-                  <p className="text-gray-900">{user?.name || 'Responsável interno (mock)'}</p>
+                  <p className="text-gray-900">Responsável interno</p>
                 </div>
 
                 <div>
@@ -133,21 +109,14 @@ export function CampaignDetailsDrawer({
               <div>
                 <h4 className="text-sm text-gray-900 mb-3">Principais Unidades de Mídia</h4>
                 <div className="space-y-2">
-                  {mediaItems.slice(0, 5).map((item) => {
-                    const unit = item.mediaUnitId ? getMediaUnitById(item.mediaUnitId) : undefined;
-                    const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-
-                    return (
-                      <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                        <div>
-                          <p className="text-sm text-gray-900">{point?.name || '-'}</p>
-                          <p className="text-xs text-gray-600">
-                            {unit?.label} • {point?.addressCity} • {point?.type}
-                          </p>
-                        </div>
+                  {mediaItems.slice(0, 5).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                      <div>
+                        <p className="text-sm text-gray-900">Unidade de Mídia</p>
+                        <p className="text-xs text-gray-600">ID: {item.mediaUnitId || '-'}</p>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                   {mediaItems.length > 5 && (
                     <p className="text-sm text-gray-500 text-center py-2">
                       + {mediaItems.length - 5} unidades adicionais
@@ -173,9 +142,6 @@ export function CampaignDetailsDrawer({
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {mediaItems.map((item) => {
-                        const unit = item.mediaUnitId ? getMediaUnitById(item.mediaUnitId) : undefined;
-                        const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-
                         const itemDifferent =
                           item.startDate &&
                           item.endDate &&
@@ -184,10 +150,10 @@ export function CampaignDetailsDrawer({
 
                         return (
                           <tr key={item.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-900">{point?.name || '-'}</td>
-                            <td className="px-4 py-3 text-gray-700">{unit?.label || '-'}</td>
+                            <td className="px-4 py-3 text-gray-900">Unidade de Mídia</td>
+                            <td className="px-4 py-3 text-gray-700">ID: {item.mediaUnitId || '-'}</td>
                             <td className="px-4 py-3">
-                              <Badge variant="outline">{point?.type || '-'}</Badge>
+                              <Badge variant="outline">-</Badge>
                             </td>
                             <td className="px-4 py-3 text-gray-700">
                               {item.startDate && item.endDate ? (
@@ -239,7 +205,7 @@ export function CampaignDetailsDrawer({
                   <p className="text-sm text-gray-500 mb-1">Valor da Proposta</p>
                   <p className="text-gray-900">
                     R${' '}
-                    {(proposal?.totalAmount || 0).toLocaleString('pt-BR', {
+                    {((campaign.totalAmountCents || 0) / 100).toLocaleString('pt-BR', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}

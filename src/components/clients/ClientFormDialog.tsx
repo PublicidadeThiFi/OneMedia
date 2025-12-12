@@ -1,12 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { Client, ClientStatus } from '../../types';
 import { mockUsers, BRAZILIAN_STATES } from '../../lib/mockData';
+import apiClient from '../../lib/apiClient';
+import { toast } from 'sonner';
 
 interface ClientFormDialogProps {
   open: boolean;
@@ -15,42 +30,70 @@ interface ClientFormDialogProps {
   onSave: (client: Partial<Client>) => void;
 }
 
-export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientFormDialogProps) {
-  const [formData, setFormData] = useState<Partial<Client>>({
-    status: ClientStatus.LEAD,
+export function ClientFormDialog({
+  open,
+  onOpenChange,
+  client,
+  onSave,
+}: ClientFormDialogProps) {
+  const form = useForm<Client>({
+    defaultValues: client || {
+      status: ClientStatus.LEAD,
+      contactName: '',
+      email: '',
+      phone: '',
+      role: '',
+      companyName: '',
+      cnpj: '',
+      origin: '',
+      ownerUserId: undefined,
+      addressZipcode: '',
+      addressStreet: '',
+      addressNumber: '',
+      addressDistrict: '',
+      addressCity: '',
+      addressState: '',
+      addressCountry: 'Brasil',
+      notes: '',
+    },
   });
 
   useEffect(() => {
     if (client) {
-      setFormData(client);
+      form.reset(client);
     } else {
-      setFormData({ status: ClientStatus.LEAD });
+      form.reset({ status: ClientStatus.LEAD } as any);
     }
-  }, [client]);
+  }, [client, form]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validação básica
-    if (!formData.contactName || !formData.status) {
-      alert('Nome do contato e status são obrigatórios');
-      return;
+  const handleSubmit = async (data: Partial<Client>) => {
+    try {
+      let savedClient: Client;
+
+      if (client?.id) {
+        const response = await apiClient.put<Client>(
+          `/clients/${client.id}`,
+          data
+        );
+        savedClient = response.data;
+        toast.success('Cliente atualizado!');
+      } else {
+        const response = await apiClient.post<Client>('/clients', data);
+        savedClient = response.data;
+        toast.success('Cliente criado!');
+      }
+
+      onSave(savedClient);
+      onOpenChange(false);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message || 'Erro ao salvar cliente';
+      toast.error(message);
     }
-
-    const clientData: Partial<Client> = {
-      ...formData,
-      id: client?.id || `cl${Date.now()}`,
-      companyId: 'c1',
-      createdAt: client?.createdAt || new Date(),
-      updatedAt: new Date(),
-    };
-
-    onSave(clientData);
-    onOpenChange(false);
   };
 
-  const handleChange = (field: keyof Client, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof Client, value: unknown) => {
+    form.setValue(field as any, value as any, { shouldDirty: true });
   };
 
   return (
@@ -61,34 +104,37 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
             {client ? 'Editar Cliente' : 'Novo Cliente'}
           </DialogTitle>
           <DialogDescription>
-            {client ? 'Atualize as informações do cliente' : 'Adicione um novo cliente'}
+            {client
+              ? 'Atualize as informações do cliente'
+              : 'Adicione um novo cliente'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(handleSubmit)}
+          className="space-y-6"
+        >
           {/* Informações de Contato */}
           <div className="space-y-4">
             <h3 className="text-gray-900">Informações de Contato</h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="contactName">Nome do Contato *</Label>
                 <Input
                   id="contactName"
-                  value={formData.contactName || ''}
-                  onChange={(e) => handleChange('contactName', e.target.value)}
+                  {...form.register('contactName', { required: true })}
                   placeholder="João Silva"
                   required
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email || ''}
-                  onChange={(e) => handleChange('email', e.target.value)}
+                  {...form.register('email')}
                   placeholder="joao@empresa.com"
                 />
               </div>
@@ -99,18 +145,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 <Label htmlFor="phone">Telefone</Label>
                 <Input
                   id="phone"
-                  value={formData.phone || ''}
-                  onChange={(e) => handleChange('phone', e.target.value)}
+                  {...form.register('phone')}
                   placeholder="(11) 98765-4321"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="role">Cargo</Label>
                 <Input
                   id="role"
-                  value={formData.role || ''}
-                  onChange={(e) => handleChange('role', e.target.value)}
+                  {...form.register('role')}
                   placeholder="Gerente de Marketing"
                 />
               </div>
@@ -120,24 +164,22 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
           {/* Informações da Empresa */}
           <div className="space-y-4">
             <h3 className="text-gray-900">Informações da Empresa</h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Nome da Empresa</Label>
                 <Input
                   id="companyName"
-                  value={formData.companyName || ''}
-                  onChange={(e) => handleChange('companyName', e.target.value)}
+                  {...form.register('companyName')}
                   placeholder="Empresa Ltda"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="cnpj">CNPJ</Label>
                 <Input
                   id="cnpj"
-                  value={formData.cnpj || ''}
-                  onChange={(e) => handleChange('cnpj', e.target.value)}
+                  {...form.register('cnpj')}
                   placeholder="00.000.000/0000-00"
                 />
               </div>
@@ -147,32 +189,39 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
           {/* Status e Gestão */}
           <div className="space-y-4">
             <h3 className="text-gray-900">Status e Gestão</h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status *</Label>
-                <Select 
-                  value={formData.status} 
-                  onValueChange={(value) => handleChange('status', value as ClientStatus)}
+                <Select
+                  value={form.watch('status') || ClientStatus.LEAD}
+                  onValueChange={(value: string) =>
+                    handleChange('status', value as ClientStatus)
+                  }
                 >
                   <SelectTrigger id="status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={ClientStatus.LEAD}>Lead</SelectItem>
-                    <SelectItem value={ClientStatus.PROSPECT}>Prospect</SelectItem>
-                    <SelectItem value={ClientStatus.CLIENTE}>Cliente</SelectItem>
-                    <SelectItem value={ClientStatus.INATIVO}>Inativo</SelectItem>
+                    <SelectItem value={ClientStatus.PROSPECT}>
+                      Prospect
+                    </SelectItem>
+                    <SelectItem value={ClientStatus.CLIENTE}>
+                      Cliente
+                    </SelectItem>
+                    <SelectItem value={ClientStatus.INATIVO}>
+                      Inativo
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="origin">Origem</Label>
                 <Input
                   id="origin"
-                  value={formData.origin || ''}
-                  onChange={(e) => handleChange('origin', e.target.value)}
+                  {...form.register('origin')}
                   placeholder="Indicação, Website, LinkedIn..."
                 />
               </div>
@@ -180,9 +229,14 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
 
             <div className="space-y-2">
               <Label htmlFor="ownerUserId">Responsável Interno</Label>
-              <Select 
-                value={formData.ownerUserId || 'none'} 
-                onValueChange={(value) => handleChange('ownerUserId', value === 'none' ? undefined : value)}
+              <Select
+                value={form.watch('ownerUserId') || 'none'}
+                onValueChange={(value: string) =>
+                  handleChange(
+                    'ownerUserId',
+                    value === 'none' ? undefined : value
+                  )
+                }
               >
                 <SelectTrigger id="ownerUserId">
                   <SelectValue placeholder="Selecione um responsável" />
@@ -202,24 +256,22 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
           {/* Endereço */}
           <div className="space-y-4">
             <h3 className="text-gray-900">Endereço</h3>
-            
+
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="addressZipcode">CEP</Label>
                 <Input
                   id="addressZipcode"
-                  value={formData.addressZipcode || ''}
-                  onChange={(e) => handleChange('addressZipcode', e.target.value)}
+                  {...form.register('addressZipcode')}
                   placeholder="01310-100"
                 />
               </div>
-              
+
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="addressStreet">Rua</Label>
                 <Input
                   id="addressStreet"
-                  value={formData.addressStreet || ''}
-                  onChange={(e) => handleChange('addressStreet', e.target.value)}
+                  {...form.register('addressStreet')}
                   placeholder="Avenida Paulista"
                 />
               </div>
@@ -230,18 +282,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 <Label htmlFor="addressNumber">Número</Label>
                 <Input
                   id="addressNumber"
-                  value={formData.addressNumber || ''}
-                  onChange={(e) => handleChange('addressNumber', e.target.value)}
+                  {...form.register('addressNumber')}
                   placeholder="1000"
                 />
               </div>
-              
+
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="addressDistrict">Bairro</Label>
                 <Input
                   id="addressDistrict"
-                  value={formData.addressDistrict || ''}
-                  onChange={(e) => handleChange('addressDistrict', e.target.value)}
+                  {...form.register('addressDistrict')}
                   placeholder="Bela Vista"
                 />
               </div>
@@ -252,17 +302,18 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 <Label htmlFor="addressCity">Cidade</Label>
                 <Input
                   id="addressCity"
-                  value={formData.addressCity || ''}
-                  onChange={(e) => handleChange('addressCity', e.target.value)}
+                  {...form.register('addressCity')}
                   placeholder="São Paulo"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="addressState">Estado</Label>
-                <Select 
-                  value={formData.addressState || ''} 
-                  onValueChange={(value) => handleChange('addressState', value)}
+                <Select
+                  value={form.watch('addressState') || ''}
+                  onValueChange={(value: string) =>
+                    handleChange('addressState', value)
+                  }
                 >
                   <SelectTrigger id="addressState">
                     <SelectValue placeholder="UF" />
@@ -276,13 +327,12 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="addressCountry">País</Label>
                 <Input
                   id="addressCountry"
-                  value={formData.addressCountry || ''}
-                  onChange={(e) => handleChange('addressCountry', e.target.value)}
+                  {...form.register('addressCountry')}
                   placeholder="Brasil"
                 />
               </div>
@@ -294,8 +344,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
             <Label htmlFor="notes">Observações Internas</Label>
             <Textarea
               id="notes"
-              value={formData.notes || ''}
-              onChange={(e) => handleChange('notes', e.target.value)}
+              {...form.register('notes')}
               placeholder="Anotações internas sobre o cliente..."
               rows={3}
             />
@@ -303,7 +352,11 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               Cancelar
             </Button>
             <Button type="submit">

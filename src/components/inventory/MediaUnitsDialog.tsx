@@ -195,16 +195,19 @@ export function MediaUnitsDialog({
                   setEditingUnit(null);
                 } else {
                   const newUnit: MediaUnit = {
-                    id: `mu${Date.now()}`,
-                    companyId: 'c1',
-                    mediaPointId,
-                    unitType:
-                      mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN,
-                    isActive: true,
-                    ...data,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                  };
+  id: `mu${Date.now()}`,
+  companyId: 'c1',
+  mediaPointId,
+  unitType:
+    mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN,
+  isActive: data.isActive ?? true,
+  ...data,
+  // garante que label seja sempre string, nunca undefined
+  label: data.label ?? '',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
                   setUnits((prev) => [...prev, newUnit]);
                   setIsAdding(false);
                 }
@@ -282,9 +285,12 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
             <div className="space-y-2">
               <Label>Orientação</Label>
               <Select
-                value={formData.orientation || ''}
-                onValueChange={(value) => updateField('orientation', value as Orientation)}
-              >
+  value={formData.orientation || ''}
+  onValueChange={(value: string) =>
+    updateField('orientation', value as Orientation)
+  }
+>
+
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione a orientação" />
                 </SelectTrigger>
@@ -381,17 +387,18 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
               <div className="space-y-2">
                 <Label>Resolução da Mídia</Label>
                 <Select
-                  value={
-                    formData.resolutionWidthPx && formData.resolutionHeightPx
-                      ? `${formData.resolutionWidthPx}x${formData.resolutionHeightPx}`
-                      : ''
-                  }
-                  onValueChange={(value) => {
-                    const [width, height] = value.split('x').map(Number);
-                    updateField('resolutionWidthPx', width);
-                    updateField('resolutionHeightPx', height);
-                  }}
-                >
+  value={
+    formData.resolutionWidthPx && formData.resolutionHeightPx
+      ? `${formData.resolutionWidthPx}x${formData.resolutionHeightPx}`
+      : ''
+  }
+  onValueChange={(value: string) => {
+    const [width, height] = value.split('x').map(Number);
+    updateField('resolutionWidthPx', width);
+    updateField('resolutionHeightPx', height);
+  }}
+>
+
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a resolução" />
                   </SelectTrigger>

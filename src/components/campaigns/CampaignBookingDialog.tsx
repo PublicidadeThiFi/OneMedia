@@ -4,8 +4,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { Campaign } from '../../types';
-import { getClientById, getProposalById, getItemsForProposal } from '../../lib/mockData';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface CampaignBookingDialogProps {
   open: boolean;
@@ -26,9 +25,8 @@ export function CampaignBookingDialog({
 
   if (!campaign) return null;
 
-  const client = getClientById(campaign.clientId);
-  const proposal = getProposalById(campaign.proposalId);
-  const items = proposal ? getItemsForProposal(proposal.id) : [];
+  const client = campaign.client;
+  const items = campaign.items || [];
   const unitsCount = items.filter(item => item.mediaUnitId).length;
 
   const handleGenerate = () => {
@@ -66,7 +64,7 @@ export function CampaignBookingDialog({
               <div>
                 <p className="text-gray-500">Valor</p>
                 <p className="text-gray-900">
-                  R$ {(proposal?.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {((campaign.totalAmountCents || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
@@ -81,7 +79,7 @@ export function CampaignBookingDialog({
                 <Checkbox
                   id="includeChecklist"
                   checked={options.includeChecklist}
-                  onCheckedChange={(checked) =>
+                  onCheckedChange={(checked: boolean | 'indeterminate') =>
                     setOptions({ ...options, includeChecklist: checked === true })
                   }
                 />
@@ -94,7 +92,7 @@ export function CampaignBookingDialog({
                 <Checkbox
                   id="includeImages"
                   checked={options.includeImages}
-                  onCheckedChange={(checked) =>
+                  onCheckedChange={(checked: boolean | 'indeterminate') =>
                     setOptions({ ...options, includeImages: checked === true })
                   }
                 />
@@ -107,7 +105,7 @@ export function CampaignBookingDialog({
                 <Checkbox
                   id="includeValues"
                   checked={options.includeValues}
-                  onCheckedChange={(checked) =>
+                  onCheckedChange={(checked: boolean | 'indeterminate') =>
                     setOptions({ ...options, includeValues: checked === true })
                   }
                 />

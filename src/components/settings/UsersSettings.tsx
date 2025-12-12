@@ -1,33 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit } from 'lucide-react';
 import { User, UserRoleType, UserStatus, TwoFactorType } from '../../types';
-import { CompanyUserWithRoles } from '../../lib/mockDataSettings';
 import { UserInviteDialog } from './UserInviteDialog';
 import { UserEditDialog } from './UserEditDialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { useUsers } from '../../hooks/useUsers';
+import { useAuth } from '../../contexts/AuthContext';
 
-interface UsersSettingsProps {
-  currentUserId: string;
-  companyUsers: CompanyUserWithRoles[];
-  onAddUser: (newUser: User, roles: UserRoleType[]) => void;
-  onUpdateUser: (updatedUser: User, roles: UserRoleType[]) => void;
-  onDeleteUser: (userId: string) => void;
-}
-
-export function UsersSettings({
-  currentUserId,
-  companyUsers,
-  onAddUser,
-  onUpdateUser,
-  onDeleteUser,
-}: UsersSettingsProps) {
+export function UsersSettings() {
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id || '';
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { users, loading, error, refetch, inviteUser, updateUser, updateUserStatus, updateUserRoles } = useUsers({ search: debouncedSearch });
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<CompanyUserWithRoles | null>(null);
-  const [deletingUser, setDeletingUser] = useState<CompanyUserWithRoles | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUserRoles, setEditingUserRoles] = useState<UserRoleType[]>([]);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const getRoleColor = (role: UserRoleType): string => {
     switch (role) {
@@ -67,36 +65,86 @@ export function UsersSettings({
     }
   };
 
-  const handleDelete = (userWithRoles: CompanyUserWithRoles) => {
-    const { user, roles } = userWithRoles;
-
-    // Validação: não pode excluir o próprio usuário
-    if (user.id === currentUserId) {
-      toast.error('Você não pode excluir seu próprio usuário.');
-      return;
-    }
-
-    // Validação: não pode excluir o último ADMINISTRATIVO
-    const isAdmin = roles.includes(UserRoleType.ADMINISTRATIVO);
-    if (isAdmin) {
-      const adminCount = companyUsers.filter((cu) =>
-        cu.roles.includes(UserRoleType.ADMINISTRATIVO)
-      ).length;
-
-      if (adminCount <= 1) {
-        toast.error('Não é possível excluir o último usuário Administrativo da empresa.');
+  const handleInviteSave = async (data: { user: Partial<User>; roles: UserRoleType[] }) => {
+    try {
+      if (!data.user.name || !data.user.email) {
+        toast.error('Nome e email são obrigatórios');
         return;
       }
+      if (!data.roles || data.roles.length === 0) {
+        toast.error('Selecione pelo menos um perfil');
+        return;
+      }
+      const created = await inviteUser(data.user);
+      if (data.roles && data.roles.length > 0) {
+        await updateUserRoles(created.id, data.roles);
+      }
+      toast.success('Convite enviado com sucesso.');
+      setIsInviteDialogOpen(false);
+      await refetch();
+    } catch (e) {
+      toast.error('Falha ao convidar usuário.');
     }
-
-    setDeletingUser(userWithRoles);
   };
 
-  const confirmDelete = () => {
-    if (deletingUser) {
-      onDeleteUser(deletingUser.user.id);
-      toast.success(`Usuário ${deletingUser.user.name} excluído com sucesso.`);
-      setDeletingUser(null);
+  const handleEditSave = async (
+    payload: { updates: Partial<User>; status?: UserStatus; roles: UserRoleType[] }
+  ) => {
+    try {
+      if (!editingUser) return;
+      const targetId = editingUser.id;
+
+      // Last-admin guard: prevent removing ADMINISTRATIVO if it would leave zero
+      const previousHadAdmin = editingUserRoles.includes(UserRoleType.ADMINISTRATIVO);
+      const nextHasAdmin = payload.roles.includes(UserRoleType.ADMINISTRATIVO);
+      if (previousHadAdmin && !nextHasAdmin) {
+        const adminCount = users.reduce((acc, u) => {
+          const roles: UserRoleType[] = (((u as unknown) as any).roles || []) as UserRoleType[];
+          return acc + (roles.includes(UserRoleType.ADMINISTRATIVO) ? 1 : 0);
+        }, 0);
+        if (adminCount <= 1) {
+          toast.error('Não é possível remover o último usuário Administrativo da empresa.');
+          return;
+        }
+      }
+
+      if (payload.status && payload.status !== editingUser.status) {
+        if (targetId === currentUserId && payload.status === UserStatus.INACTIVE) {
+          toast.error('Você não pode desativar seu próprio usuário.');
+          return;
+        }
+        await updateUserStatus(targetId, payload.status);
+      }
+
+      const { updates } = payload;
+      if (updates && Object.keys(updates).length > 0) {
+        await updateUser(targetId, updates);
+      }
+
+      if (payload.roles) {
+        await updateUserRoles(targetId, payload.roles);
+      }
+
+      toast.success('Usuário atualizado com sucesso.');
+      setEditingUser(null);
+      await refetch();
+    } catch (e) {
+      toast.error('Falha ao atualizar usuário.');
+    }
+  };
+
+  const toggleUserStatus = async (u: User) => {
+    try {
+      if (u.id === currentUserId && u.status === UserStatus.ACTIVE) {
+        toast.error('Você não pode desativar seu próprio usuário.');
+        return;
+      }
+      const newStatus = u.status === UserStatus.ACTIVE ? UserStatus.INACTIVE : UserStatus.ACTIVE;
+      await updateUserStatus(u.id, newStatus);
+      toast.success(`Usuário ${newStatus === UserStatus.ACTIVE ? 'ativado' : 'desativado'}.`);
+      await refetch();
+    } catch (e) {
+      toast.error('Falha ao alterar status do usuário.');
     }
   };
 
@@ -117,18 +165,29 @@ export function UsersSettings({
                 <DialogHeader>
                   <DialogTitle>Convidar Novo Usuário</DialogTitle>
                 </DialogHeader>
-                <UserInviteDialog
-                  onClose={() => setIsInviteDialogOpen(false)}
-                  onInvite={onAddUser}
-                />
+                <UserInviteDialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen} onSave={handleInviteSave} />
               </DialogContent>
             </Dialog>
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <input
+              className="w-full border rounded px-3 py-2"
+              placeholder="Buscar por nome ou email"
+              value={search}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+            />
+          </div>
+          {loading && (
+            <div className="p-3 mb-4 rounded bg-gray-50 text-gray-700">Carregando usuários...</div>
+          )}
+          {error && (
+            <div className="p-3 mb-4 rounded bg-red-50 text-red-700">Erro ao carregar usuários.</div>
+          )}
           <div className="space-y-4">
-            {companyUsers.map((userWithRoles) => {
-              const { user, roles } = userWithRoles;
+            {users.map((user) => {
+              const roles: UserRoleType[] = (((user as unknown) as any).roles || []) as UserRoleType[];
 
               return (
                 <Card key={user.id}>
@@ -155,6 +214,9 @@ export function UsersSettings({
                               {getRoleLabel(role)}
                             </Badge>
                           ))}
+                          {roles.length === 0 && (
+                            <span className="text-sm text-gray-500">Sem perfis definidos</span>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 text-sm mb-3">
@@ -200,16 +262,12 @@ export function UsersSettings({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setEditingUser(userWithRoles)}
+                          onClick={() => { setEditingUser(user); setEditingUserRoles(roles); }}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(userWithRoles)}
-                        >
-                          <Trash2 className="w-4 h-4" />
+                        <Button variant="outline" size="sm" onClick={() => toggleUserStatus(user)}>
+                          {user.status === UserStatus.ACTIVE ? 'Desativar' : 'Ativar'}
                         </Button>
                       </div>
                     </div>
@@ -239,38 +297,12 @@ export function UsersSettings({
       {/* Dialog de edição */}
       {editingUser && (
         <UserEditDialog
-          userWithRoles={editingUser}
-          currentUserId={currentUserId}
-          allUsers={companyUsers}
-          onClose={() => setEditingUser(null)}
-          onUpdate={onUpdateUser}
+          open={!!editingUser}
+          onOpenChange={(open) => !open && setEditingUser(null)}
+          user={editingUser}
+          currentRoles={((((editingUser as unknown) as any).roles) || []) as UserRoleType[]}
+          onSave={handleEditSave}
         />
-      )}
-
-      {/* Dialog de confirmação de exclusão */}
-      {deletingUser && (
-        <Dialog open={!!deletingUser} onOpenChange={() => setDeletingUser(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Confirmar Exclusão</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-gray-700">
-                Tem certeza que deseja excluir o usuário{' '}
-                <strong>{deletingUser.user.name}</strong>?
-              </p>
-              <p className="text-sm text-gray-500">Esta ação não pode ser desfeita.</p>
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button variant="outline" onClick={() => setDeletingUser(null)}>
-                  Cancelar
-                </Button>
-                <Button variant="destructive" onClick={confirmDelete}>
-                  Excluir Usuário
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       )}
     </>
   );

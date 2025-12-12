@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Building2 } from 'lucide-react';
 import { Company } from '../../types';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface CompanySettingsProps {
   company: Company;
@@ -29,7 +29,7 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
   const [addressCountry, setAddressCountry] = useState(company.addressCountry || 'Brasil');
   const [defaultProposalNotes, setDefaultProposalNotes] = useState(company.defaultProposalNotes || '');
   const [selectedLogoFile, setSelectedLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(company.logoUrl);
+  const [logoPreview, setLogoPreview] = useState<string | null>(company.logoUrl ?? null);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -63,19 +63,19 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
     const updatedCompany: Company = {
       ...company,
       name: name.trim(),
-      cnpj: cnpj.trim() || null,
-      phone: phone.trim() || null,
-      email: email.trim() || null,
-      site: site.trim() || null,
-      primaryColor: primaryColor || null,
-      addressZipcode: addressZipcode.trim() || null,
-      addressStreet: addressStreet.trim() || null,
-      addressNumber: addressNumber.trim() || null,
-      addressDistrict: addressDistrict.trim() || null,
-      addressCity: addressCity.trim() || null,
-      addressState: addressState.trim() || null,
-      addressCountry: addressCountry.trim() || null,
-      defaultProposalNotes: defaultProposalNotes.trim() || null,
+      cnpj: cnpj.trim() || undefined,
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+      site: site.trim() || undefined,
+      primaryColor: primaryColor || undefined,
+      addressZipcode: addressZipcode.trim() || undefined,
+      addressStreet: addressStreet.trim() || undefined,
+      addressNumber: addressNumber.trim() || undefined,
+      addressDistrict: addressDistrict.trim() || undefined,
+      addressCity: addressCity.trim() || undefined,
+      addressState: addressState.trim() || undefined,
+      addressCountry: addressCountry.trim() || undefined,
+      defaultProposalNotes: defaultProposalNotes.trim() || undefined,
       // logoUrl seria atualizada após upload real
       updatedAt: new Date(),
     };

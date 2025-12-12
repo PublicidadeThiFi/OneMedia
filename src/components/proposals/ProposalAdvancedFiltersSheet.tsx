@@ -113,7 +113,7 @@ export function ProposalAdvancedFiltersSheet({
             <Label htmlFor="campaign-status">Status da Campanha</Label>
             <Select
               value={localFilters.campaignStatus || 'all'}
-              onValueChange={(value) =>
+              onValueChange={(value: string) =>
                 setLocalFilters({
                   ...localFilters,
                   campaignStatus: value === 'all' ? undefined : (value as CampaignStatus),
@@ -137,7 +137,7 @@ export function ProposalAdvancedFiltersSheet({
             <Label htmlFor="billing-status">Status Financeiro</Label>
             <Select
               value={localFilters.billingStatus || 'all'}
-              onValueChange={(value) =>
+              onValueChange={(value: string) =>
                 setLocalFilters({
                   ...localFilters,
                   billingStatus: value === 'all' ? undefined : (value as BillingStatus),
@@ -162,7 +162,7 @@ export function ProposalAdvancedFiltersSheet({
             <Label htmlFor="responsible-user">Usuário Responsável</Label>
             <Select
               value={localFilters.responsibleUserId || 'all'}
-              onValueChange={(value) =>
+              onValueChange={(value: string) =>
                 setLocalFilters({
                   ...localFilters,
                   responsibleUserId: value === 'all' ? undefined : value,
