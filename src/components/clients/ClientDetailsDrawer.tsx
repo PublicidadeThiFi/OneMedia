@@ -55,11 +55,14 @@ export function ClientDetailsDrawer({
           <SheetTitle>Detalhes do Cliente</SheetTitle>
         </SheetHeader>
 
-        <Tabs 
-          value={activeTab} 
-          onValueChange={(value) => onActiveTabChange?.(value as any)}
-          className="mt-6"
-        >
+        <Tabs
+  value={activeTab}
+  onValueChange={(
+    value: 'resumo' | 'documentos' | 'propostas' | 'atividades'
+  ) => onActiveTabChange?.(value)}
+  className="mt-6"
+>
+
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="documentos">Documentos</TabsTrigger>

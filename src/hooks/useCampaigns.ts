@@ -4,74 +4,104 @@ import { Campaign, CampaignStatus } from '../types';
 
 export interface UseCampaignsParams {
   search?: string;
-  status?: CampaignStatus | string;
-  clientId?: string;
-  startDateFrom?: string;
-  startDateTo?: string;
-}
+  import { useEffect, useState } from 'react';
+  import apiClient from '../lib/apiClient';
+  import { Campaign, CampaignStatus } from '../types';
 
-// Resposta pode ser um array direto ou um objeto com paginação
-type CampaignsResponse = Campaign[] | {
-  data: Campaign[];
-  total?: number;
-};
+  export interface UseCampaignsParams {
+    search?: string;
+    status?: CampaignStatus | CampaignStatus[] | string;
+    clientId?: string;
+    startFrom?: string;
+    startTo?: string;
+    endFrom?: string;
+    endTo?: string;
+    page?: number;
+    pageSize?: number;
+  }
 
-export function useCampaigns(params: UseCampaignsParams = {}) {
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | null>(null);
+  type CampaignsResponse =
+    | Campaign[]
+    | {
+        data: Campaign[];
+        total?: number;
+      };
 
-  const fetchCampaigns = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  export function useCampaigns(params: UseCampaignsParams = {}) {
+    const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+    const [total, setTotal] = useState<number>(0);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
 
-      const response = await apiClient.get<CampaignsResponse>('/campaigns', { params });
-      const responseData = response.data as CampaignsResponse;
+    const fetchCampaigns = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const data: Campaign[] = Array.isArray(responseData)
-        ? responseData
-        : responseData.data;
+        const response = await apiClient.get<CampaignsResponse>('/campaigns', {
+          params,
+        });
 
-      setCampaigns(data);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const responseData = response.data as CampaignsResponse;
+        const data: Campaign[] = Array.isArray(responseData)
+          ? responseData
+          : responseData.data;
 
-  const getCampaignById = async (id: string) => {
-    const response = await apiClient.get<Campaign>(`/campaigns/${id}`);
-    return response.data;
-  };
+        const computedTotal = Array.isArray(responseData)
+          ? data.length
+          : responseData.total ?? data.length;
 
-  const createCampaign = async (payload: unknown) => {
-    const response = await apiClient.post<Campaign>('/campaigns', payload);
-    setCampaigns((prev: Campaign[]) => [response.data, ...prev]);
-    return response.data;
-  };
+        setCampaigns(data);
+        setTotal(computedTotal);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const updateCampaign = async (id: string, payload: unknown) => {
-    const response = await apiClient.put<Campaign>(`/campaigns/${id}`, payload);
-    setCampaigns((prev: Campaign[]) =>
-      prev.map((c: Campaign) => (c.id === id ? response.data : c))
-    );
-    return response.data;
-  };
+    const getCampaignById = async (id: string) => {
+      const response = await apiClient.get<Campaign>(`/campaigns/${id}`);
+      return response.data;
+    };
 
-  useEffect(() => {
-    fetchCampaigns();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.search, params.status, params.clientId, params.startDateFrom, params.startDateTo]);
+    const createCampaign = async (payload: unknown) => {
+      const response = await apiClient.post<Campaign>('/campaigns', payload);
+      setCampaigns((prev: Campaign[]) => [response.data, ...prev]);
+      return response.data;
+    };
 
-  return {
-    campaigns,
-    loading,
-    error,
-    refetch: fetchCampaigns,
-    getCampaignById,
-    createCampaign,
-    updateCampaign,
-  };
-}
+    const updateCampaign = async (id: string, payload: unknown) => {
+      const response = await apiClient.put<Campaign>(`/campaigns/${id}`, payload);
+      setCampaigns((prev: Campaign[]) =>
+        prev.map((c: Campaign) => (c.id === id ? response.data : c))
+      );
+      return response.data;
+    };
+
+    useEffect(() => {
+      fetchCampaigns();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+      params.search,
+      params.status,
+      params.clientId,
+      params.startFrom,
+      params.startTo,
+      params.endFrom,
+      params.endTo,
+      params.page,
+      params.pageSize,
+    ]);
+
+    return {
+      campaigns,
+      total,
+      loading,
+      error,
+      refetch: fetchCampaigns,
+      getCampaignById,
+      createCampaign,
+      updateCampaign,
+    };
+  }

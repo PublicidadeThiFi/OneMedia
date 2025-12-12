@@ -18,7 +18,7 @@ import {
   formatCurrency,
   getPublicMapUrl,
 } from '../lib/mockDataDashboard';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   onNavigate: (page: Page) => void;

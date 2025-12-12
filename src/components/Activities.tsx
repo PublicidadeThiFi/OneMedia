@@ -4,14 +4,8 @@ import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { Search, Filter, Calendar } from 'lucide-react';
-import { ActivityResourceType } from '../types';
-import {
-  getActivityLogViewModels,
-  getDistinctActions,
-  getDistinctResourceTypes,
-  ActivityLogViewModel,
-} from '../lib/mockDataActivityLog';
-import { CURRENT_COMPANY_ID } from '../lib/mockData';
+import { ActivityLog, ActivityResourceType } from '../types';
+import { useActivityLogs } from '../hooks/useActivityLogs';
 
 export function Activities() {
   // Estados para filtros
@@ -19,10 +13,8 @@ export function Activities() {
   const [resourceFilter, setResourceFilter] = useState<ActivityResourceType | 'ALL'>('ALL');
   const [actionFilter, setActionFilter] = useState<string | 'ALL'>('ALL');
 
-  // Carregar e enriquecer logs
-  const allLogs = useMemo(() => {
-    return getActivityLogViewModels(CURRENT_COMPANY_ID);
-  }, []);
+  // Carregar logs via hook (fonte de verdade)
+  const { logs: allLogs, loading, error } = useActivityLogs({});
 
   // Ordenar por data (mais recentes primeiro)
   const sortedLogs = useMemo(() => {
@@ -33,11 +25,15 @@ export function Activities() {
 
   // Obter listas dinâmicas para dropdowns
   const availableResourceTypes = useMemo(() => {
-    return getDistinctResourceTypes(allLogs);
+    const set = new Set<ActivityResourceType>();
+    (allLogs as ActivityLog[]).forEach((log) => set.add(log.resourceType));
+    return Array.from(set.values());
   }, [allLogs]);
 
   const availableActions = useMemo(() => {
-    return getDistinctActions(allLogs);
+    const set = new Set<string>();
+    (allLogs as ActivityLog[]).forEach((log) => set.add(log.action));
+    return Array.from(set.values());
   }, [allLogs]);
 
   // Aplicar filtros
@@ -60,10 +56,10 @@ export function Activities() {
       filtered = filtered.filter(log => {
         const detailsStr = log.details ? JSON.stringify(log.details).toLowerCase() : '';
         return (
-          log.resourceName.toLowerCase().includes(query) ||
           log.resourceId.toLowerCase().includes(query) ||
           log.action.toLowerCase().includes(query) ||
-          log.userName.toLowerCase().includes(query) ||
+          (log.userId ? log.userId.toLowerCase().includes(query) : false) ||
+          log.resourceType.toLowerCase().includes(query) ||
           detailsStr.includes(query)
         );
       });
@@ -129,6 +125,13 @@ export function Activities() {
         <p className="text-gray-600">Histórico de ações realizadas no sistema</p>
       </div>
 
+      {loading && (
+        <div className="mb-4 text-sm text-gray-600">Carregando atividades...</div>
+      )}
+      {!loading && error && (
+        <div className="mb-4 text-sm text-red-600">Erro ao carregar atividades.</div>
+      )}
+
       {/* Filtros */}
       <Card className="mb-6">
         <CardContent className="p-6">
@@ -139,7 +142,7 @@ export function Activities() {
               <Input
                 placeholder="Buscar por nome, ação ou detalhes..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -147,7 +150,7 @@ export function Activities() {
             {/* Dropdown de Recursos */}
             <Select
               value={resourceFilter}
-              onValueChange={(value) => setResourceFilter(value as ActivityResourceType | 'ALL')}
+              onValueChange={(value: string) => setResourceFilter(value as ActivityResourceType | 'ALL')}
             >
               <SelectTrigger className="w-full md:w-48">
                 <Filter className="h-4 w-4 mr-2" />
@@ -166,7 +169,7 @@ export function Activities() {
             {/* Dropdown de Ações */}
             <Select
               value={actionFilter}
-              onValueChange={(value) => setActionFilter(value)}
+              onValueChange={(value: string) => setActionFilter(value)}
             >
               <SelectTrigger className="w-full md:w-48">
                 <Calendar className="h-4 w-4 mr-2" />
@@ -196,7 +199,7 @@ export function Activities() {
             </CardContent>
           </Card>
         ) : (
-          filteredLogs.map((log) => (
+          filteredLogs.map((log: ActivityLog) => (
             <Card key={log.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
@@ -204,13 +207,10 @@ export function Activities() {
                     {/* Cabeçalho: chip + ação */}
                     <div className="flex items-center gap-3 mb-2">
                       <Badge className={getResourceColor(log.resourceType)}>
-                        {log.resourceLabel}
+                        {getResourceLabel(log.resourceType)}
                       </Badge>
                       <h3 className="text-gray-900">{log.action}</h3>
                     </div>
-
-                    {/* Nome do recurso */}
-                    <p className="text-gray-800 mb-1">{log.resourceName}</p>
 
                     {/* ID do recurso */}
                     <p className="text-sm text-gray-600 mb-2">ID: {log.resourceId}</p>
@@ -226,7 +226,7 @@ export function Activities() {
 
                     {/* Rodapé: usuário e data */}
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span>Por: {log.userName}</span>
+                      {log.userId && <span>Usuário: {log.userId}</span>}
                       <span>•</span>
                       <span>{formatDateTime(log.createdAt)}</span>
                     </div>

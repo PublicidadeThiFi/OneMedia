@@ -1,4 +1,4 @@
-import { Eye, Edit, FileText } from 'lucide-react';
+import { Eye, Edit, FileText, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Client, ClientStatus } from '../../types';
@@ -9,31 +9,52 @@ interface ClientsTableProps {
   onViewDetails: (client: Client) => void;
   onEditClient: (client: Client) => void;
   onViewClientDocuments: (client: Client) => void;
+  onDeleteClient?: (clientId: string) => void;
+  page?: number;
+  pageSize?: number;
+  total?: number;
+  onPageChange?: (page: number) => void;
 }
 
-export function ClientsTable({ 
-  clients, 
-  onViewDetails, 
+export function ClientsTable({
+  clients,
+  onViewDetails,
   onEditClient,
   onViewClientDocuments,
+  onDeleteClient,
+  page,
+  pageSize,
+  total,
+  onPageChange,
 }: ClientsTableProps) {
   const getStatusColor = (status: ClientStatus) => {
     switch (status) {
-      case ClientStatus.CLIENTE: return 'bg-green-100 text-green-800';
-      case ClientStatus.PROSPECT: return 'bg-blue-100 text-blue-800';
-      case ClientStatus.LEAD: return 'bg-yellow-100 text-yellow-800';
-      case ClientStatus.INATIVO: return 'bg-gray-100 text-gray-800';
+      case ClientStatus.CLIENTE:
+        return 'bg-green-100 text-green-800';
+      case ClientStatus.PROSPECT:
+        return 'bg-blue-100 text-blue-800';
+      case ClientStatus.LEAD:
+        return 'bg-yellow-100 text-yellow-800';
+      case ClientStatus.INATIVO:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getStatusLabel = (status: ClientStatus) => {
     switch (status) {
-      case ClientStatus.CLIENTE: return 'Cliente';
-      case ClientStatus.PROSPECT: return 'Prospect';
-      case ClientStatus.LEAD: return 'Lead';
-      case ClientStatus.INATIVO: return 'Inativo';
+      case ClientStatus.CLIENTE:
+        return 'Cliente';
+      case ClientStatus.PROSPECT:
+        return 'Prospect';
+      case ClientStatus.LEAD:
+        return 'Lead';
+      case ClientStatus.INATIVO:
+        return 'Inativo';
     }
   };
+
+  const totalPages =
+    total && pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
 
   return (
     <div className="overflow-x-auto">
@@ -42,9 +63,13 @@ export function ClientsTable({
           <tr>
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Contato</th>
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Empresa</th>
-            <th className="px-6 py-3 text-left text-gray-600 text-sm">Email/Telefone</th>
+            <th className="px-6 py-3 text-left text-gray-600 text-sm">
+              Email/Telefone
+            </th>
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Status</th>
-            <th className="px-6 py-3 text-left text-gray-600 text-sm">Responsável</th>
+            <th className="px-6 py-3 text-left text-gray-600 text-sm">
+              Responsável
+            </th>
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Origem</th>
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Propostas</th>
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Ações</th>
@@ -52,7 +77,9 @@ export function ClientsTable({
         </thead>
         <tbody className="divide-y divide-gray-200">
           {clients.map((client) => {
-            const owner = client.ownerUserId ? getUserById(client.ownerUserId) : null;
+            const owner = client.ownerUserId
+              ? getUserById(client.ownerUserId)
+              : null;
             const proposalCount = getProposalsForClient(client.id).length;
 
             return (
@@ -104,34 +131,46 @@ export function ClientsTable({
                 <td className="px-6 py-4 text-gray-600">
                   {owner?.name || '—'}
                 </td>
-                <td className="px-6 py-4 text-gray-600">{client.origin || '—'}</td>
+                <td className="px-6 py-4 text-gray-600">
+                  {client.origin || '—'}
+                </td>
                 <td className="px-6 py-4 text-gray-900">{proposalCount}</td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => onViewDetails(client)}
                       title="Ver detalhes"
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => onEditClient(client)}
                       title="Editar cliente"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => onViewClientDocuments(client)}
                       title="Ver documentos"
                     >
                       <FileText className="w-4 h-4" />
                     </Button>
+                    {onDeleteClient && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteClient(client.id)}
+                        title="Excluir cliente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -145,6 +184,36 @@ export function ClientsTable({
           <p>Nenhum cliente encontrado</p>
         </div>
       )}
+
+      {/* Paginação simples opcional */}
+      {total !== undefined &&
+        page !== undefined &&
+        pageSize !== undefined &&
+        onPageChange && (
+          <div className="flex items-center justify-between px-6 py-4 text-sm text-gray-600 border-t border-gray-200">
+            <span>
+              Página {page} de {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => onPageChange(page - 1)}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => onPageChange(page + 1)}
+              >
+                Próxima
+              </Button>
+            </div>
+          </div>
+        )}
     </div>
   );
 }

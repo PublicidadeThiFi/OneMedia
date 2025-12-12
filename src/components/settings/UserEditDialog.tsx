@@ -6,34 +6,22 @@ import { Label } from '../ui/label';
 import { Switch } from '../ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { User, UserRoleType, UserStatus, TwoFactorType } from '../../types';
-import { CompanyUserWithRoles } from '../../lib/mockDataSettings';
-import { toast } from 'sonner@2.0.3';
 
 interface UserEditDialogProps {
-  userWithRoles: CompanyUserWithRoles;
-  currentUserId: string;
-  allUsers: CompanyUserWithRoles[];
-  onClose: () => void;
-  onUpdate: (updatedUser: User, roles: UserRoleType[]) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  user: User;
+  currentRoles: UserRoleType[];
+  onSave: (data: { updates: Partial<User>; status?: UserStatus; roles: UserRoleType[] }) => void;
 }
 
-export function UserEditDialog({
-  userWithRoles,
-  currentUserId,
-  allUsers,
-  onClose,
-  onUpdate,
-}: UserEditDialogProps) {
-  const { user, roles: initialRoles } = userWithRoles;
-
+export function UserEditDialog({ open, onOpenChange, user, currentRoles, onSave }: UserEditDialogProps) {
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone || '');
-  const [status, setStatus] = useState(user.status);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(user.twoFactorEnabled);
-  const [twoFactorType, setTwoFactorType] = useState<TwoFactorType>(
-    user.twoFactorType || TwoFactorType.TOTP
-  );
-  const [selectedRoles, setSelectedRoles] = useState<UserRoleType[]>(initialRoles);
+  const [status, setStatus] = useState<UserStatus>(user.status);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean>(user.twoFactorEnabled);
+  const [twoFactorType, setTwoFactorType] = useState<TwoFactorType>(user.twoFactorType || TwoFactorType.TOTP);
+  const [selectedRoles, setSelectedRoles] = useState<UserRoleType[]>(currentRoles);
 
   const allRoleOptions = [
     {
@@ -65,52 +53,17 @@ export function UserEditDialog({
   };
 
   const handleSave = () => {
-    // Validações
-    if (!name.trim()) {
-      toast.error('Nome é obrigatório');
-      return;
-    }
-
-    if (selectedRoles.length === 0) {
-      toast.error('Selecione pelo menos um perfil');
-      return;
-    }
-
-    // Validação: não pode remover ADMINISTRATIVO se for o último admin
-    const hadAdmin = initialRoles.includes(UserRoleType.ADMINISTRATIVO);
-    const hasAdmin = selectedRoles.includes(UserRoleType.ADMINISTRATIVO);
-
-    if (hadAdmin && !hasAdmin) {
-      const adminCount = allUsers.filter((cu) =>
-        cu.roles.includes(UserRoleType.ADMINISTRATIVO)
-      ).length;
-
-      if (adminCount <= 1) {
-        toast.error(
-          'Não é possível remover o perfil Administrativo do último usuário com esse perfil.'
-        );
-        return;
-      }
-    }
-
-    const updatedUser: User = {
-      ...user,
+    const updates: Partial<User> = {
       name: name.trim(),
-      phone: phone.trim() || null,
-      status,
+      phone: phone.trim() || undefined,
       twoFactorEnabled,
-      twoFactorType: twoFactorEnabled ? twoFactorType : null,
-      twoFactorSecret: twoFactorEnabled ? user.twoFactorSecret || 'secret_new' : null,
-      updatedAt: new Date(),
+      twoFactorType: twoFactorEnabled ? twoFactorType : undefined,
     };
-
-    onUpdate(updatedUser, selectedRoles);
-    toast.success(`Usuário ${updatedUser.name} atualizado com sucesso.`);
-    onClose();
+    onSave({ updates, status, roles: selectedRoles });
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Usuário</DialogTitle>
@@ -123,7 +76,7 @@ export function UserEditDialog({
               <Input
                 id="editName"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 placeholder="Nome completo"
               />
             </div>
@@ -132,7 +85,7 @@ export function UserEditDialog({
               <Input
                 id="editPhone"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)}
                 placeholder="(11) 98765-4321"
               />
             </div>
@@ -148,7 +101,7 @@ export function UserEditDialog({
           {/* Status */}
           <div className="space-y-2">
             <Label htmlFor="editStatus">Status</Label>
-            <Select value={status} onValueChange={(v) => setStatus(v as UserStatus)}>
+            <Select value={status} onValueChange={(v: string) => setStatus(v as UserStatus)}>
               <SelectTrigger id="editStatus">
                 <SelectValue />
               </SelectTrigger>
@@ -191,7 +144,7 @@ export function UserEditDialog({
                 <p className="text-gray-900 mb-1">2FA Habilitado (twoFactorEnabled)</p>
                 <p className="text-sm text-gray-600">Autenticação de 2 Fatores</p>
               </div>
-              <Switch checked={twoFactorEnabled} onCheckedChange={setTwoFactorEnabled} />
+              <Switch checked={twoFactorEnabled} onCheckedChange={(checked: boolean) => setTwoFactorEnabled(checked)} />
             </div>
 
             {twoFactorEnabled && (
@@ -199,7 +152,7 @@ export function UserEditDialog({
                 <Label htmlFor="editTwoFactorType">Tipo de 2FA (twoFactorType)</Label>
                 <Select
                   value={twoFactorType}
-                  onValueChange={(v) => setTwoFactorType(v as TwoFactorType)}
+                  onValueChange={(v: string) => setTwoFactorType(v as TwoFactorType)}
                 >
                   <SelectTrigger id="editTwoFactorType">
                     <SelectValue />
@@ -218,7 +171,7 @@ export function UserEditDialog({
 
           {/* Botões */}
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button onClick={handleSave}>Salvar Alterações</Button>

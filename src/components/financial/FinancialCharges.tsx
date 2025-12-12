@@ -5,40 +5,33 @@ import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { DollarSign, AlertCircle, CheckCircle, Clock, FileText } from 'lucide-react';
 import { BillingStatus, PaymentMethod, BillingInvoice } from '../../types';
-import { mockBillingInvoices, getClientById } from '../../lib/mockDataFinance';
+import { useBillingInvoices } from '../../hooks/useBillingInvoices';
 import { BillingInvoiceEditDialog } from './BillingInvoiceEditDialog';
+import { toast } from 'sonner';
 
 export function FinancialCharges() {
-  // Estado local para gerenciar cobranças em memória
-  const [billingInvoices, setBillingInvoices] = useState<BillingInvoice[]>(() => {
-    // Enriquecer com dados do cliente
-    return mockBillingInvoices.map(invoice => ({
-      ...invoice,
-      client: getClientById(invoice.clientId),
-    }));
-  });
-
+  const { invoices: billingInvoices, loading, error, refetch, updateInvoice, markAsPaid } = useBillingInvoices({});
   const [editingInvoice, setEditingInvoice] = useState<BillingInvoice | null>(null);
 
   // Calcular cards de resumo com base no estado atual
   const summary = useMemo(() => {
     // Pendente = ABERTA + VENCIDA
     const pendingAmount = billingInvoices
-      .filter(inv => inv.status === BillingStatus.ABERTA || inv.status === BillingStatus.VENCIDA)
-      .reduce((sum, inv) => sum + inv.amount, 0);
+      .filter((inv: BillingInvoice) => inv.status === BillingStatus.ABERTA || inv.status === BillingStatus.VENCIDA)
+      .reduce((sum: number, inv: BillingInvoice) => sum + (inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0)), 0);
     
     // Apenas ABERTA
     const openAmount = billingInvoices
-      .filter(inv => inv.status === BillingStatus.ABERTA)
-      .reduce((sum, inv) => sum + inv.amount, 0);
+      .filter((inv: BillingInvoice) => inv.status === BillingStatus.ABERTA)
+      .reduce((sum: number, inv: BillingInvoice) => sum + (inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0)), 0);
     
     // Receita confirmada = PAGA
     const confirmedAmount = billingInvoices
-      .filter(inv => inv.status === BillingStatus.PAGA)
-      .reduce((sum, inv) => sum + inv.amount, 0);
+      .filter((inv: BillingInvoice) => inv.status === BillingStatus.PAGA)
+      .reduce((sum: number, inv: BillingInvoice) => sum + (inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0)), 0);
     
     // Alertas = VENCIDA
-    const alertsCount = billingInvoices.filter(inv => inv.status === BillingStatus.VENCIDA).length;
+    const alertsCount = billingInvoices.filter((inv: BillingInvoice) => inv.status === BillingStatus.VENCIDA).length;
 
     return {
       pendingAmount,
@@ -48,11 +41,16 @@ export function FinancialCharges() {
     };
   }, [billingInvoices]);
 
-  const handleSaveInvoice = (updatedInvoice: BillingInvoice) => {
-    setBillingInvoices(prev =>
-      prev.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv)
-    );
-    setEditingInvoice(null);
+  const handleSaveInvoice = async (payload: Partial<BillingInvoice>) => {
+    if (!editingInvoice) return;
+    try {
+      await updateInvoice(editingInvoice.id, payload);
+      toast.success('Cobrança atualizada com sucesso');
+      setEditingInvoice(null);
+      refetch();
+    } catch (err) {
+      toast.error('Falha ao atualizar cobrança');
+    }
   };
 
   const getChargeStatusColor = (status: BillingStatus) => {
@@ -83,8 +81,20 @@ export function FinancialCharges() {
     }
   };
 
+  const handleMarkPaid = async (id: string) => {
+    try {
+      await markAsPaid(id);
+      toast.success('Cobrança marcada como paga');
+      refetch();
+    } catch (err) {
+      toast.error('Falha ao marcar cobrança como paga');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {loading && <div>Carregando cobranças...</div>}
+      {!loading && error && <div>Erro ao carregar cobranças.</div>}
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
@@ -163,7 +173,7 @@ export function FinancialCharges() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {billingInvoices
-                    .filter((c) => c.status === BillingStatus.ABERTA)
+                    .filter((c: BillingInvoice) => c.status === BillingStatus.ABERTA)
                     .map((charge) => (
                       <tr key={charge.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">
@@ -180,10 +190,10 @@ export function FinancialCharges() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-gray-900">
-                          R$ {charge.amount.toLocaleString('pt-BR')}
+                          R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
                         </td>
                         <td className="px-6 py-4 text-gray-600">
-                          {charge.dueDate.toLocaleDateString('pt-BR')}
+                          {new Date(charge.dueDate).toLocaleDateString('pt-BR')}
                         </td>
                         <td className="px-6 py-4 text-gray-600">
                           {getPaymentMethodLabel(charge.paymentMethod)}
@@ -200,7 +210,7 @@ export function FinancialCharges() {
                             {getChargeStatusLabel(charge.status)}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 space-x-2">
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -209,6 +219,13 @@ export function FinancialCharges() {
                           >
                             <DollarSign className="w-4 h-4" />
                             Editar
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleMarkPaid(charge.id)}
+                          >
+                            Marcar como paga
                           </Button>
                         </td>
                       </tr>
@@ -235,7 +252,7 @@ export function FinancialCharges() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {billingInvoices
-                    .filter((c) => c.status === BillingStatus.PAGA)
+                    .filter((c: BillingInvoice) => c.status === BillingStatus.PAGA)
                     .map((charge) => (
                       <tr key={charge.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">
@@ -245,7 +262,7 @@ export function FinancialCharges() {
                           <span className="text-indigo-600">{charge.proposalId}</span>
                         </td>
                         <td className="px-6 py-4 text-gray-900">
-                          R$ {charge.amount.toLocaleString('pt-BR')}
+                          R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
                         </td>
                         <td className="px-6 py-4 text-gray-600">
                           {charge.paidAt ? new Date(charge.paidAt).toLocaleDateString('pt-BR') : '-'}
@@ -268,7 +285,7 @@ export function FinancialCharges() {
 
         <TabsContent value="overdue">
           <Card>
-            {billingInvoices.filter(c => c.status === BillingStatus.VENCIDA).length === 0 ? (
+            {billingInvoices.filter((c: BillingInvoice) => c.status === BillingStatus.VENCIDA).length === 0 ? (
               <CardContent className="py-12 text-center">
                 <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">Nenhuma cobrança vencida</p>
@@ -288,7 +305,7 @@ export function FinancialCharges() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {billingInvoices
-                      .filter((c) => c.status === BillingStatus.VENCIDA)
+                      .filter((c: BillingInvoice) => c.status === BillingStatus.VENCIDA)
                       .map((charge) => (
                         <tr key={charge.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 text-gray-900">
@@ -298,7 +315,7 @@ export function FinancialCharges() {
                             <span className="text-indigo-600">{charge.proposalId}</span>
                           </td>
                           <td className="px-6 py-4 text-gray-900">
-                            R$ {charge.amount.toLocaleString('pt-BR')}
+                            R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
                           </td>
                           <td className="px-6 py-4 text-red-600">
                             {new Date(charge.dueDate).toLocaleDateString('pt-BR')}
@@ -308,7 +325,7 @@ export function FinancialCharges() {
                               {getChargeStatusLabel(charge.status)}
                             </Badge>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-4 space-x-2">
                             <Button 
                               variant="outline" 
                               size="sm" 
@@ -317,6 +334,13 @@ export function FinancialCharges() {
                             >
                               <DollarSign className="w-4 h-4" />
                               Editar
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleMarkPaid(charge.id)}
+                            >
+                              Marcar como paga
                             </Button>
                           </td>
                         </tr>
@@ -330,7 +354,7 @@ export function FinancialCharges() {
 
         <TabsContent value="canceled">
           <Card>
-            {billingInvoices.filter(c => c.status === BillingStatus.CANCELADA).length === 0 ? (
+            {billingInvoices.filter((c: BillingInvoice) => c.status === BillingStatus.CANCELADA).length === 0 ? (
               <CardContent className="py-12 text-center">
                 <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-500">Nenhuma cobrança cancelada</p>
@@ -348,7 +372,7 @@ export function FinancialCharges() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {billingInvoices
-                      .filter((c) => c.status === BillingStatus.CANCELADA)
+                      .filter((c: BillingInvoice) => c.status === BillingStatus.CANCELADA)
                       .map((charge) => (
                         <tr key={charge.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 text-gray-900">
@@ -358,7 +382,7 @@ export function FinancialCharges() {
                             <span className="text-indigo-600">{charge.proposalId}</span>
                           </td>
                           <td className="px-6 py-4 text-gray-900">
-                            R$ {charge.amount.toLocaleString('pt-BR')}
+                            R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
                           </td>
                           <td className="px-6 py-4">
                             <Badge className={getChargeStatusColor(charge.status)}>
@@ -387,7 +411,9 @@ export function FinancialCharges() {
       <BillingInvoiceEditDialog
         open={!!editingInvoice}
         invoice={editingInvoice}
-        onClose={() => setEditingInvoice(null)}
+        onOpenChange={(open: boolean) => {
+          if (!open) setEditingInvoice(null);
+        }}
         onSave={handleSaveInvoice}
       />
     </div>

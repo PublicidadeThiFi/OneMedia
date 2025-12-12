@@ -1,7 +1,16 @@
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Search } from 'lucide-react';
-import { ConversationSummary } from '../../lib/mockDataMessages';
+export interface ConversationSummary {
+  id: string;
+  type: 'proposal' | 'campaign';
+  clientName: string;
+  proposalId?: string;
+  campaignId?: string;
+  lastMessage: string;
+  lastMessageAt: Date;
+  unreadCount: number;
+}
 
 interface ConversationsListProps {
   conversations: ConversationSummary[];
@@ -38,7 +47,7 @@ export function ConversationsList({
           <Input
             placeholder="Buscar conversas..."
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
             className="pl-10"
           />
         </div>

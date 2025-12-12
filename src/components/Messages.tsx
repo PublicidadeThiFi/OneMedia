@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent } from './ui/card';
-import { ConversationsList } from './messages/ConversationsList';
+import { ConversationsList, ConversationSummary } from './messages/ConversationsList';
 import { MessageThread } from './messages/MessageThread';
 import { MessageInputBar } from './messages/MessageInputBar';
 import { toast } from 'sonner';
@@ -10,17 +10,12 @@ import {
   MessageChannel,
   MessageSenderType,
 } from '../types';
-import {
-  mockMessages,
-  getConversations,
-  getMessagesByProposal,
-  getMessagesByCampaign,
-  ConversationSummary,
-} from '../lib/mockDataMessages';
+import { useMessages } from '../hooks/useMessages';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Messages() {
-  // Estado local para gerenciar mensagens em memória
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
+  const { user } = useAuth();
+  const { messages, loading, error, refetch, sendMessage } = useMessages({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummary | null>(
     null
@@ -32,7 +27,7 @@ export function Messages() {
     const groupedByProposal = new Map<string, Message[]>();
     const groupedByCampaign = new Map<string, Message[]>();
 
-    messages.forEach((msg) => {
+    messages.forEach((msg: Message) => {
       if (msg.proposalId) {
         const existing = groupedByProposal.get(msg.proposalId) || [];
         groupedByProposal.set(msg.proposalId, [...existing, msg]);
@@ -45,54 +40,49 @@ export function Messages() {
 
     const conversationsList: ConversationSummary[] = [];
 
-    // Mock de nomes de clientes (em produção, viria de Client via Proposal/Campaign)
-    const clientNames: Record<string, string> = {
-      pr1: 'Tech Solutions Ltda',
-      pr2: 'Marketing Pro',
-      pr3: 'Cliente Novo',
-      pr4: 'Fashion Brands Brasil',
-      ca1: 'Tech Solutions Ltda',
-    };
-
     // Conversas por Proposta
     groupedByProposal.forEach((msgs, proposalId) => {
-      const sortedMessages = msgs.sort(
-        (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-      );
+      const sortedMessages = msgs
+        .slice()
+        .sort((a: Message, b: Message) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       const lastMsg = sortedMessages[0];
 
       // Mock de "não lidas": se última msg foi IN e tem menos de 2 dias
       const now = new Date();
       const hoursSinceLastMsg =
-        (now.getTime() - lastMsg.createdAt.getTime()) / (1000 * 60 * 60);
+        (now.getTime() - new Date(lastMsg.createdAt).getTime()) / (1000 * 60 * 60);
       const unreadCount =
         lastMsg.direction === MessageDirection.IN && hoursSinceLastMsg < 48 ? 1 : 0;
+
+      const clientLikeName = (sortedMessages.find((m) => m.senderType === MessageSenderType.CLIENTE)?.senderName)
+        || 'Cliente';
 
       conversationsList.push({
         id: proposalId,
         type: 'proposal',
-        clientName: clientNames[proposalId] || 'Cliente',
+        clientName: clientLikeName,
         proposalId,
         lastMessage: lastMsg.contentText,
-        lastMessageAt: lastMsg.createdAt,
+        lastMessageAt: new Date(lastMsg.createdAt),
         unreadCount,
       });
     });
 
     // Conversas por Campanha
     groupedByCampaign.forEach((msgs, campaignId) => {
-      const sortedMessages = msgs.sort(
-        (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
-      );
+      const sortedMessages = msgs
+        .slice()
+        .sort((a: Message, b: Message) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       const lastMsg = sortedMessages[0];
-
+      const clientLikeName = (sortedMessages.find((m) => m.senderType === MessageSenderType.CLIENTE)?.senderName)
+        || 'Cliente';
       conversationsList.push({
         id: campaignId,
         type: 'campaign',
-        clientName: clientNames[campaignId] || 'Cliente',
+        clientName: clientLikeName,
         campaignId,
         lastMessage: lastMsg.contentText,
-        lastMessageAt: lastMsg.createdAt,
+        lastMessageAt: new Date(lastMsg.createdAt),
         unreadCount: 0, // Campanhas geralmente não têm "não lidas"
       });
     });
@@ -138,37 +128,27 @@ export function Messages() {
   };
 
   // Handler: enviar nova mensagem
-  const handleSendMessage = (messageText: string) => {
+  const handleSendMessage = async (messageText: string) => {
     if (!selectedConversation) {
       toast.error('Nenhuma conversa selecionada');
       return;
     }
-
-    // Criar nova mensagem
-    const newMessage: Message = {
-      id: `msg_${Date.now()}`,
-      companyId: 'c1', // Mock
-      proposalId: selectedConversation.proposalId,
-      campaignId: selectedConversation.campaignId,
-      direction: MessageDirection.OUT,
-      channel: MessageChannel.EMAIL, // Por padrão, Email (pode ser configurável no futuro)
-      senderType: MessageSenderType.USER,
-      senderName: 'Carlos Mendes', // Mock - em produção, viria do usuário logado
-      senderContact: 'carlos@empresa.com', // Mock
-      contentText: messageText,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    // Atualizar estado de mensagens
-    setMessages((prev) => [...prev, newMessage]);
-
-    // TODO: Integração futura com backend
-    // - Enviar mensagem via API
-    // - Se channel = EMAIL, chamar serviço de envio de e-mail
-    // - Se channel = WHATSAPP, chamar WhatsApp API
-
-    toast.success('Mensagem enviada com sucesso!');
+    try {
+      await sendMessage({
+        proposalId: selectedConversation.proposalId,
+        campaignId: selectedConversation.campaignId,
+        direction: MessageDirection.OUT,
+        channel: MessageChannel.EMAIL,
+        senderType: MessageSenderType.USER,
+        senderName: user?.name || 'Usuário',
+        senderContact: user?.email || '',
+        contentText: messageText,
+      });
+      toast.success('Mensagem enviada com sucesso!');
+      refetch();
+    } catch (err) {
+      toast.error('Erro ao enviar mensagem');
+    }
   };
 
   // Handler: botão de anexar
@@ -205,7 +185,7 @@ export function Messages() {
                 conversations={conversations}
                 selectedConversationId={selectedConversation?.id || null}
                 searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                onSearchChange={(q: string) => setSearchQuery(q)}
                 onSelectConversation={handleSelectConversation}
               />
             </CardContent>
@@ -239,7 +219,7 @@ export function Messages() {
 
                 {/* Input de mensagem */}
                 <div className="p-6 border-t border-gray-200">
-                  <MessageInputBar onSend={handleSendMessage} onAttach={handleAttach} />
+                  <MessageInputBar onSend={handleSendMessage} onAttach={handleAttach} disabled={loading} />
                 </div>
               </>
             ) : (
@@ -250,6 +230,14 @@ export function Messages() {
           </Card>
         </div>
       </div>
+
+      {/* Loading / Error banners */}
+      {loading && (
+        <div className="mt-4 p-3 rounded bg-gray-50 text-gray-700">Carregando mensagens...</div>
+      )}
+      {!loading && error && (
+        <div className="mt-4 p-3 rounded bg-red-50 text-red-700">Erro ao carregar mensagens.</div>
+      )}
 
       {/* Info box */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">

@@ -1,15 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { User, UserRoleType, Company, PlatformSubscription } from '../types';
+import { User, Company, PlatformSubscription } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
-import {
-  getCompanyUsersWithRoles,
-  getPlatformPlans,
-  CompanyUserWithRoles,
-  mockUsers,
-  mockUserRoles,
-} from '../lib/mockDataSettings';
+import { getPlatformPlans } from '../lib/mockDataSettings';
 import { updateUser as mockUpdateUser } from '../lib/mockDataCentral';
 import { AccountSettings } from './settings/AccountSettings';
 import { CompanySettings } from './settings/CompanySettings';
@@ -29,10 +23,7 @@ export function Settings() {
     refreshCompanyData,
   } = useCompany();
 
-  // Local state for users management (will be moved to context later if needed)
-  const [companyUsers, setCompanyUsers] = useState<CompanyUserWithRoles[]>(() =>
-    company ? getCompanyUsersWithRoles(company.id) : []
-  );
+  // Users are now managed inside UsersSettings via useUsers hook
 
   const platformPlans = useMemo(() => getPlatformPlans(), []);
 
@@ -54,21 +45,14 @@ export function Settings() {
   // Handlers - Minha Conta
   // ========================================
 
-  const handleUpdateUser = async (updatedUser: User) => {
+  const handleUpdateUser = async (id: string, updates: Partial<User>) => {
     try {
       // Update via mock (in production: API call)
-      await mockUpdateUser(updatedUser.id, updatedUser);
-
-      // Update in users list
-      setCompanyUsers((prev) =>
-        prev.map((cu) =>
-          cu.user.id === updatedUser.id ? { ...cu, user: updatedUser } : cu
-        )
-      );
+      await mockUpdateUser(id, updates);
 
       // Refresh auth context if this is the current user
       // In production, the AuthContext would also refresh from API
-      console.log('[Settings] User updated:', updatedUser);
+      console.log('[Settings] User updated:', { id, updates });
 
       // Force refresh to get updated data
       await refreshCompanyData();
@@ -97,85 +81,7 @@ export function Settings() {
   // Handlers - Usuários
   // ========================================
 
-  const handleAddUser = (newUser: User, roles: UserRoleType[]) => {
-    // Add user to mock global
-    mockUsers.push(newUser);
-
-    // Add roles to mock global
-    roles.forEach((role) => {
-      mockUserRoles.push({ userId: newUser.id, role });
-    });
-
-    // Update local state
-    setCompanyUsers((prev) => [...prev, { user: newUser, roles }]);
-
-    // In production: API call
-    console.log('[Settings] User added:', newUser, 'Roles:', roles);
-  };
-
-  const handleUpdateUserWithRoles = (updatedUser: User, roles: UserRoleType[]) => {
-    // Update user in mock global
-    const userIndex = mockUsers.findIndex((u) => u.id === updatedUser.id);
-    if (userIndex !== -1) {
-      mockUsers[userIndex] = updatedUser;
-    }
-
-    // Update roles in mock global
-    const oldRoleIndexes: number[] = [];
-    mockUserRoles.forEach((ur, index) => {
-      if (ur.userId === updatedUser.id) {
-        oldRoleIndexes.push(index);
-      }
-    });
-    oldRoleIndexes.reverse().forEach((index) => {
-      mockUserRoles.splice(index, 1);
-    });
-
-    // Add new roles
-    roles.forEach((role) => {
-      mockUserRoles.push({ userId: updatedUser.id, role });
-    });
-
-    // Update local state
-    setCompanyUsers((prev) =>
-      prev.map((cu) =>
-        cu.user.id === updatedUser.id ? { user: updatedUser, roles } : cu
-      )
-    );
-
-    // If this is the logged user, also update via handleUpdateUser
-    if (updatedUser.id === currentUser.id) {
-      handleUpdateUser(updatedUser);
-    }
-
-    // In production: API call
-    console.log('[Settings] User updated:', updatedUser, 'Roles:', roles);
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    // Remove user from mock global
-    const userIndex = mockUsers.findIndex((u) => u.id === userId);
-    if (userIndex !== -1) {
-      mockUsers.splice(userIndex, 1);
-    }
-
-    // Remove roles from mock global
-    const roleIndexes: number[] = [];
-    mockUserRoles.forEach((ur, index) => {
-      if (ur.userId === userId) {
-        roleIndexes.push(index);
-      }
-    });
-    roleIndexes.reverse().forEach((index) => {
-      mockUserRoles.splice(index, 1);
-    });
-
-    // Update local state
-    setCompanyUsers((prev) => prev.filter((cu) => cu.user.id !== userId));
-
-    // In production: API call
-    console.log('[Settings] User deleted:', userId);
-  };
+  // Users handlers removed: now handled by useUsers inside UsersSettings
 
   // ========================================
   // Handlers - Assinatura
@@ -229,13 +135,7 @@ export function Settings() {
         </TabsContent>
 
         <TabsContent value="users">
-          <UsersSettings
-            currentUserId={currentUser.id}
-            companyUsers={companyUsers}
-            onAddUser={handleAddUser}
-            onUpdateUser={handleUpdateUserWithRoles}
-            onDeleteUser={handleDeleteUser}
-          />
+          <UsersSettings />
         </TabsContent>
 
         <TabsContent value="subscription">

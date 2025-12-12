@@ -2,24 +2,23 @@ import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
-import { Campaign, BillingStatus, PaymentMethod } from '../../types';
-import { getBillingInvoicesForCampaign } from '../../lib/mockData';
-import { toast } from 'sonner@2.0.3';
+import { Campaign, BillingStatus, PaymentMethod, BillingInvoice } from '../../types';
+import { toast } from 'sonner';
 
 interface CampaignBillingDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaign: Campaign | null;
+  invoices?: BillingInvoice[];
 }
 
 export function CampaignBillingDrawer({
   open,
   onOpenChange,
   campaign,
+  invoices = [],
 }: CampaignBillingDrawerProps) {
   if (!campaign) return null;
-
-  const invoices = getBillingInvoicesForCampaign(campaign.id);
 
   const getStatusColor = (status: BillingStatus) => {
     switch (status) {

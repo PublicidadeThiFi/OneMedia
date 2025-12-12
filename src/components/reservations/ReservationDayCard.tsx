@@ -1,30 +1,17 @@
-import { Reservation, UnitType, MediaType } from '../../types';
+import { Reservation, UnitType } from '../../types';
 import { ReservationStatusBadge } from './ReservationStatusBadge';
-import {
-  getClientById,
-  getProposalById,
-  getMediaUnitById,
-  getMediaPointByMediaUnit,
-  getAmountForReservation,
-} from '../../lib/mockData';
 
 interface ReservationDayCardProps {
   reservation: Reservation & { estimatedAmount?: number };
+  clientName?: string;
+  unitLabel?: string;
+  pointName?: string;
+  amount?: number;
   onClick?: () => void;
 }
 
-export function ReservationDayCard({ reservation, onClick }: ReservationDayCardProps) {
-  const unit = getMediaUnitById(reservation.mediaUnitId);
-  const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-  const proposal = reservation.proposalId ? getProposalById(reservation.proposalId) : undefined;
-  const client = proposal ? getClientById(proposal.clientId) : undefined;
-
-  // Tipo de unidade
-  const unitTypeLabel = unit?.unitType === UnitType.FACE ? 'Face' : 'Tela';
-
-  // Filtrar apenas OOH
-  const isOOH = point?.type === MediaType.OOH;
-  if (!isOOH) return null; // Não renderizar se não for OOH
+export function ReservationDayCard({ reservation, clientName, unitLabel, pointName, amount, onClick }: ReservationDayCardProps) {
+  const unitTypeLabel = reservation as any; // TODO: enriquecer com unidade quando disponível
 
   return (
     <div
@@ -32,16 +19,14 @@ export function ReservationDayCard({ reservation, onClick }: ReservationDayCardP
       onClick={onClick}
     >
       <div className="flex items-start justify-between mb-2">
-        <p className="text-gray-900">
-          {client?.companyName || client?.contactName || 'Cliente não identificado'}
-        </p>
+        <p className="text-gray-900">{clientName || 'Cliente'}</p>
         <ReservationStatusBadge status={reservation.status as any} />
       </div>
 
-      <p className="text-gray-600 text-sm mb-1">{point?.name || 'Ponto não encontrado'}</p>
+      <p className="text-gray-600 text-sm mb-1">{pointName || 'Unidade de Mídia'}</p>
 
       <p className="text-gray-500 text-xs mb-2">
-        {unit?.label || 'Unidade não encontrada'} • {unitTypeLabel}
+        {unitLabel || 'Unidade'} • {unitTypeLabel === UnitType.FACE ? 'Face' : 'Tela'}
       </p>
 
       <div className="flex items-center justify-between text-sm">
@@ -49,9 +34,7 @@ export function ReservationDayCard({ reservation, onClick }: ReservationDayCardP
           {new Date(reservation.startDate).toLocaleDateString('pt-BR')} -{' '}
           {new Date(reservation.endDate).toLocaleDateString('pt-BR')}
         </span>
-        <span className="text-gray-900">
-          R$ {getAmountForReservation(reservation).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-        </span>
+        <span className="text-gray-900">{typeof amount === 'number' ? `R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ -'}</span>
       </div>
 
       {reservation.proposalId && (

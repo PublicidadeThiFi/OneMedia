@@ -3,7 +3,6 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Campaign } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
-import { getClientById, getProposalById, getItemsForProposal } from '../../lib/mockData';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -22,10 +21,9 @@ export function CampaignCard({
   onGenerateReport,
   onViewBilling,
 }: CampaignCardProps) {
-  const client = getClientById(campaign.clientId);
-  const proposal = getProposalById(campaign.proposalId);
-  const proposalItems = proposal ? getItemsForProposal(proposal.id) : [];
-  const unitsCount = proposalItems.filter(item => item.mediaUnitId).length;
+  const client = campaign.client;
+  const unitsCount = (campaign.items || []).filter((item) => item.mediaUnitId).length;
+  const totalValor = campaign.totalAmountCents ? campaign.totalAmountCents / 100 : 0;
 
   return (
     <Card>
@@ -51,14 +49,9 @@ export function CampaignCard({
             </div>
           </div>
           <div className="text-right">
-            <p className="text-gray-900">
-              R$ {(proposal?.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-            {proposal?.discountPercent && proposal.discountPercent > 0 && (
-              <p className="text-green-600 text-xs">
-                -{proposal.discountPercent}% desconto
+              <p className="text-gray-900">
+                R$ {totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
-            )}
           </div>
         </div>
 

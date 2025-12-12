@@ -7,16 +7,17 @@ import { Switch } from '../ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { User, Shield } from 'lucide-react';
 import { TwoFactorType, User as UserType } from '../../types';
-import { toast } from 'sonner@2.0.3';
+import { AuthUser } from '../../types/auth';
+import { toast } from 'sonner';
 
 interface AccountSettingsProps {
-  currentUser: UserType;
-  onUpdateUser: (updatedUser: UserType) => void;
+  currentUser: AuthUser;
+  onUpdateUser: (id: string, updates: Partial<UserType>) => void;
 }
 
 export function AccountSettings({ currentUser, onUpdateUser }: AccountSettingsProps) {
   const [name, setName] = useState(currentUser.name);
-  const [phone, setPhone] = useState(currentUser.phone || '');
+  const [phone, setPhone] = useState<string>('');
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(currentUser.twoFactorEnabled);
   const [twoFactorType, setTwoFactorType] = useState<TwoFactorType>(
     currentUser.twoFactorType || TwoFactorType.TOTP
@@ -53,17 +54,14 @@ export function AccountSettings({ currentUser, onUpdateUser }: AccountSettingsPr
       return;
     }
 
-    const updatedUser: UserType = {
-      ...currentUser,
+    const updates: Partial<UserType> = {
       name: name.trim(),
-      phone: phone.trim() || null,
+      phone: phone.trim() || undefined,
       twoFactorEnabled,
-      twoFactorType: twoFactorEnabled ? twoFactorType : null,
-      twoFactorSecret: twoFactorEnabled ? currentUser.twoFactorSecret || 'secret_new' : null,
-      updatedAt: new Date(),
+      twoFactorType: twoFactorEnabled ? twoFactorType : undefined,
     };
 
-    onUpdateUser(updatedUser);
+    onUpdateUser(currentUser.id, updates);
     toast.success('Dados da conta atualizados (simulação em memória)');
   };
 
@@ -150,14 +148,14 @@ export function AccountSettings({ currentUser, onUpdateUser }: AccountSettingsPr
               </div>
               <Switch
                 checked={twoFactorEnabled}
-                onCheckedChange={setTwoFactorEnabled}
+                onCheckedChange={(checked: boolean) => setTwoFactorEnabled(checked)}
               />
             </div>
 
             {twoFactorEnabled && (
               <div className="space-y-2">
                 <Label htmlFor="twoFactorType">Tipo de 2FA (twoFactorType)</Label>
-                <Select value={twoFactorType} onValueChange={(v) => setTwoFactorType(v as TwoFactorType)}>
+                <Select value={twoFactorType} onValueChange={(v: string) => setTwoFactorType(v as TwoFactorType)}>
                   <SelectTrigger id="twoFactorType">
                     <SelectValue />
                   </SelectTrigger>

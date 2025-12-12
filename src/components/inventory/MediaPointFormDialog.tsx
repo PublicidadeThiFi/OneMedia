@@ -130,7 +130,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={type} onValueChange={(v) => handleTypeChange(v as MediaType)}>
+        <Tabs
+  value={type}
+  onValueChange={(v: string) => handleTypeChange(v as MediaType)}
+>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value={MediaType.OOH}>OOH</TabsTrigger>
             <TabsTrigger value={MediaType.DOOH}>DOOH</TabsTrigger>
@@ -156,9 +159,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                 <div className="space-y-2">
                   <Label>Subcategoria</Label>
                   <Select
-                    value={formData.subcategory || ''}
-                    onValueChange={(value) => updateField('subcategory', value)}
-                  >
+  value={formData.subcategory || ''}
+  onValueChange={(value: string) => updateField('subcategory', value)}
+>
+
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a subcategoria" />
                     </SelectTrigger>
@@ -238,9 +242,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                 <div className="space-y-2">
                   <Label>Estado *</Label>
                   <Select
-                    value={formData.addressState || ''}
-                    onValueChange={(value) => updateField('addressState', value)}
-                  >
+  value={formData.addressState || ''}
+  onValueChange={(value: string) => updateField('addressState', value)}
+>
+
                     <SelectTrigger className={errors.addressState ? 'border-red-500' : ''}>
                       <SelectValue placeholder="UF" />
                     </SelectTrigger>
@@ -309,9 +314,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                 <div className="space-y-2 col-span-2">
                   <Label>Ambiente</Label>
                   <Select
-                    value={formData.environment || ''}
-                    onValueChange={(value) => updateField('environment', value)}
-                  >
+  value={formData.environment || ''}
+  onValueChange={(value: string) => updateField('environment', value)}
+>
+
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o ambiente" />
                     </SelectTrigger>

@@ -44,7 +44,7 @@ export function MediaPointContractsDialog({
               📄 Upload de Contratos
             </p>
             <p className="text-sm text-blue-700">
-              Faça upload de PDFs dos contratos. Os arquivos serão armazenados com segurança 
+              Faça upload de PDFs dos contratos. Os arquivos serão armazenados com segurança
               no S3 e associados a este ponto de mídia.
             </p>
           </div>
@@ -74,7 +74,7 @@ export function MediaPointContractsDialog({
                           <FileText className="w-8 h-8 text-indigo-600 mt-1" />
                           <div className="flex-1">
                             <h4 className="text-gray-900 mb-2">{contract.fileName}</h4>
-                            
+
                             <div className="grid grid-cols-2 gap-4 text-sm mb-2">
                               {contract.signedAt && (
                                 <div>
@@ -148,13 +148,18 @@ export function MediaPointContractsDialog({
                   id: `mpc${Date.now()}`,
                   companyId: 'c1',
                   mediaPointId,
-                  ...data,
+                  fileName: data.fileName!,   // garantido pelo form
+                  s3Key: data.s3Key!,         // garantido pelo form
+                  signedAt: data.signedAt ?? null,
+                  expiresAt: data.expiresAt ?? null,
                   createdAt: new Date(),
                   updatedAt: new Date(),
                 };
-                setContracts(prev => [...prev, newContract]);
+
+                setContracts((prev: MediaPointContract[]) => [...prev, newContract]);
                 setIsAdding(false);
               }}
+
               onCancel={() => setIsAdding(false)}
             />
           )}

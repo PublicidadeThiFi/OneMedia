@@ -4,8 +4,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Campaign } from '../../types';
-import { getClientById, getProposalById, getItemsForProposal, getMediaUnitById, getMediaPointByMediaUnit } from '../../lib/mockData';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface CampaignReportDialogProps {
   open: boolean;
@@ -22,10 +21,8 @@ export function CampaignReportDialog({
 
   if (!campaign) return null;
 
-  const client = getClientById(campaign.clientId);
-  const proposal = getProposalById(campaign.proposalId);
-  const items = proposal ? getItemsForProposal(proposal.id) : [];
-  const mediaItems = items.filter(item => item.mediaUnitId);
+  const client = campaign.client;
+  const mediaItems = (campaign.items || []).filter(item => item.mediaUnitId);
 
   const handleGenerate = () => {
     // TODO: Integrar com backend para gerar relatório real
@@ -44,7 +41,7 @@ export function CampaignReportDialog({
           {/* Seletor de tipo de relatório */}
           <div className="space-y-2">
             <Label htmlFor="reportType">Tipo de Relatório</Label>
-            <Select value={reportType} onValueChange={setReportType}>
+            <Select value={reportType} onValueChange={(value: string) => setReportType(value)}>
               <SelectTrigger id="reportType">
                 <SelectValue />
               </SelectTrigger>
@@ -92,19 +89,14 @@ export function CampaignReportDialog({
                         </tr>
                       </thead>
                       <tbody>
-                        {mediaItems.map((item) => {
-                          const unit = item.mediaUnitId ? getMediaUnitById(item.mediaUnitId) : undefined;
-                          const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-
-                          return (
-                            <tr key={item.id} className="border-t border-gray-200">
-                              <td className="px-3 py-2 text-gray-900">{point?.name || '-'}</td>
-                              <td className="px-3 py-2 text-gray-700">{unit?.label || '-'}</td>
-                              <td className="px-3 py-2 text-gray-600">{point?.type || '-'}</td>
-                              <td className="px-3 py-2 text-gray-600">{point?.addressCity || '-'}</td>
-                            </tr>
-                          );
-                        })}
+                        {mediaItems.map((item) => (
+                          <tr key={item.id} className="border-t border-gray-200">
+                            <td className="px-3 py-2 text-gray-900">Unidade de Mídia</td>
+                            <td className="px-3 py-2 text-gray-700">ID: {item.mediaUnitId || '-'}</td>
+                            <td className="px-3 py-2 text-gray-600">-</td>
+                            <td className="px-3 py-2 text-gray-600">-</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -116,7 +108,7 @@ export function CampaignReportDialog({
                 <div className="bg-blue-50 p-4 rounded">
                   <p className="text-sm text-gray-700">Valor Total da Campanha:</p>
                   <p className="text-gray-900">
-                    R$ {(proposal?.totalAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {((campaign.totalAmountCents || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               )}

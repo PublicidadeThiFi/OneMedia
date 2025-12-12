@@ -1,80 +1,63 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Client, ClientStatus } from '../types';
-import { mockClients } from '../lib/mockData';
+import { useClients } from '../hooks/useClients';
+import apiClient from '../lib/apiClient';
 import { ClientFormDialog } from './clients/ClientFormDialog';
 import { ClientDetailsDrawer } from './clients/ClientDetailsDrawer';
 import { ClientsTable } from './clients/ClientsTable';
 import { ClientFiltersBar } from './clients/ClientFiltersBar';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function Clients() {
-  // TODO: Integrar com API real
-  const [clients, setClients] = useState<Client[]>(mockClients);
-  
-  // Filtros
+  // Filtros e paginação
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
+  const { clients, total, loading, error, refetch } = useClients({
+    search: searchQuery || undefined,
+    status: statusFilter === 'all' ? undefined : (statusFilter as ClientStatus | string),
+    ownerUserId: ownerFilter === 'all' ? undefined : ownerFilter,
+    page,
+    pageSize,
+  });
+  
   // Dialogs e Drawers
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [detailsDrawerClient, setDetailsDrawerClient] = useState<Client | null>(null);
   const [detailsTab, setDetailsTab] = useState<'resumo' | 'documentos' | 'propostas' | 'atividades'>('resumo');
 
-  // Estatísticas baseadas em ClientStatus
-  const stats = useMemo(() => {
-    return {
-      total: clients.length,
-      ativos: clients.filter(c => c.status === ClientStatus.CLIENTE).length,
-      prospects: clients.filter(c => c.status === ClientStatus.PROSPECT).length,
-      leads: clients.filter(c => c.status === ClientStatus.LEAD).length,
-    };
-  }, [clients]);
-
-  // Clientes filtrados
-  const filteredClients = useMemo(() => {
-    return clients.filter((client) => {
-      // Busca livre
-      const matchesSearch = 
-        client.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (client.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (client.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (client.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (client.cnpj?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-      
-      // Filtro de status
-      const matchesStatus = statusFilter === 'all' || client.status === statusFilter;
-      
-      // Filtro de responsável
-      const matchesOwner = ownerFilter === 'all' || client.ownerUserId === ownerFilter;
-      
-      return matchesSearch && matchesStatus && matchesOwner;
-    });
-  }, [clients, searchQuery, statusFilter, ownerFilter]);
+  // Estatísticas baseadas em ClientStatus (do resultado atual)
+  const stats = {
+    total: total || clients.length,
+    ativos: clients.filter(c => c.status === ClientStatus.CLIENTE).length,
+    prospects: clients.filter(c => c.status === ClientStatus.PROSPECT).length,
+    leads: clients.filter(c => c.status === ClientStatus.LEAD).length,
+  };
 
   // Handlers
-  const handleSaveClient = (clientData: Partial<Client>) => {
-    if (editingClient) {
-      // Atualizar cliente existente
-      setClients(prev => prev.map(c => 
-        c.id === editingClient.id ? { ...c, ...clientData } as Client : c
-      ));
-      toast.success('Cliente atualizado com sucesso!');
-    } else {
-      // Criar novo cliente
-      setClients(prev => [...prev, clientData as Client]);
-      toast.success('Cliente cadastrado com sucesso!', {
-        action: {
-          label: 'Criar Proposta',
-          onClick: () => handleCreateProposal(clientData as Client),
-        },
-      });
-    }
+  const handleClientSaved = () => {
+    refetch();
+    setIsFormDialogOpen(false);
     setEditingClient(null);
+  };
+
+  const handleDeleteClient = async (clientId: string) => {
+    if (!confirm('Deseja realmente excluir este cliente?')) return;
+
+    try {
+      await apiClient.delete(`/clients/${clientId}`);
+      toast.success('Cliente excluído!');
+      refetch();
+    } catch (error) {
+      toast.error('Erro ao excluir cliente');
+    }
   };
 
   const handleNewClient = () => {
@@ -107,6 +90,8 @@ export function Clients() {
 
   return (
     <div className="p-8">
+      {loading && <div>Carregando clientes...</div>}
+      {!loading && error && <div>Erro ao carregar clientes.</div>}
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -176,7 +161,7 @@ export function Clients() {
       {(searchQuery || statusFilter !== 'all' || ownerFilter !== 'all') && (
         <div className="mb-4">
           <p className="text-sm text-gray-600">
-            {filteredClients.length} {filteredClients.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}
+            {clients.length} {clients.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}
           </p>
         </div>
       )}
@@ -184,10 +169,15 @@ export function Clients() {
       {/* Tabela de Clientes */}
       <Card>
         <ClientsTable
-          clients={filteredClients}
+          clients={clients}
           onViewDetails={handleViewDetails}
           onEditClient={handleEditClient}
           onViewClientDocuments={handleViewClientDocuments}
+          onDeleteClient={handleDeleteClient}
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          onPageChange={setPage}
         />
       </Card>
 
@@ -199,7 +189,7 @@ export function Clients() {
           if (!open) setEditingClient(null);
         }}
         client={editingClient}
-        onSave={handleSaveClient}
+        onSave={handleClientSaved}
       />
 
       <ClientDetailsDrawer

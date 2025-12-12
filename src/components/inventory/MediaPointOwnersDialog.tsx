@@ -225,13 +225,16 @@ export function MediaPointOwnersDialog({
                   setEditingOwner(null);
                 } else {
                   const newOwner: MediaPointOwner = {
-                    id: `mpo${Date.now()}`,
-                    companyId: 'c1',
-                    mediaPointId,
-                    ...data,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                  };
+  id: `mpo${Date.now()}`,
+  companyId: 'c1',
+  mediaPointId,
+  ...data,
+  // garante que no final ownerName seja sempre string
+  ownerName: data.ownerName ?? '',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
                   setOwners(prev => [...prev, newOwner]);
                   setIsAddingOwner(false);
                 }
@@ -318,9 +321,12 @@ function OwnerForm({ owner, onSave, onCancel }: OwnerFormProps) {
           <div className="space-y-2">
             <Label>Regime</Label>
             <Select
-              value={formData.regime || ''}
-              onValueChange={(value) => updateField('regime', value as OwnerRegime)}
-            >
+  value={formData.regime || ''}
+  onValueChange={(value: string) =>
+    updateField('regime', value as OwnerRegime)
+  }
+>
+
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o regime" />
               </SelectTrigger>
@@ -357,9 +363,12 @@ function OwnerForm({ owner, onSave, onCancel }: OwnerFormProps) {
           <div className="space-y-2">
             <Label>Periodicidade</Label>
             <Select
-              value={formData.rentPeriodicity || ''}
-              onValueChange={(value) => updateField('rentPeriodicity', value as RentPeriodicity)}
-            >
+  value={formData.rentPeriodicity || ''}
+  onValueChange={(value: string) =>
+    updateField('rentPeriodicity', value as RentPeriodicity)
+  }
+>
+
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a periodicidade" />
               </SelectTrigger>

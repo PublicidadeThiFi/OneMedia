@@ -2,36 +2,35 @@ import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Reservation, UnitType } from '../../types';
+import { Reservation } from '../../types';
 import { ReservationStatusBadge } from './ReservationStatusBadge';
-import {
-  getClientById,
-  getProposalById,
-  getCampaignForProposal,
-  getMediaUnitById,
-  getMediaPointByMediaUnit,
-  getAmountForReservation,
-} from '../../lib/mockData';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface ReservationDetailsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reservation: (Reservation & { estimatedAmount?: number }) | null;
+  clientName?: string;
+  unitLabel?: string;
+  pointName?: string;
+  amount?: number;
+  onUpdateReservation?: (id: string, payload: Partial<Reservation>) => void;
+  onDeleteReservation?: (id: string) => void;
 }
 
 export function ReservationDetailsDrawer({
   open,
   onOpenChange,
   reservation,
+  clientName,
+  unitLabel,
+  pointName,
+  amount,
+  onUpdateReservation,
+  onDeleteReservation,
 }: ReservationDetailsDrawerProps) {
   if (!reservation) return null;
-
-  const unit = getMediaUnitById(reservation.mediaUnitId);
-  const point = unit ? getMediaPointByMediaUnit(unit.id) : undefined;
-  const proposal = reservation.proposalId ? getProposalById(reservation.proposalId) : undefined;
-  const campaign = reservation.campaignId || (proposal ? getCampaignForProposal(proposal.id) : undefined);
-  const client = proposal ? getClientById(proposal.clientId) : undefined;
+  // TODO: Enriquecer com dados de unidade/cliente via props quando disponíveis
 
   const handleNavigateToProposal = () => {
     // TODO: Navegar para módulo de Propostas
@@ -53,9 +52,7 @@ export function ReservationDetailsDrawer({
                 <DrawerTitle>Reserva {reservation.id.slice(-6)}</DrawerTitle>
                 <ReservationStatusBadge status={reservation.status as any} />
               </div>
-              <p className="text-sm text-gray-600">
-                {point?.name || 'Ponto não encontrado'} • {unit?.label}
-              </p>
+              <p className="text-sm text-gray-600">{pointName || 'Unidade de Mídia'}</p>
             </div>
             <Button
               variant="ghost"
@@ -81,10 +78,7 @@ export function ReservationDetailsDrawer({
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Cliente</p>
-                  <p className="text-gray-900">{client?.companyName || client?.contactName || '-'}</p>
-                  {client?.companyName && (
-                    <p className="text-sm text-gray-600">{client.contactName}</p>
-                  )}
+                  <p className="text-gray-900">{clientName || '-'}</p>
                 </div>
 
                 <div>
@@ -94,18 +88,14 @@ export function ReservationDetailsDrawer({
 
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Ponto de Mídia</p>
-                  <p className="text-gray-900">{point?.name || '-'}</p>
-                  <p className="text-sm text-gray-600">
-                    {point?.addressCity}, {point?.addressState}
-                  </p>
+                  <p className="text-gray-900">{pointName || '-'}</p>
+                  <p className="text-sm text-gray-600">{/* TODO: cidade/estado do ponto */}</p>
                 </div>
 
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Unidade</p>
-                  <p className="text-gray-900">{unit?.label || '-'}</p>
-                  <p className="text-sm text-gray-600">
-                    Tipo: {unit?.unitType === UnitType.FACE ? 'Face' : 'Tela'}
-                  </p>
+                  <p className="text-gray-900">{unitLabel || '-'}</p>
+                  <p className="text-sm text-gray-600">{/* TODO: Tipo Face/Tela */}</p>
                 </div>
 
                 <div>
@@ -119,15 +109,11 @@ export function ReservationDetailsDrawer({
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Valor Estimado</p>
                   <p className="text-gray-900">
-                    R${' '}
-                    {getAmountForReservation(reservation).toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {typeof amount === 'number'
+                      ? `R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                      : 'R$ -'}
                   </p>
-                  <p className="text-xs text-gray-500">
-                    {/* TODO: Calcular valor real baseado em ProposalItem */}
-                  </p>
+                  <p className="text-xs text-gray-500">{/* TODO: calcular via ProposalItem */}</p>
                 </div>
               </div>
             </TabsContent>
@@ -137,12 +123,13 @@ export function ReservationDetailsDrawer({
               <div>
                 <h4 className="text-gray-900 mb-3">Origem da Reserva</h4>
 
-                {proposal && (
+                {/* TODO: Exibir proposta vinculada quando dados agregados estiverem disponíveis */}
+                {false && (
                   <div className="bg-gray-50 p-4 rounded-lg mb-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-500">Proposta</p>
-                        <p className="text-gray-900">{proposal.title || `Proposta ${proposal.id.slice(-6)}`}</p>
+                        <p className="text-gray-900">Proposta</p>
                       </div>
                       <Button variant="outline" size="sm" onClick={handleNavigateToProposal}>
                         Ver Proposta
@@ -150,13 +137,13 @@ export function ReservationDetailsDrawer({
                     </div>
                   </div>
                 )}
-
-                {campaign && (
+                {/* TODO: Exibir campanha vinculada quando dados agregados estiverem disponíveis */}
+                {false && (
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-500">Campanha</p>
-                        <p className="text-gray-900">{campaign.name}</p>
+                        <p className="text-gray-900">Campanha</p>
                       </div>
                       <Button variant="outline" size="sm" onClick={handleNavigateToCampaign}>
                         Ver Campanha
@@ -165,7 +152,26 @@ export function ReservationDetailsDrawer({
                   </div>
                 )}
 
-                {!proposal && !campaign && (
+                {/* Ações básicas */}
+                <div className="flex items-center gap-3 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateReservation && reservation && onUpdateReservation(reservation.id, { status: reservation.status })}
+                  >
+                    Atualizar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600"
+                    onClick={() => onDeleteReservation && reservation && onDeleteReservation(reservation.id)}
+                  >
+                    Excluir
+                  </Button>
+                </div>
+
+                {true && (
                   <div className="text-center py-8 text-gray-500 text-sm">
                     Reserva sem proposta ou campanha vinculada
                   </div>

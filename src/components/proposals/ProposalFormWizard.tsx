@@ -166,7 +166,6 @@ export function ProposalFormWizard({
       discountAmount: formData.discountAmount || undefined,
       totalAmount: formData.totalAmount,
       items: formData.items,
-      publicHash: proposal?.publicHash || Math.random().toString(36).substring(2, 15),
     };
 
     onSave(proposalData);

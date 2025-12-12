@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText } from 'lucide-react';
+import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
@@ -9,7 +9,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from './ui/switch';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { MediaPoint, MediaType } from '../types';
-import { mockMediaPoints, mockMediaUnits, getMediaUnitsForPoint } from '../lib/mockData';
+import { useMediaPoints } from '../hooks/useMediaPoints';
+import apiClient from '../lib/apiClient';
+import { toast } from 'sonner';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
 import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
 import { MediaPointContractsDialog } from './inventory/MediaPointContractsDialog';
@@ -17,11 +19,19 @@ import { MediaUnitsDialog } from './inventory/MediaUnitsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 
 export function Inventory() {
-  // TODO: Integrar com API real
-  const [mediaPoints, setMediaPoints] = useState<MediaPoint[]>(mockMediaPoints);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
+
+  const { mediaPoints, total, loading, error, refetch } = useMediaPoints({
+    search: searchQuery || undefined,
+    type: typeFilter === 'all' ? undefined : typeFilter,
+    city: cityFilter === 'all' ? undefined : cityFilter,
+    page,
+    pageSize,
+  });
   
   // Dialogs state
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
@@ -42,41 +52,38 @@ export function Inventory() {
 
   // Computed values
   const cities = useMemo(() => {
-    const uniqueCities = [...new Set(mediaPoints.map(p => p.addressCity).filter(Boolean))];
+    const uniqueCities = [...new Set(mediaPoints.map((p: MediaPoint) => p.addressCity).filter(Boolean))] as string[];
     return uniqueCities.sort();
   }, [mediaPoints]);
 
   const totalUnits = useMemo(() => {
-    return mockMediaUnits.length;
-  }, []);
+    return mediaPoints.reduce((sum: number, p: MediaPoint) => sum + (p.units ? p.units.length : 0), 0);
+  }, [mediaPoints]);
 
-  const filteredPoints = useMemo(() => {
-    return mediaPoints.filter((point) => {
-      const matchesSearch = 
-        point.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (point.addressCity?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (point.addressDistrict?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-        (point.subcategory?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
-      
-      const matchesType = typeFilter === 'all' || point.type === typeFilter;
-      const matchesCity = cityFilter === 'all' || point.addressCity === cityFilter;
-      
-      return matchesSearch && matchesType && matchesCity;
-    });
-  }, [mediaPoints, searchQuery, typeFilter, cityFilter]);
+  // Server-side filters applied via hook; render current list
+  const filteredPoints = mediaPoints;
 
   // Handlers
-  const handleSavePoint = (data: Partial<MediaPoint>) => {
-    if (editingPoint) {
-      // Update existing point
-      setMediaPoints(prev => prev.map(p => 
-        p.id === editingPoint.id ? { ...p, ...data } : p
-      ));
-    } else {
-      // Add new point
-      setMediaPoints(prev => [...prev, data as MediaPoint]);
+  const handleSavePoint = async (data: Partial<MediaPoint>) => {
+    try {
+      let saved: MediaPoint;
+      if (editingPoint?.id) {
+        const response = await apiClient.put<MediaPoint>(`/media-points/${editingPoint.id}`, data);
+        saved = response.data;
+        toast.success('Ponto de mídia atualizado!');
+      } else {
+        const response = await apiClient.post<MediaPoint>('/media-points', data);
+        saved = response.data;
+        toast.success('Ponto de mídia criado!');
+      }
+      setIsFormDialogOpen(false);
+      setEditingPoint(null);
+      refetch();
+      return saved;
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Erro ao salvar ponto de mídia';
+      toast.error(message);
     }
-    setEditingPoint(null);
   };
 
   const handleEditPoint = (point: MediaPoint) => {
@@ -84,21 +91,41 @@ export function Inventory() {
     setIsFormDialogOpen(true);
   };
 
-  const handleDuplicatePoint = (point: MediaPoint) => {
-    const duplicated: MediaPoint = {
-      ...point,
-      id: `mp${Date.now()}`,
-      name: `${point.name} (cópia)`,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setMediaPoints(prev => [...prev, duplicated]);
+  const handleDuplicatePoint = async (point: MediaPoint) => {
+    const payload: Partial<MediaPoint> = { ...point };
+    delete (payload as any).id;
+    payload.name = `${point.name} (cópia)`;
+    try {
+      const response = await apiClient.post<MediaPoint>('/media-points', payload);
+      toast.success('Ponto duplicado!');
+      refetch();
+      return response.data;
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Erro ao duplicar ponto';
+      toast.error(message);
+    }
   };
 
-  const handleToggleMediaKit = (pointId: string, newValue: boolean) => {
-    setMediaPoints(prev => prev.map(p => 
-      p.id === pointId ? { ...p, showInMediaKit: newValue } : p
-    ));
+  const handleToggleMediaKit = async (pointId: string, newValue: boolean) => {
+    try {
+      await apiClient.put<MediaPoint>(`/media-points/${pointId}`, { showInMediaKit: newValue });
+      refetch();
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Erro ao atualizar mídia kit';
+      toast.error(message);
+    }
+  };
+
+  const handleDeleteMediaPoint = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este ponto de mídia?')) return;
+    try {
+      await apiClient.delete(`/media-points/${id}`);
+      toast.success('Ponto de mídia excluído!');
+      refetch();
+    } catch (error: any) {
+      const message = error?.response?.data?.message || 'Erro ao excluir ponto de mídia';
+      toast.error(message);
+    }
   };
 
   const handleExportInventory = () => {
@@ -125,9 +152,9 @@ export function Inventory() {
     link.click();
   };
 
-  const getUnitStats = (pointId: string) => {
-    const units = getMediaUnitsForPoint(pointId);
-    const activeUnits = units.filter(u => u.isActive);
+  const getUnitStats = (point: MediaPoint) => {
+    const units = point.units || [];
+    const activeUnits = units.filter((u) => u.isActive);
     return {
       total: units.length,
       active: activeUnits.length,
@@ -136,6 +163,8 @@ export function Inventory() {
 
   return (
     <div className="p-8">
+      {loading && <div>Carregando inventário...</div>}
+      {!loading && error && <div>Erro ao carregar inventário.</div>}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-gray-900 mb-2">Inventário</h1>
@@ -206,7 +235,7 @@ export function Inventory() {
               />
             </div>
             
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select value={typeFilter} onValueChange={(value: string) => setTypeFilter(value)}>
               <SelectTrigger className="w-full lg:w-40">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
@@ -218,7 +247,7 @@ export function Inventory() {
             </Select>
 
             {cities.length > 0 && (
-              <Select value={cityFilter} onValueChange={setCityFilter}>
+              <Select value={cityFilter} onValueChange={(value: string) => setCityFilter(value)}>
                 <SelectTrigger className="w-full lg:w-48">
                   <SelectValue placeholder="Cidade" />
                 </SelectTrigger>
@@ -263,8 +292,8 @@ export function Inventory() {
 
       {/* Media Points Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredPoints.map((point) => {
-          const unitStats = getUnitStats(point.id);
+        {filteredPoints.map((point: MediaPoint) => {
+          const unitStats = getUnitStats(point);
           const unitLabel = point.type === MediaType.OOH ? 'Faces' : 'Telas';
 
           return (
@@ -299,12 +328,14 @@ export function Inventory() {
                     </div>
                   )}
                   
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">{unitLabel}</span>
-                    <span className="text-gray-900">
-                      {unitStats.active} / {unitStats.total} ativas
-                    </span>
-                  </div>
+                  {point.units && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{unitLabel}</span>
+                      <span className="text-gray-900">
+                        {unitStats.active} / {unitStats.total} ativas
+                      </span>
+                    </div>
+                  )}
                   
                   {point.dailyImpressions && (
                     <div className="flex items-center justify-between text-sm">
@@ -335,7 +366,7 @@ export function Inventory() {
                   <div className="flex items-center gap-2">
                     <Switch 
                       checked={point.showInMediaKit}
-                      onCheckedChange={(checked) => handleToggleMediaKit(point.id, checked)}
+                      onCheckedChange={(checked: boolean) => handleToggleMediaKit(point.id, checked)}
                     />
                     <span className="text-sm text-gray-600">Mídia Kit</span>
                   </div>
@@ -369,6 +400,10 @@ export function Inventory() {
                       <DropdownMenuItem onClick={() => handleDuplicatePoint(point)}>
                         <Copy className="w-4 h-4 mr-2" />
                         Duplicar ponto
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteMediaPoint(point.id)}>
+                        <X className="w-4 h-4 mr-2" />
+                        Excluir ponto
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

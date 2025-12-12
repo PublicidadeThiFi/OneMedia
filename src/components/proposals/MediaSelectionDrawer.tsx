@@ -202,7 +202,7 @@ export function MediaSelectionDrawer({
                 className="pl-9"
               />
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <Select value={typeFilter} onValueChange={(value: string) => setTypeFilter(value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Tipo de mídia" />
               </SelectTrigger>
@@ -235,8 +235,8 @@ export function MediaSelectionDrawer({
                     <div className="flex items-start gap-3">
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={(checked) =>
-                          handleToggleUnit(unit.id, checked as boolean)
+                        onCheckedChange={(checked: boolean | 'indeterminate') =>
+                          handleToggleUnit(unit.id, checked === true)
                         }
                         className="mt-1"
                       />

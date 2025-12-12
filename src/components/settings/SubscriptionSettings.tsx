@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import type React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -12,7 +13,7 @@ import {
 } from '../../types';
 import { getDaysRemainingInTrial, getSubscriptionStatusLabel } from '../../lib/mockDataSettings';
 import { getMultiOwnerPriceCents, getMultiOwnerLabel } from '../../lib/plans';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface SubscriptionSettingsProps {
   company: Company;
@@ -286,7 +287,7 @@ export function SubscriptionSettings({
                       <Button
                         variant={isSelected ? 'default' : 'outline'}
                         className="w-full"
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
                           setSelectedPlanId(plan.id);
                         }}

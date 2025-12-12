@@ -287,6 +287,19 @@ export interface MediaPointOwner {
   updatedAt: Date;
 }
 
+export interface MediaPointContract {
+  id: string;
+  companyId: string;
+  mediaPointId: string;
+  fileName: string;
+  s3Key: string;
+  signedAt?: Date | null;
+  expiresAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+
 export interface Client {
   id: string;
   companyId: string;

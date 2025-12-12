@@ -20,15 +20,8 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { Company, PlatformSubscription, PlatformPlan } from '../types';
-import { 
-  getCurrentCompany, 
-  getPlatformSubscriptionForCompany,
-  getPlatformPlanById,
-  updateCompany as mockUpdateCompany,
-  updatePlatformSubscription as mockUpdateSubscription,
-  CURRENT_COMPANY_ID
-} from '../lib/mockDataCentral';
+import apiClient from '../lib/apiClient';
+import { Company, PlatformSubscription, PlatformPlan, PlatformSubscriptionStatus } from '../types';
 
 interface CompanyContextValue {
   // Current data
@@ -60,6 +53,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<PlatformSubscription | null>(null);
   const [plan, setPlan] = useState<PlatformPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pointsUsed, setPointsUsed] = useState(0);
 
   // Load company data when user logs in
@@ -74,24 +68,44 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsLoading(true);
-      
-      // In real app: fetch from API based on user.companyId
-      // For now: use mock data
-      const companyId = user.companyId || CURRENT_COMPANY_ID;
-      
-      const companyData = getCurrentCompany(companyId);
-      const subscriptionData = getPlatformSubscriptionForCompany(companyId);
-      const planData = subscriptionData ? getPlatformPlanById(subscriptionData.planId) : null;
-      
+      setError(null);
+
+      const companyId = user.companyId;
+      if (!companyId) {
+        setCompany(null);
+        setSubscription(null);
+        setPlan(null);
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch company
+      const companyResp = await apiClient.get<Company>(`/companies/${companyId}`);
+      const companyData = companyResp.data;
       setCompany(companyData);
+
+      // Fetch subscription (by company)
+      const subResp = await apiClient.get<PlatformSubscription>(`/platform-subscriptions/by-company/${companyId}`);
+      const subscriptionData = subResp.data;
       setSubscription(subscriptionData);
-      setPlan(planData);
-      
-      // In real app: fetch actual points count from API
-      // For now: use mock calculation
-      setPointsUsed(25); // Mock: empresa tem 25 pontos cadastrados
+
+      // Optionally fetch plan if API exists; keep null if not necessary
+      if (subscriptionData?.planId) {
+        try {
+          const planResp = await apiClient.get<PlatformPlan>(`/platform-plans/${subscriptionData.planId}`);
+          setPlan(planResp.data);
+        } catch {
+          setPlan(null);
+        }
+      } else {
+        setPlan(null);
+      }
+
+      // Points used: if backend provides an endpoint, fetch; else keep 0
+      setPointsUsed(0);
     } catch (error) {
       console.error('Failed to load company data:', error);
+      setError('Falha ao carregar dados da empresa');
     } finally {
       setIsLoading(false);
     }
@@ -103,8 +117,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
   // Computed: is trial active
   const isTrialActive = Boolean(
-    subscription?.status === 'TESTE' && 
-    company?.trialEndsAt && 
+    (subscription?.status === PlatformSubscriptionStatus.TESTE || company?.subscriptionStatus === 'TRIAL') &&
+    company?.trialEndsAt &&
     new Date(company.trialEndsAt) > new Date()
   );
 
@@ -121,7 +135,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   })();
 
   // Computed: points limit
-  const pointsLimit = company?.pointsLimit || 50;
+  const pointsLimit = company?.pointsLimit || 0;
 
   // Computed: can add more points
   const canAddMorePoints = pointsUsed < pointsLimit;
@@ -131,9 +145,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (!company) return;
 
     try {
-      // In real app: PATCH /companies/:id
-      const updated = await mockUpdateCompany(company.id, updates);
-      setCompany(updated);
+      const resp = await apiClient.patch<Company>(`/companies/${company.id}`, updates);
+      setCompany(resp.data);
     } catch (error) {
       console.error('Failed to update company:', error);
       throw error;
@@ -145,22 +158,16 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (!subscription) return;
 
     try {
-      // In real app: PATCH /platform-subscriptions/:id
-      const updated = await mockUpdateSubscription(subscription.id, updates);
+      const resp = await apiClient.patch<PlatformSubscription>(`/platform-subscriptions/${subscription.id}`, updates);
+      const updated = resp.data;
       setSubscription(updated);
-      
-      // If plan changed, reload plan data
+
       if (updates.planId && updates.planId !== subscription.planId) {
-        const newPlan = getPlatformPlanById(updates.planId);
-        setPlan(newPlan);
-        
-        // Also update company pointsLimit if plan changed
-        if (newPlan && company) {
-          const updatedCompany = await mockUpdateCompany(company.id, {
-            planId: newPlan.id,
-            pointsLimit: newPlan.maxPoints || 999999,
-          });
-          setCompany(updatedCompany);
+        try {
+          const planResp = await apiClient.get<PlatformPlan>(`/platform-plans/${updates.planId}`);
+          setPlan(planResp.data);
+        } catch {
+          setPlan(null);
         }
       }
     } catch (error) {
@@ -187,6 +194,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     updateSubscriptionData,
     refreshCompanyData,
     isLoading,
+    // Add error to context consumers
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    error,
   };
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;

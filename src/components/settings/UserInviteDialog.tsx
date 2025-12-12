@@ -2,16 +2,15 @@ import { useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { User, UserRoleType, UserStatus } from '../../types';
-import { CURRENT_COMPANY_ID } from '../../lib/mockDataSettings';
-import { toast } from 'sonner@2.0.3';
+import { User, UserRoleType } from '../../types';
 
 interface UserInviteDialogProps {
-  onClose: () => void;
-  onInvite: (newUser: User, roles: UserRoleType[]) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (data: { user: Partial<User>; roles: UserRoleType[] }) => void;
 }
 
-export function UserInviteDialog({ onClose, onInvite }: UserInviteDialogProps) {
+export function UserInviteDialog({ open, onOpenChange, onSave }: UserInviteDialogProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -47,46 +46,12 @@ export function UserInviteDialog({ onClose, onInvite }: UserInviteDialogProps) {
   };
 
   const handleInvite = () => {
-    // Validações
-    if (!name.trim()) {
-      toast.error('Nome é obrigatório');
-      return;
-    }
-
-    if (!email.trim() || !email.includes('@')) {
-      toast.error('Email válido é obrigatório');
-      return;
-    }
-
-    if (selectedRoles.length === 0) {
-      toast.error('Selecione pelo menos um perfil');
-      return;
-    }
-
-    // Criar novo usuário (INACTIVE até primeiro acesso)
-    const newUser: User = {
-      id: `u${Date.now()}`, // ID temporário
-      companyId: CURRENT_COMPANY_ID,
+    const payload: Partial<User> = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
-      passwordHash: 'pending', // Será definido no primeiro acesso
-      phone: phone.trim() || null,
-      isSuperAdmin: false,
-      twoFactorEnabled: false,
-      twoFactorType: null,
-      twoFactorSecret: null,
-      status: UserStatus.INACTIVE, // Fica inativo até aceitar o convite
-      lastLoginAt: null,
-      lastLoginIp: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      phone: phone.trim() || undefined,
     };
-
-    onInvite(newUser, selectedRoles);
-    toast.success(
-      'Convite enviado (simulação). Usuário aparecerá como Ativo somente após primeiro acesso.'
-    );
-    onClose();
+    onSave({ user: payload, roles: selectedRoles });
   };
 
   return (
@@ -96,7 +61,7 @@ export function UserInviteDialog({ onClose, onInvite }: UserInviteDialogProps) {
         <Input
           id="inviteName"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
           placeholder="João Silva"
         />
       </div>
@@ -107,7 +72,7 @@ export function UserInviteDialog({ onClose, onInvite }: UserInviteDialogProps) {
           id="inviteEmail"
           type="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
           placeholder="joao@empresa.com"
         />
       </div>
@@ -117,7 +82,7 @@ export function UserInviteDialog({ onClose, onInvite }: UserInviteDialogProps) {
         <Input
           id="invitePhone"
           value={phone}
-          onChange={(e) => setPhone(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPhone(e.target.value)}
           placeholder="(11) 98765-4321"
         />
       </div>
@@ -152,7 +117,7 @@ export function UserInviteDialog({ onClose, onInvite }: UserInviteDialogProps) {
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
         <Button onClick={handleInvite}>Enviar Convite</Button>
