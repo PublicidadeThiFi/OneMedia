@@ -4,7 +4,10 @@
  * Backend will map these to Company, User, PlatformPlan, PlatformSubscription
  */
 
-// Re-export from centralized plans
+// Importar para uso local
+import type { PlanRange, PlanDefinition } from '../lib/plans';
+
+// Re-exportar para outros módulos poderem usar
 export type { PlanRange, PlanDefinition } from '../lib/plans';
 export { PLATFORM_PLANS as PLAN_DEFINITIONS } from '../lib/plans';
 
@@ -13,6 +16,7 @@ export type SignupPlanStep = {
   selectedPlanRange: PlanRange | null;
   selectedPlatformPlanId: string | null; // Will be filled when API integration happens
 };
+
 
 export type SignupCompanyStep = {
   fantasyName: string; // tradeName in DB

@@ -65,7 +65,7 @@ export enum ProposalStatus {
   REPROVADA = 'REPROVADA',
   EXPIRADA = 'EXPIRADA',
 }
-
+// NO SCHEMA.PRISMA FALTA CAMPOS DE CampaignStatus (RASCUNHO, APROVADA, AGUARDANDO_MATERIAL, ATIVA, CANCELADA)
 export enum CampaignStatus {
   RASCUNHO = 'RASCUNHO',
   APROVADA = 'APROVADA',
@@ -116,14 +116,14 @@ export enum PlatformSubscriptionStatus {
   EM_ATRASO = 'EM_ATRASO',
   CANCELADA = 'CANCELADA',
 }
-
+// NO SCHEMA.PRISMA FALTA CAMPOS DE OwnerRegime (OUTRO)
 export enum OwnerRegime {
   DER = 'DER',
   ADMIN_PUBLICA = 'ADMIN_PUBLICA',
   AREA_PARTICULAR = 'AREA_PARTICULAR',
   OUTRO = 'OUTRO',
 }
-
+// NO SCHEMA.PRISMA NÃO TEM RentPeriodicity
 export enum RentPeriodicity {
   MENSAL = 'MENSAL',
   TRIMESTRAL = 'TRIMESTRAL',
@@ -235,7 +235,7 @@ export interface MediaPoint {
   basePriceWeek?: number;
   basePriceDay?: number;
   mainImageUrl?: string;
-  productionCosts?: ProductionCosts; // NOVO: custos de produção OOH
+  productionCosts?: ProductionCosts; // custos de produção OOH
   createdAt: Date;
   updatedAt: Date;
   units?: MediaUnit[];
@@ -264,7 +264,7 @@ export interface MediaUnit {
   priceMonth?: number;
   priceWeek?: number;
   priceDay?: number;
-  imageUrl?: string | null; // NOVO: imagem específica da face/tela
+  imageUrl?: string | null; // imagem específica da face/tela
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -276,11 +276,11 @@ export interface MediaPointOwner {
   mediaPointId: string;
   ownerName: string;
   ownerDocument?: string;
-  ownerPhone?: string | null; // NOVO: contato do locador
+  ownerPhone?: string | null; // contato do locador
   regime?: OwnerRegime;
   derMonthlyFee?: number;
   rentValue?: number;
-  rentPeriodicity?: RentPeriodicity | null; // NOVO: periodicidade do aluguel
+  rentPeriodicity?: RentPeriodicity | null; // periodicidade do aluguel
   fixedExpenseDueDay?: number;
   notes?: string;
   createdAt: Date;
@@ -298,7 +298,6 @@ export interface MediaPointContract {
   createdAt: Date;
   updatedAt: Date;
 }
-
 
 export interface Client {
   id: string;
@@ -320,6 +319,21 @@ export interface Client {
   origin?: string;
   notes?: string;
   ownerUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * ClientDocument - model client_documents do schema
+ */
+export interface ClientDocument {
+  id: string;
+  companyId: string;
+  clientId: string;
+  fileName: string;
+  s3Key: string;
+  documentType: string;
+  uploadedByUserId: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -423,8 +437,8 @@ export interface BillingInvoice {
   proposalId?: string;
   campaignId?: string;
   dueDate: Date;
-  amount: number; // Valor em reais (para compatibilidade)
-  amountCents?: number; // Valor em centavos (novo padrão)
+  amount: number; // em reais (compatibilidade)
+  amountCents?: number; // em centavos (novo padrão)
   status: BillingStatus;
   paymentMethod?: PaymentMethod;
   gatewayInvoiceId?: string;
@@ -485,6 +499,40 @@ export interface PlatformSubscription {
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
   gatewayCustomerId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * PlatformInvoice - model platform_invoices do schema
+ */
+export interface PlatformInvoice {
+  id: string;
+  subscriptionId: string;
+  companyId: string;
+  competenceMonth: number;
+  competenceYear: number;
+  amount: number;
+  status: BillingStatus;
+  gatewayInvoiceId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * PlatformNf - model platform_nf do schema
+ */
+export interface PlatformNf {
+  id: string;
+  companyId: string;
+  platformInvoiceId: string;
+  number: string;
+  series: string;
+  accessKey: string;
+  emittedAt?: Date;
+  amount: number;
+  xmlUrl: string;
+  pdfUrl: string;
   createdAt: Date;
   updatedAt: Date;
 }
