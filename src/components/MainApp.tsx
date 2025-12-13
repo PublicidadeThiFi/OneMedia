@@ -62,38 +62,53 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
   };
 
   // Render the current page content
+    // Render the current page content
   const renderContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard onNavigate={setCurrentPage} />;
+        return <Dashboard onNavigate={handleNavigate} />;
+
       case 'inventory':
-        return <Inventory onNavigate={setCurrentPage} />;
+        return <Inventory />;
+
       case 'clients':
-        return <Clients onNavigate={setCurrentPage} />;
+        return <Clients />;
+
       case 'products':
-        return <Products onNavigate={setCurrentPage} />;
+        return <Products />;
+
       case 'proposals':
-        return <Proposals onNavigate={setCurrentPage} />;
+        return <Proposals onNavigate={handleNavigate} />;
+
       case 'campaigns':
-        return <Campaigns onNavigate={setCurrentPage} />;
+        return <Campaigns />;
+
       case 'reservations':
-        return <Reservations onNavigate={setCurrentPage} />;
+        return <Reservations />;
+
       case 'financial':
-        return <Financial onNavigate={setCurrentPage} />;
+        return <Financial />;
+
       case 'messages':
-        return <Messages onNavigate={setCurrentPage} />;
+        return <Messages />;
+
       case 'mediakit':
-        return <MediaKit onNavigate={setCurrentPage} />;
+        return <MediaKit />;
+
       case 'activities':
-        return <Activities onNavigate={setCurrentPage} />;
+        return <Activities />;
+
       case 'settings':
-        return <Settings onNavigate={setCurrentPage} />;
+        return <Settings />;
+
       case 'superadmin':
-        return <SuperAdmin onNavigate={setCurrentPage} />;
+        return <SuperAdmin />;
+
       default:
-        return <Dashboard onNavigate={setCurrentPage} />;
+        return <Dashboard onNavigate={handleNavigate} />;
     }
   };
+
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">

@@ -45,7 +45,7 @@ export function TwoFactorStep({ email, onSubmit, onBack, isLoading, error }: Two
   const handlePaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').replace(/\D/g, '');
-    
+
     if (pastedData.length === 6) {
       const newCode = pastedData.split('');
       setCode(newCode);
@@ -57,7 +57,7 @@ export function TwoFactorStep({ email, onSubmit, onBack, isLoading, error }: Two
     e.preventDefault();
 
     const codeString = code.join('');
-    
+
     if (codeString.length !== 6) {
       return;
     }
@@ -101,7 +101,9 @@ export function TwoFactorStep({ email, onSubmit, onBack, isLoading, error }: Two
           {code.map((digit, index) => (
             <input
               key={index}
-              ref={(el) => (inputRefs.current[index] = el)}
+              ref={(el: HTMLInputElement | null) => {
+                inputRefs.current[index] = el;
+              }}
               type="text"
               inputMode="numeric"
               maxLength={1}
@@ -112,6 +114,7 @@ export function TwoFactorStep({ email, onSubmit, onBack, isLoading, error }: Two
               disabled={isLoading}
             />
           ))}
+
         </div>
         <p className="text-xs text-gray-500 text-center mt-3 px-2">
           💡 Dica para teste: use o código <span className="font-mono font-semibold">123456</span>

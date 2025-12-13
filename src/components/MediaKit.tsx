@@ -258,9 +258,13 @@ export function MediaKit() {
                 />
               </div>
               
+              // ...
+
               <Select
                 value={typeFilter}
-                onValueChange={(value) => setTypeFilter(value as 'all' | MediaType)}
+                onValueChange={(value: string) => // <-- TIPADO
+                  setTypeFilter(value as 'all' | MediaType)
+                }
               >
                 <SelectTrigger className="w-full lg:w-40">
                   <SelectValue />
@@ -274,7 +278,7 @@ export function MediaKit() {
               
               <Select
                 value={cityFilter}
-                onValueChange={(value) => setCityFilter(value)}
+                onValueChange={(value: string) => setCityFilter(value)} // <-- TIPADO
               >
                 <SelectTrigger className="w-full lg:w-40">
                   <SelectValue />
@@ -291,7 +295,11 @@ export function MediaKit() {
 
               <Select
                 value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as 'all' | 'Disponível' | 'Ocupado')}
+                onValueChange={(value: string) => // <-- TIPADO
+                  setStatusFilter(
+                    value as 'all' | 'Disponível' | 'Ocupado'
+                  )
+                }
               >
                 <SelectTrigger className="w-full lg:w-40">
                   <SelectValue />
