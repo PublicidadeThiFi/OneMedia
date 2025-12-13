@@ -41,7 +41,7 @@ export interface PlanDefinition {
  */
 export const PLATFORM_PLANS: PlanDefinition[] = [
   {
-    id: 'plan-001',
+    id: '9606a2fb-e7a9-4c77-b834-e566b87cdc0b',
     range: '0-50',
     name: 'Até 50 pontos',
     description: 'Ideal para operações menores que estão começando',
@@ -52,7 +52,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-002',
+    id: '1be52bed-89e1-4543-b833-8195afadd3be',
     range: '50-100',
     name: '50 a 100 pontos',
     description: 'Para empresas em crescimento com inventário moderado',
@@ -63,7 +63,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-003',
+    id: '890bdd79-075b-4ff0-9684-e2fdff6ac74f',
     range: '101-150',
     name: '101 a 150 pontos',
     description: 'Plano popular para operações estabelecidas',
