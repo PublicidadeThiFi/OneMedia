@@ -1,6 +1,17 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// ⚠️ AQUI é a base da API. Em dev/produção SEMPRE configure VITE_API_URL.
+// Exemplo em .env.local (dev):
+// VITE_API_URL=http://localhost:3000/api
+// Exemplo em produção (Vercel):
+// VITE_API_URL=https://sua-api.vercel.app/api
+const API_BASE_URL =
+  ((import.meta as any).env?.VITE_API_URL &&
+    (import.meta as any).env.VITE_API_URL.replace(/\/$/, '')) ||
+  'http://localhost:3333/api';
+
+
+console.info('[apiClient] Base URL:', API_BASE_URL);
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -44,6 +55,13 @@ apiClient.interceptors.response.use(
 
     const originalRequest = error.config as any;
 
+    // Ajuda de debug para o problema que você viu
+    if (error.response?.status === 404 && originalRequest.url?.includes('/signup')) {
+      console.error(
+        '[apiClient] /signup retornou 404. Verifique se VITE_API_URL aponta para a mesma URL em que o Insomnia está dando 201.'
+      );
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -73,22 +91,21 @@ apiClient.interceptors.response.use(
       try {
         isRefreshing = true;
         const refreshResponse = await apiClient.post('/auth/refresh', {
-  refresh_token: refreshToken,
-});
+          refresh_token: refreshToken,
+        });
 
-// Força o TS a entender o formato dos tokens
-const data = refreshResponse.data as {
-  access_token?: string;
-  accessToken?: string;
-  refresh_token?: string;
-  refreshToken?: string;
-};
+        // Força o TS a entender o formato dos tokens
+        const data = refreshResponse.data as {
+          access_token?: string;
+          accessToken?: string;
+          refresh_token?: string;
+          refreshToken?: string;
+        };
 
-const newAccessToken: string | undefined =
-  data.access_token ?? data.accessToken;
-const newRefreshToken: string | undefined =
-  data.refresh_token ?? data.refreshToken;
-
+        const newAccessToken: string | undefined =
+          data.access_token ?? data.accessToken;
+        const newRefreshToken: string | undefined =
+          data.refresh_token ?? data.refreshToken;
 
         if (newAccessToken) {
           localStorage.setItem('access_token', newAccessToken);

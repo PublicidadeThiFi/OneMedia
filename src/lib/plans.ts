@@ -41,7 +41,7 @@ export interface PlanDefinition {
  */
 export const PLATFORM_PLANS: PlanDefinition[] = [
   {
-    id: 'plan-001',
+    id: '9606a2fb-e7a9-4c77-b834-e566b87cdc0b',
     range: '0-50',
     name: 'Até 50 pontos',
     description: 'Ideal para operações menores que estão começando',
@@ -52,7 +52,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-002',
+    id: '1be52bed-89e1-4543-b833-8195afadd3be',
     range: '50-100',
     name: '50 a 100 pontos',
     description: 'Para empresas em crescimento com inventário moderado',
@@ -63,7 +63,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-003',
+    id: '890bdd79-075b-4ff0-9684-e2fdff6ac74f',
     range: '101-150',
     name: '101 a 150 pontos',
     description: 'Plano popular para operações estabelecidas',
@@ -74,7 +74,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: true, // Most popular plan
   },
   {
-    id: 'plan-004',
+    id: '092ab0d7-0a88-49c5-a174-50633c37263d',
     range: '151-200',
     name: '151 a 200 pontos',
     description: 'Para empresas com inventário robusto',
@@ -85,7 +85,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-005',
+    id: 'db9c2c5a-eb13-4c0c-8560-b99e204028c4',
     range: '201-250',
     name: '201 a 250 pontos',
     description: 'Operações de médio a grande porte',
@@ -96,7 +96,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-006',
+    id: '6bf244fc-1d2c-4071-8d8f-9448e9a29c74',
     range: '251-300',
     name: '251 a 300 pontos',
     description: 'Para grandes veículos regionais',
@@ -107,7 +107,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-007',
+    id: '3e7fd9bc-d171-4a96-a05d-a6e085cbc77d',
     range: '301-350',
     name: '301 a 350 pontos',
     description: 'Operações de grande escala',
@@ -118,7 +118,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-008',
+    id: 'b1e59d89-f5f0-49fb-8852-ee73b197dd6c',
     range: '351-400',
     name: '351 a 400 pontos',
     description: 'Para grandes redes nacionais',
@@ -129,7 +129,7 @@ export const PLATFORM_PLANS: PlanDefinition[] = [
     isPopular: false,
   },
   {
-    id: 'plan-009',
+    id: '8f155086-63fb-459c-9f97-7b7fd2880861',
     range: '401-plus',
     name: 'Mais de 400 pontos',
     description: 'Plano enterprise customizado para sua operação',
@@ -158,6 +158,7 @@ export function getPlanById(id: string): PlanDefinition | undefined {
 /**
  * Suggests the ideal plan based on number of points
  */
+
 export function getSuggestedPlanForPoints(pointsCount: number): PlanDefinition | null {
   for (const plan of PLATFORM_PLANS) {
     if (plan.maxPoints === null) {

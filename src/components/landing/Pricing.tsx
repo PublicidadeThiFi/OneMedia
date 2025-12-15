@@ -73,7 +73,7 @@ export function Pricing() {
                 </button>
               ) : (
                 <button
-                  onClick={() => navigate(`/cadastro?planRange=${plan.range}`)}
+                  onClick={() => navigate(`/signup?planRange=${plan.range}`)}
                   className={`block w-full text-center px-6 py-3 rounded-lg transition-colors ${
                     plan.isPopular
                       ? 'bg-[#4F46E5] text-white hover:bg-[#4338CA]'

@@ -69,7 +69,7 @@ export default function App() {
     switch (cleanPath) {
       case '/':
         return <Home />;
-      case '/cadastro':
+      case '/signup':
         return <Cadastro />;
       case '/login':
         return <Login />;

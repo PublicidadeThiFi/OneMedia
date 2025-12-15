@@ -12,14 +12,18 @@ import {
   SignupPayload,
   PlanRange,
   PLAN_DEFINITIONS,
+  SignupRequestDto,
 } from '../types/signup';
-import { 
-  onlyDigits, 
-  isValidPhone, 
+import {
+  onlyDigits,
+  isValidPhone,
   isValidCNPJ,
   isValidEmail,
-  validatePasswordRequirements 
+  validatePasswordRequirements
 } from '../lib/validators';
+import apiClient from '../lib/apiClient';
+import { toast } from 'sonner';
+
 
 export default function Cadastro() {
   const navigate = useNavigation();
@@ -64,7 +68,7 @@ export default function Cadastro() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const planRange = urlParams.get('planRange') as PlanRange | null;
-    
+
     if (planRange && PLAN_DEFINITIONS.find((p) => p.range === planRange)) {
       setStep1Data({
         estimatedPoints: null,
@@ -168,7 +172,6 @@ export default function Cadastro() {
     }
   };
 
-  // Handle final submit
   const handleSubmit = async () => {
     if (!validateStep3()) {
       return;
@@ -176,54 +179,77 @@ export default function Cadastro() {
 
     setIsLoading(true);
 
-    // Build the signup payload
-    const payload: SignupPayload = {
-      plan: {
-        platformPlanId: step1Data.selectedPlatformPlanId!,
-        planRange: step1Data.selectedPlanRange!,
-      },
-      company: {
-        fantasyName: step2Data.fantasyName,
-        legalName: step2Data.legalName || undefined,
-        cnpj: onlyDigits(step2Data.cnpj), // Send only digits
-        phone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined, // Send only digits
-        website: step2Data.website || undefined,
-        city: step2Data.city || undefined,
-        state: step2Data.state || undefined,
-        country: step2Data.country || undefined,
-      },
-      adminUser: {
-        name: step3Data.name,
-        email: step3Data.email,
-        phone: onlyDigits(step3Data.phone), // Send only digits
-        password: step3Data.password, // Send plain password - backend will hash it
-      },
-    };
+    try {
+      // Payload do fluxo de signup do frontend (apenas para debug)
+      const payload: SignupPayload = {
+        plan: {
+          platformPlanId: step1Data.selectedPlatformPlanId!,
+          planRange: step1Data.selectedPlanRange!,
+        },
+        company: {
+          fantasyName: step2Data.fantasyName,
+          legalName: step2Data.legalName || undefined,
+          cnpj: onlyDigits(step2Data.cnpj),
+          phone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
+          website: step2Data.website || undefined,
+          city: step2Data.city || undefined,
+          state: step2Data.state || undefined,
+          country: step2Data.country || undefined,
+        },
+        adminUser: {
+          name: step3Data.name,
+          email: step3Data.email,
+          phone: onlyDigits(step3Data.phone),
+          password: step3Data.password,
+        },
+      };
 
-    // TODO: Implement API call to POST /api/signup
-    // This should create:
-    // 1. Company with subscriptionStatus = TRIAL
-    // 2. User with role ADMINISTRATIVO linked to Company
-    // 3. PlatformSubscription with:
-    //    - planId from selected plan
-    //    - status = TRIAL
-    //    - maxOwnersPerMediaPoint = 1 (default: 1 proprietário por ponto)
-    //    - addonExtraStorage = false
-    //    - currentPeriodStart = now
-    //    - currentPeriodEnd = now + 30 days (or 14 days per v2)
-    
-    console.log('Signup payload (TODO: send to API):', payload);
+      console.log('Signup payload (frontend):', payload);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Payload no formato que o backend espera (SignupDto)
+      const apiPayload: SignupRequestDto = {
+        planId: step1Data.selectedPlatformPlanId!, // ⚠️ precisa ser UUID válido do PlatformPlan
 
-    setIsLoading(false);
-    setIsSuccess(true);
+        companyName: step2Data.fantasyName,
+        companyEmail: undefined, // se adicionar campo de e-mail da empresa, preencha aqui
+        cnpj: onlyDigits(step2Data.cnpj),
+        companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
+        site: step2Data.website || undefined,
+        addressCity: step2Data.city || undefined,
+        addressState: step2Data.state || undefined,
+        addressCountry: step2Data.country || undefined,
+        estimatedUsers: step2Data.estimatedUsers
+          ? Number(step2Data.estimatedUsers)
+          : undefined,
 
-    // TODO: When API is integrated, handle errors and show appropriate messages
-    // If successful, show success screen
-    // If error, show error toast and keep user on step 3
+        adminName: step3Data.name,
+        adminEmail: step3Data.email,
+        adminPhone: onlyDigits(step3Data.phone),
+        adminPassword: step3Data.password,
+        adminPasswordConfirmation: step3Data.confirmPassword,
+        acceptTerms: step3Data.acceptedTerms,
+      };
+
+      console.log('Enviando signup para API:', apiPayload);
+
+      const response = await apiClient.post('/signup', apiPayload);
+
+      console.log('Signup success:', response.data);
+
+      setIsSuccess(true);
+    } catch (err: any) {
+      console.error('Erro ao realizar cadastro', err);
+      const message =
+        err?.response?.data?.message ||
+        'Erro ao realizar cadastro. Tente novamente.';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+
+
 
   const stepTitles = ['Plano', 'Empresa', 'Acesso'];
 
