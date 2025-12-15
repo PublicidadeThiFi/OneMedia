@@ -59,7 +59,7 @@ export function Header() {
               Entrar
             </button>
             <button
-              onClick={() => navigate('/cadastro')}
+              onClick={() => navigate('/signup')}
               className="bg-[#4F46E5] text-white px-6 py-2 rounded-lg hover:bg-[#4338CA] transition-colors"
             >
               Começar teste grátis
@@ -101,7 +101,7 @@ export function Header() {
                 Entrar
               </button>
               <button
-                onClick={() => navigate('/cadastro')}
+                onClick={() => navigate('/signup')}
                 className="block w-full text-center bg-[#4F46E5] text-white px-6 py-3 rounded-lg hover:bg-[#4338CA] transition-colors"
               >
                 Começar teste grátis

@@ -1,12 +1,7 @@
 /**
  * AuthContext - Global authentication state
  *
- * Manages user session, login, 2FA verification, and logout
- *
- * NAVIGATION AFTER LOGIN (updated 02/12/2024):
- * - After successful login (with or without 2FA), user is redirected to /app
- * - /app renders the internal application (MainApp) with sidebar and all modules
- * - The old /dashboard route (demo page) is no longer used after login
+ * Gerencia sessão, login, 2FA e logout
  */
 
 import {
@@ -37,13 +32,39 @@ interface AuthContextValue {
   logout: () => void;
 }
 
-// Resposta padrão dos endpoints de auth (login / verify-2fa)
+/**
+ * Formato real da resposta da API de auth:
+ * - /api/auth/login
+ * - /api/auth/verify-2fa
+ *
+ * Ela pode devolver:
+ *  A) requiresTwoFactor + email
+ *  B) user + tokens.{accessToken, refreshToken}
+ *  (mantendo compatibilidade com access_token / refresh_token na raiz)
+ */
 type AuthResponse = {
   requiresTwoFactor?: boolean;
+  email?: string;
+
+  // Versão “flat” (compatibilidade)
   access_token?: string;
   accessToken?: string;
   refresh_token?: string;
   refreshToken?: string;
+
+  // Versão aninhada (formato atual da sua API)
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    companyId: string;
+    isSuperAdmin?: boolean;
+    twoFactorEnabled?: boolean;
+  };
+  tokens?: {
+    accessToken?: string;
+    refreshToken?: string;
+  };
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(
@@ -58,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Try to fetch current user on mount if tokens exist
+  // Tenta carregar usuário atual ao montar, se houver tokens no localStorage
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
     const refreshToken = localStorage.getItem('refresh_token');
@@ -88,6 +109,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void fetchCurrentUser();
   }, []);
 
+  /**
+   * Helper para extrair tokens em QUALQUER formato aceito
+   */
+  const extractTokens = (data: AuthResponse): AuthTokens | null => {
+    const access =
+      data.access_token ??
+      data.accessToken ??
+      data.tokens?.accessToken ??
+      null;
+
+    const refresh =
+      data.refresh_token ??
+      data.refreshToken ??
+      data.tokens?.refreshToken ??
+      null;
+
+    if (!access || !refresh) {
+      return null;
+    }
+
+    return {
+      accessToken: access,
+      refreshToken: refresh,
+    };
+  };
+
   const login = async (credentials: LoginCredentials) => {
     setLoading(true);
     try {
@@ -97,31 +144,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       const data = response.data;
 
+      // Caso 2FA
       if (data?.requiresTwoFactor) {
         setRequiresTwoFactor(true);
         setPendingEmail(credentials.email);
         return;
       }
 
-      const access = data.access_token ?? data.accessToken;
-      const refresh = data.refresh_token ?? data.refreshToken;
-
-      if (access) {
-        localStorage.setItem('access_token', access);
-      }
-      if (refresh) {
-        localStorage.setItem('refresh_token', refresh);
+      // Extrai tokens (formato flat ou tokens.{...})
+      const extracted = extractTokens(data);
+      if (!extracted) {
+        throw new Error(
+          'A API não retornou tokens de autenticação em /auth/login.'
+        );
       }
 
-      setTokens({
-        accessToken: access || '',
-        refreshToken: refresh || '',
-      });
+      // Salva tokens no localStorage
+      localStorage.setItem('access_token', extracted.accessToken);
+      localStorage.setItem('refresh_token', extracted.refreshToken);
 
+      setTokens(extracted);
+
+      // Carrega usuário completo
       const meResponse = await apiClient.get<AuthUser>('/auth/me');
       setUser(meResponse.data);
       setRequiresTwoFactor(false);
       setPendingEmail(null);
+
       navigate('/app');
     } finally {
       setLoading(false);
@@ -137,20 +186,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       const data = response.data;
 
-      const access = data.access_token ?? data.accessToken;
-      const refresh = data.refresh_token ?? data.refreshToken;
-
-      if (access) {
-        localStorage.setItem('access_token', access);
-      }
-      if (refresh) {
-        localStorage.setItem('refresh_token', refresh);
+      const extracted = extractTokens(data);
+      if (!extracted) {
+        throw new Error(
+          'A API não retornou tokens de autenticação em /auth/verify-2fa.'
+        );
       }
 
-      setTokens({
-        accessToken: access || '',
-        refreshToken: refresh || '',
-      });
+      localStorage.setItem('access_token', extracted.accessToken);
+      localStorage.setItem('refresh_token', extracted.refreshToken);
+
+      setTokens(extracted);
 
       const meResponse = await apiClient.get<AuthUser>('/auth/me');
       setUser(meResponse.data);
@@ -166,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await apiClient.post('/auth/logout');
     } catch {
-      // ignore logout error
+      // ignora erro de logout
     }
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');

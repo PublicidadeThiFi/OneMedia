@@ -91,7 +91,7 @@ export default function Privacidade() {
 
         <div className="mt-8 text-center">
           <a
-            href="/cadastro"
+            href="/signup"
             className="inline-flex items-center gap-2 text-gray-600 hover:text-[#4F46E5] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

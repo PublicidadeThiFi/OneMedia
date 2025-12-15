@@ -82,7 +82,7 @@ export function Features() {
               </ul>
 
               <a
-                href="/cadastro"
+                href="/signup"
                 className="inline-flex items-center gap-2 text-[#4F46E5] hover:text-[#4338CA] transition-colors group-hover:gap-3"
               >
                 Ver mais detalhes

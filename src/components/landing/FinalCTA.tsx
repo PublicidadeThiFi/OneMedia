@@ -17,7 +17,7 @@ export function FinalCTA() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
           <button
-            onClick={() => navigate('/cadastro')}
+            onClick={() => navigate('/signup')}
             className="inline-flex items-center gap-2 bg-white text-[#4F46E5] px-8 py-4 rounded-lg hover:bg-gray-100 transition-colors text-lg shadow-lg"
           >
             Começar teste grátis agora
