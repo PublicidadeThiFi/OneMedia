@@ -8,7 +8,7 @@ import axios from 'axios';
 const API_BASE_URL =
   ((import.meta as any).env?.VITE_API_URL &&
     (import.meta as any).env.VITE_API_URL.replace(/\/$/, '')) ||
-  'http://localhost:3333/api';
+  'http://174.129.69.244:3333/api';
 
 
 console.info('[apiClient] Base URL:', API_BASE_URL);
