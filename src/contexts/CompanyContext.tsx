@@ -28,19 +28,19 @@ interface CompanyContextValue {
   company: Company | null;
   subscription: PlatformSubscription | null;
   plan: PlatformPlan | null;
-  
+
   // Computed values
   isTrialActive: boolean;
   daysRemainingInTrial: number | null;
   pointsUsed: number;
   pointsLimit: number;
   canAddMorePoints: boolean;
-  
+
   // Actions
   updateCompanyData: (updates: Partial<Company>) => Promise<void>;
   updateSubscriptionData: (updates: Partial<PlatformSubscription>) => Promise<void>;
   refreshCompanyData: () => Promise<void>;
-  
+
   // Loading state
   isLoading: boolean;
 }
@@ -79,15 +79,16 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Fetch company
-      const companyResp = await apiClient.get<Company>(`/companies/${companyId}`);
+      // Backend usa o companyId do token → rota é simplesmente /company
+      const companyResp = await apiClient.get<Company>('/company');
       const companyData = companyResp.data;
       setCompany(companyData);
 
-      // Fetch subscription (by company)
-      const subResp = await apiClient.get<PlatformSubscription>(`/platform-subscriptions/by-company/${companyId}`);
+      // Mesma ideia para a assinatura: /platform-subscription
+      const subResp = await apiClient.get<PlatformSubscription>('/platform-subscription');
       const subscriptionData = subResp.data;
       setSubscription(subscriptionData);
+
 
       // Optionally fetch plan if API exists; keep null if not necessary
       if (subscriptionData?.planId) {
@@ -125,12 +126,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   // Computed: days remaining in trial
   const daysRemainingInTrial = (() => {
     if (!isTrialActive || !company?.trialEndsAt) return null;
-    
+
     const now = new Date();
     const trialEnd = new Date(company.trialEndsAt);
     const diffTime = trialEnd.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(0, diffDays);
   })();
 
@@ -141,11 +142,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const canAddMorePoints = pointsUsed < pointsLimit;
 
   // Action: update company data
-  const updateCompanyData = async (updates: Partial<Company>) => {
+   const updateCompanyData = async (updates: Partial<Company>) => {
     if (!company) return;
 
     try {
-      const resp = await apiClient.patch<Company>(`/companies/${company.id}`, updates);
+      const resp = await apiClient.put<Company>('/company', updates);
       setCompany(resp.data);
     } catch (error) {
       console.error('Failed to update company:', error);
@@ -153,12 +154,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
+
   // Action: update subscription data
-  const updateSubscriptionData = async (updates: Partial<PlatformSubscription>) => {
+    const updateSubscriptionData = async (updates: Partial<PlatformSubscription>) => {
     if (!subscription) return;
 
     try {
-      const resp = await apiClient.patch<PlatformSubscription>(`/platform-subscriptions/${subscription.id}`, updates);
+      const resp = await apiClient.put<PlatformSubscription>('/platform-subscription', updates);
       const updated = resp.data;
       setSubscription(updated);
 
@@ -175,6 +177,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
+
 
   // Action: refresh company data
   const refreshCompanyData = async () => {
