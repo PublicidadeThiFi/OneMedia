@@ -5,6 +5,7 @@ import axios from 'axios';
 // VITE_API_URL=http://localhost:3000/api
 // Exemplo em produção (Vercel):
 // VITE_API_URL=https://sua-api.vercel.app/api
+// COMITA ESSA POHA CARALHO
 const API_BASE_URL =
   ((import.meta as any).env?.VITE_API_URL &&
     (import.meta as any).env.VITE_API_URL.replace(/\/$/, '')) ||
