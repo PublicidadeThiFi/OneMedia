@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -6,9 +6,9 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
 import { MediaType, MediaUnit, UnitType, Orientation } from '../../types';
-import { getMediaUnitsForPoint } from '../../lib/mockData';
+import { useMediaUnits } from '../../hooks/useMediaUnits';
 
 interface MediaUnitsDialogProps {
   open: boolean;
@@ -18,6 +18,32 @@ interface MediaUnitsDialogProps {
   mediaPointType: MediaType;
 }
 
+type UnitFormPayload = Partial<
+  Pick<
+    MediaUnit,
+    | 'label'
+    | 'orientation'
+    | 'widthM'
+    | 'heightM'
+    | 'insertionsPerDay'
+    | 'resolutionWidthPx'
+    | 'resolutionHeightPx'
+    | 'priceMonth'
+    | 'priceWeek'
+    | 'priceDay'
+  >
+>;
+
+function sanitizeUnitPayload(payload: UnitFormPayload) {
+  const clean: Record<string, any> = {};
+  for (const [k, v] of Object.entries(payload)) {
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'string' && v.trim() === '') continue;
+    clean[k] = v;
+  }
+  return clean;
+}
+
 export function MediaUnitsDialog({
   open,
   onOpenChange,
@@ -25,9 +51,18 @@ export function MediaUnitsDialog({
   mediaPointName,
   mediaPointType,
 }: MediaUnitsDialogProps) {
-  const [units, setUnits] = useState<MediaUnit[]>(getMediaUnitsForPoint(mediaPointId));
+  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadUnitImage } =
+    useMediaUnits({ mediaPointId: open ? mediaPointId : null });
+
   const [isAdding, setIsAdding] = useState(false);
   const [editingUnit, setEditingUnit] = useState<MediaUnit | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setIsAdding(false);
+      setEditingUnit(null);
+    }
+  }, [open]);
 
   const getOrientationLabel = (orientation?: Orientation) => {
     if (!orientation) return '-';
@@ -41,14 +76,17 @@ export function MediaUnitsDialog({
       : 'bg-purple-100 text-purple-800';
   };
 
+  const unitTypeForPoint = mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN;
+  const unitLabel = mediaPointType === MediaType.OOH ? 'Face' : 'Tela';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mediaPointType === MediaType.OOH ? 'Faces OOH' : 'Telas DOOH'} - {mediaPointName}
+            {unitLabel}s do Ponto - {mediaPointName}
           </DialogTitle>
-          <p className="text-sm text-gray-600">
+          <p className="text-gray-600">
             {mediaPointType === MediaType.OOH
               ? 'Gerencie as faces (unidades de veiculação) deste ponto OOH'
               : 'Gerencie as telas (unidades digitais) deste ponto DOOH'}
@@ -58,15 +96,24 @@ export function MediaUnitsDialog({
         <div className="space-y-4">
           {/* Lista de unidades */}
           <div className="space-y-3">
-            {units.length === 0 ? (
+            {loading ? (
+              <Card>
+                <CardContent className="py-8 text-center text-gray-600">Carregando...</CardContent>
+              </Card>
+            ) : error ? (
               <Card>
                 <CardContent className="py-8 text-center">
-                  <p className="text-gray-500 mb-4">
-                    Nenhuma {mediaPointType === MediaType.OOH ? 'face' : 'tela'} cadastrada
-                  </p>
+                  <p className="text-red-600 mb-3">Erro ao carregar unidades.</p>
+                  <p className="text-sm text-gray-600">{String(error.message || error)}</p>
+                </CardContent>
+              </Card>
+            ) : units.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <p className="text-gray-500 mb-4">Nenhuma {unitLabel.toLowerCase()} cadastrada</p>
                   <Button onClick={() => setIsAdding(true)}>
                     <Plus className="w-4 h-4 mr-2" />
-                    Adicionar {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}
+                    Adicionar {unitLabel}
                   </Button>
                 </CardContent>
               </Card>
@@ -89,14 +136,14 @@ export function MediaUnitsDialog({
                             </Badge>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-x-6 gap-y-2 text-sm">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                             {mediaPointType === MediaType.OOH && (
                               <>
-                                {unit.widthM && unit.heightM && (
+                                {(unit.widthM || unit.heightM) && (
                                   <div>
                                     <span className="text-gray-600">Dimensões: </span>
                                     <span className="text-gray-900">
-                                      {unit.widthM}m x {unit.heightM}m
+                                      {unit.widthM || '-'}m x {unit.heightM || '-'}m
                                     </span>
                                   </div>
                                 )}
@@ -105,12 +152,13 @@ export function MediaUnitsDialog({
 
                             {mediaPointType === MediaType.DOOH && (
                               <>
-                                {unit.insertionsPerDay && (
-                                  <div>
-                                    <span className="text-gray-600">Inserções/dia: </span>
-                                    <span className="text-gray-900">{unit.insertionsPerDay}</span>
-                                  </div>
-                                )}
+                                {unit.insertionsPerDay !== undefined &&
+                                  unit.insertionsPerDay !== null && (
+                                    <div>
+                                      <span className="text-gray-600">Inserções/dia: </span>
+                                      <span className="text-gray-900">{unit.insertionsPerDay}</span>
+                                    </div>
+                                  )}
                                 {unit.resolutionWidthPx && unit.resolutionHeightPx && (
                                   <div>
                                     <span className="text-gray-600">Resolução: </span>
@@ -122,44 +170,49 @@ export function MediaUnitsDialog({
                               </>
                             )}
 
-                            {unit.priceMonth && (
-                              <div>
-                                <span className="text-gray-600">Preço/mês: </span>
+                            {(unit.priceMonth || unit.priceWeek || unit.priceDay) && (
+                              <div className="md:col-span-2">
+                                <span className="text-gray-600">Preços: </span>
                                 <span className="text-gray-900">
-                                  R$ {unit.priceMonth.toLocaleString('pt-BR')}
+                                  {unit.priceMonth ? `R$ ${unit.priceMonth}/mês` : ''}
+                                  {unit.priceWeek ? ` • R$ ${unit.priceWeek}/sem` : ''}
+                                  {unit.priceDay ? ` • R$ ${unit.priceDay}/dia` : ''}
                                 </span>
                               </div>
                             )}
                           </div>
 
                           {unit.imageUrl && (
-                            <div className="mt-3">
-                              <p className="text-xs text-gray-500 mb-1">Imagem da {mediaPointType === MediaType.OOH ? 'face' : 'tela'}:</p>
-                              <div className="w-32 h-20 bg-gray-100 rounded overflow-hidden">
-                                <img
-                                  src={unit.imageUrl}
-                                  alt={unit.label}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <ImageIcon className="w-4 h-4" />
+                              <span>Imagem disponível</span>
                             </div>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => setEditingUnit(unit)}
+                            title="Editar"
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setUnits((prev) => prev.filter((u) => u.id !== unit.id));
+                            onClick={async () => {
+                              const ok = window.confirm('Excluir esta unidade?');
+                              if (!ok) return;
+                              try {
+                                await deleteUnit(unit.id);
+                              } catch (e) {
+                                console.error(e);
+                                alert('Erro ao excluir unidade.');
+                              }
                             }}
+                            title="Excluir"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -169,13 +222,9 @@ export function MediaUnitsDialog({
                   </Card>
                 ))}
 
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setIsAdding(true)}
-                >
+                <Button variant="outline" className="w-full" onClick={() => setIsAdding(true)}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Adicionar {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}
+                  Adicionar {unitLabel}
                 </Button>
               </>
             )}
@@ -185,31 +234,31 @@ export function MediaUnitsDialog({
           {(isAdding || editingUnit) && (
             <UnitForm
               unit={editingUnit}
-              mediaPointId={mediaPointId}
               mediaPointType={mediaPointType}
-              onSave={(data) => {
-                if (editingUnit) {
-                  setUnits((prev) =>
-                    prev.map((u) => (u.id === editingUnit.id ? { ...u, ...data } : u))
-                  );
-                  setEditingUnit(null);
-                } else {
-                  const newUnit: MediaUnit = {
-  id: `mu${Date.now()}`,
-  companyId: 'c1',
-  mediaPointId,
-  unitType:
-    mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN,
-  isActive: data.isActive ?? true,
-  ...data,
-  // garante que label seja sempre string, nunca undefined
-  label: data.label ?? '',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+              onSave={async (data, imageFile) => {
+                try {
+                  const clean = sanitizeUnitPayload(data);
 
-                  setUnits((prev) => [...prev, newUnit]);
-                  setIsAdding(false);
+                  if (editingUnit) {
+                    await updateUnit(editingUnit.id, clean);
+                    if (imageFile) {
+                      await uploadUnitImage(editingUnit.id, imageFile);
+                    }
+                    setEditingUnit(null);
+                  } else {
+                    const created = await createUnit({
+                      ...clean,
+                      unitType: unitTypeForPoint,
+                      label: (clean.label ?? '').toString(),
+                    } as any);
+                    if (imageFile) {
+                      await uploadUnitImage(created.id, imageFile);
+                    }
+                    setIsAdding(false);
+                  }
+                } catch (e) {
+                  console.error(e);
+                  alert('Erro ao salvar unidade.');
                 }
               }}
               onCancel={() => {
@@ -229,81 +278,72 @@ export function MediaUnitsDialog({
 }
 
 interface UnitFormProps {
-  unit?: MediaUnit | null;
-  mediaPointId: string;
+  unit: MediaUnit | null;
   mediaPointType: MediaType;
-  onSave: (data: Partial<MediaUnit>) => void;
+  onSave: (data: UnitFormPayload, imageFile?: File | null) => void;
   onCancel: () => void;
 }
 
 function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
-  const [formData, setFormData] = useState<Partial<MediaUnit>>(
-    unit || {
-      label: '',
-      isActive: true,
-    }
+  const [formData, setFormData] = useState<UnitFormPayload>(
+    unit
+      ? {
+        label: unit.label,
+        orientation: unit.orientation,
+        widthM: unit.widthM,
+        heightM: unit.heightM,
+        insertionsPerDay: unit.insertionsPerDay,
+        resolutionWidthPx: unit.resolutionWidthPx,
+        resolutionHeightPx: unit.resolutionHeightPx,
+        priceMonth: unit.priceMonth,
+        priceWeek: unit.priceWeek,
+        priceDay: unit.priceDay,
+      }
+      : {
+        label: '',
+      }
   );
 
-  const updateField = (field: keyof MediaUnit, value: any) => {
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(unit?.imageUrl ?? null);
+
+  const updateField = (field: keyof UnitFormPayload, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files?.[0] ?? null;
+    setImageFile(file);
+
     if (file) {
-      // Simular upload - em produção, fazer upload real
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        updateField('imageUrl', reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Card className="border-2 border-indigo-200">
       <CardContent className="pt-6 space-y-4">
-        <h4 className="text-gray-900 mb-4">
-          {unit ? 'Editar Unidade' : `Nova ${mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}`}
-        </h4>
+        <h4 className="text-gray-900 mb-4">{unit ? 'Editar Unidade' : 'Nova Unidade'}</h4>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Nome/Label *</Label>
-            <Input
-              placeholder={
-                mediaPointType === MediaType.OOH
-                  ? 'Ex: Face 1, Face Principal'
-                  : 'Ex: Tela 1, Tela Norte'
-              }
-              value={formData.label || ''}
-              onChange={(e) => updateField('label', e.target.value)}
-            />
-          </div>
-
-          {mediaPointType === MediaType.OOH && (
-            <div className="space-y-2">
-              <Label>Orientação</Label>
-              <Select
-  value={formData.orientation || ''}
-  onValueChange={(value: string) =>
-    updateField('orientation', value as Orientation)
-  }
->
-
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a orientação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={Orientation.FLUXO}>Fluxo</SelectItem>
-                  <SelectItem value={Orientation.CONTRA_FLUXO}>Contra-Fluxo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+        <div className="space-y-2">
+          <Label>Nome/Label *</Label>
+          <Input
+            placeholder={mediaPointType === MediaType.OOH ? 'Ex: Face 1 - Principal' : 'Ex: Tela 1 - Entrada'}
+            value={formData.label || ''}
+            onChange={(e) => updateField('label', e.target.value)}
+          />
         </div>
 
-        {/* Imagem da Face/Tela */}
         <div className="space-y-2">
           <Label>Imagem da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}</Label>
           <div className="flex items-center gap-4">
@@ -313,19 +353,14 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
               onChange={handleImageChange}
               className="flex-1"
             />
-            {formData.imageUrl && (
+            {imagePreview && (
               <div className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
-                <img
-                  src={formData.imageUrl}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                />
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
               </div>
             )}
           </div>
           <p className="text-xs text-gray-500">
-            Foto da {mediaPointType === MediaType.OOH ? 'face específica' : 'tela'} - JPG, PNG,
-            GIF (máx. 4MB)
+            JPG, PNG ou GIF (máx. 4MB). Upload real está stubado no backend, mas a URL será salva.
           </p>
         </div>
 
@@ -334,37 +369,44 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
           <>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Largura do Material (m)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="9.00"
-                  value={formData.widthM || ''}
-                  onChange={(e) => updateField('widthM', parseFloat(e.target.value) || null)}
-                />
-                <p className="text-xs text-gray-500">Largura do material veiculado</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Altura do Material (m)</Label>
+                <Label>Largura (m)</Label>
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="3.00"
-                  value={formData.heightM || ''}
-                  onChange={(e) => updateField('heightM', parseFloat(e.target.value) || null)}
+                  value={formData.widthM ?? ''}
+                  onChange={(e) => updateField('widthM', e.target.value ? parseFloat(e.target.value) : null)}
                 />
-                <p className="text-xs text-gray-500">Altura do material veiculado</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Altura (m)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="9.00"
+                  value={formData.heightM ?? ''}
+                  onChange={(e) => updateField('heightM', e.target.value ? parseFloat(e.target.value) : null)}
+                />
               </div>
             </div>
 
-            {formData.widthM && formData.heightM && (
-              <div className="p-3 bg-blue-50 rounded text-sm">
-                <span className="text-blue-900">
-                  Formato: {formData.widthM}m x {formData.heightM}m
-                </span>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Orientação</Label>
+              <Select
+                value={formData.orientation || ''}
+                onValueChange={(value: string) =>
+                  updateField('orientation', (value || null) as Orientation | null)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a orientação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={Orientation.FLUXO}>Fluxo</SelectItem>
+                  <SelectItem value={Orientation.CONTRA_FLUXO}>Contra-Fluxo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </>
         )}
 
@@ -377,47 +419,61 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
                 <Input
                   type="number"
                   placeholder="150"
-                  value={formData.insertionsPerDay || ''}
+                  value={formData.insertionsPerDay ?? ''}
                   onChange={(e) =>
-                    updateField('insertionsPerDay', parseInt(e.target.value) || null)
+                    updateField('insertionsPerDay', e.target.value ? parseInt(e.target.value) : null)
                   }
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Resolução da Mídia</Label>
+                <Label>Orientação</Label>
                 <Select
-  value={
-    formData.resolutionWidthPx && formData.resolutionHeightPx
-      ? `${formData.resolutionWidthPx}x${formData.resolutionHeightPx}`
-      : ''
-  }
-  onValueChange={(value: string) => {
-    const [width, height] = value.split('x').map(Number);
-    updateField('resolutionWidthPx', width);
-    updateField('resolutionHeightPx', height);
-  }}
->
-
+                  value={formData.orientation || ''}
+                  onValueChange={(value: string) =>
+                    updateField('orientation', (value || null) as Orientation | null)
+                  }
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a resolução" />
+                    <SelectValue placeholder="Selecione a orientação" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1920x1080">1920x1080 (Full HD Horizontal)</SelectItem>
-                    <SelectItem value="1080x1920">1080x1920 (Full HD Vertical)</SelectItem>
-                    <SelectItem value="1366x768">1366x768 (HD Horizontal)</SelectItem>
-                    <SelectItem value="768x1366">768x1366 (HD Vertical)</SelectItem>
-                    <SelectItem value="3840x2160">3840x2160 (4K Horizontal)</SelectItem>
+                    <SelectItem value={Orientation.FLUXO}>Fluxo</SelectItem>
+                    <SelectItem value={Orientation.CONTRA_FLUXO}>Contra-Fluxo</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Resolução Largura (px)</Label>
+                <Input
+                  type="number"
+                  placeholder="1920"
+                  value={formData.resolutionWidthPx ?? ''}
+                  onChange={(e) =>
+                    updateField('resolutionWidthPx', e.target.value ? parseInt(e.target.value) : null)
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Resolução Altura (px)</Label>
+                <Input
+                  type="number"
+                  placeholder="1080"
+                  value={formData.resolutionHeightPx ?? ''}
+                  onChange={(e) =>
+                    updateField('resolutionHeightPx', e.target.value ? parseInt(e.target.value) : null)
+                  }
+                />
               </div>
             </div>
           </>
         )}
 
-        {/* Preços */}
         <div className="space-y-2">
-          <Label className="text-gray-700">Preços Mensais/Semanais/Diários (opcional)</Label>
+          <Label>Preços (opcional)</Label>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label className="text-sm">Preço/Mês (R$)</Label>
@@ -425,8 +481,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
                 type="number"
                 step="0.01"
                 placeholder="5000.00"
-                value={formData.priceMonth || ''}
-                onChange={(e) => updateField('priceMonth', parseFloat(e.target.value) || null)}
+                value={formData.priceMonth ?? ''}
+                onChange={(e) =>
+                  updateField('priceMonth', e.target.value ? parseFloat(e.target.value) : null)
+                }
               />
             </div>
 
@@ -436,8 +494,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
                 type="number"
                 step="0.01"
                 placeholder="1500.00"
-                value={formData.priceWeek || ''}
-                onChange={(e) => updateField('priceWeek', parseFloat(e.target.value) || null)}
+                value={formData.priceWeek ?? ''}
+                onChange={(e) =>
+                  updateField('priceWeek', e.target.value ? parseFloat(e.target.value) : null)
+                }
               />
             </div>
 
@@ -447,8 +507,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
                 type="number"
                 step="0.01"
                 placeholder="300.00"
-                value={formData.priceDay || ''}
-                onChange={(e) => updateField('priceDay', parseFloat(e.target.value) || null)}
+                value={formData.priceDay ?? ''}
+                onChange={(e) =>
+                  updateField('priceDay', e.target.value ? parseFloat(e.target.value) : null)
+                }
               />
             </div>
           </div>
@@ -458,7 +520,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
           <Button variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button onClick={() => onSave(formData)} disabled={!formData.label?.trim()}>
+          <Button onClick={() => onSave(formData, imageFile)} disabled={!formData.label?.trim()}>
             {unit ? 'Salvar Alterações' : 'Adicionar'}
           </Button>
         </div>

@@ -292,7 +292,8 @@ export interface MediaPointContract {
   companyId: string;
   mediaPointId: string;
   fileName: string;
-  s3Key: string;
+  s3Key?: string;
+  url?: string; // URL do arquivo (stub / storage)
   signedAt?: Date | null;
   expiresAt?: Date | null;
   createdAt: Date;
@@ -331,7 +332,8 @@ export interface ClientDocument {
   companyId: string;
   clientId: string;
   fileName: string;
-  s3Key: string;
+  s3Key?: string;
+  url?: string; // URL do arquivo (stub / storage)
   documentType: string;
   uploadedByUserId: string;
   createdAt: Date;
