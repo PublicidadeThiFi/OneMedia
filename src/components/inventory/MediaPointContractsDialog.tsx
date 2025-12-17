@@ -139,13 +139,20 @@ export function MediaPointContractsDialog({
                             size="sm"
                             onClick={async () => {
                               try {
-                                const res = await apiClient.get<{ url: string; fileName: string }>(
-                                  `/media-point-contracts/${contract.id}/download`
+                                const res = await apiClient.get<Blob>(
+                                  `/media-point-contracts/${contract.id}/download`,
+                                  { responseType: 'blob' }
                                 );
 
-                                // Abre a URL no navegador
-                                window.open(res.data.url, '_blank', 'noopener,noreferrer');
-                              } catch (e) {
+                                const blobUrl = window.URL.createObjectURL(res.data);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = contract.fileName || 'contrato';
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                                window.URL.revokeObjectURL(blobUrl);
+} catch (e) {
                                 console.error(e);
                                 alert('Erro ao obter link de download.');
                               }

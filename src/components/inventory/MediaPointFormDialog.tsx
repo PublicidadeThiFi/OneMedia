@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -16,7 +16,7 @@ interface MediaPointFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaPoint?: MediaPoint | null;
-  onSave: (data: Partial<MediaPoint>) => void;
+  onSave: (data: Partial<MediaPoint>, imageFile?: File | null) => Promise<any> | void;
 }
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }: MediaPointFormDialogProps) {
@@ -28,11 +28,16 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
     socialClasses: [],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (mediaPoint) {
       setFormData(mediaPoint);
       setType(mediaPoint.type);
+      setImageFile(null);
+      setImagePreview(mediaPoint.mainImageUrl || null);
     } else {
       setFormData({
         type: MediaType.OOH,
@@ -41,6 +46,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
         socialClasses: [],
       });
       setType(MediaType.OOH);
+      setImageFile(null);
+      setImagePreview(null);
     }
   }, [mediaPoint, open]);
 
@@ -48,6 +55,28 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
     setType(newType);
     setFormData(prev => ({ ...prev, type: newType, subcategory: undefined }));
   };
+
+
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setImageFile(file);
+
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
+    } else {
+      // Mantém o preview atual (ex.: imagem já salva) quando limpar o input.
+      // Se quiser "remover imagem", isso deve ser uma ação explícita.
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
 
   const updateField = (field: keyof MediaPoint, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -87,21 +116,22 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
 
-    onSave({
-      ...formData,
-      type,
-      updatedAt: new Date(),
-      ...(mediaPoint ? {} : { 
-        id: `mp${Date.now()}`,
-        companyId: 'c1',
-        createdAt: new Date(),
-      }),
-    });
+    // Remove campos que não devem ser enviados para a API
+    const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (formData as any) || {};
+
+    await onSave(
+      {
+        ...payload,
+        type,
+      },
+      imageFile
+    );
+
     onOpenChange(false);
   };
 
@@ -173,6 +203,19 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Imagem principal</Label>
+                <Input type="file" accept="image/*" onChange={handleImageChange} />
+                {imagePreview && (
+                  <div className="mt-2 w-full max-w-sm h-40 bg-gray-100 rounded overflow-hidden">
+                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">
+                  Selecione uma imagem (PNG/JPG). O upload será feito ao salvar.
+                </p>
               </div>
 
               <div className="space-y-2">

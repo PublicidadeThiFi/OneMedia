@@ -25,7 +25,7 @@ export function Inventory() {
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
-  const { mediaPoints, total, loading, error, refetch } = useMediaPoints({
+  const { mediaPoints, total, loading, error, refetch, uploadMediaPointImage } = useMediaPoints({
     search: searchQuery || undefined,
     type: typeFilter === 'all' ? undefined : typeFilter,
     city: cityFilter === 'all' ? undefined : cityFilter,
@@ -64,18 +64,32 @@ export function Inventory() {
   const filteredPoints = mediaPoints;
 
   // Handlers
-  const handleSavePoint = async (data: Partial<MediaPoint>) => {
+  const handleSavePoint = async (data: Partial<MediaPoint>, imageFile?: File | null) => {
     try {
+      // Remove campos não aceitos/necessários pela API
+      const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
+
       let saved: MediaPoint;
       if (editingPoint?.id) {
-        const response = await apiClient.put<MediaPoint>(`/media-points/${editingPoint.id}`, data);
+        const response = await apiClient.put<MediaPoint>(`/media-points/${editingPoint.id}`, payload);
         saved = response.data;
         toast.success('Ponto de mídia atualizado!');
       } else {
-        const response = await apiClient.post<MediaPoint>('/media-points', data);
+        const response = await apiClient.post<MediaPoint>('/media-points', payload);
         saved = response.data;
         toast.success('Ponto de mídia criado!');
       }
+
+      if (imageFile && saved?.id) {
+        try {
+          await uploadMediaPointImage(saved.id, imageFile);
+          toast.success('Imagem do ponto enviada!');
+        } catch (e: any) {
+          const message = e?.response?.data?.message || 'Erro ao enviar imagem do ponto';
+          toast.error(message);
+        }
+      }
+
       setIsFormDialogOpen(false);
       setEditingPoint(null);
       refetch();

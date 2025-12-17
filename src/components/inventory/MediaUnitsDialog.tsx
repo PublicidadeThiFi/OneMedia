@@ -307,6 +307,32 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(unit?.imageUrl ?? null);
 
+  // Quando alterna de "nova unidade" para "editar" (ou troca a unidade sendo editada),
+  // precisamos sincronizar o estado interno do formulário com a prop `unit`.
+  useEffect(() => {
+    if (unit) {
+      setFormData({
+        label: unit.label,
+        orientation: unit.orientation,
+        widthM: unit.widthM,
+        heightM: unit.heightM,
+        insertionsPerDay: unit.insertionsPerDay,
+        resolutionWidthPx: unit.resolutionWidthPx,
+        resolutionHeightPx: unit.resolutionHeightPx,
+        priceMonth: unit.priceMonth,
+        priceWeek: unit.priceWeek,
+        priceDay: unit.priceDay,
+      });
+      setImageFile(null);
+      setImagePreview(unit.imageUrl ?? null);
+    } else {
+      setFormData({ label: '' });
+      setImageFile(null);
+      setImagePreview(null);
+    }
+  }, [unit]);
+
+
   const updateField = (field: keyof UnitFormPayload, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
