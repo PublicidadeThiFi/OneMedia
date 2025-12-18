@@ -70,7 +70,7 @@ export function ProductsGrid({
             <div className="border-t border-gray-100 pt-4 mb-4">
               <div className="flex items-baseline gap-2">
                 <span className="text-gray-900">
-                  R$ {product.basePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  R$ {Number(product.basePrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-gray-500 text-sm">
                   ({getPriceTypeLabel(product.priceType)})
