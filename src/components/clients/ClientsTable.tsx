@@ -2,7 +2,7 @@ import { Eye, Edit, FileText, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Client, ClientStatus } from '../../types';
-import { getUserById, getProposalsForClient } from '../../lib/mockData';
+import { useClientOwners } from '../../hooks/useClientOwners';
 
 interface ClientsTableProps {
   clients: Client[];
@@ -27,6 +27,8 @@ export function ClientsTable({
   total,
   onPageChange,
 }: ClientsTableProps) {
+  const { ownersById } = useClientOwners();
+
   const getStatusColor = (status: ClientStatus) => {
     switch (status) {
       case ClientStatus.CLIENTE:
@@ -77,10 +79,8 @@ export function ClientsTable({
         </thead>
         <tbody className="divide-y divide-gray-200">
           {clients.map((client) => {
-            const owner = client.ownerUserId
-              ? getUserById(client.ownerUserId)
-              : null;
-            const proposalCount = getProposalsForClient(client.id).length;
+            const owner = client.ownerUserId ? ownersById.get(client.ownerUserId) : null;
+            const proposalCount = 0;
 
             return (
               <tr key={client.id} className="hover:bg-gray-50">
