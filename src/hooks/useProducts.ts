@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { Product, ProductType } from '../types';
 
 export interface UseProductsParams {
   search?: string;
-  type?: ProductType | string;
+  type?: ProductType | string; // aceita 'adicional' (UI), mas envia corretamente para API
   category?: string;
   isAdditional?: boolean;
 }
@@ -17,25 +17,46 @@ type ProductsResponse =
       total?: number;
     };
 
+function normalizeProduct(p: any): Product {
+  return {
+    ...p,
+    // Prisma Decimal costuma serializar como string no JSON
+    basePrice: typeof p.basePrice === 'string' ? parseFloat(p.basePrice) : p.basePrice,
+  } as Product;
+}
+
 export function useProducts(params: UseProductsParams = {}) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  const apiParams = useMemo(() => {
+    const p: any = { ...params };
+
+    // UI usa "adicional" como filtro, mas isso não é ProductType no backend
+    if (p.type === 'adicional') {
+      p.isAdditional = true;
+      delete p.type;
+    }
+
+    // Se não for um ProductType válido, não envia como `type`
+    if (p.type && !Object.values(ProductType).includes(p.type)) {
+      delete p.type;
+    }
+
+    return p;
+  }, [params]);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get<ProductsResponse>('/products', { params });
-
+      const response = await apiClient.get<ProductsResponse>('/products', { params: apiParams });
       const responseData = response.data as ProductsResponse;
 
-      const data: Product[] = Array.isArray(responseData)
-        ? responseData
-        : responseData.data;
-
-      setProducts(data);
+      const data: Product[] = Array.isArray(responseData) ? responseData : responseData.data;
+      setProducts(data.map(normalizeProduct));
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -45,16 +66,16 @@ export function useProducts(params: UseProductsParams = {}) {
 
   const createProduct = async (payload: Partial<Product>) => {
     const response = await apiClient.post<Product>('/products', payload);
-    setProducts((prev: Product[]) => [...prev, response.data]);
-    return response.data;
+    const created = normalizeProduct(response.data);
+    setProducts((prev: Product[]) => [...prev, created]);
+    return created;
   };
 
   const updateProduct = async (id: string, payload: Partial<Product>) => {
     const response = await apiClient.put<Product>(`/products/${id}`, payload);
-    setProducts((prev: Product[]) =>
-      prev.map((p: Product) => (p.id === id ? response.data : p))
-    );
-    return response.data;
+    const updated = normalizeProduct(response.data);
+    setProducts((prev: Product[]) => prev.map((p: Product) => (p.id === id ? updated : p)));
+    return updated;
   };
 
   const deleteProduct = async (id: string) => {
@@ -65,7 +86,7 @@ export function useProducts(params: UseProductsParams = {}) {
   useEffect(() => {
     fetchProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.search, params.type, params.category, params.isAdditional]);
+  }, [apiParams.search, apiParams.type, apiParams.category, apiParams.isAdditional]);
 
   return {
     products,

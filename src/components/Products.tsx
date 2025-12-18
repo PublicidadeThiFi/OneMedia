@@ -23,12 +23,8 @@ export function Products() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
-  const { products, loading, error, refetch, createProduct, updateProduct, deleteProduct } = useProducts({
-    search: searchQuery || undefined,
-    type: typeFilter === 'all' ? undefined : (typeFilter as ProductType | string),
-  });
-  
-  // Dialogs
+  const { products, loading, error, createProduct, updateProduct, deleteProduct } = useProducts();
+// Dialogs
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
