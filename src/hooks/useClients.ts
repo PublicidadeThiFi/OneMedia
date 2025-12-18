@@ -8,7 +8,12 @@ export interface UseClientsParams {
   ownerUserId?: string;
   page?: number;
   pageSize?: number;
-  sortBy?: string;
+
+  /**
+   * No backend, o parâmetro se chama "orderBy" e aceita "name" | "createdAt".
+   * Mantemos "sortBy" aqui por compatibilidade com componentes já existentes.
+   */
+  sortBy?: 'name' | 'createdAt' | string;
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -26,17 +31,32 @@ export function useClients(params: UseClientsParams = {}) {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get<ClientsResponse>('/clients', { params });
+      const apiParams: any = {
+        search: params.search,
+        status: params.status,
+        ownerUserId: params.ownerUserId,
+        page: params.page,
+        pageSize: params.pageSize,
+        orderBy: params.sortBy,
+        sortOrder: params.sortOrder,
+      };
+
+      // compat: alguns lugares usam "contactName" como sortBy
+      if (apiParams.orderBy === 'contactName') apiParams.orderBy = 'name';
+
+      const response = await apiClient.get<ClientsResponse>('/clients', {
+        params: apiParams,
+      });
+
       const responseData = response.data;
 
       const data: Client[] = Array.isArray(responseData)
         ? responseData
         : responseData.data;
 
-      const computedTotal =
-        Array.isArray(responseData)
-          ? data.length
-          : responseData.total ?? data.length;
+      const computedTotal = Array.isArray(responseData)
+        ? data.length
+        : responseData.total ?? data.length;
 
       setClients(data);
       setTotal(computedTotal);
@@ -56,7 +76,7 @@ export function useClients(params: UseClientsParams = {}) {
   const updateClient = async (id: string, data: Partial<Client>) => {
     const response = await apiClient.put<Client>(`/clients/${id}`, data);
     setClients((prev: Client[]) =>
-      prev.map((c: Client) => (c.id === id ? response.data : c))
+      prev.map((c: Client) => (c.id === id ? response.data : c)),
     );
     return response.data;
   };

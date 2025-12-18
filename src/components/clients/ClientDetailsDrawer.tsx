@@ -2,7 +2,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
 import { Client, ClientStatus } from '../../types';
-import { getUserById, getProposalsForClient } from '../../lib/mockData';
+import { useClientOwners } from '../../hooks/useClientOwners';
 import { ClientDocumentsSection } from './ClientDocumentsSection';
 import { MapPin, Mail, Phone, Building2, User, FileText, Calendar } from 'lucide-react';
 
@@ -23,8 +23,12 @@ export function ClientDetailsDrawer({
 }: ClientDetailsDrawerProps) {
   if (!client) return null;
 
-  const owner = client.ownerUserId ? getUserById(client.ownerUserId) : null;
-  const proposals = getProposalsForClient(client.id);
+  const { ownersById } = useClientOwners();
+  const owner = client.ownerUserId ? ownersById.get(client.ownerUserId) : null;
+
+  // Integrações pendentes
+  const proposalsCount = 0;
+  const approvedProposalsCount = 0;
 
   const getStatusColor = (status: ClientStatus) => {
     switch (status) {
@@ -190,12 +194,12 @@ export function ClientDetailsDrawer({
             <div className="grid grid-cols-2 gap-4 pt-4 border-t">
               <div className="bg-indigo-50 p-4 rounded-lg">
                 <p className="text-indigo-600 text-sm mb-1">Propostas</p>
-                <p className="text-gray-900">{proposals.length}</p>
+                <p className="text-gray-900">{proposalsCount}</p>
               </div>
               <div className="bg-green-50 p-4 rounded-lg">
                 <p className="text-green-600 text-sm mb-1">Propostas Aprovadas</p>
                 <p className="text-gray-900">
-                  {proposals.filter(p => p.status === 'APROVADA').length}
+                  {approvedProposalsCount}
                 </p>
               </div>
             </div>
@@ -208,40 +212,10 @@ export function ClientDetailsDrawer({
 
           {/* Aba Propostas */}
           <TabsContent value="propostas" className="mt-6">
-            <div className="space-y-4">
-              <h3 className="text-gray-900">Propostas do Cliente</h3>
-              
-              {proposals.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>Nenhuma proposta cadastrada</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {proposals.map((proposal) => (
-                    <div 
-                      key={proposal.id} 
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="text-gray-900">{proposal.title}</p>
-                          <p className="text-sm text-gray-500">
-                            Criada em {formatDate(proposal.createdAt)}
-                          </p>
-                        </div>
-                        <Badge variant="outline">{proposal.status}</Badge>
-                      </div>
-                      <p className="text-gray-900">
-                        R$ {proposal.totalAmount.toLocaleString('pt-BR', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="text-center py-12 text-gray-500">
+              <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="mb-2">Propostas</p>
+              <p className="text-sm">Integração com o módulo de Propostas pendente.</p>
             </div>
           </TabsContent>
 
