@@ -1,19 +1,13 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { ProposalItem, Product } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
-import { getAllProductsForCompany } from '../../lib/mockData';
+import { useProducts } from '../../hooks/useProducts';
 
 interface ProductSelectionDialogProps {
   open: boolean;
@@ -32,7 +26,8 @@ export function ProductSelectionDialog({
   onAddItem,
 }: ProductSelectionDialogProps) {
   const { company } = useCompany();
-  const [products, setProducts] = useState<Product[]>([]);
+  const { products, loading, error, refetch } = useProducts();
+
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -40,45 +35,36 @@ export function ProductSelectionDialog({
   const [startDate, setStartDate] = useState<Date | undefined>(defaultPeriod.startDate);
   const [endDate, setEndDate] = useState<Date | undefined>(defaultPeriod.endDate);
 
-  // Carregar produtos da empresa
-  useEffect(() => {
-    if (company) {
-      const companyProducts = getAllProductsForCompany(company.id);
-      setProducts(companyProducts);
-    }
-  }, [company]);
-
-  // Resetar período padrão quando abre
   useEffect(() => {
     if (open) {
       setStartDate(defaultPeriod.startDate);
       setEndDate(defaultPeriod.endDate);
+      refetch();
     }
-  }, [open, defaultPeriod]);
-
-  // Atualizar campos ao selecionar produto
-  const handleProductChange = (productId: string) => {
-    setSelectedProductId(productId);
-    const product = products.find(p => p.id === productId);
-    if (product) {
-      setDescription(product.name);
-      setUnitPrice(product.basePrice);
-    }
-  };
+  }, [open, defaultPeriod, refetch]);
 
   const selectedProduct = useMemo(() => {
-    return products.find(p => p.id === selectedProductId);
+    return products.find((p) => p.id === selectedProductId);
   }, [products, selectedProductId]);
+
+  const handleProductChange = (productId: string) => {
+    setSelectedProductId(productId);
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      setDescription(product.name);
+      setUnitPrice(Number(product.basePrice) || 0);
+    }
+  };
 
   const totalPrice = quantity * unitPrice;
 
   const handleConfirm = () => {
-    if (!company || !selectedProductId) return;
+    if (!selectedProductId) return;
 
     const item: ProposalItem = {
       id: `item${Date.now()}${Math.random()}`,
-      companyId: company.id,
-      proposalId: '', // será preenchido ao salvar a proposta
+      companyId: company?.id || selectedProduct?.companyId || '',
+      proposalId: '',
       mediaUnitId: undefined,
       productId: selectedProductId,
       description,
@@ -105,14 +91,10 @@ export function ProductSelectionDialog({
     onOpenChange(false);
   };
 
-  const isValid = selectedProductId && description && quantity > 0 && unitPrice >= 0;
+  const isValid = !!selectedProductId && !!description && quantity > 0 && unitPrice >= 0;
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
+  const formatCurrency = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -122,27 +104,26 @@ export function ProductSelectionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Selecionar produto */}
           <div className="space-y-2">
             <Label htmlFor="product">Produto/Serviço *</Label>
-            <Select value={selectedProductId} onValueChange={handleProductChange}>
+            <Select value={selectedProductId} onValueChange={handleProductChange} disabled={loading}>
               <SelectTrigger id="product">
-                <SelectValue placeholder="Selecione um produto ou serviço" />
+                <SelectValue
+                  placeholder={
+                    loading ? 'Carregando...' : error ? 'Erro ao carregar produtos' : 'Selecione um produto ou serviço'
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {products.map(product => (
+                {products.map((product: Product) => (
                   <SelectItem key={product.id} value={product.id}>
-                    {product.name} - {formatCurrency(product.basePrice)}
-                    {product.category && ` (${product.category})`}
+                    {product.name} - {formatCurrency(product.basePrice || 0)}
+                    {product.category ? ` (${product.category})` : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {!selectedProductId && (
-              <p className="text-sm text-gray-500">
-                Selecione um produto/serviço cadastrado
-              </p>
-            )}
+
             {selectedProduct && (
               <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
                 <p>
@@ -157,7 +138,6 @@ export function ProductSelectionDialog({
             )}
           </div>
 
-          {/* Descrição customizada */}
           <div className="space-y-2">
             <Label htmlFor="description">Descrição para a Proposta *</Label>
             <Textarea
@@ -168,11 +148,10 @@ export function ProductSelectionDialog({
               onChange={(e) => setDescription(e.target.value)}
             />
             <p className="text-sm text-gray-500">
-              Você pode personalizar a descrição que aparecerá na proposta
+              Você pode personalizar a descrição que aparecerá na proposta.
             </p>
           </div>
 
-          {/* Período (opcional para produtos) */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="startDate">Data de Início</Label>
@@ -180,9 +159,7 @@ export function ProductSelectionDialog({
                 id="startDate"
                 type="date"
                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                onChange={(e) =>
-                  setStartDate(e.target.value ? new Date(e.target.value) : undefined)
-                }
+                onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
               />
             </div>
             <div className="space-y-2">
@@ -191,17 +168,14 @@ export function ProductSelectionDialog({
                 id="endDate"
                 type="date"
                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                onChange={(e) =>
-                  setEndDate(e.target.value ? new Date(e.target.value) : undefined)
-                }
+                onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
               />
             </div>
           </div>
           <p className="text-sm text-gray-500">
-            Opcional. Use se o produto/serviço tiver período específico
+            Opcional. Use se o produto/serviço tiver período específico.
           </p>
 
-          {/* Quantidade e preço */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="quantity">Quantidade *</Label>
@@ -226,7 +200,6 @@ export function ProductSelectionDialog({
             </div>
           </div>
 
-          {/* Resumo */}
           <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
             <div className="flex justify-between items-center">
               <span className="text-indigo-900">Total do Item:</span>

@@ -1,26 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '../ui/sheet';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronRight, MapPin, Search, X } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Checkbox } from '../ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
-import { ProposalItem, MediaType } from '../../types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import apiClient from '../../lib/apiClient';
+import { MediaPoint, MediaType, MediaUnit, ProposalItem } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
-import { getAllMediaPointsForCompany, getAllMediaUnitsForCompany } from '../../lib/mockData';
-import { Search, MapPin } from 'lucide-react';
 
 interface MediaSelectionDrawerProps {
   open: boolean;
@@ -29,347 +15,394 @@ interface MediaSelectionDrawerProps {
     startDate?: Date;
     endDate?: Date;
   };
-  onAddItems: (items: ProposalItem[]) => void;
+  onAddItem: (item: ProposalItem) => void;
 }
 
-interface MediaUnitSelection {
-  unitId: string;
-  unitLabel: string;
-  pointName: string;
-  pointType: MediaType;
-  basePrice: number;
-  quantity: number;
-  startDate: Date | undefined;
-  endDate: Date | undefined;
-}
+type MediaUnitWithPoint = MediaUnit & {
+  pointName?: string;
+  pointType?: MediaType;
+  pointAddress?: string;
+  dimensions?: string; // ✅ adiciona
+};
+
 
 export function MediaSelectionDrawer({
   open,
   onOpenChange,
   defaultPeriod,
-  onAddItems,
+  onAddItem,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [selectedUnits, setSelectedUnits] = useState<Map<string, MediaUnitSelection>>(
-    new Map()
-  );
 
-  // Carregar unidades de mídia
-  const mediaUnits = useMemo(() => {
-    if (!company) return [];
-    const units = getAllMediaUnitsForCompany(company.id);
-    const points = getAllMediaPointsForCompany(company.id);
+  const [mediaPoints, setMediaPoints] = useState<MediaPoint[]>([]);
+  const [mediaUnits, setMediaUnits] = useState<MediaUnitWithPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    return units.map(unit => {
-      const point = points.find(p => p.id === unit.mediaPointId);
-      return {
-        ...unit,
-        pointName: point?.name || 'Ponto desconhecido',
-        pointType: point?.type || MediaType.OOH,
-        pointCity: point?.addressCity,
-        pointDistrict: point?.addressDistrict,
-      };
-    });
-  }, [company]);
+  // Seleção
+  const [selectedMediaUnit, setSelectedMediaUnit] = useState<MediaUnitWithPoint | null>(null);
+  const [description, setDescription] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [unitPrice, setUnitPrice] = useState(0);
+  const [startDate, setStartDate] = useState<Date | undefined>(defaultPeriod.startDate);
+  const [endDate, setEndDate] = useState<Date | undefined>(defaultPeriod.endDate);
 
-  // Filtrar unidades
-  const filteredUnits = useMemo(() => {
-    return mediaUnits.filter(unit => {
-      const matchesSearch =
-        !searchQuery ||
-        unit.pointName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        unit.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        unit.pointCity?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        unit.pointDistrict?.toLowerCase().includes(searchQuery.toLowerCase());
+  const totalPrice = quantity * unitPrice;
 
-      const matchesType =
-        typeFilter === 'all' || unit.pointType === typeFilter;
-
-      return matchesSearch && matchesType;
-    });
-  }, [mediaUnits, searchQuery, typeFilter]);
-
-  // Toggle seleção de unidade
-  const handleToggleUnit = (unitId: string, checked: boolean) => {
-    const newSelected = new Map(selectedUnits);
-    
-    if (checked) {
-      const unit = filteredUnits.find(u => u.id === unitId);
-      if (unit) {
-        newSelected.set(unitId, {
-          unitId: unit.id,
-          unitLabel: unit.label,
-          pointName: unit.pointName,
-          pointType: unit.pointType,
-          basePrice: unit.priceMonth || 0,
-          quantity: 1,
-          startDate: defaultPeriod.startDate,
-          endDate: defaultPeriod.endDate,
-        });
-      }
-    } else {
-      newSelected.delete(unitId);
-    }
-    
-    setSelectedUnits(newSelected);
-  };
-
-  // Atualizar período de uma unidade
-  const handleUpdateUnitPeriod = (
-    unitId: string,
-    field: 'startDate' | 'endDate',
-    value: string
-  ) => {
-    const newSelected = new Map(selectedUnits);
-    const selection = newSelected.get(unitId);
-    if (selection) {
-      selection[field] = value ? new Date(value) : undefined;
-      newSelected.set(unitId, selection);
-      setSelectedUnits(newSelected);
-    }
-  };
-
-  // Atualizar quantidade de uma unidade
-  const handleUpdateUnitQuantity = (unitId: string, quantity: number) => {
-    const newSelected = new Map(selectedUnits);
-    const selection = newSelected.get(unitId);
-    if (selection) {
-      selection.quantity = Math.max(1, quantity);
-      newSelected.set(unitId, selection);
-      setSelectedUnits(newSelected);
-    }
-  };
-
-  // Confirmar seleção
-  const handleConfirm = () => {
-    const items: ProposalItem[] = Array.from(selectedUnits.values()).map(selection => ({
-      id: `item${Date.now()}${Math.random()}`,
-      companyId: company!.id,
-      proposalId: '', // será preenchido ao salvar a proposta
-      mediaUnitId: selection.unitId,
-      productId: undefined,
-      description: `${selection.pointName} - ${selection.unitLabel}`,
-      startDate: selection.startDate,
-      endDate: selection.endDate,
-      quantity: selection.quantity,
-      unitPrice: selection.basePrice,
-      totalPrice: selection.basePrice * selection.quantity,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
-
-    onAddItems(items);
-    setSelectedUnits(new Map());
-    setSearchQuery('');
-    setTypeFilter('all');
-  };
-
-  const handleClose = () => {
-    setSelectedUnits(new Map());
-    setSearchQuery('');
-    setTypeFilter('all');
-    onOpenChange(false);
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
+  const formatPrice = (price: number) => {
+    return price.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     });
   };
 
+  const formatAddress = (p: MediaPoint) => {
+    const parts = [
+      p.addressStreet,
+      p.addressNumber,
+      p.addressDistrict,
+      p.addressCity,
+      p.addressState,
+    ].filter(Boolean);
+    return parts.join(', ');
+  };
+
+  const formatDimensions = (u: MediaUnit) => {
+    // OOH: metros
+    if (u.widthM && u.heightM) {
+      const w = Number(u.widthM);
+      const h = Number(u.heightM);
+      return `${w}m x ${h}m`;
+    }
+
+    // DOOH: resolução
+    if (u.resolutionWidthPx && u.resolutionHeightPx) {
+      return `${u.resolutionWidthPx}x${u.resolutionHeightPx}px`;
+    }
+
+    return undefined;
+  };
+
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // 1) Carrega pontos
+        const pointsRes = await apiClient.get<any>('/media-points', { params: { pageSize: 1000 } });
+        const points: MediaPoint[] = Array.isArray(pointsRes.data)
+          ? pointsRes.data
+          : (pointsRes.data?.data ?? []);
+
+        setMediaPoints(points);
+
+        // 2) Carrega unidades por ponto (endpoint existente)
+        const unitsByPoint = await Promise.all(
+          points.map(async (p) => {
+            const res = await apiClient.get<MediaUnit[]>(`/media-points/${p.id}/units`);
+            const units = res.data || [];
+            return units.map((u) => ({
+              ...u,
+              pointName: p.name,
+              pointType: p.type,
+              pointAddress: formatAddress(p),
+              dimensions: formatDimensions(u), // ✅ aqui
+            })) as MediaUnitWithPoint[];
+
+          })
+        );
+
+        setMediaUnits(unitsByPoint.flat());
+      } catch (e) {
+        setError('Erro ao carregar mídias do inventário.');
+        setMediaPoints([]);
+        setMediaUnits([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (open) {
+      setStartDate(defaultPeriod.startDate);
+      setEndDate(defaultPeriod.endDate);
+      load();
+    }
+  }, [open, defaultPeriod.startDate, defaultPeriod.endDate]);
+
+  const filteredMediaUnits = useMemo(() => {
+    let filtered = mediaUnits;
+
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((media) => media.pointType === typeFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((media) => {
+        const name = (media.label || '').toLowerCase();
+        const pointName = (media.pointName || '').toLowerCase();
+        const pointAddress = (media.pointAddress || '').toLowerCase();
+        return name.includes(query) || pointName.includes(query) || pointAddress.includes(query);
+      });
+    }
+
+    return filtered;
+  }, [mediaUnits, typeFilter, searchQuery]);
+
+  const handleSelectMediaUnit = (media: MediaUnitWithPoint) => {
+    setSelectedMediaUnit(media);
+    setDescription(`${media.pointName || 'Ponto'} - ${media.label}`);
+    setUnitPrice(media.priceMonth || 0);
+    setQuantity(1);
+    setStartDate(defaultPeriod.startDate);
+    setEndDate(defaultPeriod.endDate);
+  };
+
+  const handleConfirm = () => {
+    if (!selectedMediaUnit) return;
+
+    const item: ProposalItem = {
+      id: `item${Date.now()}${Math.random()}`,
+      companyId: company?.id || selectedMediaUnit.companyId || '',
+      proposalId: '',
+      mediaUnitId: selectedMediaUnit.id,
+      productId: undefined,
+      description,
+      startDate,
+      endDate,
+      quantity,
+      unitPrice,
+      totalPrice,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    onAddItem(item);
+    handleClose();
+  };
+
+  const handleClose = () => {
+    setSearchQuery('');
+    setTypeFilter('all');
+    setSelectedMediaUnit(null);
+    setDescription('');
+    setQuantity(1);
+    setUnitPrice(0);
+    setStartDate(defaultPeriod.startDate);
+    setEndDate(defaultPeriod.endDate);
+    onOpenChange(false);
+  };
+
+  const isValid = !!selectedMediaUnit && !!description && quantity > 0 && unitPrice >= 0;
+
+  const mediaTypes = useMemo(() => {
+    const types = new Set(mediaPoints.map((p) => p.type));
+    return Array.from(types) as MediaType[];
+  }, [mediaPoints]);
+
   return (
-    <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Selecionar Pontos/Faces/Telas</SheetTitle>
-          <SheetDescription>
-            Escolha as unidades de mídia do seu inventário para adicionar à proposta
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-6 space-y-4">
-          {/* Filtros */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Buscar por nome, cidade..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={typeFilter} onValueChange={(value: string) => setTypeFilter(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Tipo de mídia" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value={MediaType.OOH}>OOH</SelectItem>
-                <SelectItem value={MediaType.DOOH}>DOOH</SelectItem>
-              </SelectContent>
-            </Select>
+    <Drawer open={open} onOpenChange={handleClose}>
+      <DrawerContent className="h-[90vh] max-w-4xl mx-auto">
+        <DrawerHeader className="border-b">
+          <div className="flex items-center justify-between">
+            <DrawerTitle>Selecionar Mídia do Inventário</DrawerTitle>
+            <Button variant="ghost" size="icon" onClick={handleClose}>
+              <X className="w-4 h-4" />
+            </Button>
           </div>
+        </DrawerHeader>
 
-          {/* Lista de unidades */}
-          <div className="space-y-3 max-h-96 overflow-y-auto border rounded-lg p-4">
-            {filteredUnits.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Nenhuma unidade de mídia encontrada
+        {loading && <div className="p-6 text-gray-600">Carregando mídias...</div>}
+        {!loading && error && <div className="p-6 text-red-600">{error}</div>}
+
+        {!loading && !error && (
+          <div className="flex h-full">
+            {/* Lista */}
+            <div className="w-1/2 border-r border-gray-200 p-6 overflow-y-auto">
+              <div className="space-y-4 mb-6">
+                <div className="flex gap-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Buscar mídia, ponto ou endereço..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {mediaTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  {filteredMediaUnits.length} {filteredMediaUnits.length === 1 ? 'mídia' : 'mídias'} disponível(is)
+                </p>
               </div>
-            ) : (
-              filteredUnits.map(unit => {
-                const isSelected = selectedUnits.has(unit.id);
-                const selection = selectedUnits.get(unit.id);
 
-                return (
+              <div className="space-y-3">
+                {filteredMediaUnits.map((media) => (
                   <div
-                    key={unit.id}
-                    className={`border rounded-lg p-4 ${
-                      isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'
-                    }`}
+                    key={media.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${selectedMediaUnit?.id === media.id
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    onClick={() => handleSelectMediaUnit(media)}
                   >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked: boolean | 'indeterminate') =>
-                          handleToggleUnit(unit.id, checked === true)
-                        }
-                        className="mt-1"
-                      />
+                    <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-gray-400" />
-                              <span className="text-gray-900">
-                                {unit.pointName}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-1">{unit.label}</p>
-                            {unit.pointCity && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                {unit.pointCity}
-                                {unit.pointDistrict && ` - ${unit.pointDistrict}`}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <span
-                              className={`inline-flex px-2 py-1 rounded text-xs ${
-                                unit.pointType === MediaType.DOOH
-                                  ? 'bg-purple-100 text-purple-700'
-                                  : 'bg-blue-100 text-blue-700'
-                              }`}
-                            >
-                              {unit.pointType}
-                            </span>
-                            <p className="text-sm text-gray-900 mt-2">
-                              {formatCurrency(unit.priceMonth || 0)}/mês
-                            </p>
-                          </div>
-                        </div>
+                        <h3 className="text-gray-900 mb-1">{media.label}</h3>
+                        <p className="text-sm text-gray-600 mb-2">{media.pointName}</p>
 
-                        {/* Campos de período e quantidade (só aparecem se selecionado) */}
-                        {isSelected && selection && (
-                          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t">
-                            <div>
-                              <Label htmlFor={`start-${unit.id}`} className="text-xs">
-                                Início
-                              </Label>
-                              <Input
-                                id={`start-${unit.id}`}
-                                type="date"
-                                value={
-                                  selection.startDate
-                                    ? selection.startDate.toISOString().split('T')[0]
-                                    : ''
-                                }
-                                onChange={(e) =>
-                                  handleUpdateUnitPeriod(unit.id, 'startDate', e.target.value)
-                                }
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`end-${unit.id}`} className="text-xs">
-                                Término
-                              </Label>
-                              <Input
-                                id={`end-${unit.id}`}
-                                type="date"
-                                value={
-                                  selection.endDate
-                                    ? selection.endDate.toISOString().split('T')[0]
-                                    : ''
-                                }
-                                onChange={(e) =>
-                                  handleUpdateUnitPeriod(unit.id, 'endDate', e.target.value)
-                                }
-                                className="h-8 text-xs"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor={`qty-${unit.id}`} className="text-xs">
-                                Qtd (meses)
-                              </Label>
-                              <Input
-                                id={`qty-${unit.id}`}
-                                type="number"
-                                min="1"
-                                value={selection.quantity}
-                                onChange={(e) =>
-                                  handleUpdateUnitQuantity(
-                                    unit.id,
-                                    parseInt(e.target.value) || 1
-                                  )
-                                }
-                                className="h-8 text-xs"
-                              />
-                            </div>
+                        {media.pointAddress && (
+                          <div className="flex items-center gap-1 text-sm text-gray-500 mb-2">
+                            <MapPin className="w-3 h-3" />
+                            <span className="truncate">{media.pointAddress}</span>
                           </div>
                         )}
+
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-indigo-600 font-medium">
+                            {formatPrice(media.priceMonth || 0)}/mês
+                          </span>
+                          {media.dimensions && (
+                            <span className="text-gray-500">{media.dimensions}</span>
+                          )}
+                        </div>
                       </div>
+
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
                     </div>
                   </div>
-                );
-              })
-            )}
-          </div>
+                ))}
 
-          {/* Resumo da seleção */}
-          {selectedUnits.size > 0 && (
-            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-              <p className="text-sm text-indigo-900 mb-2">
-                {selectedUnits.size}{' '}
-                {selectedUnits.size === 1 ? 'item selecionado' : 'itens selecionados'}
-              </p>
-              <p className="text-indigo-900">
-                Total:{' '}
-                {formatCurrency(
-                  Array.from(selectedUnits.values()).reduce(
-                    (sum, s) => sum + s.basePrice * s.quantity,
-                    0
-                  )
+                {filteredMediaUnits.length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">Nenhuma mídia encontrada</p>
+                  </div>
                 )}
-              </p>
+              </div>
             </div>
-          )}
 
-          {/* Botões */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={handleClose}>
-              Cancelar
-            </Button>
-            <Button onClick={handleConfirm} disabled={selectedUnits.size === 0}>
-              Adicionar {selectedUnits.size > 0 && `(${selectedUnits.size})`}
-            </Button>
+            {/* Detalhes/Confirmação */}
+            <div className="w-1/2 p-6 overflow-y-auto">
+              {selectedMediaUnit ? (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-gray-900 mb-2">Detalhes da Mídia</h2>
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-gray-900 mb-1">{selectedMediaUnit.label}</h3>
+                      <p className="text-gray-600 mb-2">{selectedMediaUnit.pointName}</p>
+                      {selectedMediaUnit.pointAddress && (
+                        <p className="text-sm text-gray-500">{selectedMediaUnit.pointAddress}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
+                      <Input
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Descrição do item"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={quantity}
+                          onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm text-gray-600 mb-1 block">Preço/mês (R$) *</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={unitPrice}
+                          onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
+                        <Input
+                          type="date"
+                          value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                          onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-sm text-gray-600 mb-1 block">Data Fim</label>
+                        <Input
+                          type="date"
+                          value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                          onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                      <div className="flex justify-between items-center">
+                        <span className="text-indigo-900">Total do Item:</span>
+                        <span className="text-indigo-900 font-medium">
+                          {formatPrice(totalPrice)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-indigo-700 mt-1">
+                        {quantity} x {formatPrice(unitPrice)}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button variant="outline" className="flex-1" onClick={handleClose}>
+                        Cancelar
+                      </Button>
+                      <Button className="flex-1" onClick={handleConfirm} disabled={!isValid}>
+                        Adicionar Item
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">Selecione uma mídia para adicionar à proposta</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+        )}
+      </DrawerContent>
+    </Drawer>
   );
 }

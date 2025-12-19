@@ -144,8 +144,8 @@ export function ProposalFormWizard({
       status: ProposalStatus.RASCUNHO,
       validUntil: formData.validUntil,
       conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent || undefined,
-      discountAmount: formData.discountAmount || undefined,
+      discountPercent: formData.discountPercent ?? undefined,
+      discountAmount: formData.discountAmount ?? undefined,
       totalAmount: formData.totalAmount,
       items: formData.items,
     };
@@ -162,8 +162,8 @@ export function ProposalFormWizard({
       status: ProposalStatus.ENVIADA,
       validUntil: formData.validUntil,
       conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent || undefined,
-      discountAmount: formData.discountAmount || undefined,
+      discountPercent: formData.discountPercent ?? undefined,
+      discountAmount: formData.discountAmount ?? undefined,
       totalAmount: formData.totalAmount,
       items: formData.items,
     };

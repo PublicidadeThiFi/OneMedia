@@ -21,8 +21,8 @@ export function ProposalStep2Items({
   const [editingItem, setEditingItem] = useState<ProposalItem | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const handleAddMediaItems = (newItems: ProposalItem[]) => {
-    onItemsChange([...formData.items, ...newItems]);
+  const handleAddMediaItem = (newItem: ProposalItem) => {
+    onItemsChange([...formData.items, newItem]);
     setShowMediaDrawer(false);
   };
 
@@ -152,11 +152,10 @@ export function ProposalStep2Items({
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                          item.mediaUnitId
-                            ? 'bg-blue-50 text-blue-700'
-                            : 'bg-purple-50 text-purple-700'
-                        }`}
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${item.mediaUnitId
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-purple-50 text-purple-700'
+                          }`}
                       >
                         {item.mediaUnitId ? 'Mídia' : 'Produto'}
                       </span>
@@ -217,7 +216,7 @@ export function ProposalStep2Items({
                   -{' '}
                   {formatCurrency(
                     formData.discountAmount ||
-                      (formData.subtotal * (formData.discountPercent || 0)) / 100
+                    (formData.subtotal * (formData.discountPercent || 0)) / 100
                   )}
                 </span>
               </div>
@@ -238,8 +237,9 @@ export function ProposalStep2Items({
           startDate: formData.campaignStartDate,
           endDate: formData.campaignEndDate,
         }}
-        onAddItems={handleAddMediaItems}
+        onAddItem={handleAddMediaItem}
       />
+
 
       <ProductSelectionDialog
         open={showProductDialog}
