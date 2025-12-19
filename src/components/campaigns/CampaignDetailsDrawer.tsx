@@ -1,10 +1,13 @@
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
-import { Campaign, BillingStatus } from '../../types';
+import { Campaign, BillingInvoice, BillingStatus, Reservation } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
+import apiClient from '../../lib/apiClient';
+import { toast } from 'sonner';
 
 interface CampaignDetailsDrawerProps {
   open: boolean;
@@ -19,12 +22,66 @@ export function CampaignDetailsDrawer({
   campaign,
   defaultTab = 'summary',
 }: CampaignDetailsDrawerProps) {
+  const [loading, setLoading] = useState(false);
+  const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  const loadExtras = async () => {
+    if (!campaign) return;
+    try {
+      setLoading(true);
+      const [invRes, resRes] = await Promise.all([
+        apiClient.get<BillingInvoice[]>('/billing-invoices', {
+          params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
+        }),
+        apiClient.get<Reservation[]>('/reservations', { params: { campaignId: campaign.id, orderBy: 'startDate' } }),
+      ]);
+
+      setInvoices(Array.isArray(invRes.data) ? invRes.data : []);
+      setReservations(Array.isArray(resRes.data) ? resRes.data : []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar dados da campanha.');
+      setInvoices([]);
+      setReservations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    loadExtras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, campaign?.id]);
+
   if (!campaign) return null;
-  const client = campaign.client;
-  const mediaItems = (campaign.items || []).filter((item) => item.mediaUnitId);
-  const oohCount = mediaItems.length; // Sem tipo de ponto disponível aqui
-  const doohCount = 0;
-  const invoices: any[] = [];
+
+  const clientLabel =
+    campaign.client?.companyName || campaign.client?.contactName || (campaign as any)?.clientName || '-';
+
+  const totals = useMemo(() => {
+    const paid = invoices
+      .filter((inv) => inv.status === BillingStatus.PAGA)
+      .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+
+    const openAmount = invoices
+      .filter((inv) => inv.status === BillingStatus.ABERTA || inv.status === BillingStatus.VENCIDA)
+      .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+
+    return { paid, openAmount };
+  }, [invoices]);
+
+  const getReservationStatusBadge = (status: string) => {
+    const base = 'bg-gray-100 text-gray-800';
+    const cls =
+      status === 'CONFIRMADA'
+        ? 'bg-green-100 text-green-800'
+        : status === 'CANCELADA'
+        ? 'bg-gray-100 text-gray-800'
+        : 'bg-yellow-100 text-yellow-800';
+    return <Badge className={cls}>{status}</Badge>;
+  };
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -36,8 +93,9 @@ export function CampaignDetailsDrawer({
                 <DrawerTitle>{campaign.name}</DrawerTitle>
                 <CampaignStatusBadge status={campaign.status} />
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
-                <span>{client?.companyName || client?.contactName}</span>
+
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span>{clientLabel}</span>
                 <span>•</span>
                 <span>
                   {new Date(campaign.startDate).toLocaleDateString('pt-BR')} -{' '}
@@ -57,20 +115,16 @@ export function CampaignDetailsDrawer({
                 )}
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              aria-label="Fechar"
-            >
+
+            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
               <X className="w-4 h-4" />
             </Button>
           </div>
         </DrawerHeader>
 
-        <div className="overflow-y-auto p-6">
-          <Tabs defaultValue={defaultTab} className="space-y-6">
-            <TabsList>
+        <div className="flex-1 overflow-hidden">
+          <Tabs defaultValue={defaultTab} className="h-full flex flex-col">
+            <TabsList className="w-full justify-start px-6 py-0 h-12 border-b rounded-none bg-transparent">
               <TabsTrigger value="summary">Resumo</TabsTrigger>
               <TabsTrigger value="media">Veiculações</TabsTrigger>
               <TabsTrigger value="installations">Instalações OOH</TabsTrigger>
@@ -79,165 +133,147 @@ export function CampaignDetailsDrawer({
             </TabsList>
 
             {/* Aba: Resumo */}
-            <TabsContent value="summary" className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Cliente</p>
-                  <p className="text-gray-900">{client?.companyName || client?.contactName}</p>
-                  {client?.companyName && (
-                    <p className="text-sm text-gray-600">{client.contactName}</p>
-                  )}
+            <TabsContent value="summary" className="flex-1 overflow-y-auto p-6 space-y-6">
+              {loading && <div className="text-sm text-gray-500">Carregando dados...</div>}
+
+              <div className="grid grid-cols-4 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Unidades reservadas</p>
+                  <p className="text-2xl font-semibold text-blue-900">{reservations.length}</p>
                 </div>
 
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Responsável</p>
-                  <p className="text-gray-900">Responsável interno</p>
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Faturas</p>
+                  <p className="text-2xl font-semibold text-purple-900">{invoices.length}</p>
                 </div>
 
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Unidades OOH</p>
-                  <p className="text-gray-900">{oohCount}</p>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Valor Pago</p>
+                  <p className="text-2xl font-semibold text-green-900">
+                    R$ {totals.paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
                 </div>
 
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Unidades DOOH</p>
-                  <p className="text-gray-900">{doohCount}</p>
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Em Aberto</p>
+                  <p className="text-2xl font-semibold text-yellow-900">
+                    R$ {totals.openAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
                 </div>
               </div>
 
-              {/* Lista resumida de unidades */}
-              <div>
-                <h4 className="text-sm text-gray-900 mb-3">Principais Unidades de Mídia</h4>
-                <div className="space-y-2">
-                  {mediaItems.slice(0, 5).map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div>
-                        <p className="text-sm text-gray-900">Unidade de Mídia</p>
-                        <p className="text-xs text-gray-600">ID: {item.mediaUnitId || '-'}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {mediaItems.length > 5 && (
-                    <p className="text-sm text-gray-500 text-center py-2">
-                      + {mediaItems.length - 5} unidades adicionais
-                    </p>
-                  )}
-                </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600 mb-2">Notas</p>
+                <p className="text-sm text-gray-500">
+                  Campanhas usam as <b>reservas</b> para controlar veiculações. Os itens detalhados (campaign-items)
+                  ainda não existem no backend.
+                </p>
               </div>
             </TabsContent>
 
             {/* Aba: Veiculações */}
-            <TabsContent value="media" className="space-y-4">
-              <div>
-                <h4 className="text-gray-900 mb-3">Itens da Campanha ({mediaItems.length})</h4>
+            <TabsContent value="media" className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-gray-900">Reservas da campanha</h3>
+                <Button variant="outline" size="sm" onClick={loadExtras} disabled={loading}>
+                  Atualizar
+                </Button>
+              </div>
+
+              {loading ? (
+                <div className="text-sm text-gray-500">Carregando reservas...</div>
+              ) : reservations.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  Nenhuma reserva encontrada. Use <b>Gerar Booking</b> para criar as reservas.
+                </div>
+              ) : (
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
+                  <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-4 py-3 text-left text-gray-600">Ponto de Mídia</th>
-                        <th className="px-4 py-3 text-left text-gray-600">Unidade</th>
-                        <th className="px-4 py-3 text-left text-gray-600">Tipo</th>
-                        <th className="px-4 py-3 text-left text-gray-600">Período</th>
+                        <th className="px-4 py-3 text-left text-sm text-gray-600">Unidade</th>
+                        <th className="px-4 py-3 text-left text-sm text-gray-600">Período</th>
+                        <th className="px-4 py-3 text-left text-sm text-gray-600">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {mediaItems.map((item) => {
-                        const itemDifferent =
-                          item.startDate &&
-                          item.endDate &&
-                          (new Date(item.startDate).getTime() !== new Date(campaign.startDate).getTime() ||
-                            new Date(item.endDate).getTime() !== new Date(campaign.endDate).getTime());
-
-                        return (
-                          <tr key={item.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-900">Unidade de Mídia</td>
-                            <td className="px-4 py-3 text-gray-700">ID: {item.mediaUnitId || '-'}</td>
-                            <td className="px-4 py-3">
-                              <Badge variant="outline">-</Badge>
-                            </td>
-                            <td className="px-4 py-3 text-gray-700">
-                              {item.startDate && item.endDate ? (
-                                <>
-                                  {new Date(item.startDate).toLocaleDateString('pt-BR')} -{' '}
-                                  {new Date(item.endDate).toLocaleDateString('pt-BR')}
-                                  {itemDifferent && (
-                                    <span className="text-xs text-orange-600 ml-2">(período diferente)</span>
-                                  )}
-                                </>
-                              ) : (
-                                'Período da campanha'
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {reservations.map((r) => (
+                        <tr key={r.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-700">{r.mediaUnitLabel || r.mediaUnitId}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">
+                            {new Date(r.startDate).toLocaleDateString('pt-BR')} -{' '}
+                            {new Date(r.endDate).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3">{getReservationStatusBadge(r.status)}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              )}
             </TabsContent>
 
             {/* Aba: Instalações OOH */}
-            <TabsContent value="installations" className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-blue-900 mb-2">📋 Instalações OOH</p>
-                <p className="text-sm text-blue-700">
-                  Esta campanha possui <strong>{oohCount}</strong> unidades OOH que requerem instalação física.
-                  {/* TODO: Implementar lista de Reservation com status */}
+            <TabsContent value="installations" className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                <p className="text-sm text-blue-900 mb-2">📋 Instalações</p>
+                <p className="text-sm text-blue-800">
+                  Este painel usa as reservas como base. (A distinção OOH/DOOH por unidade será refinada quando o
+                  backend expor o tipo do ponto na reserva.)
                 </p>
               </div>
 
-              {/* Placeholder para reservas */}
-              <div className="text-center py-12 border border-dashed border-gray-300 rounded-lg">
-                <p className="text-gray-500 text-sm">
-                  Reservas e checklists de instalação serão exibidos aqui
-                </p>
-                <p className="text-gray-400 text-xs mt-2">
-                  (TODO: implementar lista de Reservation)
-                </p>
-              </div>
+              {reservations.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  Nenhuma reserva encontrada. Use <b>Gerar Booking</b> para criar as reservas.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {reservations.map((r) => (
+                    <div key={r.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{r.mediaUnitLabel || r.mediaUnitId}</p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(r.startDate).toLocaleDateString('pt-BR')} -{' '}
+                            {new Date(r.endDate).toLocaleDateString('pt-BR')}
+                          </p>
+                        </div>
+                        {getReservationStatusBadge(r.status)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-3">
+                        Checklist e fotos de instalação serão integrados em uma etapa posterior.
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
             {/* Aba: Financeiro */}
-            <TabsContent value="billing" className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Valor da Proposta</p>
-                  <p className="text-gray-900">
-                    R${' '}
-                    {((campaign.totalAmountCents || 0) / 100).toLocaleString('pt-BR', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-1">Valor Faturado</p>
-                  <p className="text-gray-900">
-                    R${' '}
-                    {invoices
-                      .reduce((sum, inv) => sum + inv.amount, 0)
-                      .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
+            <TabsContent value="billing" className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-gray-900">Faturas da campanha</h3>
+                <Button variant="outline" size="sm" onClick={loadExtras} disabled={loading}>
+                  Atualizar
+                </Button>
               </div>
 
-              {invoices.length > 0 ? (
-                <div>
-                  <h4 className="text-gray-900 mb-3">Faturas ({invoices.length})</h4>
-                  <div className="space-y-2">
-                    {invoices.map((invoice) => (
-                      <div key={invoice.id} className="flex items-center justify-between p-3 border border-gray-200 rounded">
+              {loading ? (
+                <div className="text-sm text-gray-500">Carregando faturas...</div>
+              ) : invoices.length === 0 ? (
+                <div className="text-sm text-gray-500">Nenhuma fatura vinculada a esta campanha.</div>
+              ) : (
+                <div className="space-y-3">
+                  {invoices.map((invoice) => (
+                    <div key={invoice.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className="text-sm text-gray-900">
-                            Vencimento: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
+                          <p className="font-medium text-gray-900">
+                            Venc.: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
                           </p>
-                          <p className="text-xs text-gray-600">
-                            R${' '}
-                            {invoice.amount.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
+                          <p className="text-sm text-gray-500">
+                            Valor: R$ {Number(invoice.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </p>
                         </div>
                         <Badge
@@ -246,35 +282,30 @@ export function CampaignDetailsDrawer({
                               ? 'bg-green-100 text-green-800'
                               : invoice.status === BillingStatus.VENCIDA
                               ? 'bg-red-100 text-red-800'
+                              : invoice.status === BillingStatus.CANCELADA
+                              ? 'bg-gray-100 text-gray-800'
                               : 'bg-yellow-100 text-yellow-800'
                           }
                         >
-                          {invoice.status === BillingStatus.PAGA
-                            ? 'Paga'
-                            : invoice.status === BillingStatus.VENCIDA
-                            ? 'Vencida'
-                            : 'Aberta'}
+                          {invoice.status}
                         </Badge>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-gray-50 rounded-lg">
-                  <p className="text-gray-500">Nenhuma fatura vinculada</p>
+
+                      {invoice.paidAt && (
+                        <p className="text-xs text-gray-500">
+                          Pago em {new Date(invoice.paidAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </TabsContent>
 
             {/* Aba: Mensagens */}
-            <TabsContent value="messages">
-              <div className="text-center py-12 border border-dashed border-gray-300 rounded-lg">
-                <p className="text-gray-500 text-sm mb-2">
-                  💬 Mensagens (e-mail/WhatsApp) vinculadas à campanha
-                </p>
-                <p className="text-gray-400 text-xs">
-                  Futuramente aqui ficarão mensagens (Message) vinculadas à campanha
-                </p>
+            <TabsContent value="messages" className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="text-sm text-gray-500">
+                Mensagens (email/whatsapp) serão integradas no módulo de comunicação.
               </div>
             </TabsContent>
           </Tabs>

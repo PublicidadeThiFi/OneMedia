@@ -360,32 +360,18 @@ export interface Proposal {
   title?: string;
   status: ProposalStatus;
   totalAmount: number;
-  discountAmount?: number | null;
-  discountPercent?: number | null;
+  discountAmount?: number;
+  discountPercent?: number;
   conditionsText?: string;
   validUntil?: Date;
-  publicHash?: string | null;
-  approvedAt?: Date | null;
-  rejectedAt?: Date | null;
+  publicHash?: string;
+  approvedAt?: Date;
+  rejectedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
-
-  /**
-   * O backend pode retornar um "client" parcial (select) ou apenas "clientName".
-   * Mantemos ambos como opcionais para a UI.
-   */
-  client?: Client | null;
-  clientName?: string | null;
-
-  /**
-   * Conveniência para UI (lista/tabela)
-   */
-  responsibleUserName?: string | null;
-  itemsCount?: number;
-
+  client?: Client;
   items?: ProposalItem[];
 }
-
 
 export interface ProposalItem {
   id: string;
@@ -416,10 +402,12 @@ export interface Campaign {
   approvedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
-  client?: Client;
+  client?: Partial<Client> | null;
+  clientName?: string | null;
+  proposalTitle?: string | null;
+  proposal?: Partial<Proposal> | null;
   items?: CampaignItem[];
 }
-
 export interface CampaignItem {
   id: string;
   companyId: string;
@@ -435,15 +423,17 @@ export interface Reservation {
   id: string;
   companyId: string;
   mediaUnitId: string;
+  mediaUnitLabel?: string;
   campaignId?: string;
+  campaignName?: string;
   proposalId?: string;
+  proposalTitle?: string;
   startDate: Date;
   endDate: Date;
   status: ReservationStatus;
   createdAt: Date;
   updatedAt: Date;
 }
-
 export interface BillingInvoice {
   id: string;
   companyId: string;
