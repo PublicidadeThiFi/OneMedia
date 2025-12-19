@@ -1,8 +1,7 @@
-import { Eye, Edit, Send, ExternalLink } from 'lucide-react';
+import { Edit, ExternalLink, Eye, Send } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Proposal, ProposalStatus } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
-import { getClientById, getUserById, getItemsForProposal } from '../../lib/mockData';
 
 interface ProposalsTableProps {
   proposals: Proposal[];
@@ -25,6 +24,16 @@ export function ProposalsTable({
     );
   }
 
+  const copyPublicLink = async (publicHash: string) => {
+    const path = `/p/${publicHash}`;
+    try {
+      await navigator.clipboard.writeText(path);
+    } catch {
+      // fallback silencioso
+      console.log('Link público:', path);
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -40,11 +49,25 @@ export function ProposalsTable({
             <th className="px-6 py-3 text-left text-gray-600 text-sm">Ações</th>
           </tr>
         </thead>
+
         <tbody className="divide-y divide-gray-200">
           {proposals.map((proposal) => {
-            const client = getClientById(proposal.clientId);
-            const user = getUserById(proposal.responsibleUserId);
-            const items = getItemsForProposal(proposal.id);
+            const clientName =
+              proposal.client?.companyName ||
+              proposal.client?.contactName ||
+              (proposal as any).clientName ||
+              '-';
+
+            const clientContact =
+              proposal.client?.companyName ? proposal.client?.contactName : undefined;
+
+            const responsibleName =
+              (proposal as any).responsibleUserName || proposal.responsibleUserId || '-';
+
+            const itemsCount =
+              (proposal as any).itemsCount ??
+              proposal.items?.length ??
+              undefined;
 
             return (
               <tr key={proposal.id} className="hover:bg-gray-50">
@@ -52,44 +75,59 @@ export function ProposalsTable({
                 <td className="px-6 py-4">
                   <div>
                     <p className="text-gray-900">{proposal.title || 'Sem título'}</p>
-                    <p className="text-gray-500 text-sm">
-                      ID: ...{proposal.id.slice(-6)}
-                    </p>
+                    <p className="text-gray-500 text-sm">ID: ...{proposal.id.slice(-6)}</p>
                   </div>
                 </td>
 
                 {/* Cliente */}
                 <td className="px-6 py-4">
                   <div>
-                    <p className="text-gray-900">{client?.companyName || client?.contactName || '-'}</p>
-                    {client?.companyName && (
-                      <p className="text-gray-500 text-sm">{client.contactName}</p>
+                    <p className="text-gray-900">{clientName}</p>
+                    {clientContact && (
+                      <p className="text-gray-500 text-sm">{clientContact}</p>
                     )}
                   </div>
                 </td>
 
                 {/* Responsável */}
                 <td className="px-6 py-4 text-gray-600 text-sm">
-                  {user?.name || '-'}
+                  {responsibleName}
                 </td>
 
                 {/* Valor */}
                 <td className="px-6 py-4">
                   <div>
                     <p className="text-gray-900">
-                      R$ {proposal.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      R${' '}
+                      {(proposal.totalAmount || 0).toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </p>
-                    {proposal.discountPercent && proposal.discountPercent > 0 && (
+                    {proposal.discountPercent != null && proposal.discountPercent > 0 && (
                       <p className="text-green-600 text-xs">
                         -{proposal.discountPercent}% desconto
                       </p>
                     )}
+                    {proposal.discountPercent == null &&
+                      proposal.discountAmount != null &&
+                      proposal.discountAmount > 0 && (
+                        <p className="text-green-600 text-xs">
+                          -R${' '}
+                          {proposal.discountAmount.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </p>
+                      )}
                   </div>
                 </td>
 
                 {/* Itens */}
                 <td className="px-6 py-4 text-gray-600">
-                  {items.length} {items.length === 1 ? 'item' : 'itens'}
+                  {typeof itemsCount === 'number'
+                    ? `${itemsCount} ${itemsCount === 1 ? 'item' : 'itens'}`
+                    : '-'}
                 </td>
 
                 {/* Status */}
@@ -100,7 +138,7 @@ export function ProposalsTable({
                 {/* Validade */}
                 <td className="px-6 py-4 text-gray-600 text-sm">
                   {proposal.validUntil
-                    ? new Date(proposal.validUntil).toLocaleDateString('pt-BR')
+                    ? new Date(proposal.validUntil as any).toLocaleDateString('pt-BR')
                     : '-'}
                 </td>
 
@@ -142,11 +180,8 @@ export function ProposalsTable({
                       <Button
                         variant="ghost"
                         size="sm"
-                        title={`Link público: /p/${proposal.publicHash}`}
-                        onClick={() => {
-                          // TODO: copiar link ou abrir em nova aba
-                          console.log('Link público:', `/p/${proposal.publicHash}`);
-                        }}
+                        title={`Copiar link público: /p/${proposal.publicHash}`}
+                        onClick={() => copyPublicLink(proposal.publicHash!)}
                         aria-label="Link público"
                       >
                         <ExternalLink className="w-4 h-4" />

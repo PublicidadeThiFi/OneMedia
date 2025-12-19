@@ -292,8 +292,7 @@ export interface MediaPointContract {
   companyId: string;
   mediaPointId: string;
   fileName: string;
-  s3Key?: string;
-  url?: string; // URL do arquivo (stub / storage)
+  s3Key: string;
   signedAt?: Date | null;
   expiresAt?: Date | null;
   createdAt: Date;
@@ -332,8 +331,7 @@ export interface ClientDocument {
   companyId: string;
   clientId: string;
   fileName: string;
-  s3Key?: string;
-  url?: string; // URL do arquivo (stub / storage)
+  s3Key: string;
   documentType: string;
   uploadedByUserId: string;
   createdAt: Date;
@@ -362,18 +360,32 @@ export interface Proposal {
   title?: string;
   status: ProposalStatus;
   totalAmount: number;
-  discountAmount?: number;
-  discountPercent?: number;
+  discountAmount?: number | null;
+  discountPercent?: number | null;
   conditionsText?: string;
   validUntil?: Date;
-  publicHash?: string;
-  approvedAt?: Date;
-  rejectedAt?: Date;
+  publicHash?: string | null;
+  approvedAt?: Date | null;
+  rejectedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  client?: Client;
+
+  /**
+   * O backend pode retornar um "client" parcial (select) ou apenas "clientName".
+   * Mantemos ambos como opcionais para a UI.
+   */
+  client?: Client | null;
+  clientName?: string | null;
+
+  /**
+   * Conveniência para UI (lista/tabela)
+   */
+  responsibleUserName?: string | null;
+  itemsCount?: number;
+
   items?: ProposalItem[];
 }
+
 
 export interface ProposalItem {
   id: string;

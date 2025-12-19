@@ -1,15 +1,15 @@
-import { useState, useMemo } from 'react';
-import { Plus, CheckCircle, Send, Edit, PlayCircle } from 'lucide-react';
-import { Button } from './ui/button';
+import { useMemo, useState } from 'react';
+import { CheckCircle, Edit, Plus, Send } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
 import { Proposal, ProposalStatus } from '../types';
 import { useProposals } from '../hooks/useProposals';
-import { ProposalFiltersBar } from './proposals/ProposalFiltersBar';
-import { ProposalsTable } from './proposals/ProposalsTable';
 import { ProposalAdvancedFiltersSheet, AdvancedFilters } from './proposals/ProposalAdvancedFiltersSheet';
 import { ProposalDetailsDrawer } from './proposals/ProposalDetailsDrawer';
+import { ProposalFiltersBar } from './proposals/ProposalFiltersBar';
 import { ProposalFormWizard } from './proposals/ProposalFormWizard';
-import { toast } from 'sonner';
+import { ProposalsTable } from './proposals/ProposalsTable';
 import { Page } from './MainApp';
 
 interface ProposalsProps {
@@ -20,13 +20,6 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   // Filtros básicos
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  // Hook de propostas (API)
-  const { proposals, total, loading, error, refetch, createProposal, updateProposal } = useProposals({
-    search: searchQuery || undefined,
-    status: statusFilter === 'all' ? undefined : (statusFilter as ProposalStatus | string),
-    // Passaremos filtros adicionais via front (advancedFilters) por enquanto
-  });
 
   // Filtros avançados
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
@@ -39,32 +32,63 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   });
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
 
+  const effectiveStatus = useMemo(() => {
+    if (statusFilter !== 'all') return statusFilter as ProposalStatus;
+    if (advancedFilters.proposalStatuses.length) return advancedFilters.proposalStatuses;
+    return undefined;
+  }, [statusFilter, advancedFilters.proposalStatuses]);
+
+  const {
+    proposals,
+    total,
+    loading,
+    error,
+    refetch,
+    createProposal,
+    updateProposal,
+    updateProposalStatus,
+    getProposalById,
+  } = useProposals({
+    search: searchQuery || undefined,
+    status: effectiveStatus,
+    responsibleUserId: advancedFilters.responsibleUserId,
+    createdFrom: advancedFilters.createdFrom,
+    createdTo: advancedFilters.createdTo,
+    orderBy: 'createdAt',
+    sortOrder: 'desc',
+  });
+
   // Dialogs e Drawers
   const [isFormWizardOpen, setIsFormWizardOpen] = useState(false);
   const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
   const [detailsDrawerProposal, setDetailsDrawerProposal] = useState<Proposal | null>(null);
+  const [loadingSingle, setLoadingSingle] = useState(false);
 
-  // Cards de estatísticas (baseado na lista atual)
+  // Cards de estatísticas (baseado na lista carregada)
   const stats = useMemo(() => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
 
-    const approved = proposals.filter(p => p.status === ProposalStatus.APROVADA);
-    const totalNonDraft = proposals.filter(p => p.status !== ProposalStatus.RASCUNHO);
-    const approvalRate = totalNonDraft.length > 0
-      ? Math.round((approved.length / totalNonDraft.length) * 100)
-      : 0;
+    const approved = proposals.filter((p) => p.status === ProposalStatus.APROVADA);
+    const totalNonDraft = proposals.filter((p) => p.status !== ProposalStatus.RASCUNHO);
+    const approvalRate =
+      totalNonDraft.length > 0
+        ? Math.round((approved.length / totalNonDraft.length) * 100)
+        : 0;
 
-    const approvedThisMonth = approved.filter(p => {
+    const approvedThisMonth = approved.filter((p) => {
       if (!p.approvedAt) return false;
-      const date = new Date(p.approvedAt);
+      const date = new Date(p.approvedAt as any);
       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
     });
 
-    const totalApprovedAmount = approvedThisMonth.reduce((sum, p) => sum + p.totalAmount, 0);
+    const totalApprovedAmount = approvedThisMonth.reduce(
+      (sum, p) => sum + (p.totalAmount || 0),
+      0
+    );
 
-    const sent = proposals.filter(p => p.status === ProposalStatus.ENVIADA);
-    const drafts = proposals.filter(p => p.status === ProposalStatus.RASCUNHO);
+    const sent = proposals.filter((p) => p.status === ProposalStatus.ENVIADA);
+    const drafts = proposals.filter((p) => p.status === ProposalStatus.RASCUNHO);
 
     return {
       approved: approved.length,
@@ -75,75 +99,39 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     };
   }, [proposals]);
 
-  // Filtros aplicados
-  const filteredProposals = useMemo(() => {
-    return proposals.filter((proposal) => {
-      // Busca textual (título ou cliente embutido)
-      const searchText = searchQuery.toLowerCase();
-      const matchesSearch =
-        !searchQuery ||
-        (proposal.title?.toLowerCase().includes(searchText) ?? false) ||
-        (proposal.client?.companyName?.toLowerCase().includes(searchText) ?? false) ||
-        (proposal.client?.contactName?.toLowerCase().includes(searchText) ?? false);
-
-      // Filtro de status básico
-      const matchesStatusFilter = statusFilter === 'all' || proposal.status === statusFilter;
-
-      // Filtros avançados - Status da proposta
-      const matchesProposalStatuses =
-        advancedFilters.proposalStatuses.length === 0 ||
-        advancedFilters.proposalStatuses.includes(proposal.status);
-
-      // Filtros avançados - Responsável
-      const matchesResponsible =
-        !advancedFilters.responsibleUserId ||
-        proposal.responsibleUserId === advancedFilters.responsibleUserId;
-
-      // Filtros avançados - Período de criação
-      const matchesCreatedFrom = !advancedFilters.createdFrom || (() => {
-        const createdDate = new Date(proposal.createdAt);
-        const fromDate = new Date(advancedFilters.createdFrom as string);
-        return createdDate >= fromDate;
-      })();
-
-      const matchesCreatedTo = !advancedFilters.createdTo || (() => {
-        const createdDate = new Date(proposal.createdAt);
-        const toDate = new Date(advancedFilters.createdTo as string);
-        toDate.setHours(23, 59, 59, 999);
-        return createdDate <= toDate;
-      })();
-
-      // Ignorando momentaneamente filtros dependentes de dados externos (campanha/financeiro)
-
-      return (
-        matchesSearch &&
-        matchesStatusFilter &&
-        matchesProposalStatuses &&
-        matchesResponsible &&
-        matchesCreatedFrom &&
-        matchesCreatedTo
-      );
-    });
-  }, [proposals, searchQuery, statusFilter, advancedFilters]);
-
-  // Handlers
   const handleNewProposal = () => {
     setEditingProposal(null);
     setIsFormWizardOpen(true);
   };
 
-  const handleEditProposal = (proposal: Proposal) => {
-    setEditingProposal(proposal);
-    setIsFormWizardOpen(true);
+  const handleEditProposal = async (proposal: Proposal) => {
+    try {
+      setLoadingSingle(true);
+      const full = await getProposalById(proposal.id);
+      setEditingProposal(full);
+      setIsFormWizardOpen(true);
+    } catch {
+      toast.error('Erro ao carregar proposta para edição');
+    } finally {
+      setLoadingSingle(false);
+    }
   };
 
-  const handleViewDetails = (proposal: Proposal) => {
-    setDetailsDrawerProposal(proposal);
+  const handleViewDetails = async (proposal: Proposal) => {
+    try {
+      setLoadingSingle(true);
+      const full = await getProposalById(proposal.id);
+      setDetailsDrawerProposal(full);
+    } catch {
+      toast.error('Erro ao carregar detalhes da proposta');
+    } finally {
+      setLoadingSingle(false);
+    }
   };
 
   const handleSendProposal = async (proposal: Proposal) => {
     try {
-      await updateProposal(proposal.id, { status: ProposalStatus.ENVIADA });
+      await updateProposalStatus(proposal.id, ProposalStatus.ENVIADA);
       toast.success('Proposta enviada.');
       refetch();
     } catch {
@@ -153,16 +141,28 @@ export function Proposals({ onNavigate }: ProposalsProps) {
 
   const handleSaveProposal = async (proposalData: Partial<Proposal>) => {
     try {
+      const desiredStatus = proposalData.status;
+
+      // Mantém o update (PUT) somente para campos/itens. Status sempre via PATCH /status.
+      const { status, ...payload } = proposalData;
+
+      let saved: Proposal;
+
       if (editingProposal?.id) {
-        await updateProposal(editingProposal.id, proposalData);
+        saved = await updateProposal(editingProposal.id, payload);
         toast.success('Proposta atualizada com sucesso!');
       } else {
-        await createProposal(proposalData);
+        saved = await createProposal(payload);
         toast.success('Proposta criada com sucesso!');
       }
+
+      if (desiredStatus && desiredStatus !== saved.status) {
+        await updateProposalStatus(saved.id, desiredStatus);
+      }
+
       setIsFormWizardOpen(false);
       setEditingProposal(null);
-      refetch();
+      await refetch();
     } catch {
       toast.error('Erro ao salvar proposta');
     }
@@ -172,12 +172,8 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     setAdvancedFilters(filters);
   };
 
-  // Hash público será gerado pelo backend quando aplicável
-
   return (
     <div className="p-8">
-      {loading && <div>Carregando propostas...</div>}
-      {!loading && error && <div>Erro ao carregar propostas.</div>}
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -187,11 +183,14 @@ export function Proposals({ onNavigate }: ProposalsProps) {
           </p>
         </div>
 
-        <Button className="gap-2" onClick={handleNewProposal}>
+        <Button className="gap-2" onClick={handleNewProposal} disabled={loadingSingle}>
           <Plus className="w-4 h-4" />
           Nova Proposta
         </Button>
       </div>
+
+      {loading && <div>Carregando propostas...</div>}
+      {!loading && error && <div>Erro ao carregar propostas.</div>}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
@@ -216,7 +215,11 @@ export function Proposals({ onNavigate }: ProposalsProps) {
               <CheckCircle className="w-5 h-5 text-green-600" />
             </div>
             <p className="text-gray-900 mb-1">
-              R$ {stats.totalApprovedAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              R${' '}
+              {stats.totalApprovedAmount.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </p>
             <p className="text-gray-600 text-sm">No mês</p>
           </CardContent>
@@ -268,33 +271,24 @@ export function Proposals({ onNavigate }: ProposalsProps) {
       {(searchQuery || statusFilter !== 'all' || advancedFilters.proposalStatuses.length > 0) && (
         <div className="mb-4">
           <p className="text-sm text-gray-600">
-            {filteredProposals.length}{' '}
-            {filteredProposals.length === 1 ? 'proposta encontrada' : 'propostas encontradas'}
+            {proposals.length}{' '}
+            {proposals.length === 1 ? 'proposta encontrada' : 'propostas encontradas'}
+            {total > proposals.length ? ` (de ${total})` : ''}
           </p>
         </div>
       )}
 
-      {/* Tabela de Propostas */}
+      {/* Tabela */}
       <Card>
         <ProposalsTable
-          proposals={filteredProposals}
+          proposals={proposals}
           onViewDetails={handleViewDetails}
           onEditProposal={handleEditProposal}
           onSendProposal={handleSendProposal}
         />
       </Card>
 
-      {/* Info do Fluxo */}
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-900 mb-2">💡 Fluxo de Propostas</p>
-        <p className="text-sm text-blue-700">
-          <strong>RASCUNHO</strong> → editar itens (ProposalItem) → <strong>ENVIADA</strong> (gera
-          publicHash) → Cliente aprova via link público → <strong>APROVADA</strong> (TODO: criar
-          Campaign + Reservations + BillingInvoice)
-        </p>
-      </div>
-
-      {/* Dialogs e Drawers */}
+      {/* Dialogs */}
       <ProposalAdvancedFiltersSheet
         open={isAdvancedFiltersOpen}
         onOpenChange={setIsAdvancedFiltersOpen}

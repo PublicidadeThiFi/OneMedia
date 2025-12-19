@@ -1,21 +1,27 @@
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Filter, X } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
-import { ProposalStatus, CampaignStatus, BillingStatus } from '../../types';
-import { mockUsers } from '../../lib/mockData';
+import apiClient from '../../lib/apiClient';
+import { ProposalStatus } from '../../types';
 
 export interface AdvancedFilters {
   proposalStatuses: ProposalStatus[];
-  campaignStatus?: CampaignStatus;
-  billingStatus?: BillingStatus;
+  campaignStatus?: string;
+  billingStatus?: string;
   responsibleUserId?: string;
   createdFrom?: string;
   createdTo?: string;
+}
+
+interface ResponsibleUserOption {
+  id: string;
+  name: string | null;
+  email: string | null;
 }
 
 interface ProposalAdvancedFiltersSheetProps {
@@ -25,6 +31,14 @@ interface ProposalAdvancedFiltersSheetProps {
   onApplyFilters: (filters: AdvancedFilters) => void;
 }
 
+const PROPOSAL_STATUSES: { value: ProposalStatus; label: string }[] = [
+  { value: ProposalStatus.RASCUNHO, label: 'Rascunho' },
+  { value: ProposalStatus.ENVIADA, label: 'Enviada' },
+  { value: ProposalStatus.APROVADA, label: 'Aprovada' },
+  { value: ProposalStatus.REPROVADA, label: 'Reprovada' },
+  { value: ProposalStatus.EXPIRADA, label: 'Expirada' },
+];
+
 export function ProposalAdvancedFiltersSheet({
   open,
   onOpenChange,
@@ -32,44 +46,70 @@ export function ProposalAdvancedFiltersSheet({
   onApplyFilters,
 }: ProposalAdvancedFiltersSheetProps) {
   const [localFilters, setLocalFilters] = useState<AdvancedFilters>(filters);
+  const [responsibles, setResponsibles] = useState<ResponsibleUserOption[]>([]);
+  const [loadingResp, setLoadingResp] = useState(false);
 
   useEffect(() => {
     setLocalFilters(filters);
   }, [filters]);
 
-  const handleApply = () => {
-    onApplyFilters(localFilters);
-    onOpenChange(false);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoadingResp(true);
+        const res = await apiClient.get<ResponsibleUserOption[]>('/proposals/responsibles');
+        setResponsibles(res.data || []);
+      } catch {
+        setResponsibles([]);
+      } finally {
+        setLoadingResp(false);
+      }
+    };
+
+    if (open) load();
+  }, [open]);
+
+  const responsibleOptions = useMemo(() => {
+    return responsibles.map((u) => ({
+      id: u.id,
+      label: u.name || u.email || u.id,
+    }));
+  }, [responsibles]);
+
+  const toggleProposalStatus = (status: ProposalStatus) => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      proposalStatuses: prev.proposalStatuses.includes(status)
+        ? prev.proposalStatuses.filter((s) => s !== status)
+        : [...prev.proposalStatuses, status],
+    }));
   };
 
-  const handleClear = () => {
-    const clearedFilters: AdvancedFilters = {
+  const handleClearFilters = () => {
+    setLocalFilters({
       proposalStatuses: [],
       campaignStatus: undefined,
       billingStatus: undefined,
       responsibleUserId: undefined,
       createdFrom: undefined,
       createdTo: undefined,
-    };
-    setLocalFilters(clearedFilters);
-    onApplyFilters(clearedFilters);
+    });
   };
 
-  const toggleProposalStatus = (status: ProposalStatus) => {
-    setLocalFilters(prev => {
-      const statuses = prev.proposalStatuses.includes(status)
-        ? prev.proposalStatuses.filter(s => s !== status)
-        : [...prev.proposalStatuses, status];
-      return { ...prev, proposalStatuses: statuses };
-    });
+  const handleApply = () => {
+    onApplyFilters(localFilters);
+    onOpenChange(false);
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="w-[400px] sm:w-[540px]">
+        <SheetHeader className="mb-6">
           <div className="flex items-center justify-between">
-            <SheetTitle>Filtros Avançados</SheetTitle>
+            <div className="flex items-center gap-2">
+              <Filter className="w-5 h-5 text-gray-600" />
+              <SheetTitle>Filtros Avançados</SheetTitle>
+            </div>
             <Button
               variant="ghost"
               size="icon"
@@ -81,102 +121,48 @@ export function ProposalAdvancedFiltersSheet({
           </div>
         </SheetHeader>
 
-        <div className="space-y-6 mt-6">
+        <div className="space-y-6">
           {/* Status da Proposta */}
-          <div className="space-y-3">
-            <Label>Status da Proposta</Label>
+          <div>
+            <h3 className="text-gray-900 mb-3">Status da Proposta</h3>
             <div className="space-y-2">
-              {Object.values(ProposalStatus).map((status) => (
-                <div key={status} className="flex items-center gap-2">
+              {PROPOSAL_STATUSES.map((status) => (
+                <div key={status.value} className="flex items-center gap-2">
                   <Checkbox
-                    id={`status-${status}`}
-                    checked={localFilters.proposalStatuses.includes(status)}
-                    onCheckedChange={() => toggleProposalStatus(status)}
+                    id={`status-${status.value}`}
+                    checked={localFilters.proposalStatuses.includes(status.value)}
+                    onCheckedChange={() => toggleProposalStatus(status.value)}
                   />
-                  <Label
-                    htmlFor={`status-${status}`}
-                    className="cursor-pointer"
-                  >
-                    {status === ProposalStatus.APROVADA && 'Aprovada'}
-                    {status === ProposalStatus.ENVIADA && 'Enviada'}
-                    {status === ProposalStatus.RASCUNHO && 'Rascunho'}
-                    {status === ProposalStatus.REPROVADA && 'Reprovada'}
-                    {status === ProposalStatus.EXPIRADA && 'Expirada'}
+                  <Label htmlFor={`status-${status.value}`} className="text-sm">
+                    {status.label}
                   </Label>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Status da Campanha */}
-          <div className="space-y-2">
-            <Label htmlFor="campaign-status">Status da Campanha</Label>
-            <Select
-              value={localFilters.campaignStatus || 'all'}
-              onValueChange={(value: string) =>
-                setLocalFilters({
-                  ...localFilters,
-                  campaignStatus: value === 'all' ? undefined : (value as CampaignStatus),
-                })
-              }
-            >
-              <SelectTrigger id="campaign-status">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value={CampaignStatus.EM_INSTALACAO}>Em Instalação</SelectItem>
-                <SelectItem value={CampaignStatus.EM_VEICULACAO}>Em Veiculação</SelectItem>
-                <SelectItem value={CampaignStatus.FINALIZADA}>Finalizada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Status Financeiro */}
-          <div className="space-y-2">
-            <Label htmlFor="billing-status">Status Financeiro</Label>
-            <Select
-              value={localFilters.billingStatus || 'all'}
-              onValueChange={(value: string) =>
-                setLocalFilters({
-                  ...localFilters,
-                  billingStatus: value === 'all' ? undefined : (value as BillingStatus),
-                })
-              }
-            >
-              <SelectTrigger id="billing-status">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value={BillingStatus.ABERTA}>Aberta</SelectItem>
-                <SelectItem value={BillingStatus.PAGA}>Paga</SelectItem>
-                <SelectItem value={BillingStatus.VENCIDA}>Vencida</SelectItem>
-                <SelectItem value={BillingStatus.CANCELADA}>Cancelada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Usuário Responsável */}
-          <div className="space-y-2">
-            <Label htmlFor="responsible-user">Usuário Responsável</Label>
+          {/* Responsável */}
+          <div>
+            <h3 className="text-gray-900 mb-3">Responsável</h3>
             <Select
               value={localFilters.responsibleUserId || 'all'}
               onValueChange={(value: string) =>
-                setLocalFilters({
-                  ...localFilters,
+                setLocalFilters((prev) => ({
+                  ...prev,
                   responsibleUserId: value === 'all' ? undefined : value,
-                })
+                }))
               }
+
+              disabled={loadingResp}
             >
-              <SelectTrigger id="responsible-user">
-                <SelectValue placeholder="Selecione" />
+              <SelectTrigger>
+                <SelectValue placeholder={loadingResp ? 'Carregando...' : 'Selecione o responsável'} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                {mockUsers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
+                {responsibleOptions.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -184,47 +170,54 @@ export function ProposalAdvancedFiltersSheet({
           </div>
 
           {/* Período de Criação */}
-          <div className="space-y-2">
-            <Label>Período de Criação</Label>
-            <div className="grid grid-cols-2 gap-2">
+          <div>
+            <h3 className="text-gray-900 mb-3">Período de Criação</h3>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="created-from" className="text-xs text-gray-500">
+                <Label htmlFor="createdFrom" className="text-sm text-gray-600">
                   De
                 </Label>
                 <Input
-                  id="created-from"
+                  id="createdFrom"
                   type="date"
                   value={localFilters.createdFrom || ''}
                   onChange={(e) =>
-                    setLocalFilters({ ...localFilters, createdFrom: e.target.value })
+                    setLocalFilters((prev) => ({
+                      ...prev,
+                      createdFrom: e.target.value || undefined,
+                    }))
                   }
                 />
               </div>
+
               <div>
-                <Label htmlFor="created-to" className="text-xs text-gray-500">
+                <Label htmlFor="createdTo" className="text-sm text-gray-600">
                   Até
                 </Label>
                 <Input
-                  id="created-to"
+                  id="createdTo"
                   type="date"
                   value={localFilters.createdTo || ''}
                   onChange={(e) =>
-                    setLocalFilters({ ...localFilters, createdTo: e.target.value })
+                    setLocalFilters((prev) => ({
+                      ...prev,
+                      createdTo: e.target.value || undefined,
+                    }))
                   }
                 />
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Botões */}
-        <div className="flex gap-3 mt-8 pt-6 border-t">
-          <Button variant="outline" onClick={handleClear} className="flex-1">
-            Limpar
-          </Button>
-          <Button onClick={handleApply} className="flex-1">
-            Aplicar Filtros
-          </Button>
+          {/* Ações */}
+          <div className="flex gap-3 pt-6 border-t">
+            <Button variant="outline" onClick={handleClearFilters} className="flex-1">
+              Limpar
+            </Button>
+            <Button onClick={handleApply} className="flex-1">
+              Aplicar Filtros
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
