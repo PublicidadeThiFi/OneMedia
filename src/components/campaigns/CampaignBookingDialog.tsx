@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
-import { Campaign } from '../../types';
+import { Campaign, Proposal, Reservation } from '../../types';
+import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
 
 interface CampaignBookingDialogProps {
@@ -12,62 +13,175 @@ interface CampaignBookingDialogProps {
   campaign: Campaign | null;
 }
 
-export function CampaignBookingDialog({
-  open,
-  onOpenChange,
-  campaign,
-}: CampaignBookingDialogProps) {
+type UnitToReserve = {
+  mediaUnitId: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+export function CampaignBookingDialog({ open, onOpenChange, campaign }: CampaignBookingDialogProps) {
   const [options, setOptions] = useState({
     includeChecklist: true,
     includeImages: true,
     includeValues: false,
   });
 
-  if (!campaign) return null;
+  const [loading, setLoading] = useState(false);
+  const [units, setUnits] = useState<UnitToReserve[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
 
-  const client = campaign.client;
-  const items = campaign.items || [];
-  const unitsCount = items.filter(item => item.mediaUnitId).length;
+  const clientLabel =
+    campaign?.client?.companyName ||
+    campaign?.client?.contactName ||
+    (campaign as any)?.clientName ||
+    '-';
 
-  const handleGenerate = () => {
-    // TODO: Integrar com backend para gerar booking real
-    toast.success('Booking gerado com sucesso (mock)');
-    onOpenChange(false);
+  const campaignPeriodLabel = campaign
+    ? `${new Date(campaign.startDate).toLocaleDateString('pt-BR')} - ${new Date(campaign.endDate).toLocaleDateString('pt-BR')}`
+    : '-';
+
+  const reservedUnitIds = useMemo(() => new Set(reservations.map((r) => r.mediaUnitId)), [reservations]);
+
+  const unitsToCreate = useMemo(
+    () => units.filter((u) => !reservedUnitIds.has(u.mediaUnitId)),
+    [units, reservedUnitIds]
+  );
+
+  const loadData = async () => {
+    if (!campaign) return;
+
+    try {
+      setLoading(true);
+
+      const [proposalRes, reservationsRes] = await Promise.all([
+        apiClient.get<Proposal>(`/proposals/${campaign.proposalId}`),
+        apiClient.get<Reservation[]>('/reservations', { params: { campaignId: campaign.id, orderBy: 'startDate' } }),
+      ]);
+
+      const proposal = proposalRes.data;
+      const proposalItems = proposal.items || [];
+      const rawUnits = proposalItems
+        .filter((it) => !!it.mediaUnitId)
+        .map((it) => ({
+          mediaUnitId: it.mediaUnitId as string,
+          description: it.description,
+          startDate: it.startDate ? new Date(it.startDate).toISOString() : undefined,
+          endDate: it.endDate ? new Date(it.endDate).toISOString() : undefined,
+        }));
+
+      // dedupe por mediaUnitId
+      const deduped = Array.from(
+        rawUnits.reduce((map, u) => map.set(u.mediaUnitId, u), new Map<string, UnitToReserve>()).values()
+      );
+
+      setUnits(deduped);
+      setReservations(Array.isArray(reservationsRes.data) ? reservationsRes.data : []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar dados do booking.');
+      setUnits([]);
+      setReservations([]);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    if (!open) return;
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, campaign?.id]);
+
+  const handleGenerate = async () => {
+    if (!campaign) return;
+
+    try {
+      setLoading(true);
+
+      if (units.length === 0) {
+        toast.error('Esta campanha não possui itens de mídia vinculados na proposta.');
+        return;
+      }
+
+      if (unitsToCreate.length === 0) {
+        toast.info('As reservas desta campanha já foram geradas.');
+        onOpenChange(false);
+        return;
+      }
+
+      const defaultStart = new Date(campaign.startDate).toISOString();
+      const defaultEnd = new Date(campaign.endDate).toISOString();
+
+      const results = await Promise.allSettled(
+        unitsToCreate.map((u) =>
+          apiClient.post('/reservations', {
+            mediaUnitId: u.mediaUnitId,
+            campaignId: campaign.id,
+            proposalId: campaign.proposalId,
+            startDate: u.startDate || defaultStart,
+            endDate: u.endDate || defaultEnd,
+          })
+        )
+      );
+
+      const ok = results.filter((r) => r.status === 'fulfilled').length;
+      const fail = results.length - ok;
+
+      if (ok > 0 && fail === 0) {
+        toast.success(`Booking gerado: ${ok} reserva(s) criada(s).`);
+      } else if (ok > 0) {
+        toast.warning(`Booking parcial: ${ok} criada(s), ${fail} falharam.`);
+      } else {
+        toast.error('Não foi possível criar as reservas do booking.');
+      }
+
+      await loadData();
+      onOpenChange(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || 'Erro ao gerar booking.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!campaign) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Gerar Booking - {campaign.name}</DialogTitle>
+          <DialogTitle>Gerar Booking</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Resumo da Campanha */}
+        <div className="space-y-6">
+          {/* Info da campanha */}
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-gray-500">Cliente</p>
-                <p className="text-gray-900">{client?.companyName || client?.contactName}</p>
+                <p className="text-gray-900">{clientLabel}</p>
               </div>
               <div>
                 <p className="text-gray-500">Período</p>
-                <p className="text-gray-900">
-                  {new Date(campaign.startDate).toLocaleDateString('pt-BR')} -{' '}
-                  {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
-                </p>
+                <p className="text-gray-900">{campaignPeriodLabel}</p>
               </div>
               <div>
-                <p className="text-gray-500">Unidades</p>
-                <p className="text-gray-900">{unitsCount}</p>
+                <p className="text-gray-500">Unidades (na proposta)</p>
+                <p className="text-gray-900">{units.length}</p>
               </div>
               <div>
-                <p className="text-gray-500">Valor</p>
-                <p className="text-gray-900">
-                  R$ {((campaign.totalAmountCents || 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-gray-500">Reservas já criadas</p>
+                <p className="text-gray-900">{reservations.length}</p>
               </div>
             </div>
+
+            {unitsToCreate.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Serão criadas {unitsToCreate.length} nova(s) reserva(s) com status <b>RESERVADA</b>.
+              </p>
+            )}
           </div>
 
           {/* Opções do Booking */}
@@ -115,22 +229,16 @@ export function CampaignBookingDialog({
               </div>
             </div>
           </div>
-
-          {/* Nota */}
-          <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-            <p>
-              💡 O booking será gerado com todas as informações da campanha, pontos de mídia e
-              cronograma de veiculação.
-            </p>
-          </div>
         </div>
 
         {/* Botões */}
         <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button onClick={handleGenerate}>Gerar Booking (stub)</Button>
+          <Button onClick={handleGenerate} disabled={loading}>
+            {loading ? 'Gerando...' : 'Gerar Booking'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
