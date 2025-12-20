@@ -1,17 +1,40 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { toast } from 'sonner';
+
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Reservation, ReservationStatus, MediaUnit, MediaPoint, Proposal } from '../types';
+
+import { Reservation, ReservationStatus } from '../types';
 import { useReservations } from '../hooks/useReservations';
 import { ReservationDayCard } from './reservations/ReservationDayCard';
 import { ReservationDetailsDrawer } from './reservations/ReservationDetailsDrawer';
-import { toast } from 'sonner';
-import apiClient from '../lib/apiClient';
 
-const CURRENT_COMPANY_ID = 'c1'; // TODO: Pegar do contexto de autenticação
+function daysBetweenInclusive(start: Date, end: Date) {
+  const s = new Date(start);
+  const e = new Date(end);
+  s.setHours(0, 0, 0, 0);
+  e.setHours(0, 0, 0, 0);
+  const diff = e.getTime() - s.getTime();
+  if (diff < 0) return 0;
+  return Math.floor(diff / 86_400_000) + 1;
+}
+
+function estimateReservationAmount(r: Reservation): number | undefined {
+  const unitDay = (r as any).mediaUnitPriceDay as number | null | undefined;
+  const pointDay = (r as any).mediaPointBasePriceDay as number | null | undefined;
+  const dayRate = typeof unitDay === 'number' ? unitDay : typeof pointDay === 'number' ? pointDay : undefined;
+  if (typeof dayRate !== 'number' || Number.isNaN(dayRate) || dayRate <= 0) return undefined;
+
+  const start = new Date(r.startDate);
+  const end = new Date(r.endDate);
+  const days = daysBetweenInclusive(start, end);
+  if (!days) return undefined;
+
+  return dayRate * days;
+}
 
 export function Reservations() {
   // State para calendário
@@ -60,7 +83,7 @@ export function Reservations() {
   const previousMonth = () => {
     const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
     setCurrentMonth(newMonth);
-    setSelectedDay(null); // Limpar dia selecionado ao trocar de mês
+    setSelectedDay(null);
   };
 
   const nextMonth = () => {
@@ -69,33 +92,73 @@ export function Reservations() {
     setSelectedDay(null);
   };
 
-  // Hook de reservas
+  // Hook de reservas (busca apenas o mês atual)
   const startDateISO = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
   const endDateISO = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).toISOString();
-  const { reservations, loading, error, refetch, createReservation, updateReservation, deleteReservation } = useReservations({
+
+  const {
+    reservations,
+    loading,
+    error,
+    refetch,
+    updateReservation,
+    deleteReservation,
+  } = useReservations({
     startDate: startDateISO,
     endDate: endDateISO,
     status: statusFilter === 'ALL' ? undefined : (statusFilter as ReservationStatus | string),
   });
 
-  // Agrupar por dia
+  // Agrupar por dia (para marcar bolinha no calendário)
+  // Importante: marcar TODOS os dias do período (startDate..endDate),
+  // não apenas o dia inicial.
   const daysWithReservations = useMemo(() => {
     const set = new Set<number>();
-    reservations.forEach((res) => {
-      const d = new Date(res.startDate).getDate();
-      set.add(d);
-    });
+
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const monthStart = new Date(year, month, 1);
+    monthStart.setHours(0, 0, 0, 0);
+    const monthEnd = new Date(year, month + 1, 0);
+    monthEnd.setHours(0, 0, 0, 0);
+
+    for (const res of reservations) {
+      const start = new Date(res.startDate);
+      const end = new Date(res.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+
+      start.setHours(0, 0, 0, 0);
+      end.setHours(0, 0, 0, 0);
+
+      // Sem sobreposição com o mês atual
+      if (end < monthStart || start > monthEnd) continue;
+
+      const from = start < monthStart ? monthStart : start;
+      const to = end > monthEnd ? monthEnd : end;
+
+      // Itera dia a dia (inclusive)
+      for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        if (d.getMonth() === month && d.getFullYear() === year) {
+          set.add(d.getDate());
+        }
+      }
+    }
+
     return set;
-  }, [reservations]);
+  }, [reservations, currentMonth]);
 
   const monthSummary = useMemo(() => {
     const active = reservations.filter((r) => r.status !== ReservationStatus.CANCELADA).length;
     const confirmed = reservations.filter((r) => r.status === ReservationStatus.CONFIRMADA).length;
-    const totalAmount = 0; // TODO: calcular via ProposalItem quando disponível
+
+    const totalAmount = reservations
+      .filter((r) => r.status !== ReservationStatus.CANCELADA)
+      .reduce((sum, r) => sum + (estimateReservationAmount(r) ?? 0), 0);
+
     return { activeCount: active, confirmedCount: confirmed, totalAmount };
   }, [reservations]);
 
-  // Reservas do dia selecionado
+  // Reservas do dia selecionado (overlap)
   const dayReservations = useMemo(() => {
     if (!selectedDay) return [];
     const startOfDay = new Date(selectedDay);
@@ -109,138 +172,28 @@ export function Reservations() {
       return s <= endOfDay.getTime() && e >= startOfDay.getTime();
     });
 
-    // Aplicar filtro de busca simples por IDs (placeholder até dados enriquecidos)
     if (!searchTerm) return list;
-    const searchLower = searchTerm.toLowerCase();
-    return list.filter((res) =>
-      res.mediaUnitId?.toLowerCase().includes(searchLower) ||
-      res.campaignId?.toLowerCase().includes(searchLower) ||
-      res.proposalId?.toLowerCase().includes(searchLower)
-    );
+    const q = searchTerm.toLowerCase();
+
+    return list.filter((r) => {
+      const hay = [
+        (r as any).clientName,
+        (r as any).mediaPointName,
+        (r as any).mediaUnitLabel,
+        (r as any).campaignName,
+        (r as any).proposalTitle,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
   }, [selectedDay, reservations, searchTerm]);
 
-  // Enrichment caches
-  const [unitMap, setUnitMap] = useState<Record<string, MediaUnit>>({});
-  const [pointMap, setPointMap] = useState<Record<string, MediaPoint>>({});
-  const [proposalMap, setProposalMap] = useState<Record<string, Proposal>>({});
-
-  // Fetch missing enrichment when dayReservations change
-  useEffect(() => {
-    const fetchEnrichment = async () => {
-      const unitIds = Array.from(
-        new Set(
-          dayReservations
-            .map((r) => r.mediaUnitId)
-            .filter((id): id is string => !!id && !(id in unitMap))
-        )
-      );
-      const proposalIds = Array.from(
-        new Set(
-          dayReservations
-            .map((r) => r.proposalId)
-            .filter((id): id is string => !!id && !(id in proposalMap))
-        )
-      );
-
-      // Fetch units and points
-      const fetchedUnits: MediaUnit[] = [];
-      for (const id of unitIds) {
-        try {
-          const res = await apiClient.get<MediaUnit>(`/media-units/${id}`);
-          fetchedUnits.push(res.data);
-        } catch (e) {
-          // ignore
-        }
-      }
-      if (fetchedUnits.length) {
-        setUnitMap((prev) => {
-          const next = { ...prev };
-          fetchedUnits.forEach((u) => {
-            next[u.id] = u;
-          });
-          return next;
-        });
-        // fetch points for these units
-        const pointIds = Array.from(
-          new Set(
-            fetchedUnits
-              .map((u) => u.mediaPointId)
-              .filter((id): id is string => !!id && !(id in pointMap))
-          )
-        );
-        const fetchedPoints: MediaPoint[] = [];
-        for (const pid of pointIds) {
-          try {
-            const res = await apiClient.get<MediaPoint>(`/media-points/${pid}`);
-            fetchedPoints.push(res.data);
-          } catch (e) {
-            // ignore
-          }
-        }
-        if (fetchedPoints.length) {
-          setPointMap((prev) => {
-            const next = { ...prev };
-            fetchedPoints.forEach((p) => {
-              next[p.id] = p;
-            });
-            return next;
-          });
-        }
-      }
-
-      // Fetch proposals
-      const fetchedProposals: Proposal[] = [];
-      for (const pid of proposalIds) {
-        try {
-          const res = await apiClient.get<Proposal>(`/proposals/${pid}`);
-          fetchedProposals.push(res.data);
-        } catch (e) {
-          // ignore
-        }
-      }
-      if (fetchedProposals.length) {
-        setProposalMap((prev) => {
-          const next = { ...prev };
-          fetchedProposals.forEach((p) => {
-            next[p.id] = p;
-          });
-          return next;
-        });
-      }
-    };
-
-    fetchEnrichment();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayReservations]);
-
-  // Contar reservas do dia selecionado (sem filtro de status)
   const selectedDayCount = useMemo(() => {
     if (!selectedDay) return 0;
     return dayReservations.filter((res) => res.status !== ReservationStatus.CANCELADA).length;
   }, [selectedDay, dayReservations]);
-
-  // Handlers
-  const handleCreateReservationForDay = async (payload: Partial<Reservation>) => {
-    try {
-      // align period to selectedDay if not provided
-      const baseStart = selectedDay ? new Date(selectedDay) : new Date();
-      const baseEnd = selectedDay ? new Date(selectedDay) : new Date();
-      baseEnd.setHours(23, 59, 59, 999);
-      const finalPayload = {
-        startDate: payload.startDate ?? baseStart.toISOString(),
-        endDate: payload.endDate ?? baseEnd.toISOString(),
-        status: payload.status ?? ReservationStatus.RESERVADA,
-        mediaUnitId: payload.mediaUnitId,
-        campaignId: payload.campaignId,
-        proposalId: payload.proposalId,
-      };
-      await createReservation(finalPayload);
-      toast.success('Reserva criada com sucesso!');
-      refetch();
-    } catch {
-      toast.error('Erro ao criar reserva');
-    }
-  };
 
   const handleUpdateReservation = async (id: string, payload: Partial<Reservation>) => {
     try {
@@ -266,10 +219,8 @@ export function Reservations() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-gray-900 mb-2">Agenda OOH (Reservation)</h1>
-        <p className="text-gray-600">
-          Visualize e gerencie reservas de mídia OOH por MediaUnit
-        </p>
+        <h1 className="text-gray-900 mb-2">Reservas</h1>
+        <p className="text-gray-600">Visualize e gerencie reservas por calendário.</p>
       </div>
 
       {/* Cards de Estatísticas */}
@@ -301,7 +252,7 @@ export function Reservations() {
 
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
-            <p className="text-gray-600 text-sm mb-1">Valor Total do Mês</p>
+            <p className="text-gray-600 text-sm mb-1">Valor Estimado do Mês</p>
             <p className="text-gray-900">
               R${' '}
               {monthSummary.totalAmount.toLocaleString('pt-BR', {
@@ -309,6 +260,7 @@ export function Reservations() {
                 maximumFractionDigits: 0,
               })}
             </p>
+            <p className="text-gray-500 text-xs">Baseado em preço/dia do inventário</p>
           </CardContent>
         </Card>
       </div>
@@ -320,6 +272,7 @@ export function Reservations() {
             <CardContent className="pt-6">
               {loading && <div>Carregando reservas...</div>}
               {!loading && error && <div>Erro ao carregar reservas.</div>}
+
               {/* Cabeçalho do Calendário */}
               <div className="flex items-center justify-between mb-6">
                 <Button variant="ghost" size="sm" onClick={previousMonth}>
@@ -365,11 +318,7 @@ export function Reservations() {
 
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
-                  const dayDate = new Date(
-                    currentMonth.getFullYear(),
-                    currentMonth.getMonth(),
-                    day
-                  );
+                  const dayDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
                   const isSelected =
                     selectedDay &&
                     selectedDay.getDate() === day &&
@@ -382,9 +331,7 @@ export function Reservations() {
                       key={day}
                       onClick={() => setSelectedDay(dayDate)}
                       className={`aspect-square p-2 rounded-lg text-center transition-colors relative ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white'
-                          : 'hover:bg-gray-100 text-gray-900'
+                        isSelected ? 'bg-indigo-600 text-white' : 'hover:bg-gray-100 text-gray-900'
                       }`}
                     >
                       {day}
@@ -409,13 +356,12 @@ export function Reservations() {
             <CardContent className="pt-6">
               <div className="mb-4">
                 <h3 className="text-gray-900 mb-2">
-                  Reservas do dia{' '}
-                  {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
+                  Reservas do dia {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
                 </h3>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Buscar ponto ou cliente..."
+                    placeholder="Buscar ponto, cliente, proposta..."
                     className="pl-10"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -425,34 +371,29 @@ export function Reservations() {
 
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
                 {dayReservations.length > 0 ? (
-                  dayReservations.map((reservation) => (
-                    <ReservationDayCard
-                      key={reservation.id}
-                      reservation={reservation}
-                      clientName={(() => {
-                        const p = reservation.proposalId ? proposalMap[reservation.proposalId] : undefined;
-                        const c = p?.client;
-                        return c?.companyName || c?.contactName;
-                      })()}
-                      unitLabel={(() => {
-                        const u = reservation.mediaUnitId ? unitMap[reservation.mediaUnitId] : undefined;
-                        return u?.label;
-                      })()}
-                      pointName={(() => {
-                        const u = reservation.mediaUnitId ? unitMap[reservation.mediaUnitId] : undefined;
-                        const pt = u?.mediaPointId ? pointMap[u.mediaPointId] : undefined;
-                        return pt?.name;
-                      })()}
-                      amount={undefined /* TODO: calcular via ProposalItem */}
-                      onClick={() => setDetailsDrawerReservation(reservation)}
-                    />
-                  ))
+                  dayReservations.map((reservation) => {
+                    const amount = estimateReservationAmount(reservation);
+                    return (
+                      <ReservationDayCard
+                        key={reservation.id}
+                        reservation={reservation}
+                        clientName={(reservation as any).clientName ?? undefined}
+                        unitLabel={(reservation as any).mediaUnitLabel ?? undefined}
+                        pointName={(reservation as any).mediaPointName ?? undefined}
+                        amount={amount}
+                        onClick={() =>
+                          setDetailsDrawerReservation({
+                            ...reservation,
+                            estimatedAmount: amount,
+                          })
+                        }
+                      />
+                    );
+                  })
                 ) : (
                   <div className="text-center py-8">
                     <p className="text-gray-500">
-                      {selectedDay
-                        ? 'Nenhuma reserva OOH neste dia'
-                        : 'Selecione um dia no calendário'}
+                      {selectedDay ? 'Nenhuma reserva neste dia' : 'Selecione um dia no calendário'}
                     </p>
                   </div>
                 )}
@@ -462,38 +403,15 @@ export function Reservations() {
         </div>
       </div>
 
-      {/* Info das Regras */}
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-900 mb-2">💡 Regras de Reservas</p>
-        <p className="text-sm text-blue-700">
-          <strong>OOH:</strong> Não permite sobreposição de datas para a mesma MediaUnit (validação backend).
-          <br />
-          <strong>DOOH:</strong> Permite múltiplas reservas simultâneas (várias campanhas no mesmo painel digital).
-          <br />
-          Esta tela exibe apenas reservas de mídia <strong>OOH</strong> (faces estáticas).
-        </p>
-      </div>
-
       {/* Drawer de Detalhes */}
       <ReservationDetailsDrawer
         open={!!detailsDrawerReservation}
         onOpenChange={(open: boolean) => !open && setDetailsDrawerReservation(null)}
         reservation={detailsDrawerReservation}
-        clientName={(() => {
-          const p = detailsDrawerReservation?.proposalId ? proposalMap[detailsDrawerReservation.proposalId] : undefined;
-          const c = p?.client;
-          return c?.companyName || c?.contactName;
-        })()}
-        unitLabel={(() => {
-          const u = detailsDrawerReservation?.mediaUnitId ? unitMap[detailsDrawerReservation.mediaUnitId] : undefined;
-          return u?.label;
-        })()}
-        pointName={(() => {
-          const u = detailsDrawerReservation?.mediaUnitId ? unitMap[detailsDrawerReservation.mediaUnitId] : undefined;
-          const pt = u?.mediaPointId ? pointMap[u.mediaPointId] : undefined;
-          return pt?.name;
-        })()}
-        amount={undefined /* TODO: calcular via ProposalItem */}
+        clientName={(detailsDrawerReservation as any)?.clientName ?? undefined}
+        unitLabel={(detailsDrawerReservation as any)?.mediaUnitLabel ?? undefined}
+        pointName={(detailsDrawerReservation as any)?.mediaPointName ?? undefined}
+        amount={detailsDrawerReservation?.estimatedAmount}
         onUpdateReservation={handleUpdateReservation}
         onDeleteReservation={handleDeleteReservation}
       />

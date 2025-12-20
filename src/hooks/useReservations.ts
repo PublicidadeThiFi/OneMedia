@@ -35,9 +35,7 @@ export function useReservations(params: UseReservationsParams = {}) {
 
       const responseData = response.data as ReservationsResponse;
 
-      const data: Reservation[] = Array.isArray(responseData)
-        ? responseData
-        : responseData.data;
+      const data: Reservation[] = Array.isArray(responseData) ? responseData : responseData.data;
 
       setReservations(data);
     } catch (err) {
@@ -53,32 +51,33 @@ export function useReservations(params: UseReservationsParams = {}) {
     return response.data;
   };
 
-  const updateReservation = async (id: string, payload: unknown) => {
-    const response = await apiClient.put<Reservation>(`/reservations/${id}`, payload);
-    setReservations((prev: Reservation[]) =>
-      prev.map((r: Reservation) => (r.id === id ? response.data : r))
-    );
+  /**
+   * O backend expõe apenas PATCH /reservations/:id/status.
+   * Então aqui aceitamos um payload com { status }.
+   */
+  const updateReservation = async (id: string, payload: { status?: ReservationStatus } | any) => {
+    const status = payload?.status as ReservationStatus | undefined;
+
+    if (!status) {
+      throw new Error('status é obrigatório para atualizar a reserva');
+    }
+
+    const response = await apiClient.patch<Reservation>(`/reservations/${id}/status`, { status });
+
+    setReservations((prev: Reservation[]) => prev.map((r: Reservation) => (r.id === id ? response.data : r)));
+
     return response.data;
   };
 
   const deleteReservation = async (id: string) => {
     await apiClient.delete(`/reservations/${id}`);
-    setReservations((prev: Reservation[]) =>
-      prev.filter((r: Reservation) => r.id !== id)
-    );
+    setReservations((prev: Reservation[]) => prev.filter((r: Reservation) => r.id !== id));
   };
 
   useEffect(() => {
     fetchReservations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    params.mediaUnitId,
-    params.campaignId,
-    params.proposalId,
-    params.startDate,
-    params.endDate,
-    params.status,
-  ]);
+  }, [params.mediaUnitId, params.campaignId, params.proposalId, params.startDate, params.endDate, params.status]);
 
   return {
     reservations,

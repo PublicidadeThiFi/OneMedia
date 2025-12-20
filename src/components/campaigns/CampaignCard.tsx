@@ -22,7 +22,10 @@ export function CampaignCard({
   onViewBilling,
 }: CampaignCardProps) {
   const client = campaign.client;
-  const unitsCount = (campaign.items || []).filter((item) => item.mediaUnitId).length;
+  // campanha usa reservas para controlar veiculações (campaign_items ainda não existe no backend)
+  const unitsCount =
+    (typeof campaign.reservedUnitsCount === 'number' ? campaign.reservedUnitsCount : undefined) ??
+    (campaign.items || []).filter((item) => item.mediaUnitId).length;
   const totalValor = campaign.totalAmountCents ? campaign.totalAmountCents / 100 : 0;
 
   return (

@@ -405,6 +405,7 @@ export interface Campaign {
   client?: Partial<Client> | null;
   clientName?: string | null;
   proposalTitle?: string | null;
+  reservedUnitsCount?: number;
   proposal?: Partial<Proposal> | null;
   items?: CampaignItem[];
 }
@@ -423,16 +424,30 @@ export interface Reservation {
   id: string;
   companyId: string;
   mediaUnitId: string;
-  mediaUnitLabel?: string;
+  // Campos base
   campaignId?: string;
-  campaignName?: string;
   proposalId?: string;
-  proposalTitle?: string;
-  startDate: Date;
-  endDate: Date;
+
+  // Campos enriquecidos pelo backend (para evitar múltiplas chamadas no frontend)
+  mediaUnitLabel?: string | null;
+  mediaUnitType?: UnitType | null;
+  mediaPointId?: string | null;
+  mediaPointName?: string | null;
+  mediaPointType?: MediaType | null;
+
+  mediaUnitPriceDay?: number | null;
+  mediaPointBasePriceDay?: number | null;
+
+  clientName?: string | null;
+  campaignName?: string | null;
+  proposalTitle?: string | null;
+
+  // Datas (a API retorna string ISO, mas vários lugares usam Date)
+  startDate: string | Date;
+  endDate: string | Date;
   status: ReservationStatus;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 export interface BillingInvoice {
   id: string;
