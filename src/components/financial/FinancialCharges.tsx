@@ -177,15 +177,15 @@ export function FinancialCharges() {
                     .map((charge) => (
                       <tr key={charge.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">
-                          {charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
+                          {charge.clientName || charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm">
                             {charge.proposalId && (
-                              <p className="text-indigo-600">Prop: {charge.proposalId}</p>
+                              <p className="text-indigo-600">Prop: {charge.proposalTitle || charge.proposalId}</p>
                             )}
                             {charge.campaignId && (
-                              <p className="text-gray-600">Camp: {charge.campaignId}</p>
+                              <p className="text-gray-600">Camp: {charge.campaignName || charge.campaignId}</p>
                             )}
                           </div>
                         </td>
@@ -256,10 +256,10 @@ export function FinancialCharges() {
                     .map((charge) => (
                       <tr key={charge.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-gray-900">
-                          {charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
+                          {charge.clientName || charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-indigo-600">{charge.proposalId}</span>
+                          <span className="text-indigo-600">{charge.proposalTitle || charge.proposalId}</span>
                         </td>
                         <td className="px-6 py-4 text-gray-900">
                           R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
@@ -309,10 +309,10 @@ export function FinancialCharges() {
                       .map((charge) => (
                         <tr key={charge.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 text-gray-900">
-                            {charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
+                            {charge.clientName || charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-indigo-600">{charge.proposalId}</span>
+                            <span className="text-indigo-600">{charge.proposalTitle || charge.proposalId}</span>
                           </td>
                           <td className="px-6 py-4 text-gray-900">
                             R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
@@ -376,10 +376,10 @@ export function FinancialCharges() {
                       .map((charge) => (
                         <tr key={charge.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 text-gray-900">
-                            {charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
+                            {charge.clientName || charge.client?.companyName || charge.client?.contactName || 'Cliente não identificado'}
                           </td>
                           <td className="px-6 py-4">
-                            <span className="text-indigo-600">{charge.proposalId}</span>
+                            <span className="text-indigo-600">{charge.proposalTitle || charge.proposalId}</span>
                           </td>
                           <td className="px-6 py-4 text-gray-900">
                             R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}

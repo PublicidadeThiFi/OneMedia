@@ -60,7 +60,7 @@ export function BillingInvoiceEditDialog({ open, onOpenChange, invoice, onSave }
 
     // Montar payload parcial apenas com campos editáveis
     const payload: Partial<BillingInvoice> = {
-      dueDate: parseDateFromHtmlInput(formData.dueDate),
+      dueDate: formData.dueDate ? parseDateFromHtmlInput(formData.dueDate) : undefined,
       status: formData.status,
       paymentMethod: formData.paymentMethod,
       gatewayInvoiceId: formData.gatewayInvoiceId || undefined,

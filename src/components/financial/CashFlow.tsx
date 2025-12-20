@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, type ChangeEvent } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -9,11 +9,12 @@ import { CashTransactionFormDialog } from './CashTransactionFormDialog';
 import { useCashTransactions } from '../../hooks/useCashTransactions';
 import { useTransactionCategories } from '../../hooks/useTransactionCategories';
 import { toast } from 'sonner';
+import { Input } from '../ui/input';
 
 export function CashFlow() {
   // Filtros de período
-  const [currentMonth, setCurrentMonth] = useState<number>(1); // 0-11, iniciando em fevereiro (1) = 2024
-  const [currentYear, setCurrentYear] = useState<number>(2024);
+  const [currentMonth, setCurrentMonth] = useState<number>(() => new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
   const [isNewTransactionOpen, setIsNewTransactionOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<CashTransaction | null>(null);
 
@@ -59,19 +60,19 @@ export function CashFlow() {
     const receiptsTotal = visibleTransactions
       .filter(tx => tx.flowType === CashFlowType.RECEITA)
       .reduce((sum, tx) => sum + tx.amount, 0);
-    
+
     const expensesTotal = visibleTransactions
-      .filter(tx => 
+      .filter(tx =>
         tx.flowType === CashFlowType.DESPESA ||
         tx.flowType === CashFlowType.PESSOAS ||
         tx.flowType === CashFlowType.IMPOSTO
       )
       .reduce((sum, tx) => sum + tx.amount, 0);
-    
+
     const transfersTotal = visibleTransactions
       .filter(tx => tx.flowType === CashFlowType.TRANSFERENCIA)
       .reduce((sum, tx) => sum + tx.amount, 0);
-    
+
     const cashBalance = receiptsTotal - expensesTotal;
 
     return {
@@ -133,16 +134,48 @@ export function CashFlow() {
       {!loading && error && <div>Erro ao carregar lançamentos.</div>}
       {/* Month Navigation */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <Button variant="ghost" size="sm" onClick={previousMonth}>
             <ChevronLeft className="w-4 h-4" />
           </Button>
+
           <h2 className="text-gray-900">
             {monthNames[currentMonth]} {currentYear}
           </h2>
+
           <Button variant="ghost" size="sm" onClick={nextMonth}>
             <ChevronRight className="w-4 h-4" />
           </Button>
+
+          <div className="flex items-center gap-2">
+            <Input
+              type="month"
+              className="w-[160px]"
+              value={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                const [y, m] = e.target.value.split('-');
+                if (!y || !m) return;
+
+                const year = Number(y);
+                const month = Number(m) - 1;
+                if (Number.isNaN(year) || Number.isNaN(month)) return;
+
+                setCurrentYear(year);
+                setCurrentMonth(month);
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const d = new Date();
+                setCurrentYear(d.getFullYear());
+                setCurrentMonth(d.getMonth());
+              }}
+            >
+              Hoje
+            </Button>
+          </div>
         </div>
 
         <Button className="gap-2" onClick={() => { setEditingTransaction(null); setIsNewTransactionOpen(true); }}>
@@ -234,7 +267,7 @@ export function CashFlow() {
                       <tbody className="divide-y divide-gray-200">
                         {filteredTransactions.map((transaction) => {
                           const category = transaction.categoryId ? categories.find((c) => c.id === transaction.categoryId) : undefined;
-                          
+
                           return (
                             <tr key={transaction.id} className="hover:bg-gray-50">
                               <td className="px-6 py-4 text-gray-600">
