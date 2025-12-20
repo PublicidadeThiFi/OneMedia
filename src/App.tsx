@@ -10,6 +10,7 @@ import Dashboard from './pages/dashboard';
 import Contato from './pages/contato';
 import Termos from './pages/termos';
 import Privacidade from './pages/privacidade';
+import PropostaPublica from './pages/proposta-publica';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -48,18 +49,25 @@ export default function App() {
     // Remove trailing slash and query params for matching
     const cleanPath = currentPath.split('?')[0].replace(/\/$/, '') || '/';
 
+    // PUBLIC PROPOSAL ROUTE
+    // /p/<publicHash> (optional query string ?t=<decisionToken>)
+    if (cleanPath.startsWith('/p/')) {
+      const publicHash = cleanPath.replace('/p/', '');
+      return <PropostaPublica publicHash={publicHash} />;
+    }
+
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
     // All /app/* routes render the MainApp component with sidebar and modules
     // This is the authenticated user's main interface
     if (cleanPath.startsWith('/app')) {
       // Extract page from path like /app/dashboard, /app/inventory, etc.
       const pagePath = cleanPath.replace('/app/', '').replace('/app', '');
-      
+
       // If just /app, default to dashboard
       if (!pagePath || pagePath === '') {
         return <MainApp initialPage="dashboard" />;
       }
-      
+
       // Map path to page
       // Valid pages: dashboard, inventory, clients, products, proposals, campaigns,
       // reservations, financial, messages, mediakit, activities, settings, superadmin

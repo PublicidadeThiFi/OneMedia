@@ -11,7 +11,7 @@ interface ReservationDayCardProps {
 }
 
 export function ReservationDayCard({ reservation, clientName, unitLabel, pointName, amount, onClick }: ReservationDayCardProps) {
-  const unitTypeLabel = reservation as any; // TODO: enriquecer com unidade quando disponível
+  const unitType = (reservation as any).mediaUnitType as UnitType | undefined;
 
   return (
     <div
@@ -26,7 +26,7 @@ export function ReservationDayCard({ reservation, clientName, unitLabel, pointNa
       <p className="text-gray-600 text-sm mb-1">{pointName || 'Unidade de Mídia'}</p>
 
       <p className="text-gray-500 text-xs mb-2">
-        {unitLabel || 'Unidade'} • {unitTypeLabel === UnitType.FACE ? 'Face' : 'Tela'}
+        {unitLabel || (reservation as any).mediaUnitLabel || 'Unidade'} • {unitType === UnitType.FACE ? 'Face' : unitType === UnitType.SCREEN ? 'Tela' : '-'}
       </p>
 
       <div className="flex items-center justify-between text-sm">
@@ -37,10 +37,16 @@ export function ReservationDayCard({ reservation, clientName, unitLabel, pointNa
         <span className="text-gray-900">{typeof amount === 'number' ? `R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'R$ -'}</span>
       </div>
 
-      {reservation.proposalId && (
+      {(reservation as any).proposalTitle && (
+        <p className="text-gray-500 text-xs mt-2">Proposta: {(reservation as any).proposalTitle}</p>
+      )}
+      {!((reservation as any).proposalTitle) && reservation.proposalId && (
         <p className="text-gray-500 text-xs mt-2">Proposta: ...{reservation.proposalId.slice(-6)}</p>
       )}
-      {reservation.campaignId && (
+      {(reservation as any).campaignName && (
+        <p className="text-gray-500 text-xs">Campanha: {(reservation as any).campaignName}</p>
+      )}
+      {!((reservation as any).campaignName) && reservation.campaignId && (
         <p className="text-gray-500 text-xs">Campanha: ...{reservation.campaignId.slice(-6)}</p>
       )}
     </div>

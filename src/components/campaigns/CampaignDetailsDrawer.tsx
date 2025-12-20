@@ -55,10 +55,12 @@ export function CampaignDetailsDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, campaign?.id]);
 
-  if (!campaign) return null;
+  // NOTE: este drawer é renderizado mesmo quando `campaign` ainda está null.
+  // Não podemos adicionar hooks (useMemo/useEffect/etc) abaixo de um `return` condicional.
+  // Caso contrário, o React acusa mudança na ordem de hooks e quebra a tela.
 
   const clientLabel =
-    campaign.client?.companyName || campaign.client?.contactName || (campaign as any)?.clientName || '-';
+    campaign?.client?.companyName || campaign?.client?.contactName || (campaign as any)?.clientName || '-';
 
   const totals = useMemo(() => {
     const paid = invoices
@@ -71,6 +73,8 @@ export function CampaignDetailsDrawer({
 
     return { paid, openAmount };
   }, [invoices]);
+
+  if (!campaign) return null;
 
   const getReservationStatusBadge = (status: string) => {
     const base = 'bg-gray-100 text-gray-800';

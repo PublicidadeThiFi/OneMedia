@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Reservation } from '../../types';
+import { Reservation, ReservationStatus } from '../../types';
 import { ReservationStatusBadge } from './ReservationStatusBadge';
 import { toast } from 'sonner';
 
@@ -14,8 +15,8 @@ interface ReservationDetailsDrawerProps {
   unitLabel?: string;
   pointName?: string;
   amount?: number;
-  onUpdateReservation?: (id: string, payload: Partial<Reservation>) => void;
-  onDeleteReservation?: (id: string) => void;
+  onUpdateReservation?: (id: string, payload: Partial<Reservation>) => Promise<void> | void;
+  onDeleteReservation?: (id: string) => Promise<void> | void;
 }
 
 export function ReservationDetailsDrawer({
@@ -31,6 +32,18 @@ export function ReservationDetailsDrawer({
 }: ReservationDetailsDrawerProps) {
   if (!reservation) return null;
   // TODO: Enriquecer com dados de unidade/cliente via props quando disponíveis
+
+  const [updating, setUpdating] = useState(false);
+
+  const setStatus = async (status: ReservationStatus) => {
+    if (!onUpdateReservation) return;
+    try {
+      setUpdating(true);
+      await onUpdateReservation(reservation.id, { status });
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const handleNavigateToProposal = () => {
     // TODO: Navegar para módulo de Propostas
@@ -123,13 +136,14 @@ export function ReservationDetailsDrawer({
               <div>
                 <h4 className="text-gray-900 mb-3">Origem da Reserva</h4>
 
-                {/* TODO: Exibir proposta vinculada quando dados agregados estiverem disponíveis */}
-                {false && (
+                {(reservation.proposalId || (reservation as any).proposalTitle) && (
                   <div className="bg-gray-50 p-4 rounded-lg mb-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-500">Proposta</p>
-                        <p className="text-gray-900">Proposta</p>
+                        <p className="text-gray-900">
+                          {(reservation as any).proposalTitle || `...${reservation.proposalId?.slice(-6)}`}
+                        </p>
                       </div>
                       <Button variant="outline" size="sm" onClick={handleNavigateToProposal}>
                         Ver Proposta
@@ -137,13 +151,15 @@ export function ReservationDetailsDrawer({
                     </div>
                   </div>
                 )}
-                {/* TODO: Exibir campanha vinculada quando dados agregados estiverem disponíveis */}
-                {false && (
+
+                {(reservation.campaignId || (reservation as any).campaignName) && (
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-500">Campanha</p>
-                        <p className="text-gray-900">Campanha</p>
+                        <p className="text-gray-900">
+                          {(reservation as any).campaignName || `...${reservation.campaignId?.slice(-6)}`}
+                        </p>
                       </div>
                       <Button variant="outline" size="sm" onClick={handleNavigateToCampaign}>
                         Ver Campanha
@@ -152,26 +168,48 @@ export function ReservationDetailsDrawer({
                   </div>
                 )}
 
-                {/* Ações básicas */}
-                <div className="flex items-center gap-3 pt-4 border-t">
+                {/* Ações */}
+                <div className="flex flex-wrap items-center gap-2 pt-4 border-t">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => onUpdateReservation && reservation && onUpdateReservation(reservation.id, { status: reservation.status })}
+                    disabled={updating || reservation.status === ReservationStatus.RESERVADA}
+                    onClick={() => setStatus(ReservationStatus.RESERVADA)}
                   >
-                    Atualizar
+                    Em negociação
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={updating || reservation.status === ReservationStatus.CONFIRMADA}
+                    onClick={() => setStatus(ReservationStatus.CONFIRMADA)}
+                  >
+                    Confirmar
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     className="text-red-600"
+                    disabled={updating || reservation.status === ReservationStatus.CANCELADA}
+                    onClick={() => setStatus(ReservationStatus.CANCELADA)}
+                  >
+                    Cancelar
+                  </Button>
+
+                  <div className="flex-1" />
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600"
+                    disabled={updating}
                     onClick={() => onDeleteReservation && reservation && onDeleteReservation(reservation.id)}
                   >
                     Excluir
                   </Button>
                 </div>
 
-                {true && (
+                {!reservation.proposalId && !reservation.campaignId && !((reservation as any).proposalTitle) && !((reservation as any).campaignName) && (
                   <div className="text-center py-8 text-gray-500 text-sm">
                     Reserva sem proposta ou campanha vinculada
                   </div>
