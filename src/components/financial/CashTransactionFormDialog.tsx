@@ -18,12 +18,12 @@ interface CashTransactionFormDialogProps {
 }
 
 export function CashTransactionFormDialog({ open, onOpenChange, transaction, onSave }: CashTransactionFormDialogProps) {
-  const { categories } = useTransactionCategories();
+  const { categories, loading: categoriesLoading, error: categoriesError } = useTransactionCategories();
   const { mediaPoints } = useMediaPoints({});
-  
+
   const [formData, setFormData] = useState({
     flowType: CashFlowType.RECEITA,
-    date: '',
+    date: new Date().toISOString().slice(0, 10),
     dueDate: '', // NOVO: data de vencimento
     amount: '',
     description: '',
@@ -157,8 +157,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Tipo de Transação (flowType) *</Label>
-            <Select 
-              value={formData.flowType} 
+            <Select
+              value={formData.flowType}
               onValueChange={(value: string) => setFormData({ ...formData, flowType: value as CashFlowType })}
             >
               <SelectTrigger>
@@ -177,18 +177,18 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Data *</Label>
-              <Input 
-                type="date" 
+              <Input
+                type="date"
                 value={formData.date}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
               <Label>Valor (R$) *</Label>
-              <Input 
-                type="number" 
-                step="0.01" 
-                placeholder="0,00" 
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0,00"
                 value={formData.amount}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, amount: e.target.value })}
               />
@@ -197,8 +197,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
           <div className="space-y-2">
             <Label>Descrição *</Label>
-            <Input 
-              placeholder="Ex: Pagamento de campanha" 
+            <Input
+              placeholder="Ex: Pagamento de campanha"
               value={formData.description}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, description: e.target.value })}
             />
@@ -206,8 +206,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
           <div className="space-y-2">
             <Label>Parceiro (partnerName)</Label>
-            <Input 
-              placeholder="Nome do cliente ou fornecedor" 
+            <Input
+              placeholder="Nome do cliente ou fornecedor"
               value={formData.partnerName}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, partnerName: e.target.value })}
             />
@@ -216,14 +216,26 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Categoria (categoryId)</Label>
-              <Select 
-                value={formData.categoryId} 
+              <Select
+                value={formData.categoryId || undefined}
                 onValueChange={(value: string) => setFormData({ ...formData, categoryId: value })}
               >
+
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
+                  {categoriesLoading && (
+                    <SelectItem value="__loading" disabled>
+                      Carregando categorias...
+                    </SelectItem>
+                  )}
+
+                  {!categoriesLoading && categories.length === 0 && (
+                    <SelectItem value="__empty" disabled>
+                      {categoriesError ? `Erro ao carregar: ${categoriesError}` : 'Nenhuma categoria cadastrada'}
+                    </SelectItem>
+                  )}
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       {cat.name}
@@ -234,8 +246,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             </div>
             <div className="space-y-2">
               <Label>Tags (separadas por vírgula)</Label>
-              <Input 
-                placeholder="Ex: campanha, março, urgente" 
+              <Input
+                placeholder="Ex: campanha, março, urgente"
                 value={formData.tags}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, tags: e.target.value })}
               />
@@ -245,8 +257,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipo de Pagamento (paymentType)</Label>
-              <Select 
-                value={formData.paymentType} 
+              <Select
+                value={formData.paymentType}
                 onValueChange={(value: string) => setFormData({ ...formData, paymentType: value as PaymentType })}
               >
                 <SelectTrigger>
@@ -260,8 +272,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             </div>
             <div className="space-y-2">
               <Label>Modo de Pagamento (paymentMethod)</Label>
-              <Select 
-                value={formData.paymentMethod} 
+              <Select
+                value={formData.paymentMethod}
                 onValueChange={(value: string) => setFormData({ ...formData, paymentMethod: value as PaymentMethod })}
               >
                 <SelectTrigger>
@@ -278,7 +290,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </div>
 
           <div className="flex items-center gap-2">
-            <Checkbox 
+            <Checkbox
               checked={formData.isPaid}
               onCheckedChange={(checked: boolean | 'indeterminate') => setFormData({ ...formData, isPaid: Boolean(checked) })}
             />
@@ -292,12 +304,12 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             <p className="text-sm text-blue-900">
               💡 Para despesas de pontos de mídia (energia, taxa DER, aluguel), vincule o ponto e defina o vencimento:
             </p>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Ponto de Mídia (opcional)</Label>
-                <Select 
-                  value={formData.mediaPointId} 
+                <Select
+                  value={formData.mediaPointId}
                   onValueChange={(value: string) => setFormData({ ...formData, mediaPointId: value })}
                 >
                   <SelectTrigger>
@@ -319,8 +331,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
               <div className="space-y-2">
                 <Label>Data de Vencimento (opcional)</Label>
-                <Input 
-                  type="date" 
+                <Input
+                  type="date"
                   value={formData.dueDate}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })}
                 />

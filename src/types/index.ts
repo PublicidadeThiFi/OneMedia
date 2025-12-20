@@ -441,6 +441,7 @@ export interface Reservation {
   clientName?: string | null;
   campaignName?: string | null;
   proposalTitle?: string | null;
+  reservedUnitsCount?: number;
 
   // Datas (a API retorna string ISO, mas vários lugares usam Date)
   startDate: string | Date;
@@ -455,6 +456,12 @@ export interface BillingInvoice {
   clientId: string;
   proposalId?: string;
   campaignId?: string;
+
+  // campos derivados para UI
+  clientName?: string | null;
+  proposalTitle?: string | null;
+  reservedUnitsCount?: number;
+  campaignName?: string | null;
   dueDate: Date;
   amount: number; // em reais (compatibilidade)
   amountCents?: number; // em centavos (novo padrão)
