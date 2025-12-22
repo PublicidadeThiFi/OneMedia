@@ -22,6 +22,15 @@ export const apiClient = axios.create({
   },
 });
 
+// Public client (no auth headers / no auto-redirect on 401). Useful for public pages like Media Kit.
+export const publicApiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+
 // Attach access token to all requests
 apiClient.interceptors.request.use(
   (config) => {
