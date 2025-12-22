@@ -24,23 +24,14 @@ const NavigationContext = createContext<NavigateFunction>(() => {});
 
 export const useNavigation = () => useContext(NavigationContext);
 
-function getFullPath() {
-  return window.location.pathname + window.location.search;
-}
-
-function notifyNavigationChange() {
-  // Evento interno para páginas que precisam reagir a querystring (?proposalId, etc.)
-  window.dispatchEvent(new Event('app:navigation'));
-}
-
 export default function App() {
-  const [currentPath, setCurrentPath] = useState(getFullPath());
+  const [currentPath, setCurrentPath] = useState(window.location.pathname + window.location.search);
 
   // Listen to browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(getFullPath());
-      notifyNavigationChange();
+      setCurrentPath(window.location.pathname + window.location.search);
+      window.dispatchEvent(new Event('app:navigation'));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -48,12 +39,13 @@ export default function App() {
 
   // Navigation function
   const navigate: NavigateFunction = (path: string) => {
-    const currentFull = getFullPath();
-    if (currentFull === path) return;
+    const current = window.location.pathname + window.location.search;
+    if (current === path) return;
 
     window.history.pushState({}, '', path);
     setCurrentPath(path);
-    notifyNavigationChange();
+    // Notifica páginas que dependem do querystring (ex.: /app/messages?proposalId=...)
+    window.dispatchEvent(new Event('app:navigation'));
     window.scrollTo(0, 0); // Scroll to top on navigation
   };
 
@@ -65,8 +57,7 @@ export default function App() {
     // PUBLIC PROPOSAL ROUTE
     // /p/<publicHash> (optional query string ?t=<decisionToken>)
     if (cleanPath.startsWith('/p/')) {
-      const publicHash = cleanPath.replace('/p/', '');
-      return <PropostaPublica publicHash={publicHash} />;
+      return <PropostaPublica />;
     }
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
@@ -112,7 +103,9 @@ export default function App() {
   return (
     <NavigationContext.Provider value={navigate}>
       <AuthProvider>
-        <CompanyProvider>{renderRoute()}</CompanyProvider>
+        <CompanyProvider>
+          {renderRoute()}
+        </CompanyProvider>
       </AuthProvider>
     </NavigationContext.Provider>
   );

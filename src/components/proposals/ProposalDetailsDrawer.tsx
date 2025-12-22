@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Proposal } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
+import { useNavigation } from '../../App';
 import { apiClient } from '../../lib/apiClient';
 import {
   getClientById,
@@ -40,8 +41,11 @@ async function safeCopy(text: string) {
 }
 
 export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: ProposalDetailsDrawerProps) {
+  const navigate = useNavigation();
   const [publicHash, setPublicHash] = useState<string | null>(proposal?.publicHash ?? null);
   const [decisionToken, setDecisionToken] = useState<string | null>(null);
+  const [messageToken, setMessageToken] = useState<string | null>(null);
+  const [messageLoading, setMessageLoading] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(false);
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -51,6 +55,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
     if (!proposal) return;
     setPublicHash(proposal.publicHash ?? null);
     setDecisionToken(null);
+    setMessageToken(null);
     setLinkMessage(null);
     setLinkError(null);
     setTokenLoading(false);
@@ -60,6 +65,11 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
     if (!publicHash) return null;
     return `${window.location.origin}/p/${publicHash}`;
   }, [publicHash]);
+
+  const messageUrl = useMemo(() => {
+    if (!viewUrl || !messageToken) return null;
+    return `${viewUrl}?m=${encodeURIComponent(messageToken)}`;
+  }, [viewUrl, messageToken]);
 
   const decisionUrl = useMemo(() => {
     if (!viewUrl || !decisionToken) return null;
@@ -86,6 +96,39 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
     const ok = await safeCopy(viewUrl);
     if (ok) setLinkMessage('Link de visualização copiado.');
     else setLinkError('Não foi possível copiar o link.');
+  };
+
+  const handleGenerateMessageLink = async () => {
+    setLinkMessage(null);
+    setLinkError(null);
+
+    try {
+      setMessageLoading(true);
+      type PublicMessageTokenResponse = {
+        token: string;
+        publicHash: string | null;
+      };
+
+      const res = await apiClient.get<PublicMessageTokenResponse>(`/proposals/${proposal.id}/public-message-token`);
+
+      const token = res.data.token;
+      const hash = res.data.publicHash;
+      if (!token) throw new Error('O backend não retornou o token de mensagens.');
+
+      setMessageToken(token);
+      if (hash) setPublicHash(hash);
+
+      const finalHash = hash || publicHash;
+      if (!finalHash) throw new Error('Não foi possível obter o publicHash da proposta.');
+
+      const finalUrl = `${window.location.origin}/p/${finalHash}?m=${encodeURIComponent(token)}`;
+      const ok = await safeCopy(finalUrl);
+      setLinkMessage(ok ? 'Link de mensagens copiado.' : 'Token gerado, mas não foi possível copiar.');
+    } catch (e: any) {
+      setLinkError(e?.response?.data?.message || e?.message || 'Erro ao gerar link de mensagens');
+    } finally {
+      setMessageLoading(false);
+    }
   };
 
   const handleGenerateDecisionLink = async () => {
@@ -295,6 +338,11 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
                 </div>
 
                 <div>
+                  <p className="text-xs text-gray-500 mb-1">Mensagens (portal do cliente)</p>
+                  <p className="text-sm text-gray-700 font-mono break-all">{messageUrl || '—'}</p>
+                </div>
+
+                <div>
                   <p className="text-xs text-gray-500 mb-1">Decisão (aprovar/recusar)</p>
                   <p className="text-sm text-gray-700 font-mono break-all">{decisionUrl || '—'}</p>
                 </div>
@@ -304,8 +352,22 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
               {linkMessage && <p className="text-sm text-green-700">{linkMessage}</p>}
 
               <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate(`/app/messages?proposalId=${proposal.id}`);
+                  }}
+                >
+                  Abrir Mensagens (interno)
+                </Button>
                 <Button variant="outline" className="flex-1" onClick={handleCopyView}>
                   <Copy className="w-4 h-4 mr-2" /> Copiar link (visualização)
+                </Button>
+
+                <Button variant="outline" className="flex-1" onClick={handleGenerateMessageLink} disabled={messageLoading}>
+                  {messageLoading ? 'Gerando…' : 'Gerar + copiar link (mensagens)'}
                 </Button>
 
                 <Button className="flex-1" onClick={handleGenerateDecisionLink} disabled={tokenLoading}>
