@@ -8,6 +8,7 @@ import { Campaign, BillingInvoice, BillingStatus, Reservation } from '../../type
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
+import { useNavigation } from '../../App';
 
 interface CampaignDetailsDrawerProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function CampaignDetailsDrawer({
   campaign,
   defaultTab = 'summary',
 }: CampaignDetailsDrawerProps) {
+  const navigate = useNavigation();
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -308,8 +310,21 @@ export function CampaignDetailsDrawer({
 
             {/* Aba: Mensagens */}
             <TabsContent value="messages" className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="text-sm text-gray-500">
-                Mensagens (email/whatsapp) serão integradas no módulo de comunicação.
+              <div className="space-y-3">
+                <div className="text-sm text-gray-600">
+                  Abra o módulo <span className="font-medium">Mensagens</span> para conversar no contexto desta campanha.
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => {
+                      if (!campaign) return;
+                      onOpenChange(false);
+                      navigate(`/app/messages?campaignId=${campaign.id}`);
+                    }}
+                  >
+                    Abrir Mensagens
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>

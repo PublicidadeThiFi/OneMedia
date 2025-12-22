@@ -578,8 +578,10 @@ export interface ActivityLog {
 export interface Message {
   id: string;
   companyId: string;
-  proposalId?: string;
-  campaignId?: string;
+  proposalId?: string | null;
+  proposalTitle?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
   direction: MessageDirection;
   channel: MessageChannel;
   senderType: MessageSenderType;

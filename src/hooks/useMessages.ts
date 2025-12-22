@@ -16,6 +16,19 @@ type MessagesResponse =
       total?: number;
     };
 
+
+function normalizeMessage(m: any): Message {
+  const createdAt = m?.createdAt ? new Date(m.createdAt) : new Date();
+  const updatedAt = m?.updatedAt ? new Date(m.updatedAt) : createdAt;
+  return {
+    ...m,
+    proposalId: m?.proposalId ?? undefined,
+    campaignId: m?.campaignId ?? undefined,
+    createdAt,
+    updatedAt,
+  } as Message;
+}
+
 export function useMessages(params: UseMessagesParams = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,7 +47,7 @@ export function useMessages(params: UseMessagesParams = {}) {
         ? responseData
         : responseData.data;
 
-      setMessages(data);
+      setMessages((Array.isArray(data) ? data : []).map(normalizeMessage));
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -44,7 +57,7 @@ export function useMessages(params: UseMessagesParams = {}) {
 
   const sendMessage = async (payload: unknown) => {
     const response = await apiClient.post<Message>('/messages', payload);
-    setMessages((prev: Message[]) => [...prev, response.data]);
+    setMessages((prev: Message[]) => [...prev, normalizeMessage(response.data)]);
     return response.data;
   };
 

@@ -25,12 +25,13 @@ const NavigationContext = createContext<NavigateFunction>(() => {});
 export const useNavigation = () => useContext(NavigationContext);
 
 export default function App() {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+  const [currentPath, setCurrentPath] = useState(window.location.pathname + window.location.search);
 
   // Listen to browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname);
+      setCurrentPath(window.location.pathname + window.location.search);
+      window.dispatchEvent(new Event('app:navigation'));
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -38,9 +39,13 @@ export default function App() {
 
   // Navigation function
   const navigate: NavigateFunction = (path: string) => {
-    if (window.location.pathname === path) return;
+    const current = window.location.pathname + window.location.search;
+    if (current === path) return;
+
     window.history.pushState({}, '', path);
     setCurrentPath(path);
+    // Notifica páginas que dependem do querystring (ex.: /app/messages?proposalId=...)
+    window.dispatchEvent(new Event('app:navigation'));
     window.scrollTo(0, 0); // Scroll to top on navigation
   };
 
@@ -52,8 +57,7 @@ export default function App() {
     // PUBLIC PROPOSAL ROUTE
     // /p/<publicHash> (optional query string ?t=<decisionToken>)
     if (cleanPath.startsWith('/p/')) {
-      const publicHash = cleanPath.replace('/p/', '');
-      return <PropostaPublica publicHash={publicHash} />;
+      return <PropostaPublica />;
     }
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)

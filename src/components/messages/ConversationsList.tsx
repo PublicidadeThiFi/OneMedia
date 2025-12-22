@@ -1,6 +1,7 @@
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Search } from 'lucide-react';
+
 export interface ConversationSummary {
   id: string;
   type: 'proposal' | 'campaign';
@@ -27,33 +28,32 @@ export function ConversationsList({
   onSearchChange,
   onSelectConversation,
 }: ConversationsListProps) {
-  // Filtro textual por nome do cliente, ID da proposta/campanha, ou trecho da última mensagem
-  const filteredConversations = conversations.filter(conv => {
-    const query = searchQuery.toLowerCase();
+  const query = searchQuery.trim().toLowerCase();
+
+  const filteredConversations = conversations.filter((conv) => {
+    if (!query) return true;
     return (
       conv.clientName.toLowerCase().includes(query) ||
-      conv.proposalId?.toLowerCase().includes(query) ||
-      conv.campaignId?.toLowerCase().includes(query) ||
+      (conv.proposalId || '').toLowerCase().includes(query) ||
+      (conv.campaignId || '').toLowerCase().includes(query) ||
       conv.lastMessage.toLowerCase().includes(query)
     );
   });
 
   return (
     <div className="h-full flex flex-col">
-      {/* Campo de busca */}
       <div className="mb-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <Input
             placeholder="Buscar conversas..."
             value={searchQuery}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             className="pl-10"
           />
         </div>
       </div>
 
-      {/* Lista de conversas */}
       <div className="flex-1 overflow-y-auto space-y-2">
         {filteredConversations.length === 0 ? (
           <div className="text-center py-8">
@@ -74,9 +74,7 @@ export function ConversationsList({
             >
               <div className="flex items-start justify-between mb-2">
                 <h4 className="text-gray-900">{conv.clientName}</h4>
-                {conv.unreadCount > 0 && (
-                  <Badge className="bg-indigo-600">{conv.unreadCount}</Badge>
-                )}
+                {conv.unreadCount > 0 && <Badge className="bg-indigo-600">{conv.unreadCount}</Badge>}
               </div>
               {conv.proposalId && (
                 <p className="text-xs text-gray-500 mb-1">Proposta: {conv.proposalId}</p>
