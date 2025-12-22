@@ -11,6 +11,7 @@ import Contato from './pages/contato';
 import Termos from './pages/termos';
 import Privacidade from './pages/privacidade';
 import PropostaPublica from './pages/proposta-publica';
+import MidiaKitPublico from './pages/midia-kit-publico';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -20,18 +21,18 @@ export type { Page } from './components/MainApp';
 
 // Navigation Context
 type NavigateFunction = (path: string) => void;
-const NavigationContext = createContext<NavigateFunction>(() => {});
+const NavigationContext = createContext<NavigateFunction>(() => { });
 
 export const useNavigation = () => useContext(NavigationContext);
 
 export default function App() {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname + window.location.search);
+  const getCurrentPath = () => window.location.pathname + window.location.search;
+  const [currentPath, setCurrentPath] = useState(getCurrentPath());
 
   // Listen to browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname + window.location.search);
-      window.dispatchEvent(new Event('app:navigation'));
+      setCurrentPath(getCurrentPath());
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -39,13 +40,9 @@ export default function App() {
 
   // Navigation function
   const navigate: NavigateFunction = (path: string) => {
-    const current = window.location.pathname + window.location.search;
-    if (current === path) return;
-
+    if (getCurrentPath() === path) return;
     window.history.pushState({}, '', path);
     setCurrentPath(path);
-    // Notifica páginas que dependem do querystring (ex.: /app/messages?proposalId=...)
-    window.dispatchEvent(new Event('app:navigation'));
     window.scrollTo(0, 0); // Scroll to top on navigation
   };
 
@@ -58,6 +55,13 @@ export default function App() {
     // /p/<publicHash> (optional query string ?t=<decisionToken>)
     if (cleanPath.startsWith('/p/')) {
       return <PropostaPublica />;
+    }
+
+
+    // PUBLIC MEDIA KIT ROUTE
+    // /mk?token=<publicToken>
+    if (cleanPath === '/mk') {
+      return <MidiaKitPublico />;
     }
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
