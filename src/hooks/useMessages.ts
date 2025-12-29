@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { Message, MessageChannel } from '../types';
 
@@ -6,6 +6,16 @@ export interface UseMessagesParams {
   proposalId?: string;
   campaignId?: string;
   channel?: MessageChannel | string;
+}
+
+export interface UseMessagesOptions {
+  /**
+   * Intervalo de polling em ms para buscar novas mensagens.
+   * Se não informado, usa 3000ms quando há filtro (proposalId/campaignId) ou 5000ms caso contrário.
+   */
+  pollIntervalMs?: number;
+  /** Habilita/desabilita o polling. Padrão: true */
+  enabled?: boolean;
 }
 
 // Resposta pode ser um array direto ou um objeto com `data`
@@ -29,15 +39,48 @@ function normalizeMessage(m: any): Message {
   } as Message;
 }
 
-export function useMessages(params: UseMessagesParams = {}) {
+function mergeById(prev: Message[], incoming: Message[]) {
+  const map = new Map<string, Message>();
+
+  for (const m of prev) {
+    if (m?.id) map.set(String(m.id), m);
+  }
+
+  for (const m of incoming) {
+    if (m?.id) map.set(String(m.id), m);
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    if (ta !== tb) return ta - tb;
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
+export function useMessages(params: UseMessagesParams = {}, options: UseMessagesOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchMessages = async () => {
+  const inFlightRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const latestMessagesRef = useRef<Message[]>([]);
+  latestMessagesRef.current = messages;
+
+  const pollingEnabled = options.enabled ?? true;
+  const pollIntervalMs =
+    options.pollIntervalMs ?? (params.proposalId || params.campaignId ? 3000 : 5000);
+
+  const fetchMessages = async (opts?: { silent?: boolean }) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+
+      if (!opts?.silent) {
+        setLoading(true);
+        setError(null);
+      }
 
       const response = await apiClient.get<MessagesResponse>('/messages', { params });
 
@@ -47,24 +90,44 @@ export function useMessages(params: UseMessagesParams = {}) {
         ? responseData
         : responseData.data;
 
-      setMessages((Array.isArray(data) ? data : []).map(normalizeMessage));
+      const normalized = (Array.isArray(data) ? data : []).map(normalizeMessage);
+      setMessages((prev) => mergeById(prev, normalized));
+      hasLoadedRef.current = true;
     } catch (err) {
-      setError(err as Error);
+      // Evita "piscar" erro durante polling quando já existe conteúdo.
+      if (!opts?.silent || !hasLoadedRef.current || latestMessagesRef.current.length === 0) {
+        setError(err as Error);
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
+      inFlightRef.current = false;
     }
   };
 
   const sendMessage = async (payload: unknown) => {
     const response = await apiClient.post<Message>('/messages', payload);
-    setMessages((prev: Message[]) => [...prev, normalizeMessage(response.data)]);
+    setMessages((prev: Message[]) => mergeById(prev, [normalizeMessage(response.data)]));
     return response.data;
   };
 
   useEffect(() => {
-    fetchMessages();
+    fetchMessages({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.proposalId, params.campaignId, params.channel]);
+
+  // Polling para atualizar mensagens automaticamente (sem precisar dar refresh)
+  useEffect(() => {
+    if (!pollingEnabled) return;
+
+    const id = window.setInterval(() => {
+      // Não faz polling quando a aba está em background
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      fetchMessages({ silent: true });
+    }, pollIntervalMs);
+
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pollingEnabled, pollIntervalMs, params.proposalId, params.campaignId, params.channel]);
 
   return {
     messages,

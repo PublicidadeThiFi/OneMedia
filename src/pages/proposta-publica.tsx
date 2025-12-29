@@ -1,14 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type PublicProposal = {
   id: string;
   publicHash: string;
   status: string;
   title: string;
+  clientName?: string | null;
+  responsibleUserName?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   totalAmount: number;
+  discountAmount?: number | null;
   discountPercent?: number | null;
+  conditionsText?: string | null;
   notes?: string | null;
   validUntil?: string | null;
+  messagesCount?: number | null;
+  itemsCount?: number | null;
+  items?: Array<{
+    id: string;
+    description?: string | null;
+    mediaUnitId?: string | null;
+    productId?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    quantity?: number | null;
+    unitPrice?: number | null;
+    totalPrice?: number | null;
+    product?: { id: string; name?: string | null } | null;
+    mediaUnit?: { id: string; label?: string | null; mediaPointId?: string | null } | null;
+  }>;
   createdAt: string;
   updatedAt: string;
   client?: {
@@ -67,6 +88,11 @@ export default function PropostaPublica() {
   const [portalName, setPortalName] = useState('');
   const [portalContact, setPortalContact] = useState('');
 
+  const messagesBoxRef = useRef<HTMLDivElement | null>(null);
+  const latestMessagesRef = useRef<any[]>([]);
+  latestMessagesRef.current = messages;
+  const messagesInFlightRef = useRef(false);
+
   const canDecide = !!decisionToken;
 
   useEffect(() => {
@@ -108,29 +134,66 @@ export default function PropostaPublica() {
     run();
   }, [apiBase, publicHash]);
 
-  useEffect(() => {
-    const run = async () => {
-      try {
-        if (!publicHash) return;
+  const fetchPortalMessages = async (opts?: { silent?: boolean }) => {
+    try {
+      if (!publicHash) return;
+      if (messagesInFlightRef.current) return;
+      messagesInFlightRef.current = true;
+      if (!opts?.silent) {
         setMessagesLoading(true);
         setMessagesError(null);
-
-        const res = await fetch(`${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/messages`);
-        const json = await res.json().catch(() => []);
-
-        if (!res.ok) {
-          throw new Error((json && (json.message || json.error)) || 'Erro ao carregar mensagens');
-        }
-
-        setMessages(Array.isArray(json) ? json : []);
-      } catch (e: any) {
-        setMessagesError(e?.message || 'Erro ao carregar mensagens');
-      } finally {
-        setMessagesLoading(false);
       }
-    };
 
-    run();
+      const box = messagesBoxRef.current;
+      const wasNearBottom = box
+        ? box.scrollHeight - box.scrollTop - box.clientHeight < 60
+        : true;
+
+      const res = await fetch(
+        `${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/messages`
+      );
+      const json = await res.json().catch(() => []);
+
+      if (!res.ok) {
+        throw new Error((json && (json.message || json.error)) || 'Erro ao carregar mensagens');
+      }
+
+      const next = Array.isArray(json) ? json : [];
+      setMessages(next);
+
+      // Mantém a conversa "ancorada" no final quando o usuário já está no fim.
+      requestAnimationFrame(() => {
+        const el = messagesBoxRef.current;
+        if (el && wasNearBottom) {
+          el.scrollTop = el.scrollHeight;
+        }
+      });
+    } catch (e: any) {
+      // Evita "piscar" erro durante polling quando já existe conteúdo
+      if (!opts?.silent || latestMessagesRef.current.length === 0) {
+        setMessagesError(e?.message || 'Erro ao carregar mensagens');
+      }
+    } finally {
+      messagesInFlightRef.current = false;
+      if (!opts?.silent) setMessagesLoading(false);
+    }
+  };
+
+  // Primeira carga de mensagens
+  useEffect(() => {
+    fetchPortalMessages({ silent: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, publicHash]);
+
+  // Polling para atualizar mensagens automaticamente (sem precisar dar refresh)
+  useEffect(() => {
+    if (!publicHash) return;
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      fetchPortalMessages({ silent: true });
+    }, 3000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase, publicHash]);
 
   const handleApprove = async () => {
@@ -250,12 +313,8 @@ export default function PropostaPublica() {
 
       setMessageText('');
 
-      // refresh
-      const refreshed = await fetch(`${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/messages`);
-      if (refreshed.ok) {
-        const mjson = await refreshed.json().catch(() => []);
-        setMessages(Array.isArray(mjson) ? mjson : []);
-      }
+      // refresh (silencioso) — a página também faz polling
+      fetchPortalMessages({ silent: true });
     } catch (e: any) {
       setMessageSendError(e?.message || 'Erro ao enviar mensagem');
     } finally {
@@ -282,8 +341,32 @@ export default function PropostaPublica() {
     );
   }
 
+  const fmtCurrency = (value?: number | null) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const fmtDate = (value?: string | null) => {
+    if (!value) return '—';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+  };
+
+  const fmtDateTime = (value?: string | null) => {
+    if (!value) return '—';
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR');
+  };
+
+  const items = Array.isArray(proposal.items) ? proposal.items : [];
+
   const clientName =
-    proposal.client?.companyName || proposal.client?.contactName || 'Cliente';
+    proposal.clientName || proposal.client?.companyName || proposal.client?.contactName || 'Cliente';
+
+  const fmtQuantity = (value?: number | null) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+    return String(value);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -311,25 +394,78 @@ export default function PropostaPublica() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-500">Valor total</p>
-              <p className="text-lg font-semibold text-gray-900">
-                R$ {proposal.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-              {proposal.discountPercent ? (
+              <p className="text-lg font-semibold text-gray-900">{fmtCurrency(proposal.totalAmount)}</p>
+              {typeof proposal.discountAmount === 'number' && proposal.discountAmount > 0 ? (
+                <p className="text-sm text-green-700">
+                  Desconto: -{fmtCurrency(proposal.discountAmount)}
+                  {proposal.discountPercent ? ` (${proposal.discountPercent}%)` : ''}
+                </p>
+              ) : proposal.discountPercent ? (
                 <p className="text-sm text-green-700">Desconto: -{proposal.discountPercent}%</p>
               ) : null}
             </div>
 
             <div>
               <p className="text-xs text-gray-500">Validade</p>
+              <p className="text-gray-900">{fmtDate(proposal.validUntil)}</p>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500">Responsável</p>
+              <p className="text-gray-900">{proposal.responsibleUserName || '—'}</p>
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-500">Período</p>
               <p className="text-gray-900">
-                {proposal.validUntil ? new Date(proposal.validUntil).toLocaleDateString('pt-BR') : '—'}
+                {fmtDate(proposal.startDate)} {proposal.endDate ? `— ${fmtDate(proposal.endDate)}` : ''}
               </p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <p className="text-xs text-gray-500">Condições</p>
+              <p className="text-gray-900 whitespace-pre-wrap">{proposal.conditionsText || '—'}</p>
             </div>
 
             <div className="sm:col-span-2">
               <p className="text-xs text-gray-500">Observações</p>
               <p className="text-gray-900 whitespace-pre-wrap">{proposal.notes || '—'}</p>
             </div>
+
+            {items.length > 0 && (
+              <div className="sm:col-span-2">
+                <p className="text-xs text-gray-500">Itens</p>
+                <div className="mt-2 divide-y divide-gray-200 rounded-xl border border-gray-100">
+                  {items.map((it) => {
+                    const title = it.product?.name || it.mediaUnit?.label || it.description || 'Item';
+                    const subtitle =
+                      it.description && (it.product?.name || it.mediaUnit?.label) ? it.description : null;
+                    return (
+                      <div key={it.id} className="p-3 flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{title}</p>
+                          {subtitle ? (
+                            <p className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{subtitle}</p>
+                          ) : null}
+                          <p className="text-[11px] text-gray-500 mt-1">
+                            {fmtDate(it.startDate)} {it.endDate ? `— ${fmtDate(it.endDate)}` : ''}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm text-gray-900">x{fmtQuantity(it.quantity ?? 1)}</p>
+                          {typeof it.totalPrice === 'number' ? (
+                            <p className="text-sm font-semibold text-gray-900">{fmtCurrency(it.totalPrice)}</p>
+                          ) : null}
+                          {typeof it.unitPrice === 'number' ? (
+                            <p className="text-[11px] text-gray-500">{fmtCurrency(it.unitPrice)} / un</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -356,7 +492,7 @@ export default function PropostaPublica() {
             ) : messages.length === 0 ? (
               <div className="text-sm text-gray-500">Nenhuma mensagem ainda.</div>
             ) : (
-              <div className="max-h-80 overflow-y-auto space-y-3 rounded-xl bg-gray-50 p-4">
+              <div ref={messagesBoxRef} className="max-h-80 overflow-y-auto space-y-3 rounded-xl bg-gray-50 p-4">
                 {messages.map((m: any) => {
                   const isClient = m?.senderType === 'CLIENTE' || m?.direction === 'IN';
                   return (
@@ -489,7 +625,7 @@ export default function PropostaPublica() {
         )}
 
         <div className="text-xs text-gray-500">
-          ID: ...{proposal.id.slice(-6)} • Atualizado em {new Date(proposal.updatedAt).toLocaleString('pt-BR')}
+          ID: ...{proposal.id.slice(-6)} • Atualizado em {fmtDateTime(proposal.updatedAt)}
         </div>
       </div>
     </div>
