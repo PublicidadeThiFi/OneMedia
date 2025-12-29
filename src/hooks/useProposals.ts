@@ -193,6 +193,7 @@ const updateProposal = async (id: string, dto: any) => {
   }
 };
 
+
   const updateProposalStatus = async (id: string, status: ProposalStatus) => {
     const response = await apiClient.patch<Proposal>(`/proposals/${id}/status`, { status });
     const normalized = normalizeProposal(response.data);
