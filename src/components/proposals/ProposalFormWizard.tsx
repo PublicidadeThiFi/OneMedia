@@ -12,7 +12,7 @@ interface ProposalFormWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   proposal: Proposal | null;
-  onSave: (proposalData: Partial<Proposal>) => Promise<void> | void;
+  onSave: (proposalData: Partial<Proposal>) => Promise<boolean>;
   onNavigate: (page: Page) => void;
 }
 
@@ -44,7 +44,6 @@ export function ProposalFormWizard({
   onNavigate,
 }: ProposalFormWizardProps) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<ProposalFormData>({
     clientId: '',
     responsibleUserId: '',
@@ -122,8 +121,6 @@ export function ProposalFormWizard({
   };
 
   const handleClose = () => {
-    // Evita fechar enquanto estiver salvando (pra não parecer que salvou quando falhou)
-    if (saving) return;
     setStep(1);
     onOpenChange(false);
   };
@@ -138,64 +135,49 @@ export function ProposalFormWizard({
     setStep(1);
   };
 
-  const handleSaveDraft = async () => {
-    const proposalData: Partial<Proposal> = {
-      clientId: formData.clientId,
-      responsibleUserId: formData.responsibleUserId,
-      title: formData.title,
-      startDate: formData.campaignStartDate,
-      endDate: formData.campaignEndDate,
-      status: ProposalStatus.RASCUNHO,
-      validUntil: formData.validUntil,
-      conditionsText: formData.conditionsText,
-      // Não envia 0 para evitar constraints no BD (0 = “sem desconto”)
-      discountPercent: formData.discountPercent && formData.discountPercent > 0 ? formData.discountPercent : undefined,
-      discountAmount: formData.discountAmount && formData.discountAmount > 0 ? formData.discountAmount : undefined,
-      items: formData.items,
-    };
-
-    try {
-      setSaving(true);
-      await Promise.resolve(onSave(proposalData));
-      // Fechamento é controlado pelo componente pai em caso de sucesso.
-    } finally {
-      setSaving(false);
-    }
+const preparePayload = (status: ProposalStatus) => {
+  return {
+    clientId: formData.clientId,
+    responsibleUserId: formData.responsibleUserId,
+    title: formData.title,
+    status: status,
+    // Convertemos para string para o JSON, o 'any' evita o erro de tipagem no onSave
+    startDate: formData.campaignStartDate?.toISOString(),
+    endDate: formData.campaignEndDate?.toISOString(),
+    validUntil: formData.validUntil?.toISOString(),
+    discountPercent: Number(formData.discountPercent || 0),
+    discountAmount: Number(formData.discountAmount || 0),
+    conditionsText: formData.conditionsText,
+    items: formData.items.map(item => ({
+      mediaUnitId: item.mediaUnitId,
+      productId: item.productId,
+      description: item.description,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+      // Datas dos itens também devem ser strings ISO
+      startDate: item.startDate ? new Date(item.startDate).toISOString() : undefined,
+      endDate: item.endDate ? new Date(item.endDate).toISOString() : undefined,
+    }))
   };
+};
 
-  const handleSaveAndSend = async () => {
-    const proposalData: Partial<Proposal> = {
-      clientId: formData.clientId,
-      responsibleUserId: formData.responsibleUserId,
-      title: formData.title,
-      startDate: formData.campaignStartDate,
-      endDate: formData.campaignEndDate,
-      status: ProposalStatus.ENVIADA,
-      validUntil: formData.validUntil,
-      conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent && formData.discountPercent > 0 ? formData.discountPercent : undefined,
-      discountAmount: formData.discountAmount && formData.discountAmount > 0 ? formData.discountAmount : undefined,
-      items: formData.items,
-    };
+const handleSaveDraft = async () => {
+  const payload = preparePayload('RASCUNHO' as ProposalStatus);
+  // Usamos as any aqui para ignorar a restrição de 'Date' vs 'string' no momento do envio
+  const success = await onSave(payload as any);
+  if (success) onOpenChange(false);
+};
 
-    try {
-      setSaving(true);
-      await Promise.resolve(onSave(proposalData));
-    } finally {
-      setSaving(false);
-    }
-  };
+const handleSaveAndSend = async () => {
+  const payload = preparePayload('ENVIADA' as ProposalStatus);
+  const success = await onSave(payload as any);
+  if (success) onOpenChange(false);
+};
 
   const progress = step === 1 ? 50 : 100;
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen: boolean) => {
-        if (!nextOpen) handleClose();
-        else onOpenChange(true);
-      }}
-    >
+    <Dialog open={open} onOpenChange={(nextOpen: boolean) => { if (!nextOpen) handleClose(); }}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
@@ -235,10 +217,10 @@ export function ProposalFormWizard({
         <div className="border-t px-6 py-4 bg-gray-50">
           {step === 1 && (
             <div className="flex justify-between gap-3">
-              <Button variant="outline" onClick={handleClose} disabled={saving}>
+              <Button variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>
-              <Button onClick={handleNext} disabled={!step1Valid || saving}>
+              <Button onClick={handleNext} disabled={!step1Valid}>
                 Próximo
               </Button>
             </div>
@@ -246,14 +228,14 @@ export function ProposalFormWizard({
 
           {step === 2 && (
             <div className="flex justify-between gap-3">
-              <Button variant="ghost" onClick={handleBack} disabled={saving}>
+              <Button variant="ghost" onClick={handleBack}>
                 Voltar
               </Button>
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handleSaveDraft} disabled={saving}>
+                <Button variant="outline" onClick={handleSaveDraft}>
                   Salvar Rascunho
                 </Button>
-                <Button onClick={handleSaveAndSend} disabled={saving || formData.items.length === 0}>
+                <Button onClick={handleSaveAndSend} disabled={formData.items.length === 0}>
                   Salvar e Enviar
                 </Button>
               </div>

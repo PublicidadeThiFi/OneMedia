@@ -51,6 +51,62 @@ function normalizeProposal(p: any): Proposal {
   } as Proposal;
 }
 
+
+function toIso(value: any): string | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
+  const d = value instanceof Date ? value : new Date(value);
+  return !isNaN(d.getTime()) ? d.toISOString() : undefined;
+}
+
+function cleanUuid(value: any): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const s = String(value).trim();
+  return s.length > 0 ? s : undefined;
+}
+
+function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const out: any = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+function serializeProposalForApi(data: Partial<Proposal>) {
+  const items = Array.isArray((data as any).items)
+    ? (data as any).items
+        .filter(Boolean)
+        .map((i: any) => {
+          const mediaUnitId = cleanUuid(i.mediaUnitId);
+          const productId = mediaUnitId ? undefined : cleanUuid(i.productId);
+          return stripUndefined({
+            mediaUnitId,
+            productId,
+            description: String(i.description ?? '').trim(),
+            startDate: toIso(i.startDate),
+            endDate: toIso(i.endDate),
+            quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity ?? 1),
+            unitPrice: typeof i.unitPrice === 'number' ? i.unitPrice : Number(i.unitPrice ?? 0),
+          });
+        })
+        .filter((i: any) => !!i.description && (!!i.mediaUnitId || !!i.productId))
+    : undefined;
+
+  return stripUndefined({
+    clientId: cleanUuid((data as any).clientId),
+    responsibleUserId: cleanUuid((data as any).responsibleUserId),
+    title: typeof (data as any).title === 'string' ? (data as any).title.trim() : undefined,
+    status: (data as any).status,
+    startDate: toIso((data as any).startDate),
+    endDate: toIso((data as any).endDate),
+    validUntil: toIso((data as any).validUntil),
+    conditionsText: typeof (data as any).conditionsText === 'string' ? (data as any).conditionsText : undefined,
+    discountAmount: (data as any).discountAmount,
+    discountPercent: (data as any).discountPercent,
+    items,
+  });
+}
+
 export function useProposals(params: UseProposalsParams = {}) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -100,15 +156,17 @@ export function useProposals(params: UseProposalsParams = {}) {
   };
 
   const createProposal = async (data: Partial<Proposal>) => {
-    const response = await apiClient.post<Proposal>('/proposals', data);
-    // Não assume que o backend retorna no mesmo formato da lista; então só refetch no final do fluxo.
+    const payload = serializeProposalForApi(data);
+    const response = await apiClient.post<Proposal>('/proposals', payload);
+// Não assume que o backend retorna no mesmo formato da lista; então só refetch no final do fluxo.
     setProposals((prev) => [normalizeProposal(response.data), ...prev]);
     return normalizeProposal(response.data);
   };
 
   const updateProposal = async (id: string, data: Partial<Proposal>) => {
-    const response = await apiClient.put<Proposal>(`/proposals/${id}`, data);
-    const normalized = normalizeProposal(response.data);
+    const payload = serializeProposalForApi(data);
+    const response = await apiClient.put<Proposal>(`/proposals/${id}`, payload);
+const normalized = normalizeProposal(response.data);
     setProposals((prev) => prev.map((p) => (p.id === id ? normalized : p)));
     return normalized;
   };

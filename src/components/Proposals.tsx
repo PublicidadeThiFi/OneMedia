@@ -139,7 +139,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     }
   };
 
-  const handleSaveProposal = async (proposalData: Partial<Proposal>) => {
+  const handleSaveProposal = async (proposalData: Partial<Proposal>): Promise<boolean> => {
     try {
       const desiredStatus = proposalData.status;
 
@@ -163,8 +163,12 @@ export function Proposals({ onNavigate }: ProposalsProps) {
       setIsFormWizardOpen(false);
       setEditingProposal(null);
       await refetch();
-    } catch {
-      toast.error('Erro ao salvar proposta');
+
+      return true;
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Erro ao salvar proposta';
+      toast.error(msg);
+      return false;
     }
   };
 
