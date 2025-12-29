@@ -7,13 +7,27 @@ import axios from 'axios';
 // VITE_API_URL=https://sua-api.vercel.app/api
 // Se o BD for instanciado localmente, usa 'http://localhost:3333/api' como fallback lá no .env 
 // Se o BD for instanciado remotamente, usa 'http://174.129.69.244:3333/api' como fallback lá no .env -> Sendo usado no momento.
-const API_BASE_URL =
-  ((import.meta as any).env?.VITE_API_URL &&
-    (import.meta as any).env.VITE_API_URL.replace(/\/$/, '')) ||
-  'http://174.129.69.244:3333/api';
+// src/lib/apiClient.ts
 
+const getBaseUrl = () => {
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  
+  if (envUrl) {
+    // Se a variável existe e começa com /, é uma rota relativa (ideal para Vercel Rewrites)
+    if (envUrl.startsWith('/')) {
+      return envUrl; 
+    }
+    // Se for uma URL completa, remove a barra final
+    return envUrl.replace(/\/$/, '');
+  }
+  
+  // Se não houver variável, usa o IP fixo como último recurso
+  return 'http://174.129.69.244:3333/api';
+};
 
-console.info('[apiClient] Base URL:', API_BASE_URL);
+const API_BASE_URL = getBaseUrl();
+
+console.info('[apiClient] Base URL configurada para:', API_BASE_URL);
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

@@ -155,21 +155,43 @@ export function useProposals(params: UseProposalsParams = {}) {
     return normalizeProposal(response.data);
   };
 
-  const createProposal = async (data: Partial<Proposal>) => {
-    const payload = serializeProposalForApi(data);
-    const response = await apiClient.post<Proposal>('/proposals', payload);
-// Não assume que o backend retorna no mesmo formato da lista; então só refetch no final do fluxo.
-    setProposals((prev) => [normalizeProposal(response.data), ...prev]);
-    return normalizeProposal(response.data);
-  };
+  // src/hooks/useProposals.ts
 
-  const updateProposal = async (id: string, data: Partial<Proposal>) => {
-    const payload = serializeProposalForApi(data);
-    const response = await apiClient.put<Proposal>(`/proposals/${id}`, payload);
-const normalized = normalizeProposal(response.data);
+const createProposal = async (dto: any) => {
+  try {
+    const response = await apiClient.post<Proposal>('/proposals', dto);
+    
+    // Verificação de segurança: se não for objeto, a API falhou no proxy
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error("Resposta inválida do servidor (Proxy Error)");
+    }
+
+    const normalized = normalizeProposal(response.data);
+    setProposals((prev) => [normalized, ...prev]);
+    return normalized;
+  } catch (error) {
+    console.error("Erro ao criar proposta:", error);
+    // Lançamos o erro para que o componente (Proposals.tsx) mostre o Toast de erro
+    throw error; 
+  }
+};
+
+const updateProposal = async (id: string, dto: any) => {
+  try {
+    const response = await apiClient.put<Proposal>(`/proposals/${id}`, dto);
+    
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error("Resposta inválida do servidor");
+    }
+
+    const normalized = normalizeProposal(response.data);
     setProposals((prev) => prev.map((p) => (p.id === id ? normalized : p)));
     return normalized;
-  };
+  } catch (error) {
+    console.error("Erro ao atualizar proposta:", error);
+    throw error;
+  }
+};
 
   const updateProposalStatus = async (id: string, status: ProposalStatus) => {
     const response = await apiClient.patch<Proposal>(`/proposals/${id}/status`, { status });
