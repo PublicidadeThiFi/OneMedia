@@ -25,8 +25,14 @@ export function ProposalsTable({
     );
   }
 
-  const copyPublicLink = async (publicHash: string) => {
+  const openPublicLink = async (publicHash: string) => {
     const url = `${window.location.origin}/p/${publicHash}`;
+    // Abre em nova aba (comportamento esperado para o ícone de link)
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      // ignore
+    }
     try {
       await navigator.clipboard.writeText(url);
     } catch {
@@ -182,7 +188,7 @@ export function ProposalsTable({
                         variant="ghost"
                         size="sm"
                         title={`Copiar link público: /p/${proposal.publicHash}`}
-                        onClick={() => copyPublicLink(proposal.publicHash!)}
+                        onClick={() => openPublicLink(proposal.publicHash!)}
                         aria-label="Link público"
                       >
                         <ExternalLink className="w-4 h-4" />
