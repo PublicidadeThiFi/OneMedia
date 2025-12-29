@@ -1,20 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Calendar, User, DollarSign, Package, Link as LinkIcon, Copy, ShieldCheck } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Copy, Link as LinkIcon, X } from 'lucide-react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
+import { Button } from '../ui/button';
+import apiClient from '../../lib/apiClient';
 import { Proposal } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
 import { useNavigation } from '../../App';
-import { apiClient } from '../../lib/apiClient';
-import {
-  getClientById,
-  getUserById,
-  getItemsForProposal,
-  getCampaignForProposal,
-  getBillingStatusForProposal,
-  getMediaUnitById,
-  getProductById,
-} from '../../lib/mockData';
+
+type PublicTokenResponse = { token: string; publicHash: string };
+
 
 interface ProposalDetailsDrawerProps {
   open: boolean;
@@ -22,108 +16,142 @@ interface ProposalDetailsDrawerProps {
   proposal: Proposal | null;
 }
 
+function toNumber(value: any, fallback = 0): number {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const n = Number(value.replace(',', '.'));
+    return Number.isFinite(n) ? n : fallback;
+  }
+  return fallback;
+}
+
 async function safeCopy(text: string) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(textarea);
-    return ok;
+    // fallback
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.left = '-9999px';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
 export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: ProposalDetailsDrawerProps) {
   const navigate = useNavigation();
-  const [publicHash, setPublicHash] = useState<string | null>(proposal?.publicHash ?? null);
-  const [decisionToken, setDecisionToken] = useState<string | null>(null);
+  const p: any = proposal ?? {};
+
+  const [client, setClient] = useState<any | null>(null);
+  const [user, setUser] = useState<any | null>(null);
+
+  const [publicHash, setPublicHash] = useState<string | null>(null);
   const [messageToken, setMessageToken] = useState<string | null>(null);
+  const [decisionToken, setDecisionToken] = useState<string | null>(null);
+
   const [messageLoading, setMessageLoading] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(false);
+
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  // Sync when switching proposals
   useEffect(() => {
-    if (!proposal) return;
-    setPublicHash(proposal.publicHash ?? null);
-    setDecisionToken(null);
-    setMessageToken(null);
-    setLinkMessage(null);
-    setLinkError(null);
-    setTokenLoading(false);
-  }, [proposal?.id]);
+    if (!proposal || !open) return;
 
-  const viewUrl = useMemo(() => {
-    if (!publicHash) return null;
-    return `${window.location.origin}/p/${publicHash}`;
-  }, [publicHash]);
+    setClient(null);
+    setUser(null);
+    setLinkError(null);
+    setLinkMessage(null);
+
+    setPublicHash(p.publicHash ?? p.public_hash ?? null);
+
+    // carregar cliente / responsável (para exibir nome mesmo se backend não embutir)
+    const load = async () => {
+      try {
+        if (proposal.clientId) {
+          const res = await apiClient.get(`/clients/${proposal.clientId}`);
+          setClient(res.data);
+        }
+      } catch {
+        // silêncio: fallback para proposal.clientName
+      }
+
+      try {
+        if (p.responsibleUserId) {
+          const res = await apiClient.get(`/users/${p.responsibleUserId}`);
+          setUser(res.data);
+        }
+      } catch {
+        // silêncio: fallback para proposal.responsibleUserName
+      }
+    };
+
+    load();
+  }, [proposal?.id, open]);
+
+  const items = useMemo<any[]>(() => {
+    if (!proposal) return [];
+    const raw = p.items ?? p.proposalItems ?? [];
+    return Array.isArray(raw) ? raw : [];
+  }, [proposal]);
+
+  const conditionsText = useMemo(() => {
+    if (!proposal?.conditionsText) return '';
+    return String(proposal.conditionsText).replace(/\\n/g, '\n');
+  }, [proposal?.conditionsText]);
+
+  const totalAmount = useMemo(() => toNumber(p.totalAmount, 0), [proposal]);
+
+  const currency = (n: any) =>
+    toNumber(n, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const viewUrl = useMemo(() => (publicHash ? `${window.location.origin}/p/${publicHash}` : null), [publicHash]);
 
   const messageUrl = useMemo(() => {
-    if (!viewUrl || !messageToken) return null;
-    return `${viewUrl}?m=${encodeURIComponent(messageToken)}`;
-  }, [viewUrl, messageToken]);
+    if (!publicHash || !messageToken) return null;
+    return `${window.location.origin}/p/${publicHash}?m=${encodeURIComponent(messageToken)}`;
+  }, [publicHash, messageToken]);
 
   const decisionUrl = useMemo(() => {
-    if (!viewUrl || !decisionToken) return null;
-    return `${viewUrl}?t=${encodeURIComponent(decisionToken)}`;
-  }, [viewUrl, decisionToken]);
+    if (!publicHash || !decisionToken) return null;
+    return `${window.location.origin}/p/${publicHash}?t=${encodeURIComponent(decisionToken)}`;
+  }, [publicHash, decisionToken]);
 
-  if (!proposal) return null;
-
-  const client = getClientById(proposal.clientId);
-  const user = getUserById(proposal.responsibleUserId);
-  const items = getItemsForProposal(proposal.id);
-  const campaign = getCampaignForProposal(proposal.id);
-  const billingStatus = getBillingStatusForProposal(proposal.id);
-
-  const handleCopyView = async () => {
-    setLinkMessage(null);
+  const handleCopy = async (url: string | null, okMsg: string) => {
+    if (!url) return;
+    const ok = await safeCopy(url);
     setLinkError(null);
-
-    if (!viewUrl) {
-      setLinkError('Esta proposta ainda não tem link público. Envie a proposta (status ENVIADA) e gere o link.');
-      return;
-    }
-
-    const ok = await safeCopy(viewUrl);
-    if (ok) setLinkMessage('Link de visualização copiado.');
-    else setLinkError('Não foi possível copiar o link.');
+    setLinkMessage(ok ? okMsg : 'Copie manualmente (não foi possível copiar automaticamente).');
   };
 
   const handleGenerateMessageLink = async () => {
+    if (!proposal) return;
     setLinkMessage(null);
     setLinkError(null);
 
     try {
       setMessageLoading(true);
-      type PublicMessageTokenResponse = {
-        token: string;
-        publicHash: string | null;
-      };
+      const res = await apiClient.get<PublicTokenResponse>(`/proposals/${proposal.id}/public-message-token`);
+      const token = res.data?.token;
+      const hash = res.data?.publicHash;
 
-      const res = await apiClient.get<PublicMessageTokenResponse>(`/proposals/${proposal.id}/public-message-token`);
-
-      const token = res.data.token;
-      const hash = res.data.publicHash;
-      if (!token) throw new Error('O backend não retornou o token de mensagens.');
-
-      setMessageToken(token);
       if (hash) setPublicHash(hash);
+      if (token) setMessageToken(token);
 
-      const finalHash = hash || publicHash;
-      if (!finalHash) throw new Error('Não foi possível obter o publicHash da proposta.');
+      const finalHash = hash ?? publicHash;
+      if (!finalHash || !token) throw new Error('Não foi possível gerar o link de mensagens.');
 
-      const finalUrl = `${window.location.origin}/p/${finalHash}?m=${encodeURIComponent(token)}`;
-      const ok = await safeCopy(finalUrl);
-      setLinkMessage(ok ? 'Link de mensagens copiado.' : 'Token gerado, mas não foi possível copiar.');
+      await handleCopy(`${window.location.origin}/p/${finalHash}?m=${encodeURIComponent(token)}`, 'Link de mensagens copiado.');
     } catch (e: any) {
       setLinkError(e?.response?.data?.message || e?.message || 'Erro ao gerar link de mensagens');
     } finally {
@@ -132,39 +160,23 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
   };
 
   const handleGenerateDecisionLink = async () => {
+    if (!proposal) return;
     setLinkMessage(null);
     setLinkError(null);
 
     try {
       setTokenLoading(true);
-      type PublicActionTokenResponse = {
-        token: string;
-        publicHash: string | null;
-      };
+      const res = await apiClient.get<PublicTokenResponse>(`/proposals/${proposal.id}/public-action-token`);
+      const token = res.data?.token;
+      const hash = res.data?.publicHash;
 
-      const res = await apiClient.get<PublicActionTokenResponse>(
-        `/proposals/${proposal.id}/public-action-token`
-      );
-
-      const token = res.data.token;
-      const hash = res.data.publicHash;
-
-
-      if (!token) {
-        throw new Error('O backend não retornou o token de decisão.');
-      }
-
-      setDecisionToken(token);
       if (hash) setPublicHash(hash);
+      if (token) setDecisionToken(token);
 
-      const finalHash = hash || publicHash;
-      if (!finalHash) {
-        throw new Error('Não foi possível obter o publicHash da proposta.');
-      }
+      const finalHash = hash ?? publicHash;
+      if (!finalHash || !token) throw new Error('Não foi possível gerar o link de decisão.');
 
-      const finalUrl = `${window.location.origin}/p/${finalHash}?t=${encodeURIComponent(token)}`;
-      const ok = await safeCopy(finalUrl);
-      setLinkMessage(ok ? 'Link de decisão copiado.' : 'Token gerado, mas não foi possível copiar.');
+      await handleCopy(`${window.location.origin}/p/${finalHash}?t=${encodeURIComponent(token)}`, 'Link de decisão copiado.');
     } catch (e: any) {
       setLinkError(e?.response?.data?.message || e?.message || 'Erro ao gerar link de decisão');
     } finally {
@@ -172,49 +184,60 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
     }
   };
 
+  if (!proposal) return null;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[90vh] max-w-3xl mx-auto">
-        <DrawerHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <DrawerTitle>{proposal.title || 'Sem título'}</DrawerTitle>
-              <p className="text-sm text-gray-500 mt-1">ID: ...{proposal.id.slice(-6)}</p>
-            </div>
-            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Fechar">
-              <X className="w-4 h-4" />
-            </Button>
+      <DrawerContent className="max-h-[90vh]">
+        <DrawerHeader className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <DrawerTitle className="truncate">{proposal.title || 'Proposta'}</DrawerTitle>
+            <ProposalStatusBadge status={p.status} />
           </div>
+
+          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+            <X className="w-4 h-4" />
+          </Button>
         </DrawerHeader>
 
         <div className="overflow-y-auto p-6 space-y-6">
           {/* Resumo */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-500 mb-1">Status</p>
-              <ProposalStatusBadge status={proposal.status} />
-            </div>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-500 mb-1">Valor Total</p>
-              <p className="text-gray-900">
-                R$ {proposal.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              {proposal.discountPercent && proposal.discountPercent > 0 && (
-                <p className="text-green-600 text-sm">Desconto: -{proposal.discountPercent}%</p>
+              <p className="text-gray-900">R$ {currency(totalAmount)}</p>
+              {toNumber(p.discountPercent, 0) > 0 && (
+                <p className="text-green-600 text-sm">Desconto: -{toNumber(p.discountPercent, 0)}%</p>
               )}
             </div>
 
             <div>
               <p className="text-sm text-gray-500 mb-1">Cliente</p>
-              <p className="text-gray-900">{client?.companyName || client?.contactName || '-'}</p>
-              {client?.companyName && <p className="text-sm text-gray-600">{client.contactName}</p>}
+              <p className="text-gray-900">
+                {client?.companyName ||
+                  client?.contactName ||
+                  p.clientName ||
+                  (proposal as any)?.client?.companyName ||
+                  (proposal as any)?.client?.contactName ||
+                  '-'}
+              </p>
+              {client?.companyName && client?.contactName && <p className="text-sm text-gray-600">{client.contactName}</p>}
             </div>
 
             <div>
               <p className="text-sm text-gray-500 mb-1">Responsável</p>
-              <p className="text-gray-900">{user?.name || '-'}</p>
+              <p className="text-gray-900">{user?.name || p.responsibleUserName || '-'}</p>
             </div>
+
+            {(p.startDate || p.endDate) && (
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Período</p>
+                <p className="text-gray-900">
+                  {p.startDate ? new Date(p.startDate).toLocaleDateString('pt-BR') : '—'}{' '}
+                  até {p.endDate ? new Date(p.endDate).toLocaleDateString('pt-BR') : '—'}
+                </p>
+              </div>
+            )}
 
             {proposal.validUntil && (
               <div>
@@ -222,168 +245,133 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
                 <p className="text-gray-900">{new Date(proposal.validUntil).toLocaleDateString('pt-BR')}</p>
               </div>
             )}
-
-            {proposal.approvedAt && (
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Data de Aprovação</p>
-                <p className="text-gray-900">{new Date(proposal.approvedAt).toLocaleDateString('pt-BR')}</p>
-              </div>
-            )}
           </div>
 
           {/* Condições/Observações */}
-          {proposal.conditionsText && (
+          {conditionsText && (
             <div>
               <p className="text-sm text-gray-500 mb-2">Condições / Observações</p>
               <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-700">{proposal.conditionsText}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{conditionsText}</p>
               </div>
             </div>
           )}
 
-          {/* Itens da Proposta */}
+          {/* Itens */}
           <div>
             <h3 className="text-gray-900 mb-4">Itens da Proposta ({items.length})</h3>
             <div className="space-y-3">
-              {items.map((item) => {
-                const mediaUnit = item.mediaUnitId ? getMediaUnitById(item.mediaUnitId) : undefined;
-                const product = item.productId ? getProductById(item.productId) : undefined;
+              {items.map((item) => (
+                <div key={item.id ?? `${item.description}-${Math.random()}`} className="border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <p className="text-gray-900 flex-1">{item.description || 'Item'}</p>
+                    <p className="text-gray-900 whitespace-nowrap">R$ {currency(item.totalPrice ?? item.total)}</p>
+                  </div>
 
-                return (
-                  <div key={item.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <p className="text-gray-900">{item.description}</p>
-                        {mediaUnit && <p className="text-sm text-gray-500">Mídia: {mediaUnit.label}</p>}
-                        {product && <p className="text-sm text-gray-500">Produto: {product.name}</p>}
-                      </div>
-                      <p className="text-gray-900">
-                        R$ {item.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      {item.startDate && item.endDate && (
-                        <div>
-                          <p className="text-gray-500">Período</p>
-                          <p className="text-gray-700">
-                            {new Date(item.startDate).toLocaleDateString('pt-BR')} - {new Date(item.endDate).toLocaleDateString('pt-BR')}
-                          </p>
-                        </div>
-                      )}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                    {item.startDate && item.endDate && (
                       <div>
-                        <p className="text-gray-500">Quantidade</p>
-                        <p className="text-gray-700">{item.quantity}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Preço Unitário</p>
+                        <p className="text-gray-500">Período</p>
                         <p className="text-gray-700">
-                          R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {new Date(item.startDate).toLocaleDateString('pt-BR')} - {new Date(item.endDate).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
+                    )}
+
+                    <div>
+                      <p className="text-gray-500">Quantidade</p>
+                      <p className="text-gray-700">{item.quantity ?? 1}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-gray-500">Preço Unitário</p>
+                      <p className="text-gray-700">R$ {currency(item.unitPrice)}</p>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              ))}
+
+              {!items.length && <p className="text-sm text-gray-500">Nenhum item adicionado.</p>}
             </div>
           </div>
 
-          {/* Status da Campanha */}
-          {campaign && (
-            <div>
-              <h3 className="text-gray-900 mb-3">Campanha</h3>
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-900 mb-1">{campaign.name}</p>
-                <p className="text-sm text-gray-600">Status: {campaign.status}</p>
-                <p className="text-sm text-gray-600">
-                  {new Date(campaign.startDate).toLocaleDateString('pt-BR')} - {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Status Financeiro */}
-          {billingStatus && (
-            <div>
-              <h3 className="text-gray-900 mb-3">Status Financeiro</h3>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-900">
-                  Fatura: {billingStatus === 'PAGA' ? 'Paga' : billingStatus === 'ABERTA' ? 'Aberta' : billingStatus}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Link Público + Token de Decisão (Nível 2) */}
-          <div>
+          {/* Links públicos */}
+          <div className="pt-4 border-t">
             <h3 className="text-gray-900 mb-3 flex items-center gap-2">
-              <LinkIcon className="w-4 h-4" /> Link público
+              <LinkIcon className="w-4 h-4" /> Links públicos
             </h3>
 
-            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-              <div className="text-sm text-gray-700">
-                <div className="flex items-center gap-2 text-gray-900 font-medium">
-                  <ShieldCheck className="w-4 h-4" /> Nível 2: token só para decisão
-                </div>
-                <div className="text-gray-600 mt-1">
-                  Envie o link de <span className="font-medium">visualização</span> para leitura.
-                  Para aprovar/recusar, envie o link de <span className="font-medium">decisão</span> (com token).
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Visualização</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-700 font-mono break-all flex-1">{viewUrl || '—'}</p>
+                  <Button size="icon" variant="outline" disabled={!viewUrl} onClick={() => handleCopy(viewUrl, 'Link de visualização copiado.')}>
+                    <Copy className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Visualização</p>
-                  <p className="text-sm text-gray-700 font-mono break-all">{viewUrl || '—'}</p>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Mensagens (portal do cliente)</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-700 font-mono break-all flex-1">{messageUrl || '—'}</p>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    disabled={!messageUrl}
+                    onClick={() => handleCopy(messageUrl, 'Link de mensagens copiado.')}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
                 </div>
-
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Mensagens (portal do cliente)</p>
-                  <p className="text-sm text-gray-700 font-mono break-all">{messageUrl || '—'}</p>
+                <div className="mt-2">
+                  <Button variant="outline" onClick={handleGenerateMessageLink} disabled={messageLoading} className="w-full sm:w-auto">
+                    {messageLoading ? 'Gerando…' : 'Gerar link de mensagens'}
+                  </Button>
                 </div>
+              </div>
 
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Decisão (aprovar/recusar)</p>
-                  <p className="text-sm text-gray-700 font-mono break-all">{decisionUrl || '—'}</p>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Decisão (aprovar/recusar)</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-700 font-mono break-all flex-1">{decisionUrl || '—'}</p>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    disabled={!decisionUrl}
+                    onClick={() => handleCopy(decisionUrl, 'Link de decisão copiado.')}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="mt-2">
+                  <Button variant="outline" onClick={handleGenerateDecisionLink} disabled={tokenLoading} className="w-full sm:w-auto">
+                    {tokenLoading ? 'Gerando…' : 'Gerar link de decisão'}
+                  </Button>
                 </div>
               </div>
 
               {linkError && <p className="text-sm text-red-600">{linkError}</p>}
               {linkMessage && <p className="text-sm text-green-700">{linkMessage}</p>}
 
-              <div className="flex flex-col sm:flex-row gap-2">
+              <div className="pt-2">
                 <Button
                   variant="outline"
-                  className="flex-1"
+                  className="w-full sm:w-auto"
                   onClick={() => {
                     onOpenChange(false);
                     navigate(`/app/messages?proposalId=${proposal.id}`);
                   }}
                 >
-                  Abrir Mensagens (interno)
-                </Button>
-                <Button variant="outline" className="flex-1" onClick={handleCopyView}>
-                  <Copy className="w-4 h-4 mr-2" /> Copiar link (visualização)
-                </Button>
-
-                <Button variant="outline" className="flex-1" onClick={handleGenerateMessageLink} disabled={messageLoading}>
-                  {messageLoading ? 'Gerando…' : 'Gerar + copiar link (mensagens)'}
-                </Button>
-
-                <Button className="flex-1" onClick={handleGenerateDecisionLink} disabled={tokenLoading}>
-                  {tokenLoading ? 'Gerando…' : 'Gerar + copiar link (decisão)'}
+                  Ir para Mensagens
                 </Button>
               </div>
-
-              <p className="text-xs text-gray-500">
-                Observação: a decisão pública só funciona quando a proposta estiver com status <span className="font-medium">ENVIADA</span>.
-              </p>
             </div>
           </div>
 
-          {/* TODO: Timeline */}
           <div className="pt-4 border-t">
-            <p className="text-sm text-gray-500">Criado em {new Date(proposal.createdAt).toLocaleDateString('pt-BR')}</p>
+            <p className="text-sm text-gray-500">Criado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
       </DrawerContent>

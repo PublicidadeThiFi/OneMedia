@@ -5,13 +5,14 @@ import { Proposal, ProposalStatus, ProposalItem } from '../../types';
 import { ProposalStep1General } from './ProposalStep1General';
 import { ProposalStep2Items } from './ProposalStep2Items';
 import { Progress } from '../ui/progress';
-import { Page } from '../MainApp';
+import type { Page } from '../MainApp';
+import { toNumber } from '../../lib/number';
 
 interface ProposalFormWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   proposal: Proposal | null;
-  onSave: (proposalData: Partial<Proposal>) => void;
+  onSave: (proposalData: Partial<Proposal>) => Promise<boolean>;
   onNavigate: (page: Page) => void;
 }
 
@@ -47,8 +48,6 @@ export function ProposalFormWizard({
     clientId: '',
     responsibleUserId: '',
     title: '',
-    campaignStartDate: undefined,
-    campaignEndDate: undefined,
     validUntil: undefined,
     conditionsText: '',
     discountPercent: 0,
@@ -67,15 +66,15 @@ export function ProposalFormWizard({
         clientId: proposal.clientId,
         responsibleUserId: proposal.responsibleUserId,
         title: proposal.title || '',
-        campaignStartDate: undefined, // TODO: pegar do primeiro item se houver
-        campaignEndDate: undefined,
+        campaignStartDate: (proposal as any).startDate ? new Date((proposal as any).startDate) : undefined,
+        campaignEndDate: (proposal as any).endDate ? new Date((proposal as any).endDate) : undefined,
         validUntil: proposal.validUntil ? new Date(proposal.validUntil) : undefined,
-        conditionsText: proposal.conditionsText || '',
+        conditionsText: (proposal.conditionsText || '').replace(/\\n/g, '\n'),
         discountPercent: proposal.discountPercent || 0,
         discountAmount: proposal.discountAmount || 0,
         items: proposal.items || [],
-        subtotal: proposal.totalAmount || 0,
-        totalAmount: proposal.totalAmount || 0,
+        subtotal: toNumber(proposal.totalAmount, 0),
+        totalAmount: toNumber(proposal.totalAmount, 0),
       });
     } else if (!proposal && open) {
       // Reset para nova proposta
@@ -83,8 +82,6 @@ export function ProposalFormWizard({
         clientId: '',
         responsibleUserId: '',
         title: '',
-        campaignStartDate: undefined,
-        campaignEndDate: undefined,
         validUntil: undefined,
         conditionsText: '',
         discountPercent: 0,
@@ -104,13 +101,15 @@ export function ProposalFormWizard({
 
   // Atualizar dados do Passo 2
   const handleStep2Change = (items: ProposalItem[]) => {
-    const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
+    const subtotal = items.reduce((sum, item) => sum + toNumber(item.totalPrice, 0), 0);
     
     let finalTotal = subtotal;
-    if (formData.discountAmount && formData.discountAmount > 0) {
-      finalTotal = subtotal - formData.discountAmount;
-    } else if (formData.discountPercent && formData.discountPercent > 0) {
-      finalTotal = subtotal - (subtotal * formData.discountPercent / 100);
+    const discountAmount = toNumber(formData.discountAmount, 0);
+    const discountPercent = toNumber(formData.discountPercent, 0);
+    if (discountAmount > 0) {
+      finalTotal = subtotal - discountAmount;
+    } else if (discountPercent > 0) {
+      finalTotal = subtotal - (subtotal * discountPercent / 100);
     }
 
     setFormData(prev => ({
@@ -136,46 +135,49 @@ export function ProposalFormWizard({
     setStep(1);
   };
 
-  const handleSaveDraft = () => {
-    const proposalData: Partial<Proposal> = {
-      clientId: formData.clientId,
-      responsibleUserId: formData.responsibleUserId,
-      title: formData.title,
-      status: ProposalStatus.RASCUNHO,
-      validUntil: formData.validUntil,
-      conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent ?? undefined,
-      discountAmount: formData.discountAmount ?? undefined,
-      totalAmount: formData.totalAmount,
-      items: formData.items,
-    };
-
-    onSave(proposalData);
-    handleClose();
+const preparePayload = (status: ProposalStatus) => {
+  return {
+    clientId: formData.clientId,
+    responsibleUserId: formData.responsibleUserId,
+    title: formData.title,
+    status: status,
+    // Convertemos para string para o JSON, o 'any' evita o erro de tipagem no onSave
+    startDate: formData.campaignStartDate?.toISOString(),
+    endDate: formData.campaignEndDate?.toISOString(),
+    validUntil: formData.validUntil?.toISOString(),
+    discountPercent: Number(formData.discountPercent || 0),
+    discountAmount: Number(formData.discountAmount || 0),
+    conditionsText: formData.conditionsText,
+    items: formData.items.map(item => ({
+      mediaUnitId: item.mediaUnitId,
+      productId: item.productId,
+      description: item.description,
+      quantity: Number(item.quantity),
+      unitPrice: Number(item.unitPrice),
+      // Datas dos itens também devem ser strings ISO
+      startDate: item.startDate ? new Date(item.startDate).toISOString() : undefined,
+      endDate: item.endDate ? new Date(item.endDate).toISOString() : undefined,
+    }))
   };
+};
 
-  const handleSaveAndSend = () => {
-    const proposalData: Partial<Proposal> = {
-      clientId: formData.clientId,
-      responsibleUserId: formData.responsibleUserId,
-      title: formData.title,
-      status: ProposalStatus.ENVIADA,
-      validUntil: formData.validUntil,
-      conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent ?? undefined,
-      discountAmount: formData.discountAmount ?? undefined,
-      totalAmount: formData.totalAmount,
-      items: formData.items,
-    };
+const handleSaveDraft = async () => {
+  const payload = preparePayload('RASCUNHO' as ProposalStatus);
+  // Usamos as any aqui para ignorar a restrição de 'Date' vs 'string' no momento do envio
+  const success = await onSave(payload as any);
+  if (success) onOpenChange(false);
+};
 
-    onSave(proposalData);
-    handleClose();
-  };
+const handleSaveAndSend = async () => {
+  const payload = preparePayload('ENVIADA' as ProposalStatus);
+  const success = await onSave(payload as any);
+  if (success) onOpenChange(false);
+};
 
   const progress = step === 1 ? 50 : 100;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(nextOpen: boolean) => { if (!nextOpen) handleClose(); }}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>

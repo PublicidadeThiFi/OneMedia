@@ -150,6 +150,9 @@ export enum MessageSenderType {
 export enum ActivityResourceType {
   CLIENTE = 'CLIENTE',
   PROPOSTA = 'PROPOSTA',
+  CAMPANHA = 'CAMPANHA',
+  RESERVA = 'RESERVA',
+  FINANCEIRO = 'FINANCEIRO',
   MIDIA = 'MIDIA',
   USUARIO = 'USUARIO',
   ASSINATURA = 'ASSINATURA',
@@ -369,6 +372,14 @@ export interface Proposal {
   rejectedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  // campos auxiliares (podem vir de includes/joins no backend)
+  clientName?: string | null;
+  responsibleUserName?: string | null;
+  responsibleUser?: User;
+  itemsCount?: number;
+  startDate?: Date;
+  endDate?: Date;
+
   client?: Client;
   items?: ProposalItem[];
 }
@@ -578,10 +589,8 @@ export interface ActivityLog {
 export interface Message {
   id: string;
   companyId: string;
-  proposalId?: string | null;
-  proposalTitle?: string | null;
-  campaignId?: string | null;
-  campaignName?: string | null;
+  proposalId?: string;
+  campaignId?: string;
   direction: MessageDirection;
   channel: MessageChannel;
   senderType: MessageSenderType;

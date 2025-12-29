@@ -69,43 +69,61 @@ export function Activities() {
   }, [sortedLogs, resourceFilter, actionFilter, searchTerm]);
 
   // Funções auxiliares para UI
-  const getResourceColor = (resource: ActivityResourceType): string => {
-    switch (resource) {
-      case ActivityResourceType.CLIENTE:
-        return 'bg-blue-100 text-blue-800';
-      case ActivityResourceType.PROPOSTA:
-        return 'bg-purple-100 text-purple-800';
-      case ActivityResourceType.MIDIA:
-        return 'bg-green-100 text-green-800';
-      case ActivityResourceType.USUARIO:
-        return 'bg-orange-100 text-orange-800';
-      case ActivityResourceType.ASSINATURA:
-        return 'bg-red-100 text-red-800';
-      case ActivityResourceType.NF:
-        return 'bg-yellow-100 text-yellow-800';
-      case ActivityResourceType.INTEGRACAO:
-        return 'bg-indigo-100 text-indigo-800';
-    }
-  };
+  
+const getResourceColor = (resource: ActivityResourceType): string => {
+  switch (resource) {
+    case ActivityResourceType.CLIENTE:
+      return 'bg-blue-100 text-blue-800';
+    case ActivityResourceType.PROPOSTA:
+      return 'bg-purple-100 text-purple-800';
+    case ActivityResourceType.CAMPANHA:
+      return 'bg-teal-100 text-teal-800';
+    case ActivityResourceType.RESERVA:
+      return 'bg-cyan-100 text-cyan-800';
+    case ActivityResourceType.MIDIA:
+      return 'bg-green-100 text-green-800';
+    case ActivityResourceType.FINANCEIRO:
+      return 'bg-emerald-100 text-emerald-800';
+    case ActivityResourceType.USUARIO:
+      return 'bg-orange-100 text-orange-800';
+    case ActivityResourceType.ASSINATURA:
+      return 'bg-red-100 text-red-800';
+    case ActivityResourceType.NF:
+      return 'bg-yellow-100 text-yellow-800';
+    case ActivityResourceType.INTEGRACAO:
+      return 'bg-indigo-100 text-indigo-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
 
-  const getResourceLabel = (resource: ActivityResourceType): string => {
-    switch (resource) {
-      case ActivityResourceType.CLIENTE:
-        return 'Cliente';
-      case ActivityResourceType.PROPOSTA:
-        return 'Proposta';
-      case ActivityResourceType.MIDIA:
-        return 'Mídia';
-      case ActivityResourceType.USUARIO:
-        return 'Usuário';
-      case ActivityResourceType.ASSINATURA:
-        return 'Assinatura';
-      case ActivityResourceType.NF:
-        return 'NF';
-      case ActivityResourceType.INTEGRACAO:
-        return 'Integração';
-    }
-  };
+  
+const getResourceLabel = (resource: ActivityResourceType): string => {
+  switch (resource) {
+    case ActivityResourceType.CLIENTE:
+      return 'Cliente';
+    case ActivityResourceType.PROPOSTA:
+      return 'Proposta';
+    case ActivityResourceType.CAMPANHA:
+      return 'Campanha';
+    case ActivityResourceType.RESERVA:
+      return 'Reserva';
+    case ActivityResourceType.MIDIA:
+      return 'Mídia';
+    case ActivityResourceType.FINANCEIRO:
+      return 'Financeiro';
+    case ActivityResourceType.USUARIO:
+      return 'Usuário';
+    case ActivityResourceType.ASSINATURA:
+      return 'Assinatura';
+    case ActivityResourceType.NF:
+      return 'NF';
+    case ActivityResourceType.INTEGRACAO:
+      return 'Integração';
+    default:
+      return resource;
+  }
+};
 
   const formatDateTime = (date: Date): string => {
     return new Date(date).toLocaleString('pt-BR', {
@@ -243,7 +261,7 @@ export function Activities() {
         <p className="text-sm text-blue-900 mb-2">💡 ActivityLog (Auditoria)</p>
         <p className="text-sm text-blue-700">
           Campos: <strong>companyId</strong>, <strong>userId</strong>, <strong>resourceType</strong>, <strong>resourceId</strong>, <strong>action</strong>, <strong>details</strong> (JSON), <strong>createdAt</strong>.<br />
-          resourceType: <strong>CLIENTE</strong> | <strong>PROPOSTA</strong> | <strong>MIDIA</strong> | <strong>USUARIO</strong> | <strong>ASSINATURA</strong> | <strong>NF</strong> | <strong>INTEGRACAO</strong><br />
+          resourceType: <strong>CLIENTE</strong> | <strong>PROPOSTA</strong> | <strong>CAMPANHA</strong> | <strong>RESERVA</strong> | <strong>MIDIA</strong> | <strong>FINANCEIRO</strong> | <strong>USUARIO</strong> | <strong>ASSINATURA</strong> | <strong>NF</strong> | <strong>INTEGRACAO</strong><br />
           Logs não podem ser editados ou excluídos pela empresa. Esta é uma tela somente leitura para auditoria.
         </p>
       </div>

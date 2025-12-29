@@ -10,6 +10,7 @@ import { useCashTransactions } from '../../hooks/useCashTransactions';
 import { useTransactionCategories } from '../../hooks/useTransactionCategories';
 import { toast } from 'sonner';
 import { Input } from '../ui/input';
+import { toNumber } from '../../lib/number';
 
 export function CashFlow() {
   // Filtros de período
@@ -59,7 +60,7 @@ export function CashFlow() {
   const summary = useMemo(() => {
     const receiptsTotal = visibleTransactions
       .filter(tx => tx.flowType === CashFlowType.RECEITA)
-      .reduce((sum, tx) => sum + tx.amount, 0);
+      .reduce((sum, tx) => sum + toNumber(tx.amount, 0), 0);
 
     const expensesTotal = visibleTransactions
       .filter(tx =>
@@ -67,11 +68,11 @@ export function CashFlow() {
         tx.flowType === CashFlowType.PESSOAS ||
         tx.flowType === CashFlowType.IMPOSTO
       )
-      .reduce((sum, tx) => sum + tx.amount, 0);
+      .reduce((sum, tx) => sum + toNumber(tx.amount, 0), 0);
 
     const transfersTotal = visibleTransactions
       .filter(tx => tx.flowType === CashFlowType.TRANSFERENCIA)
-      .reduce((sum, tx) => sum + tx.amount, 0);
+      .reduce((sum, tx) => sum + toNumber(tx.amount, 0), 0);
 
     const cashBalance = receiptsTotal - expensesTotal;
 
@@ -296,8 +297,16 @@ export function CashFlow() {
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className={transaction.flowType === CashFlowType.RECEITA ? 'text-green-600' : 'text-red-600'}>
-                                  R$ {transaction.amount.toLocaleString('pt-BR')}
+                                <span
+                                  className={
+                                    transaction.flowType === CashFlowType.RECEITA ? 'text-green-600' : 'text-red-600'
+                                  }
+                                >
+                                  R${' '}
+                                  {toNumber(transaction.amount, 0).toLocaleString('pt-BR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-gray-600">

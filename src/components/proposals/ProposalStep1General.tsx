@@ -8,7 +8,7 @@ import { Textarea } from '../ui/textarea';
 import { Plus } from 'lucide-react';
 import { ProposalFormData } from './ProposalFormWizard';
 import { ClientSelect } from './ClientSelect';
-import { Page } from '../MainApp';
+import type { Page } from '../MainApp';
 
 interface ProposalStep1GeneralProps {
   formData: ProposalFormData;
@@ -211,8 +211,8 @@ export function ProposalStep1General({
               // TODO: Puxar texto padrão das configurações da empresa
               onChange({
                 conditionsText:
-                  company?.defaultProposalNotes ||
-                  'Pagamento em até 30 dias após aprovação.\\nReajuste anual conforme IGP-M.\\nObrigado pela preferência!',
+                  (company?.defaultProposalNotes ||
+                  'Pagamento em até 30 dias após aprovação.\nReajuste anual conforme IGP-M.\nObrigado pela preferência!').replace(/\\n/g, '\n'),
               });
             }}
           >

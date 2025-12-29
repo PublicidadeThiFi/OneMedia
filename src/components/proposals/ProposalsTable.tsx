@@ -2,6 +2,7 @@ import { Edit, ExternalLink, Eye, Send } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Proposal, ProposalStatus } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
+import { toNumber } from '../../lib/number';
 
 interface ProposalsTableProps {
   proposals: Proposal[];
@@ -62,7 +63,7 @@ export function ProposalsTable({
               proposal.client?.companyName ? proposal.client?.contactName : undefined;
 
             const responsibleName =
-              (proposal as any).responsibleUserName || proposal.responsibleUserId || '-';
+              proposal.responsibleUser?.name || (proposal as any).responsibleUserName || '-';
 
             const itemsCount =
               (proposal as any).itemsCount ??
@@ -99,7 +100,7 @@ export function ProposalsTable({
                   <div>
                     <p className="text-gray-900">
                       R${' '}
-                      {(proposal.totalAmount || 0).toLocaleString('pt-BR', {
+                      {toNumber(proposal.totalAmount, 0).toLocaleString('pt-BR', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -114,7 +115,7 @@ export function ProposalsTable({
                       proposal.discountAmount > 0 && (
                         <p className="text-green-600 text-xs">
                           -R${' '}
-                          {proposal.discountAmount.toLocaleString('pt-BR', {
+                          {toNumber(proposal.discountAmount, 0).toLocaleString('pt-BR', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}

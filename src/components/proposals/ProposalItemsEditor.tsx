@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ProposalItem } from '../../types';
+import { toNumber } from '../../lib/number';
 
 interface ProposalItemsEditorProps {
   items: Partial<ProposalItem>[];
@@ -27,7 +28,7 @@ export function ProposalItemsEditor({
     onChange(items.filter((_, i) => i !== index));
   };
 
-  const subtotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+  const subtotal = items.reduce((sum, item) => sum + toNumber(item.totalPrice, 0), 0);
 
   return (
     <div className="space-y-4">
@@ -66,7 +67,11 @@ export function ProposalItemsEditor({
                 {item.description || 'Descrição não informada'}
               </p>
               <p className="text-sm text-gray-900 mt-2">
-                Total: R$ {(item.totalPrice || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                Total: R${' '}
+                {toNumber(item.totalPrice, 0).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
             </div>
           ))}
@@ -77,7 +82,13 @@ export function ProposalItemsEditor({
         <div className="border-t pt-4">
           <div className="flex justify-between text-gray-900">
             <span>Subtotal:</span>
-            <span>R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            <span>
+              R${' '}
+              {subtotal.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
           </div>
         </div>
       )}

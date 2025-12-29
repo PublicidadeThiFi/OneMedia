@@ -13,7 +13,7 @@ import {
   Settings as SettingsIcon,
   Shield
 } from 'lucide-react';
-import { Page } from '../App';
+import type { Page } from '../App';
 import { useCompany } from '../contexts/CompanyContext';
 import { getMultiOwnerLabel } from '../lib/plans';
 

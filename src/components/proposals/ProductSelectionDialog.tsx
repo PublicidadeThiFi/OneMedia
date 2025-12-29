@@ -36,12 +36,11 @@ export function ProductSelectionDialog({
   const [endDate, setEndDate] = useState<Date | undefined>(defaultPeriod.endDate);
 
   useEffect(() => {
-    if (open) {
-      setStartDate(defaultPeriod.startDate);
-      setEndDate(defaultPeriod.endDate);
-      refetch();
-    }
-  }, [open, defaultPeriod, refetch]);
+    if (!open) return;
+    setStartDate(defaultPeriod.startDate);
+    setEndDate(defaultPeriod.endDate);
+    void refetch();
+  }, [open, defaultPeriod.startDate, defaultPeriod.endDate, refetch]);
 
   const selectedProduct = useMemo(() => {
     return products.find((p) => p.id === selectedProductId);
@@ -94,10 +93,19 @@ export function ProductSelectionDialog({
   const isValid = !!selectedProductId && !!description && quantity > 0 && unitPrice >= 0;
 
   const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    (Number.isFinite(value) ? value : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen: boolean) => {
+        // ShadCN dispara onOpenChange tanto para abrir quanto para fechar.
+        // Se fechou, resetamos; se abriu, delegamos para o estado do pai.
+        if (!nextOpen) return handleClose();
+        onOpenChange(true);
+      }}
+
+    >
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Adicionar Produto/Serviço</DialogTitle>

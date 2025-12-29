@@ -10,7 +10,7 @@ import { ProposalDetailsDrawer } from './proposals/ProposalDetailsDrawer';
 import { ProposalFiltersBar } from './proposals/ProposalFiltersBar';
 import { ProposalFormWizard } from './proposals/ProposalFormWizard';
 import { ProposalsTable } from './proposals/ProposalsTable';
-import { Page } from './MainApp';
+import type { Page } from './MainApp';
 
 interface ProposalsProps {
   onNavigate: (page: Page) => void;
@@ -83,7 +83,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     });
 
     const totalApprovedAmount = approvedThisMonth.reduce(
-      (sum, p) => sum + (p.totalAmount || 0),
+      (sum, p) => sum + Number((p as any).totalAmount ?? 0) ,
       0
     );
 
@@ -139,7 +139,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     }
   };
 
-  const handleSaveProposal = async (proposalData: Partial<Proposal>) => {
+  const handleSaveProposal = async (proposalData: Partial<Proposal>): Promise<boolean> => {
     try {
       const desiredStatus = proposalData.status;
 
@@ -163,8 +163,12 @@ export function Proposals({ onNavigate }: ProposalsProps) {
       setIsFormWizardOpen(false);
       setEditingProposal(null);
       await refetch();
-    } catch {
-      toast.error('Erro ao salvar proposta');
+
+      return true;
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Erro ao salvar proposta';
+      toast.error(msg);
+      return false;
     }
   };
 

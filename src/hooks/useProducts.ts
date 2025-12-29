@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { Product, ProductType } from '../types';
+import { emitDataChanged, subscribeDataChanged } from '../lib/appEvents';
 
 export interface UseProductsParams {
   search?: string;
@@ -8,6 +9,10 @@ export interface UseProductsParams {
   category?: string;
   isAdditional?: boolean;
 }
+
+// Evita que o default parameter `{}` crie um objeto novo a cada render e
+// acione effects infinitamente.
+const EMPTY_PARAMS: UseProductsParams = {};
 
 // Resposta pode ser um array direto ou um objeto com `data`
 type ProductsResponse =
@@ -17,15 +22,28 @@ type ProductsResponse =
       total?: number;
     };
 
+type ProductsResponseLoose =
+  | ProductsResponse
+  | {
+      // alguns endpoints podem retornar `items` ao invés de `data`
+      items?: Product[];
+      total?: number;
+    };
+
 function normalizeProduct(p: any): Product {
   return {
     ...p,
-    // Prisma Decimal costuma serializar como string no JSON
-    basePrice: typeof p.basePrice === 'string' ? parseFloat(p.basePrice) : p.basePrice,
+    // Prisma Decimal pode vir como string (ou number). Normaliza sempre para number.
+    basePrice:
+      typeof p?.basePrice === 'string'
+        ? parseFloat(p.basePrice)
+        : typeof p?.basePrice === 'number'
+          ? p.basePrice
+          : 0,
   } as Product;
 }
 
-export function useProducts(params: UseProductsParams = {}) {
+export function useProducts(params: UseProductsParams = EMPTY_PARAMS) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -47,46 +65,59 @@ export function useProducts(params: UseProductsParams = {}) {
     return p;
   }, [params]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await apiClient.get<ProductsResponse>('/products', { params: apiParams });
-      const responseData = response.data as ProductsResponse;
+      const response = await apiClient.get<ProductsResponseLoose>('/products', { params: apiParams });
+      const responseData = response.data as ProductsResponseLoose;
 
-      const data: Product[] = Array.isArray(responseData) ? responseData : responseData.data;
-      setProducts(data.map(normalizeProduct));
+      const data: Product[] = Array.isArray(responseData)
+        ? responseData
+        : ((responseData as any)?.data ?? (responseData as any)?.items ?? []);
+
+      setProducts(Array.isArray(data) ? data.map(normalizeProduct) : []);
     } catch (err) {
       setError(err as Error);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiParams]);
 
-  const createProduct = async (payload: Partial<Product>) => {
+  const createProduct = useCallback(async (payload: Partial<Product>) => {
     const response = await apiClient.post<Product>('/products', payload);
     const created = normalizeProduct(response.data);
     setProducts((prev: Product[]) => [...prev, created]);
+    emitDataChanged('products');
     return created;
-  };
+  }, []);
 
-  const updateProduct = async (id: string, payload: Partial<Product>) => {
+  const updateProduct = useCallback(async (id: string, payload: Partial<Product>) => {
     const response = await apiClient.put<Product>(`/products/${id}`, payload);
     const updated = normalizeProduct(response.data);
     setProducts((prev: Product[]) => prev.map((p: Product) => (p.id === id ? updated : p)));
+    emitDataChanged('products');
     return updated;
-  };
+  }, []);
 
-  const deleteProduct = async (id: string) => {
+  const deleteProduct = useCallback(async (id: string) => {
     await apiClient.delete(`/products/${id}`);
     setProducts((prev: Product[]) => prev.filter((p: Product) => p.id !== id));
-  };
+    emitDataChanged('products');
+  }, []);
 
   useEffect(() => {
     fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiParams.search, apiParams.type, apiParams.category, apiParams.isAdditional]);
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    // Quando outro módulo altera produtos (ex.: cadastro), reflete automaticamente aqui
+    return subscribeDataChanged('products', () => {
+      void fetchProducts();
+    });
+  }, [fetchProducts]);
 
   return {
     products,
