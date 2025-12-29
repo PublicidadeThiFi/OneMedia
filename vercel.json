@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "http://174.129.69.244:3333/api/:path*"
+      "source": "/api/(.*)",
+      "destination": "http://174.129.69.244:3333/api/$1"
+    },
+    {
+      "source": "/uploads/(.*)",
+      "destination": "http://174.129.69.244:3333/uploads/$1"
     }
   ]
 }
