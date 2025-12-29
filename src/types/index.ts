@@ -372,6 +372,14 @@ export interface Proposal {
   rejectedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  // campos auxiliares (podem vir de includes/joins no backend)
+  clientName?: string | null;
+  responsibleUserName?: string | null;
+  responsibleUser?: User;
+  itemsCount?: number;
+  startDate?: Date;
+  endDate?: Date;
+
   client?: Client;
   items?: ProposalItem[];
 }

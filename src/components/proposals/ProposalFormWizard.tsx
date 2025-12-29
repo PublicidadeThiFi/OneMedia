@@ -5,7 +5,8 @@ import { Proposal, ProposalStatus, ProposalItem } from '../../types';
 import { ProposalStep1General } from './ProposalStep1General';
 import { ProposalStep2Items } from './ProposalStep2Items';
 import { Progress } from '../ui/progress';
-import { Page } from '../MainApp';
+import type { Page } from '../MainApp';
+import { toNumber } from '../../lib/number';
 
 interface ProposalFormWizardProps {
   open: boolean;
@@ -47,8 +48,6 @@ export function ProposalFormWizard({
     clientId: '',
     responsibleUserId: '',
     title: '',
-    campaignStartDate: undefined,
-    campaignEndDate: undefined,
     validUntil: undefined,
     conditionsText: '',
     discountPercent: 0,
@@ -67,15 +66,15 @@ export function ProposalFormWizard({
         clientId: proposal.clientId,
         responsibleUserId: proposal.responsibleUserId,
         title: proposal.title || '',
-        campaignStartDate: undefined, // TODO: pegar do primeiro item se houver
-        campaignEndDate: undefined,
+        campaignStartDate: (proposal as any).startDate ? new Date((proposal as any).startDate) : undefined,
+        campaignEndDate: (proposal as any).endDate ? new Date((proposal as any).endDate) : undefined,
         validUntil: proposal.validUntil ? new Date(proposal.validUntil) : undefined,
-        conditionsText: proposal.conditionsText || '',
+        conditionsText: (proposal.conditionsText || '').replace(/\\n/g, '\n'),
         discountPercent: proposal.discountPercent || 0,
         discountAmount: proposal.discountAmount || 0,
         items: proposal.items || [],
-        subtotal: proposal.totalAmount || 0,
-        totalAmount: proposal.totalAmount || 0,
+        subtotal: toNumber(proposal.totalAmount, 0),
+        totalAmount: toNumber(proposal.totalAmount, 0),
       });
     } else if (!proposal && open) {
       // Reset para nova proposta
@@ -83,8 +82,6 @@ export function ProposalFormWizard({
         clientId: '',
         responsibleUserId: '',
         title: '',
-        campaignStartDate: undefined,
-        campaignEndDate: undefined,
         validUntil: undefined,
         conditionsText: '',
         discountPercent: 0,
@@ -104,13 +101,15 @@ export function ProposalFormWizard({
 
   // Atualizar dados do Passo 2
   const handleStep2Change = (items: ProposalItem[]) => {
-    const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
+    const subtotal = items.reduce((sum, item) => sum + toNumber(item.totalPrice, 0), 0);
     
     let finalTotal = subtotal;
-    if (formData.discountAmount && formData.discountAmount > 0) {
-      finalTotal = subtotal - formData.discountAmount;
-    } else if (formData.discountPercent && formData.discountPercent > 0) {
-      finalTotal = subtotal - (subtotal * formData.discountPercent / 100);
+    const discountAmount = toNumber(formData.discountAmount, 0);
+    const discountPercent = toNumber(formData.discountPercent, 0);
+    if (discountAmount > 0) {
+      finalTotal = subtotal - discountAmount;
+    } else if (discountPercent > 0) {
+      finalTotal = subtotal - (subtotal * discountPercent / 100);
     }
 
     setFormData(prev => ({
@@ -141,6 +140,8 @@ export function ProposalFormWizard({
       clientId: formData.clientId,
       responsibleUserId: formData.responsibleUserId,
       title: formData.title,
+      startDate: formData.campaignStartDate,
+      endDate: formData.campaignEndDate,
       status: ProposalStatus.RASCUNHO,
       validUntil: formData.validUntil,
       conditionsText: formData.conditionsText,
@@ -159,6 +160,8 @@ export function ProposalFormWizard({
       clientId: formData.clientId,
       responsibleUserId: formData.responsibleUserId,
       title: formData.title,
+      startDate: formData.campaignStartDate,
+      endDate: formData.campaignEndDate,
       status: ProposalStatus.ENVIADA,
       validUntil: formData.validUntil,
       conditionsText: formData.conditionsText,

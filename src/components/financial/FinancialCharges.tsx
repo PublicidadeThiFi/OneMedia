@@ -8,6 +8,7 @@ import { BillingStatus, PaymentMethod, BillingInvoice } from '../../types';
 import { useBillingInvoices } from '../../hooks/useBillingInvoices';
 import { BillingInvoiceEditDialog } from './BillingInvoiceEditDialog';
 import { toast } from 'sonner';
+import { toNumber } from '../../lib/number';
 
 export function FinancialCharges() {
   const { invoices: billingInvoices, loading, error, refetch, updateInvoice, markAsPaid } = useBillingInvoices({});
@@ -18,17 +19,32 @@ export function FinancialCharges() {
     // Pendente = ABERTA + VENCIDA
     const pendingAmount = billingInvoices
       .filter((inv: BillingInvoice) => inv.status === BillingStatus.ABERTA || inv.status === BillingStatus.VENCIDA)
-      .reduce((sum: number, inv: BillingInvoice) => sum + (inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0)), 0);
+      .reduce(
+        (sum: number, inv: BillingInvoice) =>
+          sum +
+          toNumber(inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0), 0),
+        0,
+      );
     
     // Apenas ABERTA
     const openAmount = billingInvoices
       .filter((inv: BillingInvoice) => inv.status === BillingStatus.ABERTA)
-      .reduce((sum: number, inv: BillingInvoice) => sum + (inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0)), 0);
+      .reduce(
+        (sum: number, inv: BillingInvoice) =>
+          sum +
+          toNumber(inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0), 0),
+        0,
+      );
     
     // Receita confirmada = PAGA
     const confirmedAmount = billingInvoices
       .filter((inv: BillingInvoice) => inv.status === BillingStatus.PAGA)
-      .reduce((sum: number, inv: BillingInvoice) => sum + (inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0)), 0);
+      .reduce(
+        (sum: number, inv: BillingInvoice) =>
+          sum +
+          toNumber(inv.amount ?? (inv.amountCents ? inv.amountCents / 100 : 0), 0),
+        0,
+      );
     
     // Alertas = VENCIDA
     const alertsCount = billingInvoices.filter((inv: BillingInvoice) => inv.status === BillingStatus.VENCIDA).length;
@@ -105,7 +121,13 @@ export function FinancialCharges() {
               </div>
               <p className="text-gray-600 text-sm">Pendentes de Cobrança</p>
             </div>
-            <p className="text-gray-900">R$ {summary.pendingAmount.toLocaleString('pt-BR')}</p>
+            <p className="text-gray-900">
+              R${' '}
+              {summary.pendingAmount.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
           </CardContent>
         </Card>
 
@@ -117,7 +139,13 @@ export function FinancialCharges() {
               </div>
               <p className="text-gray-600 text-sm">Cobranças em Aberto</p>
             </div>
-            <p className="text-gray-900">R$ {summary.openAmount.toLocaleString('pt-BR')}</p>
+            <p className="text-gray-900">
+              R${' '}
+              {summary.openAmount.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
           </CardContent>
         </Card>
 
@@ -129,7 +157,13 @@ export function FinancialCharges() {
               </div>
               <p className="text-gray-600 text-sm">Receita Confirmada</p>
             </div>
-            <p className="text-gray-900">R$ {summary.confirmedAmount.toLocaleString('pt-BR')}</p>
+            <p className="text-gray-900">
+              R${' '}
+              {summary.confirmedAmount.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </p>
           </CardContent>
         </Card>
 
@@ -190,7 +224,11 @@ export function FinancialCharges() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-gray-900">
-                          R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
+                          R${' '}
+                          {toNumber(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0), 0).toLocaleString(
+                            'pt-BR',
+                            { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                          )}
                         </td>
                         <td className="px-6 py-4 text-gray-600">
                           {new Date(charge.dueDate).toLocaleDateString('pt-BR')}
@@ -262,7 +300,11 @@ export function FinancialCharges() {
                           <span className="text-indigo-600">{charge.proposalTitle || charge.proposalId}</span>
                         </td>
                         <td className="px-6 py-4 text-gray-900">
-                          R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
+                          R${' '}
+                          {toNumber(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0), 0).toLocaleString(
+                            'pt-BR',
+                            { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                          )}
                         </td>
                         <td className="px-6 py-4 text-gray-600">
                           {charge.paidAt ? new Date(charge.paidAt).toLocaleDateString('pt-BR') : '-'}
@@ -315,7 +357,11 @@ export function FinancialCharges() {
                             <span className="text-indigo-600">{charge.proposalTitle || charge.proposalId}</span>
                           </td>
                           <td className="px-6 py-4 text-gray-900">
-                            R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
+                            R${' '}
+                            {toNumber(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0), 0).toLocaleString(
+                              'pt-BR',
+                              { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                            )}
                           </td>
                           <td className="px-6 py-4 text-red-600">
                             {new Date(charge.dueDate).toLocaleDateString('pt-BR')}
@@ -382,7 +428,11 @@ export function FinancialCharges() {
                             <span className="text-indigo-600">{charge.proposalTitle || charge.proposalId}</span>
                           </td>
                           <td className="px-6 py-4 text-gray-900">
-                            R$ {(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0)).toLocaleString('pt-BR')}
+                            R${' '}
+                            {toNumber(charge.amount ?? (charge.amountCents ? charge.amountCents / 100 : 0), 0).toLocaleString(
+                              'pt-BR',
+                              { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                            )}
                           </td>
                           <td className="px-6 py-4">
                             <Badge className={getChargeStatusColor(charge.status)}>

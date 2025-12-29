@@ -3,6 +3,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Campaign } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
+import { toNumber } from '../../lib/number';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -26,7 +27,7 @@ export function CampaignCard({
   const unitsCount =
     (typeof campaign.reservedUnitsCount === 'number' ? campaign.reservedUnitsCount : undefined) ??
     (campaign.items || []).filter((item) => item.mediaUnitId).length;
-  const totalValor = campaign.totalAmountCents ? campaign.totalAmountCents / 100 : 0;
+  const totalValor = toNumber(campaign.totalAmountCents, 0) / 100;
 
   return (
     <Card>

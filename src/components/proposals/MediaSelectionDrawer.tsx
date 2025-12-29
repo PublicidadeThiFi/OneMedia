@@ -22,9 +22,8 @@ type MediaUnitWithPoint = MediaUnit & {
   pointName?: string;
   pointType?: MediaType;
   pointAddress?: string;
-  dimensions?: string; // ✅ adiciona
+  dimensions?: string;
 };
-
 
 export function MediaSelectionDrawer({
   open,
@@ -33,6 +32,7 @@ export function MediaSelectionDrawer({
   onAddItem,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
+  // companyId é usado apenas para preencher o item local. A API usa o companyId do token.
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -43,6 +43,7 @@ export function MediaSelectionDrawer({
   const [error, setError] = useState<string | null>(null);
 
   // Seleção
+  const [selectedMediaPointId, setSelectedMediaPointId] = useState<string | null>(null);
   const [selectedMediaUnit, setSelectedMediaUnit] = useState<MediaUnitWithPoint | null>(null);
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
@@ -60,13 +61,7 @@ export function MediaSelectionDrawer({
   };
 
   const formatAddress = (p: MediaPoint) => {
-    const parts = [
-      p.addressStreet,
-      p.addressNumber,
-      p.addressDistrict,
-      p.addressCity,
-      p.addressState,
-    ].filter(Boolean);
+    const parts = [p.addressStreet, p.addressNumber, p.addressDistrict, p.addressCity, p.addressState].filter(Boolean);
     return parts.join(', ');
   };
 
@@ -86,38 +81,64 @@ export function MediaSelectionDrawer({
     return undefined;
   };
 
-
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // 1) Carrega pontos
-        const pointsRes = await apiClient.get<any>('/media-points', { params: { pageSize: 1000 } });
-        const points: MediaPoint[] = Array.isArray(pointsRes.data)
-          ? pointsRes.data
-          : (pointsRes.data?.data ?? []);
+        // Reset de seleção a cada abertura
+        setSelectedMediaPointId(null);
+        setSelectedMediaUnit(null);
 
-        setMediaPoints(points);
+        // 1) Carrega TODOS os pontos (paginado)
+        const all: MediaPoint[] = [];
+        let page = 1;
+        const pageSize = 50;
 
-        // 2) Carrega unidades por ponto (endpoint existente)
-        const unitsByPoint = await Promise.all(
-          points.map(async (p) => {
-            const res = await apiClient.get<MediaUnit[]>(`/media-points/${p.id}/units`);
-            const units = res.data || [];
-            return units.map((u) => ({
-              ...u,
-              pointName: p.name,
-              pointType: p.type,
-              pointAddress: formatAddress(p),
-              dimensions: formatDimensions(u), // ✅ aqui
-            })) as MediaUnitWithPoint[];
+        while (true) {
+          // companyId vem do token (JwtAuthGuard). NÃO envie companyId via query.
+          const pointsRes = await apiClient.get<any>('/media-points', {
+            params: { page, pageSize },
+          });
 
-          })
-        );
+          const payload = pointsRes.data;
+          const batch: MediaPoint[] = Array.isArray(payload) ? payload : (payload?.data ?? []);
+          const total: number | undefined = Array.isArray(payload) ? undefined : payload?.total;
 
-        setMediaUnits(unitsByPoint.flat());
+          all.push(...batch);
+
+          // Se não houver paginação no backend (array), para na primeira.
+          if (Array.isArray(payload)) break;
+
+          if (!batch.length) break;
+          if (typeof total === 'number' && all.length >= total) break;
+
+          page += 1;
+        }
+
+        setMediaPoints(all);
+
+        // 2) Flatten das unidades.
+        // Backend costuma retornar `units`, mas alguns endpoints antigos podem retornar `mediaUnits`.
+        const flattened: MediaUnitWithPoint[] = all.flatMap((p: any) => {
+          const rawUnits = Array.isArray(p?.units)
+            ? p.units
+            : Array.isArray(p?.mediaUnits)
+              ? p.mediaUnits
+              : [];
+
+          return rawUnits.map((u: any) => ({
+            ...u,
+            pointName: p.name,
+            pointType: p.type,
+            pointAddress: formatAddress(p),
+            dimensions: formatDimensions(u),
+            mediaPointId: p.id,
+          }));
+        });
+
+        setMediaUnits(flattened);
       } catch (e) {
         setError('Erro ao carregar mídias do inventário.');
         setMediaPoints([]);
@@ -134,30 +155,77 @@ export function MediaSelectionDrawer({
     }
   }, [open, defaultPeriod.startDate, defaultPeriod.endDate]);
 
-  const filteredMediaUnits = useMemo(() => {
-    let filtered = mediaUnits;
+  const unitsByPointId = useMemo(() => {
+    const map = new Map<string, MediaUnitWithPoint[]>();
 
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter((media) => media.pointType === typeFilter);
+    for (const u of mediaUnits) {
+      const pointId = (u as any).mediaPointId as string | undefined;
+      if (!pointId) continue;
+      const curr = map.get(pointId) ?? [];
+      curr.push(u);
+      map.set(pointId, curr);
     }
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter((media) => {
-        const name = (media.label || '').toLowerCase();
-        const pointName = (media.pointName || '').toLowerCase();
-        const pointAddress = (media.pointAddress || '').toLowerCase();
-        return name.includes(query) || pointName.includes(query) || pointAddress.includes(query);
+    return map;
+  }, [mediaUnits]);
+
+  const filteredMediaPoints = useMemo(() => {
+    let filtered = mediaPoints;
+
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((p) => (p as any).type === typeFilter);
+    }
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter((p) => {
+        const name = String((p as any).name ?? '').toLowerCase();
+        const addr = formatAddress(p).toLowerCase();
+        const units = unitsByPointId.get((p as any).id) ?? [];
+        const unitMatch = units.some((u) => String((u as any).label ?? '').toLowerCase().includes(q));
+        return name.includes(q) || addr.includes(q) || unitMatch;
       });
     }
 
     return filtered;
-  }, [mediaUnits, typeFilter, searchQuery]);
+  }, [mediaPoints, typeFilter, searchQuery, unitsByPointId]);
+
+  const filteredUnitsCount = useMemo(() => {
+    return filteredMediaPoints.reduce((sum, p: any) => sum + (unitsByPointId.get(p.id)?.length ?? 0), 0);
+  }, [filteredMediaPoints, unitsByPointId]);
+
+  const selectedPoint = useMemo(() => {
+    if (!selectedMediaPointId) return null;
+    return mediaPoints.find((p: any) => p.id === selectedMediaPointId) ?? null;
+  }, [mediaPoints, selectedMediaPointId]);
+
+  const selectedPointUnits = useMemo(() => {
+    if (!selectedMediaPointId) return [];
+    return unitsByPointId.get(selectedMediaPointId) ?? [];
+  }, [unitsByPointId, selectedMediaPointId]);
 
   const handleSelectMediaUnit = (media: MediaUnitWithPoint) => {
     setSelectedMediaUnit(media);
     setDescription(`${media.pointName || 'Ponto'} - ${media.label}`);
-    setUnitPrice(media.priceMonth || 0);
+    setUnitPrice((media as any).priceMonth || 0);
+    setQuantity(1);
+    setStartDate(defaultPeriod.startDate);
+    setEndDate(defaultPeriod.endDate);
+  };
+
+  const handleSelectPoint = (point: MediaPoint) => {
+    setSelectedMediaPointId((point as any).id);
+
+    const units = unitsByPointId.get((point as any).id) ?? [];
+    if (units.length > 0) {
+      handleSelectMediaUnit(units[0]);
+      return;
+    }
+
+    // Ponto sem unidades: mostra detalhes, mas não permite confirmar.
+    setSelectedMediaUnit(null);
+    setDescription(`${(point as any).name || 'Ponto'}`);
+    setUnitPrice(0);
     setQuantity(1);
     setStartDate(defaultPeriod.startDate);
     setEndDate(defaultPeriod.endDate);
@@ -168,7 +236,7 @@ export function MediaSelectionDrawer({
 
     const item: ProposalItem = {
       id: `item${Date.now()}${Math.random()}`,
-      companyId: company?.id || selectedMediaUnit.companyId || '',
+      companyId: company?.id || (selectedMediaUnit as any).companyId || '',
       proposalId: '',
       mediaUnitId: selectedMediaUnit.id,
       productId: undefined,
@@ -189,6 +257,7 @@ export function MediaSelectionDrawer({
   const handleClose = () => {
     setSearchQuery('');
     setTypeFilter('all');
+    setSelectedMediaPointId(null);
     setSelectedMediaUnit(null);
     setDescription('');
     setQuantity(1);
@@ -201,12 +270,20 @@ export function MediaSelectionDrawer({
   const isValid = !!selectedMediaUnit && !!description && quantity > 0 && unitPrice >= 0;
 
   const mediaTypes = useMemo(() => {
-    const types = new Set(mediaPoints.map((p) => p.type));
+    const types = new Set(mediaPoints.map((p: any) => p.type));
     return Array.from(types) as MediaType[];
   }, [mediaPoints]);
 
   return (
-    <Drawer open={open} onOpenChange={handleClose}>
+    <Drawer
+      open={open}
+      onOpenChange={(nextOpen: boolean) => {
+        // ShadCN dispara onOpenChange tanto para abrir quanto para fechar.
+        // Se fechou, resetamos; se abriu, delegamos para o estado do pai.
+        if (!nextOpen) return handleClose();
+        onOpenChange(true);
+      }}
+    >
       <DrawerContent className="h-[90vh] max-w-4xl mx-auto">
         <DrawerHeader className="border-b">
           <div className="flex items-center justify-between">
@@ -222,7 +299,7 @@ export function MediaSelectionDrawer({
 
         {!loading && !error && (
           <div className="flex h-full">
-            {/* Lista */}
+            {/* Lista de Pontos */}
             <div className="w-1/2 border-r border-gray-200 p-6 overflow-y-auto">
               <div className="space-y-4 mb-6">
                 <div className="flex gap-4">
@@ -252,50 +329,62 @@ export function MediaSelectionDrawer({
                 </div>
 
                 <p className="text-sm text-gray-600">
-                  {filteredMediaUnits.length} {filteredMediaUnits.length === 1 ? 'mídia' : 'mídias'} disponível(is)
+                  {filteredMediaPoints.length} {filteredMediaPoints.length === 1 ? 'ponto' : 'pontos'} • {filteredUnitsCount}{' '}
+                  {filteredUnitsCount === 1 ? 'mídia' : 'mídias'} disponível(is)
                 </p>
               </div>
 
               <div className="space-y-3">
-                {filteredMediaUnits.map((media) => (
-                  <div
-                    key={media.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${selectedMediaUnit?.id === media.id
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                {filteredMediaPoints.map((point: any) => {
+                  const units = unitsByPointId.get(point.id) ?? [];
+                  const minPrice = units.reduce((min, u) => {
+                    const p = Number((u as any).priceMonth ?? 0);
+                    if (!Number.isFinite(p)) return min;
+                    return min === null || p < min ? p : min;
+                  }, null as number | null);
+                  const dims = units.length === 1 ? (units[0] as any).dimensions : undefined;
+
+                  return (
+                    <div
+                      key={point.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                        selectedMediaPointId === point.id
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
-                    onClick={() => handleSelectMediaUnit(media)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="text-gray-900 mb-1">{media.label}</h3>
-                        <p className="text-sm text-gray-600 mb-2">{media.pointName}</p>
+                      onClick={() => handleSelectPoint(point)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-gray-900 mb-1">{point.name}</h3>
+                          <p className="text-sm text-gray-600 mb-2">
+                            {point.type}{units.length ? ` • ${units.length} ${units.length === 1 ? 'unidade' : 'unidades'}` : ' • sem unidades'}
+                          </p>
 
-                        {media.pointAddress && (
-                          <div className="flex items-center gap-1 text-sm text-gray-500 mb-2">
-                            <MapPin className="w-3 h-3" />
-                            <span className="truncate">{media.pointAddress}</span>
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-4 text-sm">
-                          <span className="text-indigo-600 font-medium">
-                            {formatPrice(media.priceMonth || 0)}/mês
-                          </span>
-                          {media.dimensions && (
-                            <span className="text-gray-500">{media.dimensions}</span>
+                          {formatAddress(point) && (
+                            <div className="flex items-center gap-1 text-sm text-gray-500 mb-2">
+                              <MapPin className="w-3 h-3" />
+                              <span className="truncate">{formatAddress(point)}</span>
+                            </div>
                           )}
+
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-indigo-600 font-medium">
+                              {formatPrice(minPrice ?? 0)}{units.length ? '/mês' : ''}
+                            </span>
+                            {dims && <span className="text-gray-500">{dims}</span>}
+                          </div>
                         </div>
+
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
                       </div>
-
-                      <ChevronRight className="w-4 h-4 text-gray-400" />
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
-                {filteredMediaUnits.length === 0 && (
+                {filteredMediaPoints.length === 0 && (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">Nenhuma mídia encontrada</p>
+                    <p className="text-gray-500">Nenhum ponto encontrado</p>
                   </div>
                 )}
               </div>
@@ -303,99 +392,133 @@ export function MediaSelectionDrawer({
 
             {/* Detalhes/Confirmação */}
             <div className="w-1/2 p-6 overflow-y-auto">
-              {selectedMediaUnit ? (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-gray-900 mb-2">Detalhes da Mídia</h2>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-gray-900 mb-1">{selectedMediaUnit.label}</h3>
-                      <p className="text-gray-600 mb-2">{selectedMediaUnit.pointName}</p>
-                      {selectedMediaUnit.pointAddress && (
-                        <p className="text-sm text-gray-500">{selectedMediaUnit.pointAddress}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
+              {selectedPoint ? (
+                selectedPointUnits.length ? (
+                  <div className="space-y-6">
                     <div>
-                      <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
-                      <Input
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Descrição do item"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={quantity}
-                          onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-sm text-gray-600 mb-1 block">Preço/mês (R$) *</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={unitPrice}
-                          onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
-                        />
+                      <h2 className="text-gray-900 mb-2">Detalhes da Mídia</h2>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <h3 className="text-gray-900 mb-1">{selectedPoint.name}</h3>
+                        <p className="text-gray-600 mb-2">{selectedPoint.type}</p>
+                        {formatAddress(selectedPoint) && (
+                          <p className="text-sm text-gray-500">{formatAddress(selectedPoint)}</p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    {selectedPointUnits.length > 1 && (
                       <div>
-                        <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
-                        <Input
-                          type="date"
-                          value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                          onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
-                        />
+                        <label className="text-sm text-gray-600 mb-1 block">Unidade</label>
+                        <Select
+                          value={selectedMediaUnit?.id ?? ''}
+                          onValueChange={(unitId: string) => {
+                            const u = selectedPointUnits.find((x) => x.id === unitId);
+                            if (u) handleSelectMediaUnit(u);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione uma unidade" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedPointUnits.map((u) => (
+                              <SelectItem key={u.id} value={u.id}>
+                                {u.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
+                    )}
 
-                      <div>
-                        <label className="text-sm text-gray-600 mb-1 block">Data Fim</label>
-                        <Input
-                          type="date"
-                          value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                          onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
-                        />
+                    {selectedMediaUnit && (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
+                          <Input
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Descrição do item"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={quantity}
+                              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm text-gray-600 mb-1 block">Preço/mês (R$) *</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={unitPrice}
+                              onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
+                            <Input
+                              type="date"
+                              value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                              onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm text-gray-600 mb-1 block">Data Fim</label>
+                            <Input
+                              type="date"
+                              value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                              onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-indigo-900">Total do Item:</span>
+                            <span className="text-indigo-900 font-medium">{formatPrice(totalPrice)}</span>
+                          </div>
+                          <p className="text-sm text-indigo-700 mt-1">
+                            {quantity} x {formatPrice(unitPrice)}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <Button variant="outline" className="flex-1" onClick={handleClose}>
+                            Cancelar
+                          </Button>
+                          <Button className="flex-1" onClick={handleConfirm} disabled={!isValid}>
+                            Adicionar Item
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-                      <div className="flex justify-between items-center">
-                        <span className="text-indigo-900">Total do Item:</span>
-                        <span className="text-indigo-900 font-medium">
-                          {formatPrice(totalPrice)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-indigo-700 mt-1">
-                        {quantity} x {formatPrice(unitPrice)}
-                      </p>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <Button variant="outline" className="flex-1" onClick={handleClose}>
-                        Cancelar
-                      </Button>
-                      <Button className="flex-1" onClick={handleConfirm} disabled={!isValid}>
-                        Adicionar Item
-                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500">Este ponto ainda não possui unidades/mídias cadastradas.</p>
+                      <p className="text-sm text-gray-400 mt-2">Cadastre unidades no módulo de Inventário.</p>
                     </div>
                   </div>
-                </div>
+                )
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">Selecione uma mídia para adicionar à proposta</p>
+                    <p className="text-gray-500">Selecione um ponto para adicionar à proposta</p>
                   </div>
                 </div>
               )}

@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { FinancialCharges } from './financial/FinancialCharges';
 import { CashFlow } from './financial/CashFlow';
+import { FinancialReports } from './financial/FinancialReports';
 
 export function Financial() {
   return (
@@ -26,9 +27,7 @@ export function Financial() {
         </TabsContent>
 
         <TabsContent value="reports">
-          <div className="text-center py-12">
-            <p className="text-gray-500">Relatórios financeiros em desenvolvimento</p>
-          </div>
+          <FinancialReports />
         </TabsContent>
       </Tabs>
     </div>
