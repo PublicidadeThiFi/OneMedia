@@ -5,8 +5,8 @@ import axios from 'axios';
 // VITE_API_URL=http://localhost:3000/api
 // Exemplo em produção (Vercel):
 // VITE_API_URL=https://sua-api.vercel.app/api
-// Se o BD for instanciado localmente, usa 'http://localhost:3333/api' como fallback lá no .env -> Sendo usado no momento.
-// Se o BD for instanciado remotamente, usa 'http://174.129.69.244:3333/api' como fallback lá no .env
+// Se o BD for instanciado localmente, usa 'http://localhost:3333/api' como fallback lá no .env 
+// Se o BD for instanciado remotamente, usa 'http://174.129.69.244:3333/api' como fallback lá no .env -> Sendo usado no momento.
 const API_BASE_URL =
   ((import.meta as any).env?.VITE_API_URL &&
     (import.meta as any).env.VITE_API_URL.replace(/\/$/, '')) ||
