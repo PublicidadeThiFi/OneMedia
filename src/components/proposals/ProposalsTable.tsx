@@ -26,12 +26,12 @@ export function ProposalsTable({
   }
 
   const copyPublicLink = async (publicHash: string) => {
-    const path = `/p/${publicHash}`;
+    const url = `${window.location.origin}/p/${publicHash}`;
     try {
-      await navigator.clipboard.writeText(path);
+      await navigator.clipboard.writeText(url);
     } catch {
       // fallback silencioso
-      console.log('Link público:', path);
+      console.log('Link público:', url);
     }
   };
 
