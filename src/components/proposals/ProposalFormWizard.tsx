@@ -12,7 +12,7 @@ interface ProposalFormWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   proposal: Proposal | null;
-  onSave: (proposalData: Partial<Proposal>) => void;
+  onSave: (proposalData: Partial<Proposal>) => Promise<void> | void;
   onNavigate: (page: Page) => void;
 }
 
@@ -44,6 +44,7 @@ export function ProposalFormWizard({
   onNavigate,
 }: ProposalFormWizardProps) {
   const [step, setStep] = useState<1 | 2>(1);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<ProposalFormData>({
     clientId: '',
     responsibleUserId: '',
@@ -121,6 +122,8 @@ export function ProposalFormWizard({
   };
 
   const handleClose = () => {
+    // Evita fechar enquanto estiver salvando (pra não parecer que salvou quando falhou)
+    if (saving) return;
     setStep(1);
     onOpenChange(false);
   };
@@ -135,7 +138,7 @@ export function ProposalFormWizard({
     setStep(1);
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     const proposalData: Partial<Proposal> = {
       clientId: formData.clientId,
       responsibleUserId: formData.responsibleUserId,
@@ -145,17 +148,22 @@ export function ProposalFormWizard({
       status: ProposalStatus.RASCUNHO,
       validUntil: formData.validUntil,
       conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent ?? undefined,
-      discountAmount: formData.discountAmount ?? undefined,
-      totalAmount: formData.totalAmount,
+      // Não envia 0 para evitar constraints no BD (0 = “sem desconto”)
+      discountPercent: formData.discountPercent && formData.discountPercent > 0 ? formData.discountPercent : undefined,
+      discountAmount: formData.discountAmount && formData.discountAmount > 0 ? formData.discountAmount : undefined,
       items: formData.items,
     };
 
-    onSave(proposalData);
-    handleClose();
+    try {
+      setSaving(true);
+      await Promise.resolve(onSave(proposalData));
+      // Fechamento é controlado pelo componente pai em caso de sucesso.
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveAndSend = () => {
+  const handleSaveAndSend = async () => {
     const proposalData: Partial<Proposal> = {
       clientId: formData.clientId,
       responsibleUserId: formData.responsibleUserId,
@@ -165,20 +173,29 @@ export function ProposalFormWizard({
       status: ProposalStatus.ENVIADA,
       validUntil: formData.validUntil,
       conditionsText: formData.conditionsText,
-      discountPercent: formData.discountPercent ?? undefined,
-      discountAmount: formData.discountAmount ?? undefined,
-      totalAmount: formData.totalAmount,
+      discountPercent: formData.discountPercent && formData.discountPercent > 0 ? formData.discountPercent : undefined,
+      discountAmount: formData.discountAmount && formData.discountAmount > 0 ? formData.discountAmount : undefined,
       items: formData.items,
     };
 
-    onSave(proposalData);
-    handleClose();
+    try {
+      setSaving(true);
+      await Promise.resolve(onSave(proposalData));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const progress = step === 1 ? 50 : 100;
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen: boolean) => {
+        if (!nextOpen) handleClose();
+        else onOpenChange(true);
+      }}
+    >
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
@@ -218,10 +235,10 @@ export function ProposalFormWizard({
         <div className="border-t px-6 py-4 bg-gray-50">
           {step === 1 && (
             <div className="flex justify-between gap-3">
-              <Button variant="outline" onClick={handleClose}>
+              <Button variant="outline" onClick={handleClose} disabled={saving}>
                 Cancelar
               </Button>
-              <Button onClick={handleNext} disabled={!step1Valid}>
+              <Button onClick={handleNext} disabled={!step1Valid || saving}>
                 Próximo
               </Button>
             </div>
@@ -229,14 +246,14 @@ export function ProposalFormWizard({
 
           {step === 2 && (
             <div className="flex justify-between gap-3">
-              <Button variant="ghost" onClick={handleBack}>
+              <Button variant="ghost" onClick={handleBack} disabled={saving}>
                 Voltar
               </Button>
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handleSaveDraft}>
+                <Button variant="outline" onClick={handleSaveDraft} disabled={saving}>
                   Salvar Rascunho
                 </Button>
-                <Button onClick={handleSaveAndSend} disabled={formData.items.length === 0}>
+                <Button onClick={handleSaveAndSend} disabled={saving || formData.items.length === 0}>
                   Salvar e Enviar
                 </Button>
               </div>
