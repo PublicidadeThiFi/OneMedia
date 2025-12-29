@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import apiClient from '../../lib/apiClient';
 import { Proposal } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
-import { useNavigation } from '../../App';
+import type { Page } from '../MainApp';
 
 type PublicTokenResponse = { token: string; publicHash: string };
 
@@ -14,6 +14,7 @@ interface ProposalDetailsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   proposal: Proposal | null;
+  onNavigate?: (page: Page) => void;
 }
 
 function toNumber(value: any, fallback = 0): number {
@@ -48,8 +49,7 @@ async function safeCopy(text: string) {
   }
 }
 
-export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: ProposalDetailsDrawerProps) {
-  const navigate = useNavigation();
+export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate }: ProposalDetailsDrawerProps) {
   const p: any = proposal ?? {};
 
   const [client, setClient] = useState<any | null>(null);
@@ -361,7 +361,24 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal }: Proposal
                   className="w-full sm:w-auto"
                   onClick={() => {
                     onOpenChange(false);
-                    navigate(`/app/messages?proposalId=${proposal.id}`);
+
+                    // 1) Troca a tela interna do app para o módulo de Mensagens
+                    onNavigate?.('messages');
+
+                    // 2) Sinaliza no URL a proposta alvo (para pré-selecionar a conversa)
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('proposalId', proposal.id);
+                    url.searchParams.delete('campaignId');
+
+                    // Mantém o mesmo pathname (evita depender de rotas /app/messages)
+                    const next = `${url.pathname}?${url.searchParams.toString()}`;
+
+                    try {
+                      window.history.pushState({}, '', next);
+                      window.dispatchEvent(new Event('app:navigation'));
+                    } catch {
+                      // ignore
+                    }
                   }}
                 >
                   Ir para Mensagens

@@ -86,14 +86,19 @@ export function ProposalAdvancedFiltersSheet({
   };
 
   const handleClearFilters = () => {
-    setLocalFilters({
+    const cleared: AdvancedFilters = {
       proposalStatuses: [],
       campaignStatus: undefined,
       billingStatus: undefined,
       responsibleUserId: undefined,
       createdFrom: undefined,
       createdTo: undefined,
-    });
+    };
+
+    setLocalFilters(cleared);
+    // Usuário espera que 'Limpar' remova os filtros já aplicados imediatamente.
+    onApplyFilters(cleared);
+    onOpenChange(false);
   };
 
   const handleApply = () => {

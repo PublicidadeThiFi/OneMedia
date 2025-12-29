@@ -304,6 +304,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
         open={!!detailsDrawerProposal}
         onOpenChange={(open) => !open && setDetailsDrawerProposal(null)}
         proposal={detailsDrawerProposal}
+        onNavigate={onNavigate}
       />
 
       <ProposalFormWizard
