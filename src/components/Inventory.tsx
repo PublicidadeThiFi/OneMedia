@@ -19,6 +19,15 @@ import { MediaUnitsDialog } from './inventory/MediaUnitsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 
 export function Inventory() {
+  // Normaliza URLs antigas (absolutas) para caminho relativo em /uploads/...
+  // Isso permite servir os arquivos via rewrite/proxy (ex.: Vercel) sem depender de HTTPS/porta no backend.
+  const normalizeUploadsUrl = (value?: string | null) => {
+    if (!value) return value ?? '';
+    if (value.startsWith('/uploads/')) return value;
+    const idx = value.indexOf('/uploads/');
+    if (idx >= 0) return value.slice(idx);
+    return value;
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
@@ -314,7 +323,10 @@ export function Inventory() {
             <Card key={point.id} className="hover:shadow-lg transition-shadow">
               <div className="aspect-video bg-gray-100 relative overflow-hidden rounded-t-xl">
                 <ImageWithFallback
-                  src={point.mainImageUrl || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'}
+                  src={
+                    normalizeUploadsUrl(point.mainImageUrl) ||
+                    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
+                  }
                   alt={point.name}
                   className="w-full h-full object-cover"
                 />
