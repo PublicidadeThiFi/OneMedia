@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Filter, X } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '../ui/sheet';
 import apiClient from '../../lib/apiClient';
 import { ProposalStatus } from '../../types';
 
@@ -114,31 +114,29 @@ export function ProposalAdvancedFiltersSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[400px] sm:w-[540px]">
-        <SheetHeader className="mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-gray-600" />
-              <SheetTitle>Filtros Avançados</SheetTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onOpenChange(false)}
-              aria-label="Fechar"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+      {/*
+        SheetContent já renderiza um botão de fechar no canto superior direito.
+        Aqui mantemos apenas o header/título para evitar duplicidade.
+      */}
+      <SheetContent className="w-[420px] sm:w-[540px] sm:max-w-[540px] p-0 gap-0">
+        <SheetHeader className="border-b px-6 pt-6 pb-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-gray-600" />
+            <SheetTitle className="text-base">Filtros Avançados</SheetTitle>
           </div>
+          <SheetDescription>Refine a lista de propostas.</SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-6">
+        <div className="flex-1 overflow-auto px-6 py-5 space-y-7">
           {/* Status da Proposta */}
           <div>
-            <h3 className="text-gray-900 mb-3">Status da Proposta</h3>
-            <div className="space-y-2">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Status da Proposta</h3>
+            <div className="grid grid-cols-2 gap-3">
               {PROPOSAL_STATUSES.map((status) => (
-                <div key={status.value} className="flex items-center gap-2">
+                <div
+                  key={status.value}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2"
+                >
                   <Checkbox
                     id={`status-${status.value}`}
                     checked={localFilters.proposalStatuses.includes(status.value)}
@@ -154,7 +152,7 @@ export function ProposalAdvancedFiltersSheet({
 
           {/* Responsável */}
           <div>
-            <h3 className="text-gray-900 mb-3">Responsável</h3>
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Responsável</h3>
             <Select
               value={localFilters.responsibleUserId || 'all'}
               onValueChange={(value: string) =>
@@ -163,7 +161,6 @@ export function ProposalAdvancedFiltersSheet({
                   responsibleUserId: value === 'all' ? undefined : value,
                 }))
               }
-
               disabled={loadingResp}
             >
               <SelectTrigger>
@@ -171,6 +168,11 @@ export function ProposalAdvancedFiltersSheet({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
+                {!loadingResp && responsibleOptions.length === 0 ? (
+                  <SelectItem value="__none" disabled>
+                    Nenhum responsável encontrado
+                  </SelectItem>
+                ) : null}
                 {responsibleOptions.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.label}
@@ -182,8 +184,8 @@ export function ProposalAdvancedFiltersSheet({
 
           {/* Período de Criação */}
           <div>
-            <h3 className="text-gray-900 mb-3">Período de Criação</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <h3 className="text-sm font-medium text-gray-900 mb-3">Período de Criação</h3>
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="createdFrom" className="text-sm text-gray-600">
                   De
@@ -220,16 +222,16 @@ export function ProposalAdvancedFiltersSheet({
             </div>
           </div>
 
-          {/* Ações */}
-          <div className="flex gap-3 pt-6 border-t">
-            <Button variant="outline" onClick={handleClearFilters} className="flex-1">
-              Limpar
-            </Button>
-            <Button onClick={handleApply} className="flex-1">
-              Aplicar Filtros
-            </Button>
-          </div>
         </div>
+
+        <SheetFooter className="border-t bg-background px-6 py-4 flex-row gap-3">
+          <Button variant="outline" onClick={handleClearFilters} className="flex-1">
+            Limpar
+          </Button>
+          <Button onClick={handleApply} className="flex-1">
+            Aplicar Filtros
+          </Button>
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );
