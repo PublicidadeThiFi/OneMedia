@@ -57,8 +57,14 @@ export function ProposalAdvancedFiltersSheet({
     const load = async () => {
       try {
         setLoadingResp(true);
-        const res = await apiClient.get<ResponsibleUserOption[]>('/proposals/responsibles');
-        setResponsibles(res.data || []);
+        const res = await apiClient.get('/proposals/responsibles');
+        const payload: any = res.data;
+        const users: ResponsibleUserOption[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : [];
+        setResponsibles(users);
       } catch {
         setResponsibles([]);
       } finally {

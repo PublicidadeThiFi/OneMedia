@@ -29,8 +29,35 @@ const API_BASE_URL = getBaseUrl();
 
 console.info('[apiClient] Base URL configurada para:', API_BASE_URL);
 
+/**
+ * Axios por padrão serializa arrays como status[]=A&status[]=B.
+ * Como nosso backend (Nest/Express) pode estar usando o parser "simple",
+ * preferimos enviar arrays como chaves repetidas: status=A&status=B
+ * para manter compatibilidade.
+ */
+const serializeParams = (params: any): string => {
+  const sp = new URLSearchParams();
+
+  const append = (key: string, value: any) => {
+    if (value === undefined || value === null || value === '') return;
+    sp.append(key, String(value));
+  };
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((v) => append(key, v));
+      return;
+    }
+    append(key, value);
+  });
+
+  return sp.toString();
+};
+
+
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  paramsSerializer: serializeParams,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -39,6 +66,7 @@ export const apiClient = axios.create({
 // Public client (no auth headers / no auto-redirect on 401). Useful for public pages like Media Kit.
 export const publicApiClient = axios.create({
   baseURL: API_BASE_URL,
+  paramsSerializer: serializeParams,
   headers: {
     'Content-Type': 'application/json',
   },
