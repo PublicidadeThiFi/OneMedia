@@ -213,6 +213,25 @@ export function getMultiOwnerPriceCents(maxOwnersPerMediaPoint: number): number 
   return 0;
 }
 
+
+
+/**
+ * Backwards-compatible helpers used by some Settings components.
+ * These return values in BRL units (not cents):
+ * - 99 = R$ 99,00
+ */
+export function getMultiOwnerPlanPrice(maxOwnersPerMediaPoint: number): number {
+  return getMultiOwnerPriceCents(maxOwnersPerMediaPoint) / 100;
+}
+
+/**
+ * Short plan name used in selects (e.g., "2 proprietários").
+ */
+export function getMultiOwnerPlanName(maxOwnersPerMediaPoint: number): string {
+  if (maxOwnersPerMediaPoint <= 1) return '1 proprietário';
+  return `${maxOwnersPerMediaPoint} proprietários`;
+}
+
 /**
  * Get multi-owner label text
  */

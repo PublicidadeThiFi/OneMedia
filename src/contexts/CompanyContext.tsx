@@ -102,8 +102,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setPlan(null);
       }
 
-      // Points used: if backend provides an endpoint, fetch; else keep 0
-      setPointsUsed(0);
+      // Points used (limite de pontos é por conta): pega o total sem carregar toda a lista
+      try {
+        const mpRes = await apiClient.get<{ data: any[]; total: number }>(`/media-points?page=1&pageSize=1`);
+        setPointsUsed(mpRes.data?.total ?? 0);
+      } catch {
+        setPointsUsed(0);
+      }
     } catch (error) {
       console.error('Failed to load company data:', error);
       setError('Falha ao carregar dados da empresa');
@@ -136,13 +141,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   })();
 
   // Computed: points limit
-  const pointsLimit = company?.pointsLimit || 0;
+  const pointsLimit = company?.pointsLimit == null ? Number.POSITIVE_INFINITY : company.pointsLimit;
 
   // Computed: can add more points
-  const canAddMorePoints = pointsUsed < pointsLimit;
+  const canAddMorePoints = pointsLimit === Number.POSITIVE_INFINITY ? true : pointsUsed < pointsLimit;
 
   // Action: update company data
-   const updateCompanyData = async (updates: Partial<Company>) => {
+  const updateCompanyData = async (updates: Partial<Company>) => {
     if (!company) return;
 
     try {
@@ -156,7 +161,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
 
   // Action: update subscription data
-    const updateSubscriptionData = async (updates: Partial<PlatformSubscription>) => {
+  const updateSubscriptionData = async (updates: Partial<PlatformSubscription>) => {
     if (!subscription) return;
 
     try {
@@ -172,6 +177,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
           setPlan(null);
         }
       }
+
+      // Atualiza também a empresa (pointsLimit / status) e o uso de pontos
+      await loadCompanyData();
+
     } catch (error) {
       console.error('Failed to update subscription:', error);
       throw error;

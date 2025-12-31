@@ -273,10 +273,25 @@ export interface MediaUnit {
   updatedAt: Date;
 }
 
+
+export interface OwnerCompany {
+  id: string;
+  companyId: string;
+  name: string;
+  document?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  isPrimary: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface MediaPointOwner {
   id: string;
   companyId: string;
   mediaPointId: string;
+  ownerCompanyId?: string | null;
+  ownerCompany?: OwnerCompany | null;
   ownerName: string;
   ownerDocument?: string;
   ownerPhone?: string | null; // contato do locador
@@ -516,12 +531,12 @@ export interface TransactionCategory {
 export interface PlatformPlan {
   id: string;
   name: string;
-  minPoints: number;
-  maxPoints?: number;
+  minPoints?: number | null;
+  maxPoints?: number | null;
   monthlyPrice: number;
-  isPopular: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  isPopular?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface PlatformSubscription {
@@ -536,6 +551,7 @@ export interface PlatformSubscription {
   currentPeriodStart?: Date;
   currentPeriodEnd?: Date;
   gatewayCustomerId?: string;
+  plan?: PlatformPlan | null;
   createdAt: Date;
   updatedAt: Date;
 }

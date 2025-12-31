@@ -1,337 +1,247 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { Building, DollarSign, FileText, TrendingUp, Search, Plus, Eye, Edit } from 'lucide-react';
-import { CompanySubscriptionStatus, PlatformSubscriptionStatus } from '../types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { OwnerCompany } from '../types';
+import { useOwnerCompanies } from '../hooks/useOwnerCompanies';
+import { Plus, Pencil, Trash2, RefreshCcw } from 'lucide-react';
 
-interface Company {
-  id: string;
-  name: string;
-  cnpj?: string;
-  email?: string;
-  plan: string;
-  pointsLimit: number;
-  pointsUsed: number;
-  subscriptionStatus: CompanySubscriptionStatus;
-  trialEndsAt?: Date;
-  monthlyAmount: number;
-}
+export default function SuperAdmin() {
+  const {
+    ownerCompanies,
+    loading,
+    error,
+    refetch,
+    createOwnerCompany,
+    updateOwnerCompany,
+    deleteOwnerCompany,
+  } = useOwnerCompanies(true);
 
-const mockCompanies: Company[] = [
-  {
-    id: '1',
-    name: 'OOH Mídia SP',
-    cnpj: '12.345.678/0001-90',
-    email: 'contato@oohmidiasp.com',
-    plan: 'Profissional',
-    pointsLimit: 150,
-    pointsUsed: 87,
-    subscriptionStatus: CompanySubscriptionStatus.ACTIVE,
-    monthlyAmount: 699,
-  },
-  {
-    id: '2',
-    name: 'Digital Out RJ',
-    cnpj: '98.765.432/0001-10',
-    email: 'contato@digitaloutrj.com',
-    plan: 'Básico',
-    pointsLimit: 50,
-    pointsUsed: 45,
-    subscriptionStatus: CompanySubscriptionStatus.TRIAL,
-    trialEndsAt: new Date('2024-04-15'),
-    monthlyAmount: 299,
-  },
-  {
-    id: '3',
-    name: 'Mega Painéis',
-    cnpj: '11.222.333/0001-44',
-    email: 'contato@megapaineis.com',
-    plan: 'Enterprise',
-    pointsLimit: 500,
-    pointsUsed: 320,
-    subscriptionStatus: CompanySubscriptionStatus.ACTIVE,
-    monthlyAmount: 1499,
-  },
-];
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [editing, setEditing] = useState<OwnerCompany | null>(null);
 
-export function SuperAdmin() {
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredCompanies = mockCompanies.filter((company) =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (company.cnpj?.includes(searchQuery) ?? false) ||
-    (company.email?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
-  );
-
-  const getStatusColor = (status: CompanySubscriptionStatus) => {
-    switch (status) {
-      case CompanySubscriptionStatus.ACTIVE: return 'bg-green-100 text-green-800';
-      case CompanySubscriptionStatus.TRIAL: return 'bg-blue-100 text-blue-800';
-      case CompanySubscriptionStatus.PAST_DUE: return 'bg-orange-100 text-orange-800';
-      case CompanySubscriptionStatus.CANCELED: return 'bg-red-100 text-red-800';
-    }
-  };
-
-  const getStatusLabel = (status: CompanySubscriptionStatus) => {
-    switch (status) {
-      case CompanySubscriptionStatus.ACTIVE: return 'Ativa';
-      case CompanySubscriptionStatus.TRIAL: return 'Trial';
-      case CompanySubscriptionStatus.PAST_DUE: return 'Em Atraso';
-      case CompanySubscriptionStatus.CANCELED: return 'Cancelada';
-    }
-  };
-
-  const totalMRR = mockCompanies
-    .filter(c => c.subscriptionStatus === CompanySubscriptionStatus.ACTIVE)
-    .reduce((sum, c) => sum + c.monthlyAmount, 0);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return ownerCompanies;
+    return ownerCompanies.filter((c) => {
+      return (
+        c.name.toLowerCase().includes(q) ||
+        (c.document ?? '').toLowerCase().includes(q) ||
+        (c.email ?? '').toLowerCase().includes(q) ||
+        (c.phone ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [ownerCompanies, query]);
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="bg-red-100 text-red-600 p-2 rounded-lg">
-            <Building className="w-6 h-6" />
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Super Admin (Interno) – Empresas Proprietárias</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-gray-600">
+            Aqui você cadastra empresas proprietárias que poderão ser vinculadas aos pontos do inventário.
+            <br />
+            <b>Não há limite</b> de empresas proprietárias na conta. O limite da assinatura multi-proprietários é apenas
+            a <b>quantidade de proprietários por ponto</b>.
           </div>
-          <div>
-            <h1 className="text-gray-900">Super Admin</h1>
-            <p className="text-gray-600">Gestão da Plataforma SaaS</p>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              placeholder="Buscar por nome, documento, e-mail ou telefone"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="max-w-md"
+            />
+
+            <Button variant="outline" onClick={refetch} disabled={loading}>
+              <RefreshCcw className="w-4 h-4 mr-2" />
+              Atualizar
+            </Button>
+
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setIsOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Nova empresa
+            </Button>
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600">{String(error)}</div>
+          )}
+
+          {loading && (
+            <div className="text-sm text-gray-500">Carregando...</div>
+          )}
+
+          {!loading && filtered.length === 0 && (
+            <div className="text-sm text-gray-500">Nenhuma empresa encontrada.</div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {filtered.map((c) => (
+              <Card key={c.id} className={c.isPrimary ? 'border-blue-200 bg-blue-50/40' : ''}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-medium text-gray-900">{c.name}</div>
+                        {c.isPrimary && <Badge variant="secondary">Empresa própria</Badge>}
+                      </div>
+                      <div className="text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
+                        {c.document && <span>Doc: {c.document}</span>}
+                        {c.email && <span>E-mail: {c.email}</span>}
+                        {c.phone && <span>Tel: {c.phone}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditing(c);
+                          setIsOpen(true);
+                        }}
+                        disabled={c.isPrimary}
+                        title={c.isPrimary ? 'Edite a empresa principal em Configurações > Empresa' : 'Editar'}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          if (c.isPrimary) return;
+                          if (!confirm(`Excluir a empresa "${c.name}"?`)) return;
+                          try {
+                            await deleteOwnerCompany(c.id);
+                          } catch (e: any) {
+                            alert(e?.response?.data?.message || 'Erro ao excluir.');
+                          }
+                        }}
+                        disabled={c.isPrimary}
+                        title={c.isPrimary ? 'A empresa principal não pode ser excluída' : 'Excluir'}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <OwnerCompanyDialog
+        open={isOpen}
+        onOpenChange={(o) => setIsOpen(o)}
+        editing={editing}
+        onSubmit={async (payload) => {
+          try {
+            if (editing) {
+              await updateOwnerCompany(editing.id, payload);
+            } else {
+              await createOwnerCompany(payload);
+            }
+            setIsOpen(false);
+            setEditing(null);
+          } catch (e: any) {
+            alert(e?.response?.data?.message || 'Erro ao salvar.');
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function OwnerCompanyDialog({
+  open,
+  onOpenChange,
+  editing,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editing: OwnerCompany | null;
+  onSubmit: (payload: Partial<OwnerCompany>) => Promise<void>;
+}) {
+  const [name, setName] = useState(editing?.name ?? '');
+  const [document, setDocument] = useState(editing?.document ?? '');
+  const [email, setEmail] = useState(editing?.email ?? '');
+  const [phone, setPhone] = useState(editing?.phone ?? '');
+
+  // Atualiza formulário quando mudar editing
+  useEffect(() => {
+    if (!open) return;
+    setName(editing?.name ?? '');
+    setDocument(editing?.document ?? '');
+    setEmail(editing?.email ?? '');
+    setPhone(editing?.phone ?? '');
+  }, [open, editing]);
+
+  const canSave = name.trim().length >= 2;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? 'Editar empresa proprietária' : 'Nova empresa proprietária'}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Nome *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Prefeitura de ..." />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Documento</Label>
+              <Input value={document} onChange={(e) => setDocument(e.target.value)} placeholder="CNPJ/CPF" />
+            </div>
+            <div className="space-y-2">
+              <Label>Telefone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>E-mail</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="contato@empresa.com" />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                onSubmit({
+                  name: name.trim(),
+                  document: document.trim() || undefined,
+                  email: email.trim() || undefined,
+                  phone: phone.trim() || undefined,
+                })
+              }
+              disabled={!canSave}
+            >
+              {editing ? 'Salvar' : 'Criar'}
+            </Button>
           </div>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-blue-50 text-blue-600 p-2 rounded-lg">
-                <Building className="w-5 h-5" />
-              </div>
-              <p className="text-gray-600 text-sm">Empresas Ativas</p>
-            </div>
-            <p className="text-gray-900">
-              {mockCompanies.filter(c => c.subscriptionStatus === CompanySubscriptionStatus.ACTIVE).length}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-green-50 text-green-600 p-2 rounded-lg">
-                <DollarSign className="w-5 h-5" />
-              </div>
-              <p className="text-gray-600 text-sm">MRR Total</p>
-            </div>
-            <p className="text-gray-900">R$ {totalMRR.toLocaleString('pt-BR')}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-orange-50 text-orange-600 p-2 rounded-lg">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <p className="text-gray-600 text-sm">Em Trial</p>
-            </div>
-            <p className="text-gray-900">
-              {mockCompanies.filter(c => c.subscriptionStatus === CompanySubscriptionStatus.TRIAL).length}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-purple-50 text-purple-600 p-2 rounded-lg">
-                <FileText className="w-5 h-5" />
-              </div>
-              <p className="text-gray-600 text-sm">NFs Emitidas (Mês)</p>
-            </div>
-            <p className="text-gray-900">12</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="companies" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="companies">Empresas</TabsTrigger>
-          <TabsTrigger value="plans">Planos</TabsTrigger>
-          <TabsTrigger value="invoices">Cobranças</TabsTrigger>
-          <TabsTrigger value="nf">Notas Fiscais</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="companies">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Empresas Cadastradas</CardTitle>
-                <Button className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Nova Empresa
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Buscar por nome, CNPJ ou email..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Empresa</th>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Contato</th>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Plano</th>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Pontos</th>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Status</th>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Valor/Mês</th>
-                      <th className="px-6 py-3 text-left text-gray-600 text-sm">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredCompanies.map((company) => (
-                      <tr key={company.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="text-gray-900">{company.name}</p>
-                            {company.cnpj && (
-                              <p className="text-gray-500 text-sm">{company.cnpj}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-gray-600 text-sm">{company.email}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-gray-900">{company.plan}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-900">
-                              {company.pointsUsed} / {company.pointsLimit}
-                            </span>
-                            <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-indigo-600 rounded-full"
-                                style={{
-                                  width: `${(company.pointsUsed / company.pointsLimit) * 100}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge className={getStatusColor(company.subscriptionStatus)}>
-                            {getStatusLabel(company.subscriptionStatus)}
-                          </Badge>
-                          {company.subscriptionStatus === CompanySubscriptionStatus.TRIAL && company.trialEndsAt && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Expira em {new Date(company.trialEndsAt).toLocaleDateString('pt-BR')}
-                            </p>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <p className="text-gray-900">
-                            R$ {company.monthlyAmount.toLocaleString('pt-BR')}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="plans">
-          <Card>
-            <CardHeader>
-              <CardTitle>Planos da Plataforma</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  { name: 'Básico', minPoints: 0, maxPoints: 50, price: 299 },
-                  { name: 'Profissional', minPoints: 50, maxPoints: 150, price: 699 },
-                  { name: 'Enterprise', minPoints: 150, maxPoints: 500, price: 1499 },
-                ].map((plan) => (
-                  <Card key={plan.name}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-gray-900 mb-1">{plan.name}</h3>
-                          <p className="text-gray-600 text-sm">
-                            {plan.minPoints === 0 ? 'Até' : `${plan.minPoints} -`} {plan.maxPoints} pontos
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-gray-900">
-                            R$ {plan.price.toLocaleString('pt-BR')}<span className="text-gray-600 text-sm">/mês</span>
-                          </p>
-                          <Button variant="outline" size="sm" className="mt-2">
-                            Editar
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="invoices">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cobranças da Plataforma</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 text-center py-12">
-                Lista de cobranças (PlatformInvoice) das empresas assinantes
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="nf">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notas Fiscais da Plataforma</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-500 text-center py-12">
-                NFs da plataforma emitidas para empresas (PlatformNf)
-              </p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
