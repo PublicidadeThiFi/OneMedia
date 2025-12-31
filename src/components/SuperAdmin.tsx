@@ -9,7 +9,7 @@ import { OwnerCompany } from '../types';
 import { useOwnerCompanies } from '../hooks/useOwnerCompanies';
 import { Plus, Pencil, Trash2, RefreshCcw } from 'lucide-react';
 
-export default function SuperAdmin() {
+export function SuperAdmin() {
   const {
     ownerCompanies,
     loading,

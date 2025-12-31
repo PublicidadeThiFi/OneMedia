@@ -7,7 +7,7 @@ import { SubscriptionSettings } from './settings/SubscriptionSettings';
 import { UserProfileSettings } from './settings/UserProfileSettings';
 import { usePlatformPlans } from '../hooks/usePlatformPlans';
 
-export default function Settings() {
+export function Settings() {
   const { company, subscription, pointsUsed, updateCompanyData, updateSubscriptionData, isLoading } = useCompany();
   const { plans, loading: plansLoading, error: plansError } = usePlatformPlans();
   const [activeTab, setActiveTab] = useState('company');
