@@ -40,30 +40,10 @@ type PublicProposal = {
 };
 
 function resolveApiBaseUrl() {
-  // Para o portal público, preferimos bater direto no backend para evitar depender de rewrites do Vercel
-  // (especialmente para downloads de PDF em nova aba).
-  const isDev = (import.meta as any)?.env?.DEV === true;
-
-  const fallback = isDev ? 'http://localhost:3333/api' : 'http://174.129.69.244:3333/api';
-  const raw = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
-  const cleaned = typeof raw === 'string' ? raw.trim() : '';
-
-  if (!cleaned) return fallback;
-
-  // Se for relativo (ex: "/api"), não usamos aqui.
-  if (cleaned.startsWith('/')) return fallback;
-
-  // Se apontar para o mesmo origin da página (ex: "https://meu-app.vercel.app/api"), também evitamos aqui.
-  try {
-    const u = new URL(cleaned);
-    if (typeof window !== 'undefined' && u.origin === window.location.origin) {
-      return fallback;
-    }
-  } catch {
-    return fallback;
-  }
-
-  return cleaned;
+  // VITE_API_URL deve apontar para .../api
+  const env = (import.meta as any).env || {};
+  const base = (env.VITE_API_URL as string | undefined) || 'http://174.129.69.244:3333/api';
+  return base.replace(/\/$/, '');
 }
 
 export default function PropostaPublica() {
