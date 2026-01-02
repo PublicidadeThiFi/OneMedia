@@ -108,8 +108,14 @@ export function Inventory() {
       await refreshPointsUsed();
       return saved;
     } catch (err: any) {
-      const message = err?.response?.data?.message || 'Erro ao salvar ponto de mídia';
+      const rawMessage = err?.response?.data?.message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.join(', ')
+        : rawMessage || 'Erro ao salvar ponto de mídia';
       toast.error(message);
+
+      // Importante: propaga o erro para o dialog não fechar silenciosamente.
+      throw new Error(message);
     }
   };
 
