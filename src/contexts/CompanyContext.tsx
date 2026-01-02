@@ -40,6 +40,11 @@ interface CompanyContextValue {
   updateCompanyData: (updates: Partial<Company>) => Promise<void>;
   updateSubscriptionData: (updates: Partial<PlatformSubscription>) => Promise<void>;
   refreshCompanyData: () => Promise<void>;
+  /**
+   * Recalcula o uso de pontos (total de MediaPoints) sem precisar recarregar todos os dados da empresa.
+   * Útil após criar/excluir pontos no Inventário para manter Configurações em sincronia.
+   */
+  refreshPointsUsed: () => Promise<void>;
 
   // Loading state
   isLoading: boolean;
@@ -55,6 +60,16 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pointsUsed, setPointsUsed] = useState(0);
+
+  const fetchPointsUsed = useCallback(async () => {
+    try {
+      // Pega apenas o total sem carregar toda a lista
+      const mpRes = await apiClient.get<{ data: any[]; total: number }>(`/media-points?page=1&pageSize=1`);
+      setPointsUsed(mpRes.data?.total ?? 0);
+    } catch {
+      setPointsUsed(0);
+    }
+  }, []);
 
   // Load company data when user logs in
   const loadCompanyData = useCallback(async () => {
@@ -103,19 +118,14 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       }
 
       // Points used (limite de pontos é por conta): pega o total sem carregar toda a lista
-      try {
-        const mpRes = await apiClient.get<{ data: any[]; total: number }>(`/media-points?page=1&pageSize=1`);
-        setPointsUsed(mpRes.data?.total ?? 0);
-      } catch {
-        setPointsUsed(0);
-      }
+      await fetchPointsUsed();
     } catch (error) {
       console.error('Failed to load company data:', error);
       setError('Falha ao carregar dados da empresa');
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, fetchPointsUsed]);
 
   useEffect(() => {
     loadCompanyData();
@@ -193,6 +203,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     await loadCompanyData();
   };
 
+  const refreshPointsUsed = async () => {
+    await fetchPointsUsed();
+  };
+
   const value: CompanyContextValue = {
     company,
     subscription,
@@ -205,6 +219,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     updateCompanyData,
     updateSubscriptionData,
     refreshCompanyData,
+    refreshPointsUsed,
     isLoading,
     // Add error to context consumers
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment

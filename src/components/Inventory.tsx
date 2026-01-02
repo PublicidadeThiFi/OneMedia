@@ -10,6 +10,7 @@ import { Switch } from './ui/switch';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { MediaPoint, MediaType } from '../types';
 import { useMediaPoints } from '../hooks/useMediaPoints';
+import { useCompany } from '../contexts/CompanyContext';
 import apiClient from '../lib/apiClient';
 import { toast } from 'sonner';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
@@ -19,6 +20,7 @@ import { MediaUnitsDialog } from './inventory/MediaUnitsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 
 export function Inventory() {
+  const { refreshPointsUsed } = useCompany();
   // Normaliza URLs antigas (absolutas) para caminho relativo em /uploads/...
   // Isso permite servir os arquivos via rewrite/proxy (ex.: Vercel) sem depender de HTTPS/porta no backend.
   const normalizeUploadsUrl = (value?: string | null) => {
@@ -102,6 +104,8 @@ export function Inventory() {
       setIsFormDialogOpen(false);
       setEditingPoint(null);
       refetch();
+      // Mantém o valor de pontos usados sincronizado em Configurações (Sem precisar dar F5)
+      await refreshPointsUsed();
       return saved;
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Erro ao salvar ponto de mídia';
@@ -122,6 +126,7 @@ export function Inventory() {
       const response = await apiClient.post<MediaPoint>('/media-points', payload);
       toast.success('Ponto duplicado!');
       refetch();
+      await refreshPointsUsed();
       return response.data;
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Erro ao duplicar ponto';
@@ -145,6 +150,7 @@ export function Inventory() {
       await apiClient.delete(`/media-points/${id}`);
       toast.success('Ponto de mídia excluído!');
       refetch();
+      await refreshPointsUsed();
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Erro ao excluir ponto de mídia';
       toast.error(message);
@@ -211,7 +217,8 @@ export function Inventory() {
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Total de Pontos</p>
-            <p className="text-gray-900">{mediaPoints.length}</p>
+            {/* Usa o total do backend (paginação), evitando travar em 50 quando pageSize=50 */}
+            <p className="text-gray-900">{total}</p>
           </CardContent>
         </Card>
         <Card 
