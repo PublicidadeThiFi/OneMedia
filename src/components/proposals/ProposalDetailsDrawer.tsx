@@ -127,6 +127,13 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     return `${window.location.origin}/p/${publicHash}?t=${encodeURIComponent(decisionToken)}`;
   }, [publicHash, decisionToken]);
 
+  const contractDownloadUrl = useMemo(() => {
+    if (!proposal) return null;
+    const base = String(apiClient.defaults.baseURL ?? '').replace(/\/$/, '');
+    // Direct download endpoint (StreamableFile)
+    return `${base}/proposals/${proposal.id}/pdf/file`;
+  }, [proposal?.id]);
+
   const handleCopy = async (url: string | null, okMsg: string) => {
     if (!url) return;
     const ok = await safeCopy(url);
@@ -385,6 +392,27 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                 </Button>
               </div>
             </div>
+          </div>
+
+          {/* Contrato */}
+          <div className="pt-4 border-t">
+            <h3 className="text-gray-900 mb-3">Contrato (PDF)</h3>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={!contractDownloadUrl || p.status !== 'APROVADA'}
+                onClick={() => {
+                  if (!contractDownloadUrl) return;
+                  window.open(contractDownloadUrl, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                Baixar contrato (PDF)
+              </Button>
+            </div>
+            {p.status !== 'APROVADA' && (
+              <p className="mt-2 text-xs text-gray-500">O contrato fica disponível quando a Proposta estiver aprovada.</p>
+            )}
           </div>
 
           <div className="pt-4 border-t">
