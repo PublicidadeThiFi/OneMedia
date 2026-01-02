@@ -604,6 +604,16 @@ export default function PropostaPublica() {
 
             {actionError && <div className="mt-3 text-sm text-red-600">{actionError}</div>}
             {actionSuccess && <div className="mt-3 text-sm text-green-700">{actionSuccess}</div>}
+            {proposal?.status === 'APROVADA' && (
+              <a
+                className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                href={`${apiBase}/public/proposals/${publicHash}/pdf/file`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Baixar contrato (PDF)
+              </a>
+            )}
 
             <div className="mt-4 flex flex-col sm:flex-row gap-2">
               <button

@@ -194,6 +194,17 @@ export function useProposals(params: UseProposalsParams = {}) {
     };
   }, []);
 
+
+  // Polling leve para manter o status atualizado mesmo sem mudança de foco (ex.: aprovação em outra aba/dispositivo).
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+      fetchRef.current?.();
+    }, 15000);
+
+    return () => window.clearInterval(id);
+  }, []);
+
   const getProposalById = async (id: string) => {
     const response = await apiClient.get<Proposal>(`/proposals/${id}`);
     return normalizeProposal(response.data);
