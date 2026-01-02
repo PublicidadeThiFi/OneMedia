@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { Proposal, ProposalStatus } from '../types';
 
@@ -113,6 +113,9 @@ export function useProposals(params: UseProposalsParams = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Mantém a última função de fetch para uso em listeners (evita closure stale)
+  const fetchRef = useRef<(() => void) | null>(null);
+
   const cleanedParams = useMemo(() => {
     const p: Record<string, unknown> = { ...params };
 
@@ -149,6 +152,47 @@ export function useProposals(params: UseProposalsParams = {}) {
       setLoading(false);
     }
   };
+
+  // Mantém a listagem sincronizada quando o usuário volta para a aba/janela.
+  // Isso resolve o caso: aprovação via link público e, ao retornar ao sistema,
+  // o status ainda aparece como "Enviada" até dar refresh.
+  useEffect(() => {
+    fetchRef.current = () => {
+      void fetchProposals();
+    };
+  }, [
+    cleanedParams.search,
+    cleanedParams.status,
+    cleanedParams.clientId,
+    cleanedParams.responsibleUserId,
+    cleanedParams.createdFrom,
+    cleanedParams.createdTo,
+    cleanedParams.orderBy,
+    cleanedParams.sortOrder,
+    cleanedParams.page,
+    cleanedParams.pageSize,
+  ]);
+
+  useEffect(() => {
+    let lastRun = 0;
+    const trigger = () => {
+      if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+
+      const now = Date.now();
+      if (now - lastRun < 800) return;
+      lastRun = now;
+
+      fetchRef.current?.();
+    };
+
+    window.addEventListener('focus', trigger);
+    document.addEventListener('visibilitychange', trigger);
+
+    return () => {
+      window.removeEventListener('focus', trigger);
+      document.removeEventListener('visibilitychange', trigger);
+    };
+  }, []);
 
   const getProposalById = async (id: string) => {
     const response = await apiClient.get<Proposal>(`/proposals/${id}`);
