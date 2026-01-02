@@ -37,11 +37,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
     socialClasses: [],
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
 
   useEffect(() => {
+    setSubmitError(null);
     if (mediaPoint) {
       setFormData(mediaPoint);
       setType(mediaPoint.type);
@@ -130,18 +133,30 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
       return;
     }
 
+    setIsSaving(true);
+    setSubmitError(null);
+
     // Remove campos que não devem ser enviados para a API
     const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (formData as any) || {};
 
-    await onSave(
-      {
-        ...payload,
-        type,
-      },
-      imageFile
-    );
+    try {
+      await onSave(
+        {
+          ...payload,
+          type,
+        },
+        imageFile
+      );
 
-    onOpenChange(false);
+      // Só fecha se a operação foi concluída sem erro.
+      onOpenChange(false);
+    } catch (e: any) {
+      // Exibe erro no próprio dialog (além de qualquer toast global).
+      const msg = e?.message || 'Não foi possível salvar o ponto de mídia.';
+      setSubmitError(msg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -152,6 +167,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
       socialClasses: [],
     });
     setErrors({});
+    setSubmitError(null);
     onOpenChange(false);
   };
 
@@ -563,12 +579,18 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
           </TabsContent>
         </Tabs>
 
+        {submitError && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {submitError}
+          </div>
+        )}
+
         <div className="flex justify-end gap-3 pt-4 border-t">
           <Button variant="outline" onClick={handleCancel}>
             Cancelar
           </Button>
-          <Button onClick={handleSave}>
-            {mediaPoint ? 'Salvar Alterações' : 'Salvar Ponto'}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? 'Salvando...' : mediaPoint ? 'Salvar Alterações' : 'Salvar Ponto'}
           </Button>
         </div>
       </DialogContent>
