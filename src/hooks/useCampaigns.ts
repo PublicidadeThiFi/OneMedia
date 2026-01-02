@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { Campaign, CampaignStatus } from '../types';
 
@@ -27,6 +27,9 @@ export function useCampaigns(params: UseCampaignsParams = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Refetch automático ao retornar para a aba/janela (sincroniza com aprovações de propostas)
+  const fetchRef = useRef<(() => void) | null>(null);
+
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
@@ -53,6 +56,43 @@ export function useCampaigns(params: UseCampaignsParams = {}) {
       setLoading(false);
     }
   };
+
+  // Atualiza referência da função de fetch para evitar closure stale
+  useEffect(() => {
+    fetchRef.current = () => {
+      void fetchCampaigns();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    params.search,
+    params.status,
+    params.clientId,
+    params.startFrom,
+    params.startTo,
+    params.endFrom,
+    params.endTo,
+    params.page,
+    params.pageSize,
+  ]);
+
+  useEffect(() => {
+    let lastRun = 0;
+    const trigger = () => {
+      if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastRun < 800) return;
+      lastRun = now;
+      fetchRef.current?.();
+    };
+
+    window.addEventListener('focus', trigger);
+    document.addEventListener('visibilitychange', trigger);
+
+    return () => {
+      window.removeEventListener('focus', trigger);
+      document.removeEventListener('visibilitychange', trigger);
+    };
+  }, []);
 
   const getCampaignById = async (id: string) => {
     const response = await apiClient.get<Campaign>(`/campaigns/${id}`);
