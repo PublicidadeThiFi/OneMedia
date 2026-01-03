@@ -40,31 +40,23 @@ type PublicProposal = {
 };
 
 function resolveApiBaseUrl() {
-  // Para o portal público, preferimos bater direto no backend para evitar depender de rewrites do Vercel
-  // (especialmente para downloads de PDF em nova aba).
+  // No portal público, NUNCA podemos depender de URL HTTP direta do backend quando a página está em HTTPS (Vercel),
+  // pois isso gera Mixed Content e o browser bloqueia ("Failed to fetch").
+  //
+  // A estratégia correta é:
+  // 1) Preferir VITE_API_URL quando existir (incluindo valor relativo como "/api" para funcionar com rewrites).
+  // 2) Em produção, se não houver VITE_API_URL, usar "/api" (esperando rewrite/proxy do Vercel/Nginx).
+  // 3) Em dev, cair para o backend local.
   const isDev = (import.meta as any)?.env?.DEV === true;
 
-  const fallback = isDev ? 'http://localhost:3333/api' : 'http://174.129.69.244:3333/api';
   const raw = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
-  const cleaned = typeof raw === 'string' ? raw.trim() : '';
+  const cleaned = typeof raw === "string" ? raw.trim().replace(/\/$/, "") : "";
 
-  if (!cleaned) return fallback;
+  if (cleaned) return cleaned;
 
-  // Se for relativo (ex: "/api"), não usamos aqui.
-  if (cleaned.startsWith('/')) return fallback;
-
-  // Se apontar para o mesmo origin da página (ex: "https://meu-app.vercel.app/api"), também evitamos aqui.
-  try {
-    const u = new URL(cleaned);
-    if (typeof window !== 'undefined' && u.origin === window.location.origin) {
-      return fallback;
-    }
-  } catch {
-    return fallback;
-  }
-
-  return cleaned;
+  return isDev ? "http://localhost:3333/api" : "/api";
 }
+
 
 export default function PropostaPublica() {
   const publicHash = useMemo(() => {
