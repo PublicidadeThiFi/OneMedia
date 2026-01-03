@@ -62,6 +62,9 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
   const [messageLoading, setMessageLoading] = useState(false);
   const [tokenLoading, setTokenLoading] = useState(false);
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -72,6 +75,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     setUser(null);
     setLinkError(null);
     setLinkMessage(null);
+    setPdfError(null);
 
     setPublicHash(p.publicHash ?? p.public_hash ?? null);
 
@@ -127,12 +131,64 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     return `${window.location.origin}/p/${publicHash}?t=${encodeURIComponent(decisionToken)}`;
   }, [publicHash, decisionToken]);
 
-  const contractDownloadUrl = useMemo(() => {
-    if (!proposal) return null;
-    const base = String(apiClient.defaults.baseURL ?? '').replace(/\/$/, '');
-    // Direct download endpoint (StreamableFile)
-    return `${base}/proposals/${proposal.id}/pdf/file`;
-  }, [proposal?.id]);
+  const parseFilename = (contentDisposition?: string | null) => {
+    if (!contentDisposition) return null;
+
+    // Examples:
+    // content-disposition: attachment; filename="contrato.pdf"
+    // content-disposition: attachment; filename*=UTF-8''contrato%20ok.pdf
+    const cd = String(contentDisposition);
+
+    const utf8 = cd.match(/filename\*=(?:UTF-8''|)([^;\n]+)/i);
+    if (utf8?.[1]) {
+      const raw = utf8[1].trim().replace(/^"|"$/g, '');
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw;
+      }
+    }
+
+    const basic = cd.match(/filename=([^;\n]+)/i);
+    if (basic?.[1]) return basic[1].trim().replace(/^"|"$/g, '');
+    return null;
+  };
+
+  const handleDownloadContract = async () => {
+    if (!proposal) return;
+
+    try {
+      setPdfLoading(true);
+      setPdfError(null);
+
+      const res = await apiClient.get(`/proposals/${proposal.id}/pdf/file`, {
+        responseType: 'blob',
+      });
+
+      const cd = (res.headers?.['content-disposition'] || res.headers?.['Content-Disposition']) as
+        | string
+        | undefined;
+      const fileName =
+        parseFilename(cd) || `contrato-${proposal.id}.pdf`;
+
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.rel = 'noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      window.URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setPdfError(e?.response?.data?.message || e?.message || 'Não foi possível baixar o contrato');
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const handleCopy = async (url: string | null, okMsg: string) => {
     if (!url) return;
@@ -401,15 +457,13 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
-                disabled={!contractDownloadUrl || p.status !== 'APROVADA'}
-                onClick={() => {
-                  if (!contractDownloadUrl) return;
-                  window.open(contractDownloadUrl, '_blank', 'noopener,noreferrer');
-                }}
+                disabled={p.status !== 'APROVADA' || pdfLoading}
+                onClick={handleDownloadContract}
               >
-                Baixar contrato (PDF)
+                {pdfLoading ? 'Baixando…' : 'Baixar contrato (PDF)'}
               </Button>
             </div>
+            {pdfError && <p className="mt-2 text-sm text-red-600">{pdfError}</p>}
             {p.status !== 'APROVADA' && (
               <p className="mt-2 text-xs text-gray-500">O contrato fica disponível quando a Proposta estiver aprovada.</p>
             )}
