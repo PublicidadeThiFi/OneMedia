@@ -161,7 +161,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
       setPdfLoading(true);
       setPdfError(null);
 
-      const res = await apiClient.get(`/proposals/${proposal.id}/pdf/file`, {
+      const res = await apiClient.get<Blob>(`/proposals/${proposal.id}/pdf/file`, {
         responseType: 'blob',
       });
 
