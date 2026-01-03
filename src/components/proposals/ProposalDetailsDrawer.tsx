@@ -161,7 +161,10 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
       setPdfLoading(true);
       setPdfError(null);
 
-      const res = await apiClient.get<Blob>(`/proposals/${proposal.id}/pdf/file`, {
+      const hash = publicHash || (proposal as any).publicHash || (proposal as any).public_hash || null;
+      const endpoint = hash ? `/public/proposals/${hash}/pdf` : `/proposals/${proposal.id}/pdf/file`;
+
+      const res = await apiClient.get<Blob>(endpoint, {
         responseType: 'blob',
       });
 
