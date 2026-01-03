@@ -21,8 +21,11 @@ const getBaseUrl = () => {
     return envUrl.replace(/\/$/, '');
   }
   
-  // Se não houver variável, usa o IP fixo como último recurso
-  return 'http://174.129.69.244:3333/api';
+  // Se não houver variável, em produção usamos rota relativa (/api) para funcionar com rewrites (Vercel/Nginx)
+  // e evitar Mixed Content (HTTPS -> HTTP).
+  // Em dev, mantenha o backend local.
+  const isDev = (import.meta as any).env?.DEV === true;
+  return isDev ? 'http://localhost:3333/api' : '/api';
 };
 
 const API_BASE_URL = getBaseUrl();
