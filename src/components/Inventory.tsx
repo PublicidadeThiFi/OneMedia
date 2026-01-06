@@ -23,8 +23,10 @@ export function Inventory() {
   const { refreshPointsUsed } = useCompany();
   // Normaliza URLs antigas (absolutas) para caminho relativo em /uploads/...
   // Isso permite servir os arquivos via rewrite/proxy (ex.: Vercel) sem depender de HTTPS/porta no backend.
-  const normalizeUploadsUrl = (value?: string | null) => {
+    const normalizeUploadsUrl = (value?: string | null) => {
     if (!value) return value ?? '';
+    // ✅ valores antigos podem ter sido salvos como "uploads/..." (sem a barra inicial)
+    if (value.startsWith('uploads/')) return `/${value}`;
     if (value.startsWith('/uploads/')) return value;
     const idx = value.indexOf('/uploads/');
     if (idx >= 0) return value.slice(idx);
