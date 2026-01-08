@@ -59,7 +59,7 @@ export function MediaPointContractsDialog({
         <DialogHeader>
           <DialogTitle>Contratos do Ponto - {mediaPointName}</DialogTitle>
           <p className="text-gray-600">
-            Upload e gerenciamento dos contratos deste ponto (stub de storage no backend).
+            Upload e gerenciamento dos contratos deste ponto.
           </p>
         </DialogHeader>
 
@@ -128,7 +128,7 @@ export function MediaPointContractsDialog({
 
                           {contract.url && (
                             <div className="mt-3 text-xs text-gray-500 break-all">
-                              URL (stub): {contract.url}
+                              URL: {contract.url}
                             </div>
                           )}
                         </div>
@@ -254,7 +254,7 @@ function ContractForm({ onSave, onCancel }: ContractFormProps) {
             accept="application/pdf"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
-          <p className="text-xs text-gray-500">Somente PDF. (Storage ainda é stub no backend.)</p>
+          <p className="text-xs text-gray-500">Somente PDF.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

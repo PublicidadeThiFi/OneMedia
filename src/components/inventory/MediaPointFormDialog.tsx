@@ -138,6 +138,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
 
     // Remove campos que não devem ser enviados para a API
     const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (formData as any) || {};
+    // Não usamos mais basePriceDay (Preço Diário) na UI.
+    delete (payload as any).basePriceDay;
 
     try {
       await onSave(
@@ -417,7 +419,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Preço Mensal (R$)</Label>
                   <Input
@@ -429,23 +431,13 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Preço Semanal (R$)</Label>
+                  <Label>Preço Quinzenal (R$)</Label>
                   <Input
                     type="number"
                     step="0.01"
                     placeholder="2500.00"
                     value={formData.basePriceWeek || ''}
                     onChange={(e) => updateField('basePriceWeek', parseFloat(e.target.value) || null)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Preço Diário (R$)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="450.00"
-                    value={formData.basePriceDay || ''}
-                    onChange={(e) => updateField('basePriceDay', parseFloat(e.target.value) || null)}
                   />
                 </div>
               </div>

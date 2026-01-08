@@ -1,15 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
+import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Switch } from './ui/switch';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { MediaPoint, MediaType } from '../types';
 import { useMediaPoints } from '../hooks/useMediaPoints';
+import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
 import { useCompany } from '../contexts/CompanyContext';
 import apiClient from '../lib/apiClient';
 import { toast } from 'sonner';
@@ -36,7 +38,11 @@ export function Inventory() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 40;
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, typeFilter, cityFilter]);
 
   const { mediaPoints, total, loading, error, refetch, uploadMediaPointImage } = useMediaPoints({
     search: searchQuery || undefined,
@@ -46,6 +52,12 @@ export function Inventory() {
     pageSize,
   });
   
+  const totalPages = useMemo(() => Math.max(1, Math.ceil((total || 0) / pageSize)), [total, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   // Dialogs state
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingPoint, setEditingPoint] = useState<MediaPoint | null>(null);
@@ -62,12 +74,9 @@ export function Inventory() {
     point: null 
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-
   // Computed values
-  const cities = useMemo(() => {
-    const uniqueCities = [...new Set(mediaPoints.map((p: MediaPoint) => p.addressCity).filter(Boolean))] as string[];
-    return uniqueCities.sort();
-  }, [mediaPoints]);
+  const { cities: citiesFromMeta } = useMediaPointsMeta();
+  const cities = citiesFromMeta;
 
   const totalUnits = useMemo(() => {
     return mediaPoints.reduce((sum: number, p: MediaPoint) => sum + (p.units ? p.units.length : 0), 0);
@@ -323,7 +332,7 @@ export function Inventory() {
       {searchQuery || typeFilter !== 'all' || cityFilter !== 'all' ? (
         <div className="mb-4">
           <p className="text-sm text-gray-600">
-            {filteredPoints.length} {filteredPoints.length === 1 ? 'ponto encontrado' : 'pontos encontrados'}
+            {total} {total === 1 ? 'ponto encontrado' : 'pontos encontrados'}
           </p>
         </div>
       ) : null}
@@ -455,6 +464,69 @@ export function Inventory() {
         })}
       </div>
 
+{totalPages > 1 && filteredPoints.length > 0 && (
+  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6">
+    <p className="text-sm text-gray-600">
+      Página {page} de {totalPages} • Mostrando {filteredPoints.length} de {total}
+    </p>
+    <div className="flex items-center gap-2 flex-wrap">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={page <= 1}
+        onClick={() => setPage((p) => Math.max(1, p - 1))}
+      >
+        Anterior
+      </Button>
+
+      {(() => {
+        const items: Array<number | '...'> = [];
+        if (totalPages <= 7) {
+          for (let i = 1; i <= totalPages; i++) items.push(i);
+        } else {
+          items.push(1);
+          if (page > 3) items.push('...');
+          const start = Math.max(2, page - 1);
+          const end = Math.min(totalPages - 1, page + 1);
+          for (let i = start; i <= end; i++) items.push(i);
+          if (page < totalPages - 2) items.push('...');
+          items.push(totalPages);
+        }
+
+        return items.map((it, idx) => {
+          if (it === '...') {
+            return (
+              <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">
+                …
+              </span>
+            );
+          }
+          const n = it as number;
+          return (
+            <Button
+              key={n}
+              variant={n === page ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPage(n)}
+            >
+              {n}
+            </Button>
+          );
+        });
+      })()}
+
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={page >= totalPages}
+        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+      >
+        Próxima
+      </Button>
+    </div>
+  </div>
+)}
+
       {filteredPoints.length === 0 && (
         <Card>
           <CardContent className="py-12 text-center">
@@ -517,6 +589,11 @@ export function Inventory() {
       <ImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
+        onImported={async () => {
+          setPage(1);
+          refetch();
+          await refreshPointsUsed();
+        }}
       />
     </div>
   );
@@ -526,22 +603,145 @@ export function Inventory() {
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onImported?: () => void | Promise<void>;
 }
 
-function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
+function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importType, setImportType] = useState<MediaType>(MediaType.OOH);
+  const [format, setFormat] = useState<'xlsx' | 'csv'>('xlsx');
+  const [isBusy, setIsBusy] = useState(false);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
-  const handleImport = () => {
+  const reset = () => {
+    setSelectedFile(null);
+    setImportErrors([]);
+    setIsBusy(false);
+    setImportType(MediaType.OOH);
+    setFormat('xlsx');
+  };
+
+  // Reseta o estado interno sempre que fechar
+  useEffect(() => {
+    if (!open) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const downloadTemplate = async (type: MediaType, fmt: 'xlsx' | 'csv') => {
+    try {
+      setIsBusy(true);
+      const res = await apiClient.get<Blob>('/media-points/import-template', {
+        params: { type, format: fmt },
+        responseType: 'blob',
+      });
+
+      const blobUrl = window.URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `template_inventario_${String(type).toLowerCase()}.${fmt}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success('Modelo baixado!');
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Erro ao baixar modelo';
+      toast.error(msg);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleImport = async () => {
     if (!selectedFile) {
-      alert('Selecione um arquivo');
+      toast.error('Selecione um arquivo .xlsx ou .csv');
       return;
     }
 
-    // TODO: Implementar importação real de inventário via XLS/CSV
-    console.log('Importando arquivo:', selectedFile.name);
-    alert(`Funcionalidade em desenvolvimento\n\nArquivo selecionado: ${selectedFile.name}`);
-    onOpenChange(false);
+    const name = selectedFile.name.toLowerCase();
+    const isCsv = name.endsWith('.csv');
+    const isXlsx = name.endsWith('.xlsx');
+    if (!isCsv && !isXlsx) {
+      toast.error('Formato inválido. Envie um arquivo .xlsx ou .csv');
+      return;
+    }
+
+    // Segurança básica de tamanho (failsafe no front; backend também valida)
+    const maxBytes = 10 * 1024 * 1024;
+    if (selectedFile.size > maxBytes) {
+      toast.error('Arquivo muito grande (máx. 10MB).');
+      return;
+    }
+
+    setIsBusy(true);
+    setImportErrors([]);
+
+    try {
+      const form = new FormData();
+      form.append('file', selectedFile);
+
+      const res = await apiClient.post<{ created: number; skipped?: number }>(
+        '/media-points/import',
+        form,
+        {
+          params: { defaultType: importType },
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
+      );
+
+      toast.success(`Importação concluída! ${res.data?.created ?? 0} ponto(s) criado(s).`);
+      await onImported?.();
+      onOpenChange(false);
+    } catch (e: any) {
+      const data = e?.response?.data;
+      const msg =
+        data?.message ||
+        e?.message ||
+        'Erro ao importar. Verifique o arquivo e tente novamente.';
+
+      // Se vier uma lista de erros estruturada do backend, exibimos no modal
+      const errs: string[] = Array.isArray(data?.errors)
+        ? data.errors.map((x: any) => String(x))
+        : [];
+
+      setImportErrors(errs);
+      toast.error(typeof msg === 'string' ? msg : 'Erro ao importar');
+    } finally {
+      setIsBusy(false);
+    }
   };
+
+  const REQUIRED_COMMON = [
+    'name',
+    'addressCity',
+    'addressState',
+    'latitude',
+    'longitude',
+  ];
+
+  const OPTIONAL_COMMON = [
+    'addressStreet',
+    'addressNumber',
+    'addressDistrict',
+    'addressZipcode',
+    'addressCountry',
+    'subcategory',
+    'description',
+    'dailyImpressions',
+    'environment',
+    'socialClasses',
+    'showInMediaKit',
+    'basePriceMonth',
+    'basePriceWeek (Preço Quinzenal)',
+  ];
+
+  const OPTIONAL_OOH = [
+    'productionCosts_lona',
+    'productionCosts_adesivo',
+    'productionCosts_vinil',
+    'productionCosts_montagem',
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -554,49 +754,114 @@ function ImportDialog({ open, onOpenChange }: ImportDialogProps) {
           <div className="p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-900 mb-2">📋 Importação em Lote</p>
             <p className="text-sm text-blue-700">
-              Importe múltiplos pontos de mídia através de arquivo Excel (.xlsx) ou CSV (.csv)
+              Importe múltiplos pontos de mídia via Excel (.xlsx) ou CSV (.csv). Imagens não fazem parte do template (devem ser enviadas manualmente no sistema).
             </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Tipo do Template</Label>
+              <Select
+                value={importType}
+                onValueChange={(v: string) => setImportType(v as MediaType)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={MediaType.OOH}>OOH</SelectItem>
+                  <SelectItem value={MediaType.DOOH}>DOOH</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Formato</Label>
+              <Select
+                value={format}
+                onValueChange={(v: string) => setFormat(v as 'xlsx' | 'csv')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
+                  <SelectItem value="csv">CSV (.csv)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <label className="text-sm text-gray-700">Selecione o arquivo</label>
+            <Label>Baixar Modelo</Label>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => downloadTemplate(importType, format)}
+              disabled={isBusy}
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Baixar Modelo {importType} ({format.toUpperCase()})
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Selecione o arquivo</Label>
             <Input
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.csv"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              disabled={isBusy}
             />
             {selectedFile && (
               <p className="text-sm text-green-600">✓ {selectedFile.name}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                // TODO: Gerar template real baseado no schema
-                alert('Download de modelo em desenvolvimento');
-              }}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Baixar Modelo (Template)
-            </Button>
+          <div className="p-3 bg-gray-50 rounded text-xs text-gray-600 space-y-2">
+            <div>
+              <p className="mb-1">
+                <strong>Colunas obrigatórias (OOH e DOOH):</strong>
+              </p>
+              <p className="font-mono break-words">{REQUIRED_COMMON.join(', ')}</p>
+            </div>
+
+            <div>
+              <p className="mb-1">
+                <strong>Colunas opcionais (OOH e DOOH):</strong>
+              </p>
+              <p className="font-mono break-words">{OPTIONAL_COMMON.join(', ')}</p>
+            </div>
+
+            {importType === MediaType.OOH && (
+              <div>
+                <p className="mb-1">
+                  <strong>Colunas opcionais adicionais (somente OOH):</strong>
+                </p>
+                <p className="font-mono break-words">{OPTIONAL_OOH.join(', ')}</p>
+              </div>
+            )}
           </div>
 
-          <div className="p-3 bg-gray-50 rounded text-xs text-gray-600">
-            <p className="mb-2"><strong>Colunas esperadas no arquivo:</strong></p>
-            <p className="font-mono">
-              name, type, subcategory, description, addressCity, addressState, latitude, longitude, 
-              dailyImpressions, environment, basePriceMonth, showInMediaKit
-            </p>
-          </div>
+          {importErrors.length > 0 && (
+            <div className="p-3 bg-red-50 rounded text-xs text-red-700">
+              <p className="font-semibold mb-2">Erros encontrados:</p>
+              <ul className="list-disc ml-5 space-y-1 max-h-40 overflow-auto">
+                {importErrors.slice(0, 50).map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+              {importErrors.length > 50 && (
+                <p className="mt-2 text-red-600">Mostrando os primeiros 50 erros.</p>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBusy}>
               Cancelar
             </Button>
-            <Button onClick={handleImport} disabled={!selectedFile}>
+            <Button onClick={handleImport} disabled={!selectedFile || isBusy}>
               Importar Pontos
             </Button>
           </div>

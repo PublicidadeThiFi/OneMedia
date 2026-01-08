@@ -30,7 +30,6 @@ type UnitFormPayload = Partial<
     | 'resolutionHeightPx'
     | 'priceMonth'
     | 'priceWeek'
-    | 'priceDay'
   >
 >;
 
@@ -170,13 +169,12 @@ export function MediaUnitsDialog({
                               </>
                             )}
 
-                            {(unit.priceMonth || unit.priceWeek || unit.priceDay) && (
+                            {(unit.priceMonth || unit.priceWeek) && (
                               <div className="md:col-span-2">
                                 <span className="text-gray-600">Preços: </span>
                                 <span className="text-gray-900">
                                   {unit.priceMonth ? `R$ ${unit.priceMonth}/mês` : ''}
-                                  {unit.priceWeek ? ` • R$ ${unit.priceWeek}/sem` : ''}
-                                  {unit.priceDay ? ` • R$ ${unit.priceDay}/dia` : ''}
+                                  {unit.priceWeek ? ` • R$ ${unit.priceWeek}/quinz` : ''}
                                 </span>
                               </div>
                             )}
@@ -297,7 +295,6 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
         resolutionHeightPx: unit.resolutionHeightPx,
         priceMonth: unit.priceMonth,
         priceWeek: unit.priceWeek,
-        priceDay: unit.priceDay,
       }
       : {
         label: '',
@@ -321,7 +318,6 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
         resolutionHeightPx: unit.resolutionHeightPx,
         priceMonth: unit.priceMonth,
         priceWeek: unit.priceWeek,
-        priceDay: unit.priceDay,
       });
       setImageFile(null);
       setImagePreview(unit.imageUrl ?? null);
@@ -500,7 +496,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
 
         <div className="space-y-2">
           <Label>Preços (opcional)</Label>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm">Preço/Mês (R$)</Label>
               <Input
@@ -515,7 +511,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm">Preço/Semana (R$)</Label>
+              <Label className="text-sm">Preço/Quinzenal (R$)</Label>
               <Input
                 type="number"
                 step="0.01"
@@ -523,19 +519,6 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
                 value={formData.priceWeek ?? ''}
                 onChange={(e) =>
                   updateField('priceWeek', e.target.value ? parseFloat(e.target.value) : null)
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm">Preço/Dia (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="300.00"
-                value={formData.priceDay ?? ''}
-                onChange={(e) =>
-                  updateField('priceDay', e.target.value ? parseFloat(e.target.value) : null)
                 }
               />
             </div>
