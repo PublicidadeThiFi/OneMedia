@@ -337,6 +337,10 @@ export interface Client {
   origin?: string;
   notes?: string;
   ownerUserId?: string;
+
+  /** Contagem de propostas do cliente (calculado no backend) */
+  proposalsCount?: number;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -354,6 +358,9 @@ export interface ClientDocument {
   uploadedByUserId: string;
   createdAt: Date;
   updatedAt: Date;
+
+  /** Link direto (quando o backend fornece) */
+  url?: string;
 }
 
 export interface Product {

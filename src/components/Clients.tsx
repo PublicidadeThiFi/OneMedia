@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -17,7 +17,12 @@ export function Clients() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 40;
+
+  // Sempre que filtros mudarem, volta para a página 1
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter, ownerFilter]);
 
   const { clients, total, loading, error, refetch } = useClients({
     search: searchQuery || undefined,

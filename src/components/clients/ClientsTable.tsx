@@ -80,7 +80,7 @@ export function ClientsTable({
         <tbody className="divide-y divide-gray-200">
           {clients.map((client) => {
             const owner = client.ownerUserId ? ownersById.get(client.ownerUserId) : null;
-            const proposalCount = 0;
+            const proposalCount = client.proposalsCount ?? 0;
 
             return (
               <tr key={client.id} className="hover:bg-gray-50">
