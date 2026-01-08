@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useCompany } from '../../contexts/CompanyContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -26,7 +25,6 @@ export function ProposalStep1General({
   onNavigate,
 }: ProposalStep1GeneralProps) {
   const { user } = useAuth();
-  const { company } = useCompany();
 
   // Pré-preencher responsável com usuário logado
   useEffect(() => {
@@ -202,23 +200,6 @@ export function ProposalStep1General({
           value={formData.conditionsText || ''}
           onChange={(e) => onChange({ conditionsText: e.target.value })}
         />
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            onClick={() => {
-              // TODO: Puxar texto padrão das configurações da empresa
-              onChange({
-                conditionsText:
-                  (company?.defaultProposalNotes ||
-                  'Pagamento em até 30 dias após aprovação.\nReajuste anual conforme IGP-M.\nObrigado pela preferência!').replace(/\\n/g, '\n'),
-              });
-            }}
-          >
-            Inserir texto padrão
-          </Button>
-        </div>
       </div>
 
       {/* Descontos */}
