@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { useClients } from '../../hooks/useClients';
+import React, { useEffect, useMemo, useState } from 'react';
+import apiClient from '../../lib/apiClient';
 import { Client } from '../../types';
 
 interface ClientSelectProps {
@@ -9,7 +9,63 @@ interface ClientSelectProps {
 }
 
 export function ClientSelect({ value, onChange }: ClientSelectProps) {
-  const { clients, loading } = useClients({ pageSize: 500 });
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // Carrega todos os clientes via paginação (40 por página),
+  // para que o select funcione mesmo com limite de pageSize no backend.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        setLoading(true);
+        const pageSize = 40;
+        let page = 1;
+        const all: Client[] = [];
+
+        // Itera páginas até não haver mais resultados.
+        // Mantém compatibilidade com resposta array (legada) ou objeto paginado.
+        for (let guard = 0; guard < 50; guard++) {
+          const res = await apiClient.get<any>('/clients', {
+            params: {
+              page,
+              pageSize,
+              orderBy: 'name',
+              sortOrder: 'asc',
+            },
+          });
+
+          const payload = res.data;
+          const rows: Client[] = Array.isArray(payload) ? payload : payload?.data ?? [];
+
+          all.push(...rows);
+
+          // resposta legada (array): não há mais páginas
+          if (Array.isArray(payload)) break;
+
+          // prefer totalPages quando disponível
+          const totalPages: number | undefined = payload?.totalPages;
+          if (typeof totalPages === 'number' && page >= totalPages) break;
+
+          // fallback: se a página veio menor que pageSize, acabou
+          if (!rows.length || rows.length < pageSize) break;
+
+          page += 1;
+        }
+
+        if (!cancelled) setClients(all);
+      } catch {
+        if (!cancelled) setClients([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const options = useMemo(() => {
     return (clients || []).map((c: Client) => ({

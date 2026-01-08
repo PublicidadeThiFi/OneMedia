@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Edit, Plus, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from './ui/card';
@@ -20,6 +20,8 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   // Filtros básicos
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const pageSize = 40;
 
   // Filtros avançados
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
@@ -41,6 +43,8 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const {
     proposals,
     total,
+    totalPages,
+    stats: apiStats,
     loading,
     error,
     refetch,
@@ -56,7 +60,22 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     createdTo: advancedFilters.createdTo,
     orderBy: 'createdAt',
     sortOrder: 'desc',
+    page,
+    pageSize,
   });
+
+  // Sempre que filtros mudarem, volta para a primeira página.
+  useEffect(() => {
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    searchQuery,
+    statusFilter,
+    advancedFilters.responsibleUserId,
+    advancedFilters.createdFrom,
+    advancedFilters.createdTo,
+    advancedFilters.proposalStatuses.join('|'),
+  ]);
 
   // Dialogs e Drawers
   const [isFormWizardOpen, setIsFormWizardOpen] = useState(false);
@@ -65,7 +84,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const [loadingSingle, setLoadingSingle] = useState(false);
 
   // Cards de estatísticas (baseado na lista carregada)
-  const stats = useMemo(() => {
+  const fallbackStats = useMemo(() => {
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
 
@@ -98,6 +117,18 @@ export function Proposals({ onNavigate }: ProposalsProps) {
       drafts: drafts.length,
     };
   }, [proposals]);
+
+  const stats = useMemo(() => {
+    return (
+      apiStats ?? {
+        approved: fallbackStats.approved,
+        approvalRate: fallbackStats.approvalRate,
+        totalApprovedAmount: fallbackStats.totalApprovedAmount,
+        sent: fallbackStats.sent,
+        drafts: fallbackStats.drafts,
+      }
+    );
+  }, [apiStats, fallbackStats]);
 
   const handleNewProposal = () => {
     setEditingProposal(null);
@@ -290,6 +321,30 @@ export function Proposals({ onNavigate }: ProposalsProps) {
           onEditProposal={handleEditProposal}
           onSendProposal={handleSendProposal}
         />
+
+        <div className="flex items-center justify-between px-6 py-4 border-t">
+          <p className="text-sm text-gray-600">
+            Página {page} de {totalPages || 1}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={loading || page <= 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages || 1, p + 1))}
+              disabled={loading || page >= (totalPages || 1)}
+            >
+              Próxima
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {/* Dialogs */}

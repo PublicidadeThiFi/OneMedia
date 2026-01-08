@@ -15,12 +15,24 @@ export interface UseProposalsParams {
   pageSize?: number;
 }
 
+export interface ProposalsStats {
+  approved: number;
+  sent: number;
+  drafts: number;
+  approvalRate: number;
+  totalApprovedAmount: number;
+}
+
 // Resposta pode ser um array direto ou um objeto paginado
 type ProposalsResponse =
   | Proposal[]
   | {
       data: Proposal[];
       total?: number;
+      page?: number;
+      pageSize?: number;
+      totalPages?: number;
+      stats?: ProposalsStats;
     };
 
 function normalizeProposal(p: any): Proposal {
@@ -110,6 +122,10 @@ function serializeProposalForApi(data: Partial<Proposal>) {
 export function useProposals(params: UseProposalsParams = {}) {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [total, setTotal] = useState<number>(0);
+  const [page, setPage] = useState<number>(params.page ?? 1);
+  const [pageSize, setPageSize] = useState<number>(params.pageSize ?? 40);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [stats, setStats] = useState<ProposalsStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -146,6 +162,20 @@ export function useProposals(params: UseProposalsParams = {}) {
 
       setProposals(data.map(normalizeProposal));
       setTotal(computedTotal);
+
+      if (Array.isArray(responseData)) {
+        setPage(params.page ?? 1);
+        setPageSize(params.pageSize ?? data.length);
+        setTotalPages(1);
+        setStats(null);
+      } else {
+        const respPageSize = responseData.pageSize ?? params.pageSize ?? 40;
+        const computedPages = responseData.totalPages ?? Math.max(1, Math.ceil(computedTotal / respPageSize));
+        setPage(responseData.page ?? params.page ?? 1);
+        setPageSize(respPageSize);
+        setTotalPages(computedPages);
+        setStats(responseData.stats ?? null);
+      }
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -293,6 +323,10 @@ const updateProposal = async (id: string, dto: any) => {
   return {
     proposals,
     total,
+    page,
+    pageSize,
+    totalPages,
+    stats: stats ?? undefined,
     loading,
     error,
     refetch: fetchProposals,
