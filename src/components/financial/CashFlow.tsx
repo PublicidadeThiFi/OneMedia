@@ -13,19 +13,49 @@ import { Input } from '../ui/input';
 import { toNumber } from '../../lib/number';
 
 export function CashFlow() {
+  const toIso = (d: Date) => d.toISOString().slice(0, 10);
+  const formatBr = (iso: string) => {
+    if (!iso) return '';
+    const [y, m, day] = iso.split('-');
+    if (!y || !m || !day) return iso;
+    return `${day}/${m}/${y}`;
+  };
+
   // Filtros de período
+  const [viewMode, setViewMode] = useState<'month' | 'range'>('month');
   const [currentMonth, setCurrentMonth] = useState<number>(() => new Date().getMonth());
   const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
+  const [rangeFrom, setRangeFrom] = useState<string>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 2);
+    return toIso(d);
+  });
+  const [rangeTo, setRangeTo] = useState<string>(() => toIso(new Date()));
   const [isNewTransactionOpen, setIsNewTransactionOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<CashTransaction | null>(null);
 
-  // Calcular range de datas para o hook
-  const { dateFrom, dateTo } = useMemo(() => {
-    const start = new Date(currentYear, currentMonth, 1);
-    const end = new Date(currentYear, currentMonth + 1, 0);
-    const toIso = (d: Date) => d.toISOString().slice(0, 10);
-    return { dateFrom: toIso(start), dateTo: toIso(end) };
-  }, [currentMonth, currentYear]);
+  // Calcular range de datas para o hook (mês ou período)
+  const { dateFrom, dateTo, periodLabel } = useMemo(() => {
+    if (viewMode === 'month') {
+      const start = new Date(currentYear, currentMonth, 1);
+      const end = new Date(currentYear, currentMonth + 1, 0);
+      return {
+        dateFrom: toIso(start),
+        dateTo: toIso(end),
+        periodLabel: null as string | null,
+      };
+    }
+
+    const from = rangeFrom || toIso(new Date());
+    const to = rangeTo || toIso(new Date());
+    const safeFrom = from <= to ? from : to;
+    const safeTo = from <= to ? to : from;
+    return {
+      dateFrom: safeFrom,
+      dateTo: safeTo,
+      periodLabel: `Período: ${formatBr(safeFrom)} - ${formatBr(safeTo)}`,
+    };
+  }, [currentMonth, currentYear, rangeFrom, rangeTo, viewMode]);
 
   const { transactions, loading, error, refetch, createTransaction, updateTransaction, deleteTransaction } = useCashTransactions({ dateFrom, dateTo });
   const { categories } = useTransactionCategories();
@@ -136,47 +166,124 @@ export function CashFlow() {
       {/* Month Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={previousMonth}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-
-          <h2 className="text-gray-900">
-            {monthNames[currentMonth]} {currentYear}
-          </h2>
-
-          <Button variant="ghost" size="sm" onClick={nextMonth}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-
           <div className="flex items-center gap-2">
-            <Input
-              type="month"
-              className="w-[160px]"
-              value={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                const [y, m] = e.target.value.split('-');
-                if (!y || !m) return;
-
-                const year = Number(y);
-                const month = Number(m) - 1;
-                if (Number.isNaN(year) || Number.isNaN(month)) return;
-
-                setCurrentYear(year);
-                setCurrentMonth(month);
-              }}
-            />
             <Button
-              variant="outline"
               size="sm"
-              onClick={() => {
-                const d = new Date();
-                setCurrentYear(d.getFullYear());
-                setCurrentMonth(d.getMonth());
-              }}
+              variant={viewMode === 'month' ? 'default' : 'outline'}
+              onClick={() => setViewMode('month')}
             >
-              Hoje
+              Mês
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === 'range' ? 'default' : 'outline'}
+              onClick={() => setViewMode('range')}
+            >
+              Período
             </Button>
           </div>
+
+          {viewMode === 'month' ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={previousMonth}>
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+
+              <h2 className="text-gray-900">
+                {monthNames[currentMonth]} {currentYear}
+              </h2>
+
+              <Button variant="ghost" size="sm" onClick={nextMonth}>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Input
+                  type="month"
+                  className="w-[160px]"
+                  value={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                    const [y, m] = e.target.value.split('-');
+                    if (!y || !m) return;
+
+                    const year = Number(y);
+                    const month = Number(m) - 1;
+                    if (Number.isNaN(year) || Number.isNaN(month)) return;
+
+                    setCurrentYear(year);
+                    setCurrentMonth(month);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const d = new Date();
+                    setCurrentYear(d.getFullYear());
+                    setCurrentMonth(d.getMonth());
+                  }}
+                >
+                  Hoje
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-gray-900">{periodLabel}</h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="date"
+                  className="w-[160px]"
+                  value={rangeFrom}
+                  onChange={(e) => setRangeFrom(e.target.value)}
+                />
+                <span className="text-gray-500 text-sm">até</span>
+                <Input
+                  type="date"
+                  className="w-[160px]"
+                  value={rangeTo}
+                  onChange={(e) => setRangeTo(e.target.value)}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const today = new Date();
+                    setRangeTo(toIso(today));
+                  }}
+                >
+                  Hoje
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { label: '3 meses', months: 3 },
+                  { label: '6 meses', months: 6 },
+                  { label: '1 ano', years: 1 },
+                  { label: '2 anos', years: 2 },
+                  { label: '5 anos', years: 5 },
+                  { label: '10 anos', years: 10 },
+                ].map((p) => (
+                  <Button
+                    key={p.label}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date(end);
+                      if (p.months) start.setMonth(start.getMonth() - p.months);
+                      if (p.years) start.setFullYear(start.getFullYear() - p.years);
+                      setRangeTo(toIso(end));
+                      setRangeFrom(toIso(start));
+                    }}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <Button className="gap-2" onClick={() => { setEditingTransaction(null); setIsNewTransactionOpen(true); }}>
