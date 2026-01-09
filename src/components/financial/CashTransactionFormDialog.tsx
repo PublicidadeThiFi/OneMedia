@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
-import { ScrollArea } from '../ui/scroll-area';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -234,7 +233,12 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 flex flex-col max-h-[90vh] overflow-hidden">
+      {/*
+        IMPORTANT: DialogContent base styles include `grid`.
+        Tailwind utility precedence can keep `grid` winning over `flex`, breaking `flex-1` scrolling.
+        We force flex layout with `!flex` and remove padding/gap with `!p-0` / `!gap-0`.
+      */}
+      <DialogContent className="max-w-2xl !p-0 !gap-0 !flex !flex-col max-h-[90vh] overflow-hidden">
         <div className="px-6 pt-6">
           <DialogHeader>
             <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
@@ -242,7 +246,11 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </DialogHeader>
         </div>
 
-        <ScrollArea className="flex-1 px-6 py-2">
+        {/*
+          Use a plain div with overflow-y-auto to guarantee scrolling across browsers.
+          (Radix ScrollArea is nice, but if its viewport sizing breaks, you end up with no scroll.)
+        */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2">
           <div className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label>Tipo de Transação (flowType) *</Label>
@@ -477,7 +485,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                 {mediaLinks.length === 0 ? (
                   <p className="text-xs text-gray-500">Nenhum ponto de mídia vinculado.</p>
                 ) : (
-                  <ScrollArea className="max-h-72 pr-2">
+                  <div className="max-h-72 overflow-y-auto pr-2">
                     <div className="space-y-3">
                       {mediaLinks.map((link, idx) => (
                         <div key={link.key} className="grid grid-cols-2 gap-4 items-end">
@@ -527,7 +535,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                         </div>
                       ))}
                     </div>
-                  </ScrollArea>
+                  </div>
                 )}
 
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -544,7 +552,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </div>
 
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="px-6 pb-6 pt-4 border-t bg-background flex justify-end gap-3">
           <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
