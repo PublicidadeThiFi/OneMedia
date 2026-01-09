@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
+import { ScrollArea } from '../ui/scroll-area';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -233,13 +234,16 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
-          <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-2xl p-0 flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="px-6 pt-6">
+          <DialogHeader>
+            <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
+            <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="space-y-4">
+        <ScrollArea className="flex-1 px-6 py-2">
+          <div className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label>Tipo de Transação (flowType) *</Label>
             <Select
@@ -473,55 +477,57 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                 {mediaLinks.length === 0 ? (
                   <p className="text-xs text-gray-500">Nenhum ponto de mídia vinculado.</p>
                 ) : (
-                  <div className="space-y-3">
-                    {mediaLinks.map((link, idx) => (
-                      <div key={link.key} className="grid grid-cols-2 gap-4 items-end">
-                        <div className="space-y-2">
-                          <Label>{idx === 0 ? 'Ponto de Mídia (opcional)' : 'Ponto de Mídia'}</Label>
-                          <Select
-                            value={link.mediaPointId}
-                            onValueChange={(value: string) => updateMediaLink(link.key, { mediaPointId: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o ponto" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Nenhum</SelectItem>
-                              {mediaPoints.map((point) => (
-                                <SelectItem
-                                  key={point.id}
-                                  value={point.id}
-                                  disabled={usedMediaPointIds.has(point.id) && point.id !== link.mediaPointId}
-                                >
-                                  {point.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-end gap-2">
-                          <div className="flex-1 space-y-2">
-                            <Label>Data de Vencimento (opcional)</Label>
-                            <Input
-                              type="date"
-                              value={link.dueDate}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMediaLink(link.key, { dueDate: e.target.value })}
-                            />
+                  <ScrollArea className="max-h-72 pr-2">
+                    <div className="space-y-3">
+                      {mediaLinks.map((link, idx) => (
+                        <div key={link.key} className="grid grid-cols-2 gap-4 items-end">
+                          <div className="space-y-2">
+                            <Label>{idx === 0 ? 'Ponto de Mídia (opcional)' : 'Ponto de Mídia'}</Label>
+                            <Select
+                              value={link.mediaPointId}
+                              onValueChange={(value: string) => updateMediaLink(link.key, { mediaPointId: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o ponto" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Nenhum</SelectItem>
+                                {mediaPoints.map((point) => (
+                                  <SelectItem
+                                    key={point.id}
+                                    value={point.id}
+                                    disabled={usedMediaPointIds.has(point.id) && point.id !== link.mediaPointId}
+                                  >
+                                    {point.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => removeMediaLink(link.key)}
-                            title="Remover ponto"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1 space-y-2">
+                              <Label>Data de Vencimento (opcional)</Label>
+                              <Input
+                                type="date"
+                                value={link.dueDate}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMediaLink(link.key, { dueDate: e.target.value })}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => removeMediaLink(link.key)}
+                              title="Remover ponto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
                 )}
 
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -537,10 +543,12 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             )}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
-            <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
           </div>
+        </ScrollArea>
+
+        <div className="px-6 pb-6 pt-4 border-t bg-background flex justify-end gap-3">
+          <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
+          <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
         </div>
       </DialogContent>
     </Dialog>
