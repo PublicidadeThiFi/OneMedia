@@ -233,7 +233,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
           <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>

@@ -123,8 +123,32 @@ export function useCashTransactions(params: UseCashTransactionsParams = {}) {
   };
 
   const updateTransaction = async (id: string, payload: Partial<CashTransaction>) => {
+    const isVirtualRequest = id.includes('__R__');
+
     const response = await apiClient.put<CashTransaction>(`/cash-transactions/${id}`, pickPayload(payload));
     const updated = normalizeTransaction(response.data);
+
+    const isPerInstanceResponse = Boolean(isVirtualRequest && (updated.id === id || (updated as any).isRecurringInstance));
+
+    if (isPerInstanceResponse) {
+      // Atualização pontual de uma instância recorrente (ex.: marcar como pago no mês)
+      setTransactions((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t;
+          const keepId = t.id;
+          const keepDate = t.date;
+          return {
+            ...t,
+            ...updated,
+            id: keepId,
+            date: keepDate,
+            dueDate: updated.dueDate ?? t.dueDate,
+          } as CashTransaction;
+        }),
+      );
+      return updated;
+    }
+
     // Para séries recorrentes, o backend retorna o registro base (id=baseId). Atualizamos todos os itens da série.
     setTransactions((prev) =>
       prev.map((t) => {
