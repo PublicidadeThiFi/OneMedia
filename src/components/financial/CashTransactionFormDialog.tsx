@@ -234,11 +234,14 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/*
-        IMPORTANT: DialogContent base styles include `grid`.
-        Tailwind utility precedence can keep `grid` winning over `flex`, breaking `flex-1` scrolling.
-        We force flex layout with `!flex` and remove padding/gap with `!p-0` / `!gap-0`.
+        FIX (scroll): when Radix Dialog is open, the body scroll is locked.
+        If the dialog content grows beyond the viewport and doesn't have its own overflow,
+        you end up with *no scroll at all*.
+        
+        We solve it by making DialogContent itself scrollable (max-h + overflow-y-auto)
+        and keeping the footer sticky so action buttons remain accessible.
       */}
-      <DialogContent className="max-w-2xl !p-0 !gap-0 !flex !flex-col max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-2xl !p-0 !gap-0 max-h-[90vh] overflow-y-auto">
         <div className="px-6 pt-6">
           <DialogHeader>
             <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
@@ -246,11 +249,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </DialogHeader>
         </div>
 
-        {/*
-          Use a plain div with overflow-y-auto to guarantee scrolling across browsers.
-          (Radix ScrollArea is nice, but if its viewport sizing breaks, you end up with no scroll.)
-        */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2">
+        <div className="px-6 py-2">
           <div className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label>Tipo de Transação (flowType) *</Label>
@@ -550,11 +549,10 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
               </div>
             )}
           </div>
-
           </div>
         </div>
 
-        <div className="px-6 pb-6 pt-4 border-t bg-background flex justify-end gap-3">
+        <div className="sticky bottom-0 px-6 pb-6 pt-4 border-t bg-background flex justify-end gap-3">
           <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
           <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
         </div>
