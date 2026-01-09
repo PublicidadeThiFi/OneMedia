@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -9,6 +9,7 @@ import { parseDateFromHtmlInput } from '../../lib/dateUtils';
 import { useTransactionCategories } from '../../hooks/useTransactionCategories';
 import { useMediaPoints } from '../../hooks/useMediaPoints';
 import { Checkbox } from '../ui/checkbox';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface CashTransactionFormDialogProps {
   open: boolean;
@@ -21,10 +22,18 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
   const { categories, loading: categoriesLoading, error: categoriesError } = useTransactionCategories();
   const { mediaPoints } = useMediaPoints({});
 
+  const isEditing = Boolean(transaction);
+  const isRecurringInstance = Boolean(transaction?.isRecurringInstance);
+
   const [formData, setFormData] = useState({
     flowType: CashFlowType.RECEITA,
     date: new Date().toISOString().slice(0, 10),
-    dueDate: '', // NOVO: data de vencimento
+    // Recorrência mensal
+    isRecurring: false,
+    recurringUntil: '',
+
+    // Vencimento (quando usar 1 ponto no modo edição)
+    dueDate: '',
     amount: '',
     description: '',
     partnerName: '',
@@ -34,15 +43,24 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
     paymentMethod: undefined as PaymentMethod | undefined,
     isPaid: true,
     billingInvoiceId: '',
-    mediaPointId: '', // Ponto de mídia vinculado
+    mediaPointId: '', // Ponto de mídia vinculado (modo edição)
   });
+
+  type MediaPointLink = { key: string; mediaPointId: string; dueDate: string };
+  const [mediaLinks, setMediaLinks] = useState<MediaPointLink[]>([]);
+
+  const usedMediaPointIds = useMemo(() => {
+    return new Set(mediaLinks.map((l) => l.mediaPointId).filter((id) => id && id !== 'none'));
+  }, [mediaLinks]);
 
   useEffect(() => {
     if (transaction) {
       setFormData({
         flowType: transaction.flowType,
         date: new Date(transaction.date).toISOString().slice(0, 10),
-        dueDate: '',
+        isRecurring: Boolean(transaction.isRecurring),
+        recurringUntil: transaction.recurringUntil ? String(transaction.recurringUntil).slice(0, 10) : '',
+        dueDate: transaction.dueDate ? String(transaction.dueDate).slice(0, 10) : '',
         amount: String(transaction.amount ?? ''),
         description: transaction.description,
         partnerName: transaction.partnerName || '',
@@ -54,10 +72,19 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         billingInvoiceId: transaction.billingInvoiceId || '',
         mediaPointId: transaction.mediaPointId || '',
       });
+
+      // Para edição, mantemos 1 ponto; para criação, usamos a lista.
+      if (transaction.mediaPointId) {
+        setMediaLinks([{ key: '0', mediaPointId: transaction.mediaPointId, dueDate: transaction.dueDate ? String(transaction.dueDate).slice(0, 10) : '' }]);
+      } else {
+        setMediaLinks([]);
+      }
     } else {
       setFormData({
         flowType: CashFlowType.RECEITA,
         date: '',
+        isRecurring: false,
+        recurringUntil: '',
         dueDate: '',
         amount: '',
         description: '',
@@ -70,8 +97,31 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         billingInvoiceId: '',
         mediaPointId: '',
       });
+
+      setMediaLinks([]);
     }
   }, [transaction]);
+
+  const addMediaLink = () => {
+    setMediaLinks((prev) => [...prev, { key: `${Date.now()}_${prev.length}`, mediaPointId: 'none', dueDate: '' }]);
+  };
+
+  const removeMediaLink = (key: string) => {
+    setMediaLinks((prev) => prev.filter((l) => l.key !== key));
+  };
+
+  const updateMediaLink = (key: string, next: Partial<MediaPointLink>) => {
+    setMediaLinks((prev) =>
+      prev.map((l) => {
+        if (l.key !== key) return l;
+
+        if (next.mediaPointId && next.mediaPointId !== 'none' && usedMediaPointIds.has(next.mediaPointId) && next.mediaPointId !== l.mediaPointId) {
+          return l; // evita duplicidade
+        }
+        return { ...l, ...next };
+      }),
+    );
+  };
 
   const handleSave = () => {
     // Validação básica
@@ -101,10 +151,37 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
       flowType: formData.flowType,
       paymentType: formData.paymentType,
       paymentMethod: formData.paymentMethod,
-      isPaid: Boolean(formData.isPaid),
+      isPaid: formData.isRecurring ? false : Boolean(formData.isPaid),
       billingInvoiceId: formData.billingInvoiceId || undefined,
-      mediaPointId: formData.mediaPointId && formData.mediaPointId !== 'none' ? formData.mediaPointId : undefined,
+      isRecurring: formData.isRecurring,
+      recurringUntil: formData.isRecurring && formData.recurringUntil ? formData.recurringUntil : undefined,
     };
+
+    // Se for uma instância recorrente (virtual), não enviamos 'date' para evitar mudar a data inicial da série.
+    if (isRecurringInstance) {
+      delete (payload as any).date;
+      delete (payload as any).isRecurring;
+      delete (payload as any).recurringUntil;
+    }
+
+    // Media points:
+    // - edição: suporta 1 ponto (mediaPointId + dueDate)
+    // - criação: suporta múltiplos (mediaPoints[])
+    if (isEditing) {
+      payload.mediaPointId = formData.mediaPointId && formData.mediaPointId !== 'none' ? formData.mediaPointId : undefined;
+      payload.dueDate = formData.dueDate ? formData.dueDate : undefined;
+    } else {
+      const links = mediaLinks
+        .map((l) => ({ mediaPointId: l.mediaPointId, dueDate: l.dueDate }))
+        .filter((l) => l.mediaPointId && l.mediaPointId !== 'none');
+
+      if (links.length === 1) {
+        payload.mediaPointId = links[0].mediaPointId;
+        payload.dueDate = links[0].dueDate || undefined;
+      } else if (links.length > 1) {
+        (payload as any).mediaPoints = links.map((l) => ({ mediaPointId: l.mediaPointId, dueDate: l.dueDate || undefined }));
+      }
+    }
 
     onSave(payload);
 
@@ -112,7 +189,9 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
     setFormData({
       flowType: CashFlowType.RECEITA,
       date: '',
-      dueDate: '', // NOVO: data de vencimento
+      isRecurring: false,
+      recurringUntil: '',
+      dueDate: '',
       amount: '',
       description: '',
       partnerName: '',
@@ -124,6 +203,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
       billingInvoiceId: '',
       mediaPointId: '',
     });
+
+    setMediaLinks([]);
   };
 
   const handleCancel = () => {
@@ -132,7 +213,9 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
     setFormData({
       flowType: CashFlowType.RECEITA,
       date: '',
-      dueDate: '', // NOVO: data de vencimento
+      isRecurring: false,
+      recurringUntil: '',
+      dueDate: '',
       amount: '',
       description: '',
       partnerName: '',
@@ -144,6 +227,8 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
       billingInvoiceId: '',
       mediaPointId: '',
     });
+
+    setMediaLinks([]);
   };
 
   return (
@@ -181,7 +266,38 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                 type="date"
                 value={formData.date}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, date: e.target.value })}
+                disabled={isRecurringInstance}
               />
+
+              <div className="flex items-center gap-2 pt-2">
+                <Checkbox
+                  checked={formData.isRecurring}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => {
+                    const on = Boolean(checked);
+                    setFormData((prev) => ({
+                      ...prev,
+                      isRecurring: on,
+                      // Recorrente sempre inicia como não pago
+                      isPaid: on ? false : prev.isPaid,
+                      recurringUntil: on ? prev.recurringUntil : '',
+                    }));
+                  }}
+                  disabled={isRecurringInstance}
+                />
+                <Label className="cursor-pointer">Recorrente (mensal)</Label>
+              </div>
+
+              {formData.isRecurring && !isRecurringInstance && (
+                <div className="pt-2 space-y-2">
+                  <Label>Recorrente até (opcional)</Label>
+                  <Input
+                    type="date"
+                    value={formData.recurringUntil}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, recurringUntil: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500">Se vazio, repete indefinidamente.</p>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Valor (R$) *</Label>
@@ -293,10 +409,14 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             <Checkbox
               checked={formData.isPaid}
               onCheckedChange={(checked: boolean | 'indeterminate') => setFormData({ ...formData, isPaid: Boolean(checked) })}
+              disabled={formData.isRecurring || isRecurringInstance}
             />
             <Label className="cursor-pointer">
               Já foi pago (isPaid)
             </Label>
+            {formData.isRecurring && (
+              <span className="text-xs text-gray-500">(bloqueado para transações recorrentes)</span>
+            )}
           </div>
 
           {/* NOVOS CAMPOS: Ponto de Mídia e Data de Vencimento */}
@@ -305,42 +425,116 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
               💡 Para despesas de pontos de mídia (energia, taxa DER, aluguel), vincule o ponto e defina o vencimento:
             </p>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Ponto de Mídia (opcional)</Label>
-                <Select
-                  value={formData.mediaPointId}
-                  onValueChange={(value: string) => setFormData({ ...formData, mediaPointId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o ponto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {mediaPoints.map((point) => (
-                      <SelectItem key={point.id} value={point.id}>
-                        {point.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-500">
-                  Use para despesas como energia, taxa DER, aluguel de área
-                </p>
-              </div>
+            {isEditing ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Ponto de Mídia (opcional)</Label>
+                    <Select
+                      value={formData.mediaPointId}
+                      onValueChange={(value: string) => setFormData({ ...formData, mediaPointId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o ponto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {mediaPoints.map((point) => (
+                          <SelectItem key={point.id} value={point.id}>
+                            {point.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      Use para despesas como energia, taxa DER, aluguel de área
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label>Data de Vencimento (opcional)</Label>
-                <Input
-                  type="date"
-                  value={formData.dueDate}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })}
-                />
-                <p className="text-xs text-gray-500">
-                  Data de vencimento da taxa/despesa
-                </p>
+                  <div className="space-y-2">
+                    <Label>Data de Vencimento (opcional)</Label>
+                    <Input
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, dueDate: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500">Data de vencimento da taxa/despesa</p>
+                  </div>
+                </div>
+
+                {!isRecurringInstance && (
+                  <p className="text-xs text-gray-500">
+                    Para vincular múltiplos pontos, crie uma nova transação.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="space-y-3">
+                {mediaLinks.length === 0 ? (
+                  <p className="text-xs text-gray-500">Nenhum ponto de mídia vinculado.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {mediaLinks.map((link, idx) => (
+                      <div key={link.key} className="grid grid-cols-2 gap-4 items-end">
+                        <div className="space-y-2">
+                          <Label>{idx === 0 ? 'Ponto de Mídia (opcional)' : 'Ponto de Mídia'}</Label>
+                          <Select
+                            value={link.mediaPointId}
+                            onValueChange={(value: string) => updateMediaLink(link.key, { mediaPointId: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione o ponto" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
+                              {mediaPoints.map((point) => (
+                                <SelectItem
+                                  key={point.id}
+                                  value={point.id}
+                                  disabled={usedMediaPointIds.has(point.id) && point.id !== link.mediaPointId}
+                                >
+                                  {point.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1 space-y-2">
+                            <Label>Data de Vencimento (opcional)</Label>
+                            <Input
+                              type="date"
+                              value={link.dueDate}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateMediaLink(link.key, { dueDate: e.target.value })}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removeMediaLink(link.key)}
+                            title="Remover ponto"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" className="gap-2" onClick={addMediaLink}>
+                    <Plus className="w-4 h-4" />
+                    Adicionar ponto
+                  </Button>
+                  <p className="text-xs text-gray-500">
+                    Você pode vincular múltiplos pontos, cada um com seu vencimento.
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">

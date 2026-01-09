@@ -510,12 +510,22 @@ export interface BillingInvoice {
 
 export interface CashTransaction {
   id: string;
+  /** Para transações recorrentes geradas no backend (instâncias virtuais), aponta para o ID da série/base */
+  seriesId?: string;
   companyId: string;
   date: Date;
   description: string;
   partnerName?: string;
   categoryId?: string;
+  categoryName?: string | null;
   tags: string[];
+  /** Vencimento (YYYY-MM-DD) - opcional */
+  dueDate?: string | null;
+  /**
+   * Vínculo de múltiplos pontos de mídia (apenas para criação via formulário).
+   * O backend cria 1 transação por item deste array.
+   */
+  mediaPoints?: Array<{ mediaPointId: string; dueDate?: string }>;
   amount: number;
   flowType: CashFlowType;
   paymentType?: PaymentType;
@@ -523,6 +533,13 @@ export interface CashTransaction {
   isPaid: boolean;
   billingInvoiceId?: string;
   mediaPointId?: string;
+  mediaPointName?: string | null;
+  /** Recorrência mensal */
+  isRecurring?: boolean;
+  /** Data final da recorrência (YYYY-MM-DD) */
+  recurringUntil?: string | null;
+  /** Indica se esta linha é uma instância recorrente “virtual” (não existe como registro separado no DB) */
+  isRecurringInstance?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
