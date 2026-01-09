@@ -427,7 +427,23 @@ export function CashFlow() {
                                   {transaction.isPaid ? 'Pago' : 'Pendente'}
                                 </Badge>
                               </td>
-                              <td className="px-6 py-4 space-x-2">
+                              <td className="px-6 py-4 flex flex-wrap gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      await updateTransaction(transaction.id, { isPaid: !transaction.isPaid });
+                                      toast.success(transaction.isPaid ? 'Transação marcada como pendente' : 'Transação marcada como paga');
+                                      refetch();
+                                    } catch (err) {
+                                      toast.error('Falha ao atualizar status de pagamento');
+                                    }
+                                  }}
+                                >
+                                  {transaction.isPaid ? 'Desmarcar Pago' : 'Marcar Pago'}
+                                </Button>
+                                
                                 <Button
                                   variant="outline"
                                   size="sm"
