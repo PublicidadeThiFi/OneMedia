@@ -618,8 +618,11 @@ export interface ActivityLog {
   id: string;
   companyId?: string;
   userId?: string;
+  userName?: string | null;
+  userEmail?: string | null;
   resourceType: ActivityResourceType;
   resourceId: string;
+  resourceName?: string | null;
   action: string;
   details?: any;
   createdAt: Date;

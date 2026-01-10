@@ -162,13 +162,17 @@ export function Activities() {
       filtered = filtered.filter((log) => {
         const detailsStr = log.details ? JSON.stringify(log.details).toLowerCase() : '';
         const actionLabel = actionMeta(log.action).label.toLowerCase();
+        const resourceName = (log.resourceName ?? '').toLowerCase();
+        const userName = (log.userName ?? '').toLowerCase();
+        const userEmail = (log.userEmail ?? '').toLowerCase();
 
         return (
-          log.resourceId.toLowerCase().includes(query) ||
           log.action.toLowerCase().includes(query) ||
           actionLabel.includes(query) ||
-          (log.userId ? log.userId.toLowerCase().includes(query) : false) ||
           log.resourceType.toLowerCase().includes(query) ||
+          resourceName.includes(query) ||
+          userName.includes(query) ||
+          userEmail.includes(query) ||
           detailsStr.includes(query)
         );
       });
@@ -245,12 +249,6 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
     });
   };
 
-  const shortId = (id?: string | null) => {
-    if (!id) return '';
-    if (id.length <= 12) return id;
-    return `${id.slice(0, 8)}...${id.slice(-4)}`;
-  };
-
   const renderDetails = (log: ActivityLog): ReactNode => {
     const d = log.details as any;
     if (!d) return null;
@@ -294,18 +292,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
       }
     }
 
-    // Fallback: show JSON only on demand
-    blocks.push(
-      <details key="raw" className="mt-2">
-        <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
-          Ver detalhes (JSON)
-        </summary>
-        <pre className="mt-2 rounded-md bg-gray-50 p-3 text-xs text-gray-700 overflow-x-auto">
-          {JSON.stringify(d, null, 2)}
-        </pre>
-      </details>
-    );
-
+    if (!blocks.length) return null;
     return <div className="space-y-2">{blocks}</div>;
   };
 
@@ -414,6 +401,8 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
         ) : (
           filteredLogs.map((log: ActivityLog) => {
             const meta = actionMeta(log.action);
+            const detailsNode = renderDetails(log);
+            const actor = (log.userName || log.userEmail || '').trim() || 'Sistema';
             return (
             <Card key={log.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
@@ -426,29 +415,26 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
                       </Badge>
                       <div className="flex flex-col">
                         <h3 className="text-gray-900">{meta.label}</h3>
-                        {meta.label !== log.action && (
-                          <span className="text-xs text-gray-500 font-mono">{log.action}</span>
-                        )}
                       </div>
                     </div>
 
-                    {/* ID do recurso */}
-                    <p className="text-sm text-gray-600 mb-3">
-                      ID: <span className="font-mono">{log.resourceId}</span>
-                    </p>
+                    {/* Referência (sem IDs) */}
+                    {log.resourceName && (
+                      <p className="text-sm text-gray-700 mb-3">
+                        <span className="font-medium">Referência:</span> {log.resourceName}
+                      </p>
+                    )}
 
                     {/* Detalhes */}
-                    {log.details && (
+                    {detailsNode && (
                       <div className="p-3 bg-gray-50 rounded-lg mb-3">
-                        {renderDetails(log)}
+                        {detailsNode}
                       </div>
                     )}
 
                     {/* Rodapé: usuário e data */}
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      {log.userId && (
-                        <span title={log.userId}>Usuário: {shortId(log.userId)}</span>
-                      )}
+                      <span>Usuário: {actor}</span>
                       <span>•</span>
                       <span>{formatDateTime(log.createdAt)}</span>
                     </div>
@@ -466,7 +452,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
         <p className="text-sm text-blue-900 mb-1">💡 Auditoria</p>
         <p className="text-sm text-blue-700">
           Esta tela é somente leitura e mostra um histórico de ações realizadas no sistema.
-          Alguns itens possuem detalhes adicionais (JSON) que você pode expandir.
+          Use os filtros acima para encontrar rapidamente uma ação ou um recurso.
         </p>
       </div>
     </div>
