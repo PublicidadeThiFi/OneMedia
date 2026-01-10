@@ -470,7 +470,11 @@ export function MediaSelectionDrawer({
                             <Input
                               type="date"
                               value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                              onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                              onChange={(e) =>
+                                setStartDate(
+                                  e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
+                                )
+                              }
                             />
                           </div>
 
@@ -479,7 +483,11 @@ export function MediaSelectionDrawer({
                             <Input
                               type="date"
                               value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                              onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                              onChange={(e) =>
+                                setEndDate(
+                                  e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
+                                )
+                              }
                             />
                           </div>
                         </div>

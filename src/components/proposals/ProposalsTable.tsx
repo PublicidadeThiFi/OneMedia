@@ -4,6 +4,15 @@ import { Proposal, ProposalStatus } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
 import { toNumber } from '../../lib/number';
 
+function formatDateBR(value: any): string {
+  if (!value) return '-';
+  const d = new Date(value as any);
+  if (Number.isNaN(d.getTime())) return '-';
+  // Usa a parte YYYY-MM-DD (UTC) para evitar o bug de "-1 dia" por timezone.
+  const [y, m, dd] = d.toISOString().split('T')[0].split('-');
+  return `${dd}/${m}/${y}`;
+}
+
 interface ProposalsTableProps {
   proposals: Proposal[];
   onViewDetails: (proposal: Proposal) => void;
@@ -144,9 +153,7 @@ export function ProposalsTable({
 
                 {/* Validade */}
                 <td className="px-6 py-4 text-gray-600 text-sm">
-                  {proposal.validUntil
-                    ? new Date(proposal.validUntil as any).toLocaleDateString('pt-BR')
-                    : '-'}
+                  {formatDateBR(proposal.validUntil)}
                 </td>
 
                 {/* Ações */}
