@@ -26,7 +26,12 @@ export function ProductSelectionDialog({
   onAddItem,
 }: ProductSelectionDialogProps) {
   const { company } = useCompany();
-  const { products, loading, error, refetch } = useProducts();
+  // No contexto de seleção de item para proposta, precisamos listar todos os produtos/serviços
+  // (o backend pagina, então pedimos um pageSize maior aqui).
+  const productsParams = useMemo(() => ({ page: 1, pageSize: 500 }), []);
+  const { products, loading, error, refetch } = useProducts(productsParams);
+
+  const parseLocalDate = (yyyyMmDd: string) => new Date(`${yyyyMmDd}T00:00:00`);
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [description, setDescription] = useState('');
@@ -167,7 +172,7 @@ export function ProductSelectionDialog({
                 id="startDate"
                 type="date"
                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value) : undefined)}
+                onChange={(e) => setStartDate(e.target.value ? parseLocalDate(e.target.value) : undefined)}
               />
             </div>
             <div className="space-y-2">
@@ -176,7 +181,7 @@ export function ProductSelectionDialog({
                 id="endDate"
                 type="date"
                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value) : undefined)}
+                onChange={(e) => setEndDate(e.target.value ? parseLocalDate(e.target.value) : undefined)}
               />
             </div>
           </div>

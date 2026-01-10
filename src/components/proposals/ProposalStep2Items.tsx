@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Button } from '../ui/button';
-import { Plus, Image as ImageIcon, Package, Trash2, Edit } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Image as ImageIcon, Package, Trash2, Edit } from 'lucide-react';
 import { ProposalFormData } from './ProposalFormWizard';
 import { ProposalItem } from '../../types';
 import { MediaSelectionDrawer } from './MediaSelectionDrawer';
@@ -10,11 +12,13 @@ import { ProposalItemEditDialog } from './ProposalItemEditDialog';
 interface ProposalStep2ItemsProps {
   formData: ProposalFormData;
   onItemsChange: (items: ProposalItem[]) => void;
+  onDiscountChange: (data: Partial<ProposalFormData>) => void;
 }
 
 export function ProposalStep2Items({
   formData,
   onItemsChange,
+  onDiscountChange,
 }: ProposalStep2ItemsProps) {
   const [showMediaDrawer, setShowMediaDrawer] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -60,7 +64,20 @@ export function ProposalStep2Items({
 
   const formatDate = (date?: Date) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('pt-BR');
+    const d = new Date(date as any);
+    if (Number.isNaN(d.getTime())) return '-';
+    const [y, m, dd] = d.toISOString().split('T')[0].split('-');
+    return `${dd}/${m}/${y}`;
+  };
+
+  const handleDiscountPercentChange = (value: string) => {
+    const percent = parseFloat(value) || 0;
+    onDiscountChange({ discountPercent: percent, discountAmount: 0 });
+  };
+
+  const handleDiscountAmountChange = (value: string) => {
+    const amount = parseFloat(value) || 0;
+    onDiscountChange({ discountAmount: amount, discountPercent: 0 });
   };
 
   return (
@@ -200,17 +217,56 @@ export function ProposalStep2Items({
             </table>
           </div>
 
-          {/* Resumo financeiro */}
-          <div className="bg-gray-50 px-4 py-4 border-t space-y-2">
+        </div>
+      )}
+
+      {/* Descontos + Resumo Financeiro (movidos do Passo 1) */}
+      <div className="border-t pt-6 space-y-6">
+        <div>
+          <h3 className="text-lg text-gray-900 mb-4">Descontos</h3>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="discountPercent">Desconto em %</Label>
+              <Input
+                id="discountPercent"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.discountPercent || 0}
+                onChange={(e) => handleDiscountPercentChange(e.target.value)}
+                disabled={!!formData.discountAmount}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discountAmount">Desconto em R$</Label>
+              <Input
+                id="discountAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.discountAmount || 0}
+                onChange={(e) => handleDiscountAmountChange(e.target.value)}
+                disabled={!!formData.discountPercent}
+              />
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 mt-2">
+            💡 Preencha apenas um campo. O desconto será aplicado sobre o subtotal dos itens.
+          </p>
+        </div>
+
+        <div>
+          <h3 className="text-lg text-gray-900 mb-4">Resumo Financeiro</h3>
+          <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal:</span>
+              <span className="text-gray-600">Subtotal dos itens:</span>
               <span className="text-gray-900">{formatCurrency(formData.subtotal)}</span>
             </div>
             {(formData.discountPercent || formData.discountAmount) && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">
-                  Desconto
-                  {formData.discountPercent ? ` (${formData.discountPercent}%)` : ''}:
+                  Desconto{formData.discountPercent ? ` (${formData.discountPercent}%)` : ''}:
                 </span>
                 <span className="text-red-600">
                   -{' '}
@@ -226,8 +282,11 @@ export function ProposalStep2Items({
               <span className="text-gray-900">{formatCurrency(formData.totalAmount)}</span>
             </div>
           </div>
+          <p className="text-sm text-gray-500 mt-2">
+            O subtotal é calculado automaticamente a partir dos itens.
+          </p>
         </div>
-      )}
+      </div>
 
       {/* Dialogs e Drawers */}
       <MediaSelectionDrawer

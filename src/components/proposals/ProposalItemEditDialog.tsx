@@ -25,13 +25,22 @@ export function ProposalItemEditDialog({
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
+  const parseApiDateToLocalMidnight = (value: any): Date | undefined => {
+    if (!value) return undefined;
+    const d = new Date(value as any);
+    if (Number.isNaN(d.getTime())) return undefined;
+    const datePart = d.toISOString().split('T')[0];
+    const local = new Date(`${datePart}T00:00:00`);
+    return Number.isNaN(local.getTime()) ? undefined : local;
+  };
+
   useEffect(() => {
     if (item && open) {
       setDescription(item.description);
       setQuantity(item.quantity);
       setUnitPrice(item.unitPrice);
-      setStartDate(item.startDate ? new Date(item.startDate) : undefined);
-      setEndDate(item.endDate ? new Date(item.endDate) : undefined);
+      setStartDate(parseApiDateToLocalMidnight(item.startDate));
+      setEndDate(parseApiDateToLocalMidnight(item.endDate));
     }
   }, [item, open]);
 
@@ -95,7 +104,9 @@ export function ProposalItemEditDialog({
                 type="date"
                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
                 onChange={(e) =>
-                  setStartDate(e.target.value ? new Date(e.target.value) : undefined)
+                  setStartDate(
+                    e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
+                  )
                 }
               />
             </div>
@@ -106,7 +117,9 @@ export function ProposalItemEditDialog({
                 type="date"
                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
                 onChange={(e) =>
-                  setEndDate(e.target.value ? new Date(e.target.value) : undefined)
+                  setEndDate(
+                    e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
+                  )
                 }
               />
             </div>

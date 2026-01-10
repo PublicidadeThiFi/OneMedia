@@ -36,6 +36,40 @@ export interface ProposalFormData {
   totalAmount: number;
 }
 
+function parseApiDateToLocalMidnight(value: any): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value as any);
+  if (Number.isNaN(d.getTime())) return undefined;
+  // Pegamos apenas a parte YYYY-MM-DD (UTC) e forçamos meia-noite LOCAL.
+  // Assim evitamos o bug de "-1 dia" em timezones negativos.
+  const datePart = d.toISOString().split('T')[0];
+  const local = new Date(`${datePart}T00:00:00`);
+  return Number.isNaN(local.getTime()) ? undefined : local;
+}
+
+function calculateTotals(
+  items: ProposalItem[],
+  discountAmountRaw: any,
+  discountPercentRaw: any,
+) {
+  const subtotal = (items ?? []).reduce((sum, item) => sum + toNumber((item as any).totalPrice, 0), 0);
+
+  const discountAmount = toNumber(discountAmountRaw, 0);
+  const discountPercent = toNumber(discountPercentRaw, 0);
+
+  let finalTotal = subtotal;
+  if (discountAmount > 0) {
+    finalTotal = subtotal - discountAmount;
+  } else if (discountPercent > 0) {
+    finalTotal = subtotal - (subtotal * discountPercent) / 100;
+  }
+
+  return {
+    subtotal,
+    totalAmount: Math.max(0, finalTotal),
+  };
+}
+
 export function ProposalFormWizard({
   open,
   onOpenChange,
@@ -62,19 +96,33 @@ export function ProposalFormWizard({
   // Carregar dados da proposta ao editar
   useEffect(() => {
     if (proposal && open) {
+      const rawItems = ((proposal as any).items ?? []) as any[];
+      const items: ProposalItem[] = rawItems.map((it: any) => ({
+        ...it,
+        quantity: toNumber(it.quantity, 1),
+        unitPrice: toNumber(it.unitPrice, 0),
+        totalPrice: toNumber(it.totalPrice, 0),
+        startDate: parseApiDateToLocalMidnight(it.startDate),
+        endDate: parseApiDateToLocalMidnight(it.endDate),
+      }));
+
+      const discountPercent = toNumber((proposal as any).discountPercent, 0);
+      const discountAmount = toNumber((proposal as any).discountAmount, 0);
+      const totals = calculateTotals(items, discountAmount, discountPercent);
+
       setFormData({
         clientId: proposal.clientId,
         responsibleUserId: proposal.responsibleUserId,
         title: proposal.title || '',
-        campaignStartDate: (proposal as any).startDate ? new Date((proposal as any).startDate) : undefined,
-        campaignEndDate: (proposal as any).endDate ? new Date((proposal as any).endDate) : undefined,
-        validUntil: proposal.validUntil ? new Date(proposal.validUntil) : undefined,
+        campaignStartDate: parseApiDateToLocalMidnight((proposal as any).startDate),
+        campaignEndDate: parseApiDateToLocalMidnight((proposal as any).endDate),
+        validUntil: parseApiDateToLocalMidnight((proposal as any).validUntil),
         conditionsText: (proposal.conditionsText || '').replace(/\\n/g, '\n'),
-        discountPercent: proposal.discountPercent || 0,
-        discountAmount: proposal.discountAmount || 0,
-        items: proposal.items || [],
-        subtotal: toNumber(proposal.totalAmount, 0),
-        totalAmount: toNumber(proposal.totalAmount, 0),
+        discountPercent,
+        discountAmount,
+        items,
+        subtotal: totals.subtotal,
+        totalAmount: totals.totalAmount,
       });
     } else if (!proposal && open) {
       // Reset para nova proposta
@@ -101,23 +149,30 @@ export function ProposalFormWizard({
 
   // Atualizar dados do Passo 2
   const handleStep2Change = (items: ProposalItem[]) => {
-    const subtotal = items.reduce((sum, item) => sum + toNumber(item.totalPrice, 0), 0);
-    
-    let finalTotal = subtotal;
-    const discountAmount = toNumber(formData.discountAmount, 0);
-    const discountPercent = toNumber(formData.discountPercent, 0);
-    if (discountAmount > 0) {
-      finalTotal = subtotal - discountAmount;
-    } else if (discountPercent > 0) {
-      finalTotal = subtotal - (subtotal * discountPercent / 100);
-    }
+    setFormData((prev) => {
+      const totals = calculateTotals(items, prev.discountAmount, prev.discountPercent);
+      return {
+        ...prev,
+        items,
+        subtotal: totals.subtotal,
+        totalAmount: totals.totalAmount,
+      };
+    });
+  };
 
-    setFormData(prev => ({
-      ...prev,
-      items,
-      subtotal,
-      totalAmount: Math.max(0, finalTotal),
-    }));
+  const handleDiscountChange = (data: Partial<ProposalFormData>) => {
+    setFormData((prev) => {
+      const nextDiscountPercent = data.discountPercent ?? prev.discountPercent;
+      const nextDiscountAmount = data.discountAmount ?? prev.discountAmount;
+      const totals = calculateTotals(prev.items, nextDiscountAmount, nextDiscountPercent);
+
+      return {
+        ...prev,
+        ...data,
+        subtotal: totals.subtotal,
+        totalAmount: totals.totalAmount,
+      };
+    });
   };
 
   const handleClose = () => {
@@ -209,6 +264,7 @@ const handleSaveAndSend = async () => {
             <ProposalStep2Items
               formData={formData}
               onItemsChange={handleStep2Change}
+              onDiscountChange={handleDiscountChange}
             />
           )}
         </div>

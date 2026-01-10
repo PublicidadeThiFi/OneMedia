@@ -27,6 +27,15 @@ function toNumber(value: any, fallback = 0): number {
   return fallback;
 }
 
+function formatDateBR(value: any): string {
+  if (!value) return '—';
+  const d = new Date(value as any);
+  if (Number.isNaN(d.getTime())) return '—';
+  // Usa a parte YYYY-MM-DD (UTC) para evitar o bug de "-1 dia" por timezone.
+  const [y, m, dd] = d.toISOString().split('T')[0].split('-');
+  return `${dd}/${m}/${y}`;
+}
+
 async function safeCopy(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -299,8 +308,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
               <div>
                 <p className="text-sm text-gray-500 mb-1">Período</p>
                 <p className="text-gray-900">
-                  {p.startDate ? new Date(p.startDate).toLocaleDateString('pt-BR') : '—'}{' '}
-                  até {p.endDate ? new Date(p.endDate).toLocaleDateString('pt-BR') : '—'}
+                  {formatDateBR(p.startDate)} até {formatDateBR(p.endDate)}
                 </p>
               </div>
             )}
@@ -308,7 +316,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
             {proposal.validUntil && (
               <div>
                 <p className="text-sm text-gray-500 mb-1">Validade</p>
-                <p className="text-gray-900">{new Date(proposal.validUntil).toLocaleDateString('pt-BR')}</p>
+                <p className="text-gray-900">{formatDateBR(proposal.validUntil)}</p>
               </div>
             )}
           </div>
@@ -339,7 +347,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                       <div>
                         <p className="text-gray-500">Período</p>
                         <p className="text-gray-700">
-                          {new Date(item.startDate).toLocaleDateString('pt-BR')} - {new Date(item.endDate).toLocaleDateString('pt-BR')}
+                          {formatDateBR(item.startDate)} - {formatDateBR(item.endDate)}
                         </p>
                       </div>
                     )}

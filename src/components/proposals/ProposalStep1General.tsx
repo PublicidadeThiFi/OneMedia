@@ -63,21 +63,9 @@ export function ProposalStep1General({
     }
   };
 
-  const handleDiscountPercentChange = (value: string) => {
-    const percent = parseFloat(value) || 0;
-    onChange({ discountPercent: percent, discountAmount: 0 });
-  };
-
-  const handleDiscountAmountChange = (value: string) => {
-    const amount = parseFloat(value) || 0;
-    onChange({ discountAmount: amount, discountPercent: 0 });
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
+  const parseLocalDate = (yyyyMmDd: string) => {
+    // Evita o bug de timezone do `new Date('YYYY-MM-DD')` (interpreta como UTC e pode virar -1 dia no Brasil)
+    return new Date(`${yyyyMmDd}T00:00:00`);
   };
 
   return (
@@ -141,7 +129,7 @@ export function ProposalStep1General({
             }
             onChange={(e) =>
               onChange({
-                campaignStartDate: e.target.value ? new Date(e.target.value) : undefined,
+                campaignStartDate: e.target.value ? parseLocalDate(e.target.value) : undefined,
               })
             }
           />
@@ -158,7 +146,7 @@ export function ProposalStep1General({
             }
             onChange={(e) =>
               onChange({
-                campaignEndDate: e.target.value ? new Date(e.target.value) : undefined,
+                campaignEndDate: e.target.value ? parseLocalDate(e.target.value) : undefined,
               })
             }
           />
@@ -181,7 +169,7 @@ export function ProposalStep1General({
           }
           onChange={(e) =>
             onChange({
-              validUntil: e.target.value ? new Date(e.target.value) : undefined,
+              validUntil: e.target.value ? parseLocalDate(e.target.value) : undefined,
             })
           }
         />
@@ -202,78 +190,6 @@ export function ProposalStep1General({
         />
       </div>
 
-      {/* Descontos */}
-      <div className="border-t pt-6">
-        <h3 className="text-gray-900 mb-4">Descontos</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="discountPercent">Desconto em %</Label>
-            <Input
-              id="discountPercent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              placeholder="0"
-              value={formData.discountPercent || ''}
-              onChange={(e) => handleDiscountPercentChange(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="discountAmount">Desconto em R$</Label>
-            <Input
-              id="discountAmount"
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0,00"
-              value={formData.discountAmount || ''}
-              onChange={(e) => handleDiscountAmountChange(e.target.value)}
-            />
-          </div>
-        </div>
-        <p className="text-sm text-gray-500 mt-2">
-          💡 Preencha apenas um campo. O desconto será aplicado sobre o subtotal dos itens.
-        </p>
-      </div>
-
-      {/* Resumo financeiro (preview) */}
-      <div className="border-t pt-6">
-        <h3 className="text-gray-900 mb-4">Resumo Financeiro</h3>
-        <div className="bg-gray-50 p-4 rounded-md space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Subtotal dos itens:</span>
-            <span className="text-gray-900">{formatCurrency(formData.subtotal)}</span>
-          </div>
-          {(formData.discountPercent || formData.discountAmount) && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">
-                Desconto
-                {formData.discountPercent
-                  ? ` (${formData.discountPercent}%)`
-                  : ''}
-                :
-              </span>
-              <span className="text-red-600">
-                -{' '}
-                {formatCurrency(
-                  formData.discountAmount ||
-                    (formData.subtotal * (formData.discountPercent || 0)) / 100
-                )}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between border-t pt-2">
-            <span className="text-gray-900">Total da Proposta:</span>
-            <span className="text-gray-900">
-              {formatCurrency(formData.totalAmount)}
-            </span>
-          </div>
-        </div>
-        <p className="text-sm text-gray-500 mt-2">
-          O subtotal será calculado automaticamente no próximo passo
-        </p>
-      </div>
     </div>
   );
 }
