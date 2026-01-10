@@ -24,6 +24,11 @@ interface AuthContextValue {
   user: AuthUser | null;
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
+  /**
+   * True when the provider has finished bootstrapping the session.
+   * While false, the app should NOT redirect to /login yet.
+   */
+  authReady: boolean;
   requiresTwoFactor: boolean;
   pendingEmail: string | null;
   loading: boolean;
@@ -78,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
   // Tenta carregar usuário atual ao montar, se houver tokens no localStorage
   useEffect(() => {
@@ -85,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshToken = localStorage.getItem('refresh_token');
 
     if (!accessToken && !refreshToken) {
+      setAuthReady(true);
       return;
     }
 
@@ -103,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokens(null);
       } finally {
         setLoading(false);
+        setAuthReady(true);
       }
     };
 
@@ -170,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(meResponse.data);
       setRequiresTwoFactor(false);
       setPendingEmail(null);
+      setAuthReady(true);
 
       navigate('/app');
     } finally {
@@ -202,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(meResponse.data);
       setRequiresTwoFactor(false);
       setPendingEmail(null);
+      setAuthReady(true);
       navigate('/app');
     } finally {
       setLoading(false);
@@ -220,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokens(null);
     setRequiresTwoFactor(false);
     setPendingEmail(null);
+    setAuthReady(true);
     navigate('/login');
   };
 
@@ -227,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     tokens,
     isAuthenticated: !!user && !!tokens,
+    authReady,
     requiresTwoFactor,
     pendingEmail,
     loading,

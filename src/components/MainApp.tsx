@@ -4,7 +4,7 @@
  * This is the authenticated user's main interface after login
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
@@ -46,12 +46,27 @@ interface MainAppProps {
 export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
   const [currentPage, setCurrentPage] = useState<Page>(initialPage);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, authReady } = useAuth();
   const navigate = useNavigation();
 
-  // Redirect to login if not authenticated
+  // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
+  // to bootstrap /auth/me using tokens from localStorage.
+  // While authReady=false we must NOT redirect yet.
+  useEffect(() => {
+    if (authReady && !user) {
+      navigate('/login');
+    }
+  }, [authReady, user, navigate]);
+
+  if (!authReady) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-sm text-gray-500">Carregando...</div>
+      </div>
+    );
+  }
+
   if (!user) {
-    navigate('/login');
     return null;
   }
 
