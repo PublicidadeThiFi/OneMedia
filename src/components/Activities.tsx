@@ -1,11 +1,108 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import { Badge } from './ui/badge';
 import { Search, Filter, Calendar } from 'lucide-react';
 import { ActivityLog, ActivityResourceType } from '../types';
 import { useActivityLogs } from '../hooks/useActivityLogs';
+
+type ActionOption = {
+  value: string;
+  label: string;
+  group: string;
+};
+
+const humanizeEnumLike = (s: string) => {
+  const raw = (s || '').trim();
+  if (!raw) return raw;
+
+  // If it's already a human phrase (contains spaces or accents), keep.
+  if (/\s/.test(raw) || /[áàâãéêíóôõúç]/i.test(raw)) return raw;
+
+  const spaced = raw
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+
+  return spaced;
+};
+
+const actionMeta = (action: string): { label: string; group: string } => {
+  const a = (action || '').trim();
+  const upper = a.toUpperCase();
+
+  // Friendly labels for the most common actions
+  const direct: Record<string, string> = {
+    CASH_TRANSACTION_CREATE: 'Transação criada',
+    CASH_TRANSACTION_UPDATE: 'Transação atualizada',
+    CASH_TRANSACTION_DELETE: 'Transação excluída',
+    BILLING_INVOICE_MARK_PAID: 'Fatura marcada como paga',
+    MEDIA_POINT_IMPORT: 'Inventário importado',
+    MEDIA_POINT_CREATE: 'Ponto de mídia criado',
+    MEDIA_POINT_DELETE: 'Ponto de mídia excluído',
+    MEDIA_POINT_IMAGE_UPLOAD: 'Imagem do ponto enviada',
+    MEDIA_UNIT_CREATE: 'Unidade criada',
+    CLIENT_CREATE: 'Cliente criado',
+    CLIENT_DELETE: 'Cliente excluído',
+    CLIENT_DOCUMENT_UPLOAD: 'Documento do cliente enviado',
+    RESERVATION_CREATE: 'Reserva criada',
+    RESERVATION_CANCEL: 'Reserva cancelada',
+    RESERVATION_STATUS_UPDATE: 'Status da reserva atualizado',
+    CAMPAIGN_CREATE: 'Campanha criada',
+    PUBLIC_PROPOSAL_APPROVE: 'Proposta aprovada (portal público)',
+    PUBLIC_PROPOSAL_REJECT: 'Proposta recusada (portal público)',
+    PUBLIC_PROPOSAL_MESSAGE: 'Mensagem recebida (portal público)',
+  };
+
+  const label = direct[upper] ?? humanizeEnumLike(a);
+
+  const group = (() => {
+    if (
+      upper.startsWith('CASH_TRANSACTION') ||
+      upper.startsWith('BILLING_INVOICE') ||
+      upper.startsWith('FINANC')
+    )
+      return 'Financeiro';
+    if (upper.startsWith('MEDIA_') || upper.startsWith('INVENT') || upper.startsWith('MEDIA POINT'))
+      return 'Inventário';
+    if (upper.startsWith('CLIENT_')) return 'Clientes';
+    if (upper.startsWith('PROPOS') || upper.startsWith('PUBLIC_PROPOSAL') || a.toLowerCase().includes('proposta'))
+      return 'Propostas';
+    if (upper.startsWith('RESERVATION_')) return 'Reservas';
+    if (upper.startsWith('CAMPAIGN_')) return 'Campanhas';
+    if (a.toLowerCase().includes('portal')) return 'Portal público';
+    return 'Outros';
+  })();
+
+  return { label, group };
+};
+
+const humanizeChangedField = (field: string) => {
+  const map: Record<string, string> = {
+    tags: 'Tags',
+    isPaid: 'Pago',
+    amount: 'Valor',
+    date: 'Data',
+    description: 'Descrição',
+    partnerName: 'Parceiro',
+    categoryId: 'Categoria',
+    paymentType: 'Tipo de pagamento',
+    paymentMethod: 'Modo de pagamento',
+    flowType: 'Tipo de transação',
+    mediaPointId: 'Ponto de mídia',
+  };
+  return map[field] ?? humanizeEnumLike(field);
+};
 
 export function Activities() {
   // Estados para filtros
@@ -30,10 +127,19 @@ export function Activities() {
     return Array.from(set.values());
   }, [allLogs]);
 
-  const availableActions = useMemo(() => {
-    const set = new Set<string>();
-    (allLogs as ActivityLog[]).forEach((log) => set.add(log.action));
-    return Array.from(set.values());
+  const availableActions = useMemo<ActionOption[]>(() => {
+    const map = new Map<string, ActionOption>();
+    (allLogs as ActivityLog[]).forEach((log) => {
+      const meta = actionMeta(log.action);
+      map.set(log.action, { value: log.action, label: meta.label, group: meta.group });
+    });
+
+    const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+    return Array.from(map.values()).sort((a, b) => {
+      const g = collator.compare(a.group, b.group);
+      if (g !== 0) return g;
+      return collator.compare(a.label, b.label);
+    });
   }, [allLogs]);
 
   // Aplicar filtros
@@ -53,11 +159,14 @@ export function Activities() {
     // Filtro de busca por texto
     if (searchTerm.trim()) {
       const query = searchTerm.toLowerCase();
-      filtered = filtered.filter(log => {
+      filtered = filtered.filter((log) => {
         const detailsStr = log.details ? JSON.stringify(log.details).toLowerCase() : '';
+        const actionLabel = actionMeta(log.action).label.toLowerCase();
+
         return (
           log.resourceId.toLowerCase().includes(query) ||
           log.action.toLowerCase().includes(query) ||
+          actionLabel.includes(query) ||
           (log.userId ? log.userId.toLowerCase().includes(query) : false) ||
           log.resourceType.toLowerCase().includes(query) ||
           detailsStr.includes(query)
@@ -125,7 +234,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
   }
 };
 
-  const formatDateTime = (date: Date): string => {
+  const formatDateTime = (date: Date | string): string => {
     return new Date(date).toLocaleString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -136,10 +245,74 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
     });
   };
 
+  const shortId = (id?: string | null) => {
+    if (!id) return '';
+    if (id.length <= 12) return id;
+    return `${id.slice(0, 8)}...${id.slice(-4)}`;
+  };
+
+  const renderDetails = (log: ActivityLog): ReactNode => {
+    const d = log.details as any;
+    if (!d) return null;
+
+    // Some older logs may store details as a string.
+    if (typeof d === 'string') {
+      return <p className="text-sm text-gray-700">{d}</p>;
+    }
+
+    const blocks: ReactNode[] = [];
+
+    if (Array.isArray(d.changedFields) && d.changedFields.length) {
+      blocks.push(
+        <div key="changedFields" className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-gray-700">Campos alterados:</span>
+          {d.changedFields.map((f: string) => (
+            <Badge key={f} className="bg-gray-100 text-gray-800">
+              {humanizeChangedField(f)}
+            </Badge>
+          ))}
+        </div>
+      );
+    }
+
+    // Common generic keys
+    const maybePairs: Array<{ k: string; label: string }> = [
+      { k: 'message', label: 'Mensagem' },
+      { k: 'filename', label: 'Arquivo' },
+      { k: 'fileName', label: 'Arquivo' },
+      { k: 'status', label: 'Status' },
+      { k: 'count', label: 'Quantidade' },
+    ];
+
+    for (const p of maybePairs) {
+      if (d?.[p.k] !== undefined && d?.[p.k] !== null && !Array.isArray(d?.[p.k]) && typeof d?.[p.k] !== 'object') {
+        blocks.push(
+          <div key={p.k} className="text-sm text-gray-700">
+            <span className="font-medium">{p.label}:</span> {String(d[p.k])}
+          </div>
+        );
+      }
+    }
+
+    // Fallback: show JSON only on demand
+    blocks.push(
+      <details key="raw" className="mt-2">
+        <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
+          Ver detalhes (JSON)
+        </summary>
+        <pre className="mt-2 rounded-md bg-gray-50 p-3 text-xs text-gray-700 overflow-x-auto">
+          {JSON.stringify(d, null, 2)}
+        </pre>
+      </details>
+    );
+
+    return <div className="space-y-2">{blocks}</div>;
+  };
+
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-gray-900 mb-2">Atividades (ActivityLog)</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-2">Atividades</h1>
         <p className="text-gray-600">Histórico de ações realizadas no sistema</p>
       </div>
 
@@ -160,7 +333,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
               <Input
                 placeholder="Buscar por nome, ação ou detalhes..."
                 value={searchTerm}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
@@ -191,15 +364,37 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
             >
               <SelectTrigger className="w-full md:w-48">
                 <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Ação" />
+                <SelectValue placeholder="Ações" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todas as ações</SelectItem>
-                {availableActions.map((action) => (
-                  <SelectItem key={action} value={action}>
-                    {action}
-                  </SelectItem>
-                ))}
+                <SelectSeparator />
+
+                {(() => {
+                  const groups = new Map<string, ActionOption[]>();
+                  availableActions.forEach((opt) => {
+                    const arr = groups.get(opt.group) ?? [];
+                    arr.push(opt);
+                    groups.set(opt.group, arr);
+                  });
+
+                  const ordered = Array.from(groups.entries());
+                  return ordered.flatMap(([group, opts], idx) => {
+                    const items: ReactNode[] = [];
+                    if (idx > 0) items.push(<SelectSeparator key={`${group}-sep`} />);
+                    items.push(
+                      <SelectGroup key={group}>
+                        <SelectLabel>{group}</SelectLabel>
+                        {opts.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                    return items;
+                  });
+                })()}
               </SelectContent>
             </Select>
           </div>
@@ -217,7 +412,9 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
             </CardContent>
           </Card>
         ) : (
-          filteredLogs.map((log: ActivityLog) => (
+          filteredLogs.map((log: ActivityLog) => {
+            const meta = actionMeta(log.action);
+            return (
             <Card key={log.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
@@ -227,24 +424,31 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
                       <Badge className={getResourceColor(log.resourceType)}>
                         {getResourceLabel(log.resourceType)}
                       </Badge>
-                      <h3 className="text-gray-900">{log.action}</h3>
+                      <div className="flex flex-col">
+                        <h3 className="text-gray-900">{meta.label}</h3>
+                        {meta.label !== log.action && (
+                          <span className="text-xs text-gray-500 font-mono">{log.action}</span>
+                        )}
+                      </div>
                     </div>
 
                     {/* ID do recurso */}
-                    <p className="text-sm text-gray-600 mb-2">ID: {log.resourceId}</p>
+                    <p className="text-sm text-gray-600 mb-3">
+                      ID: <span className="font-mono">{log.resourceId}</span>
+                    </p>
 
-                    {/* Detalhes (JSON) */}
+                    {/* Detalhes */}
                     {log.details && (
                       <div className="p-3 bg-gray-50 rounded-lg mb-3">
-                        <p className="text-sm text-gray-700 font-mono whitespace-pre-wrap">
-                          Detalhes: {JSON.stringify(log.details, null, 2)}
-                        </p>
+                        {renderDetails(log)}
                       </div>
                     )}
 
                     {/* Rodapé: usuário e data */}
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      {log.userId && <span>Usuário: {log.userId}</span>}
+                      {log.userId && (
+                        <span title={log.userId}>Usuário: {shortId(log.userId)}</span>
+                      )}
                       <span>•</span>
                       <span>{formatDateTime(log.createdAt)}</span>
                     </div>
@@ -252,17 +456,17 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
                 </div>
               </CardContent>
             </Card>
-          ))
+            );
+          })
         )}
       </div>
 
-      {/* Box de Ajuda */}
+      {/* Nota */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-900 mb-2">💡 ActivityLog (Auditoria)</p>
+        <p className="text-sm text-blue-900 mb-1">💡 Auditoria</p>
         <p className="text-sm text-blue-700">
-          Campos: <strong>companyId</strong>, <strong>userId</strong>, <strong>resourceType</strong>, <strong>resourceId</strong>, <strong>action</strong>, <strong>details</strong> (JSON), <strong>createdAt</strong>.<br />
-          resourceType: <strong>CLIENTE</strong> | <strong>PROPOSTA</strong> | <strong>CAMPANHA</strong> | <strong>RESERVA</strong> | <strong>MIDIA</strong> | <strong>FINANCEIRO</strong> | <strong>USUARIO</strong> | <strong>ASSINATURA</strong> | <strong>NF</strong> | <strong>INTEGRACAO</strong><br />
-          Logs não podem ser editados ou excluídos pela empresa. Esta é uma tela somente leitura para auditoria.
+          Esta tela é somente leitura e mostra um histórico de ações realizadas no sistema.
+          Alguns itens possuem detalhes adicionais (JSON) que você pode expandir.
         </p>
       </div>
     </div>
