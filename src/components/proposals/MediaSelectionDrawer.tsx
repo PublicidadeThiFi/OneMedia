@@ -300,7 +300,7 @@ export function MediaSelectionDrawer({
       }}
     >
       <DialogContent
-        className="flex flex-col p-0 gap-0 w-[95vw] sm:w-[92vw] md:w-[90vw] max-w-6xl h-[90vh] max-h-[90vh] overflow-hidden"
+        className="flex flex-col p-0 gap-0 w-[96vw] sm:w-[94vw] md:w-[94vw] lg:w-[92vw] max-w-7xl h-[90vh] max-h-[90vh] overflow-hidden"
       >
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>Selecionar Mídia do Inventário</DialogTitle>
