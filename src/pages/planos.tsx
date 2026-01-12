@@ -287,8 +287,8 @@ export default function Planos() {
           <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-600">© 2026 OneMedia. Todos os direitos reservados.</p>
             <div className="flex gap-6 text-gray-600">
-              <a href="https://onemedia.com/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">Privacidade</a>
-              <a href="https://onemedia.com/termos" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">Termos</a>
+              <button type="button" onClick={() => navigate('/privacidade')} className="hover:text-blue-600 transition-colors">Privacidade</button>
+              <button type="button" onClick={() => navigate('/termos')} className="hover:text-blue-600 transition-colors">Termos</button>
             </div>
           </div>
         </div>
