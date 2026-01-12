@@ -13,21 +13,21 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
     <div className="text-center py-12">
       {/* Success Icon */}
       <div className="mb-8 flex justify-center">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-          <CheckCircle className="w-12 h-12 text-green-600" />
+        <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-500/30">
+          <CheckCircle className="w-14 h-14 text-white" />
         </div>
       </div>
 
       {/* Success Message */}
-      <h2 className="text-gray-900 mb-4">Conta criada com sucesso!</h2>
+      <h2 className="text-4xl font-semibold text-gray-900 mb-6">Conta criada com sucesso!</h2>
       
-      <div className="max-w-lg mx-auto space-y-4 mb-8">
-        <p className="text-gray-600">
-          Parabéns! A conta da empresa <span className="font-semibold">{companyName}</span> foi criada 
+      <div className="max-w-lg mx-auto space-y-4 mb-10">
+        <p className="text-gray-600 text-lg">
+          Parabéns! A conta da empresa <span className="font-semibold text-gray-900">{companyName}</span> foi criada 
           com sucesso e você já pode começar seu teste grátis de 30 dias.
         </p>
         
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5">
           <p className="text-sm text-blue-800">
             📧 Enviamos um e-mail de confirmação para <span className="font-semibold">{userEmail}</span> com 
             as instruções de acesso e próximos passos.
@@ -41,10 +41,10 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
         <button
           onClick={() => navigate('/login')}
-          className="inline-flex items-center gap-2 bg-[#4F46E5] text-white px-8 py-3 rounded-lg hover:bg-[#4338CA] transition-colors"
+          className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-10 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-500/30 font-medium"
         >
           <LogIn className="w-5 h-5" />
           Ir para Login
@@ -52,7 +52,7 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
         
         <button
           onClick={() => navigate('/')}
-          className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-8 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-10 py-3.5 rounded-xl hover:bg-gray-50 transition-all font-medium"
         >
           <Home className="w-5 h-5" />
           Voltar para o site
@@ -60,9 +60,9 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
       </div>
 
       {/* Secondary Action */}
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-gray-600">
         Precisa de ajuda?{' '}
-        <button onClick={() => navigate('/contato')} className="text-[#4F46E5] hover:underline">
+        <button onClick={() => navigate('/contato')} className="text-blue-600 hover:text-blue-700 hover:underline font-medium">
           Fale com nosso time comercial
         </button>
       </p>

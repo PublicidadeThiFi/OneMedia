@@ -27,23 +27,23 @@ export function SignupStepper({ currentStep, steps }: SignupStepperProps) {
           {/* Step Circle */}
           <div className="flex flex-col items-center">
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all font-semibold ${
                 step.isCompleted
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-green-500 text-white shadow-lg shadow-green-500/30'
                   : step.isActive
-                  ? 'bg-[#4F46E5] text-white'
+                  ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30'
                   : 'bg-gray-200 text-gray-500'
               }`}
             >
               {step.isCompleted ? (
-                <Check className="w-5 h-5" />
+                <Check className="w-6 h-6" />
               ) : (
-                <span>{step.number}</span>
+                <span className="text-lg">{step.number}</span>
               )}
             </div>
             <span
-              className={`mt-2 text-sm hidden sm:block ${
-                step.isActive ? 'text-[#4F46E5]' : 'text-gray-500'
+              className={`mt-2 text-sm font-medium hidden sm:block ${
+                step.isActive ? 'text-blue-600' : step.isCompleted ? 'text-green-600' : 'text-gray-500'
               }`}
             >
               {step.title}
@@ -53,8 +53,8 @@ export function SignupStepper({ currentStep, steps }: SignupStepperProps) {
           {/* Connector Line */}
           {index < stepData.length - 1 && (
             <div
-              className={`w-16 sm:w-24 h-0.5 mx-2 transition-all ${
-                step.isCompleted ? 'bg-green-600' : 'bg-gray-200'
+              className={`w-16 sm:w-24 h-1 mx-2 rounded-full transition-all ${
+                step.isCompleted ? 'bg-green-500' : 'bg-gray-200'
               }`}
             />
           )}
