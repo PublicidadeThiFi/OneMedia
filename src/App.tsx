@@ -10,6 +10,7 @@ import Dashboard from './pages/dashboard';
 import Contato from './pages/contato';
 import Termos from './pages/termos';
 import Privacidade from './pages/privacidade';
+import Planos from './pages/planos';
 import PropostaPublica from './pages/proposta-publica';
 import MidiaKitPublico from './pages/midia-kit-publico';
 
@@ -86,7 +87,10 @@ export default function App() {
       case '/':
         return <Home />;
       case '/signup':
+      case '/cadastro':
         return <Cadastro />;
+      case '/planos':
+        return <Planos />;
       case '/login':
         return <Login />;
       case '/dashboard':

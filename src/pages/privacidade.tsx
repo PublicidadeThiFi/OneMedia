@@ -7,7 +7,7 @@ export default function Privacidade() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">OOH</span>
             </div>
             <span className="text-lg text-gray-900">OneMedia</span>
@@ -91,7 +91,7 @@ export default function Privacidade() {
 
         <div className="mt-8 text-center">
           <a
-            href="/signup"
+            href="/cadastro"
             className="inline-flex items-center gap-2 text-gray-600 hover:text-[#4F46E5] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

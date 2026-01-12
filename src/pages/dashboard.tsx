@@ -45,7 +45,7 @@ export default function Dashboard() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">OOH</span>
             </div>
             <span className="text-lg text-gray-900">OneMedia</span>
@@ -75,7 +75,7 @@ export default function Dashboard() {
             Bem-vindo, {user.name.split(' ')[0]}!
           </h1>
           <p className="text-gray-600">
-            Você está autenticado no sistema OneMedia
+            Você está autenticado no sistema OOH Manager
           </p>
           
           {user.twoFactorEnabled && (
