@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Component, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { CheckCircle, Edit, Plus, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from './ui/card';
@@ -14,6 +14,40 @@ import type { Page } from './MainApp';
 
 interface ProposalsProps {
   onNavigate: (page: Page) => void;
+}
+
+class ProposalDetailsErrorBoundary extends Component<
+  { children: ReactNode; onBack: () => void },
+  { hasError: boolean; error?: unknown }
+> {
+  state: { hasError: boolean; error?: unknown } = { hasError: false };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: unknown) {
+    // Avoid a completely blank screen in production.
+    console.error('Erro ao renderizar detalhes da proposta:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 border border-red-200 rounded-lg bg-red-50">
+          <p className="text-red-700 font-medium mb-2">Não foi possível abrir os detalhes da proposta.</p>
+          <p className="text-sm text-red-700 mb-4">
+            Abra o console do navegador (F12) para ver o erro. Depois volte e tente novamente.
+          </p>
+          <Button variant="outline" onClick={this.props.onBack}>
+            Voltar
+          </Button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 export function Proposals({ onNavigate }: ProposalsProps) {
@@ -97,12 +131,14 @@ export function Proposals({ onNavigate }: ProposalsProps) {
           </Button>
         </div>
 
-        <ProposalDetailsDrawer
-          open={true}
-          onOpenChange={(open) => !open && setDetailsDrawerProposal(null)}
-          proposal={detailsDrawerProposal}
-          onNavigate={onNavigate}
-        />
+        <ProposalDetailsErrorBoundary onBack={() => setDetailsDrawerProposal(null)}>
+          <ProposalDetailsDrawer
+            open={true}
+            onOpenChange={(open) => !open && setDetailsDrawerProposal(null)}
+            proposal={detailsDrawerProposal}
+            onNavigate={onNavigate}
+          />
+        </ProposalDetailsErrorBoundary>
       </div>
     );
   }
@@ -377,13 +413,6 @@ export function Proposals({ onNavigate }: ProposalsProps) {
         onOpenChange={setIsAdvancedFiltersOpen}
         filters={advancedFilters}
         onApplyFilters={handleApplyAdvancedFilters}
-      />
-
-      <ProposalDetailsDrawer
-        open={!!detailsDrawerProposal}
-        onOpenChange={(open) => !open && setDetailsDrawerProposal(null)}
-        proposal={detailsDrawerProposal}
-        onNavigate={onNavigate}
       />
 
       <ProposalFormWizard

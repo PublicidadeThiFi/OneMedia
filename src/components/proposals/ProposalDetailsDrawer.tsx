@@ -138,17 +138,20 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
   const currency = (n: any) =>
     toNumber(n, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const viewUrl = useMemo(() => (publicHash ? `${window.location.origin}/p/${publicHash}` : null), [publicHash]);
+  // Guard against environments where `window` does not exist (e.g. SSR builds).
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  const viewUrl = useMemo(() => (publicHash && origin ? `${origin}/p/${publicHash}` : null), [publicHash, origin]);
 
   const messageUrl = useMemo(() => {
-    if (!publicHash || !messageToken) return null;
-    return `${window.location.origin}/p/${publicHash}?m=${encodeURIComponent(messageToken)}`;
-  }, [publicHash, messageToken]);
+    if (!publicHash || !messageToken || !origin) return null;
+    return `${origin}/p/${publicHash}?m=${encodeURIComponent(messageToken)}`;
+  }, [publicHash, messageToken, origin]);
 
   const decisionUrl = useMemo(() => {
-    if (!publicHash || !decisionToken) return null;
-    return `${window.location.origin}/p/${publicHash}?t=${encodeURIComponent(decisionToken)}`;
-  }, [publicHash, decisionToken]);
+    if (!publicHash || !decisionToken || !origin) return null;
+    return `${origin}/p/${publicHash}?t=${encodeURIComponent(decisionToken)}`;
+  }, [publicHash, decisionToken, origin]);
 
   const parseFilename = (contentDisposition?: string | null) => {
     if (!contentDisposition) return null;
@@ -236,7 +239,8 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
       const finalHash = hash ?? publicHash;
       if (!finalHash || !token) throw new Error('Não foi possível gerar o link de mensagens.');
 
-      await handleCopy(`${window.location.origin}/p/${finalHash}?m=${encodeURIComponent(token)}`, 'Link de mensagens copiado.');
+      if (!origin) throw new Error('Não foi possível determinar a URL do site.');
+      await handleCopy(`${origin}/p/${finalHash}?m=${encodeURIComponent(token)}`, 'Link de mensagens copiado.');
     } catch (e: any) {
       setLinkError(e?.response?.data?.message || e?.message || 'Erro ao gerar link de mensagens');
     } finally {
@@ -261,7 +265,8 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
       const finalHash = hash ?? publicHash;
       if (!finalHash || !token) throw new Error('Não foi possível gerar o link de decisão.');
 
-      await handleCopy(`${window.location.origin}/p/${finalHash}?t=${encodeURIComponent(token)}`, 'Link de decisão copiado.');
+      if (!origin) throw new Error('Não foi possível determinar a URL do site.');
+      await handleCopy(`${origin}/p/${finalHash}?t=${encodeURIComponent(token)}`, 'Link de decisão copiado.');
     } catch (e: any) {
       setLinkError(e?.response?.data?.message || e?.message || 'Erro ao gerar link de decisão');
     } finally {
