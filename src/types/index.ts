@@ -418,6 +418,8 @@ export interface ProposalItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
+  discountAmount?: number;
+  discountPercent?: number;
   createdAt: Date;
   updatedAt: Date;
 }

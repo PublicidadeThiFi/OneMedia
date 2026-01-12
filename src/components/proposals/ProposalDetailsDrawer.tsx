@@ -339,7 +339,24 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                 <div key={item.id ?? `${item.description}-${Math.random()}`} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <p className="text-gray-900 flex-1">{item.description || 'Item'}</p>
-                    <p className="text-gray-900 whitespace-nowrap">R$ {currency(item.totalPrice ?? item.total)}</p>
+                    {(() => {
+                        const qty = Number(item.quantity ?? 1);
+                        const unit = Number(item.unitPrice ?? 0);
+                        const baseTotal = qty * unit;
+                        const finalTotal = Number(item.totalPrice ?? item.total ?? baseTotal);
+                        const discountValue = Math.max(0, baseTotal - finalTotal);
+                        const dPct = (item as any).discountPercent;
+                        const dAmt = (item as any).discountAmount;
+                        const label = dPct ? `${dPct}%` : dAmt ? `R$ ${currency(dAmt)}` : null;
+                        return (
+                          <div className="text-right">
+                            <p className="text-gray-900 whitespace-nowrap">R$ {currency(finalTotal)}</p>
+                            {discountValue > 0 ? (
+                              <p className="text-[11px] text-red-600 whitespace-nowrap">-R$ {currency(discountValue)}{label ? ` (${label})` : ''}</p>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">

@@ -209,6 +209,8 @@ const preparePayload = (status: ProposalStatus) => {
       description: item.description,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
+      discountPercent: Number((item as any).discountPercent || 0),
+      discountAmount: Number((item as any).discountAmount || 0),
       // Datas dos itens também devem ser strings ISO
       startDate: item.startDate ? new Date(item.startDate).toISOString() : undefined,
       endDate: item.endDate ? new Date(item.endDate).toISOString() : undefined,

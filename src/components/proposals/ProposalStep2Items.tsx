@@ -55,6 +55,18 @@ export function ProposalStep2Items({
     onItemsChange(newItems);
   };
 
+  const computeItemDiscount = (item: ProposalItem) => {
+    const qty = Number.isFinite(item.quantity) ? item.quantity : 1;
+    const unit = Number.isFinite(item.unitPrice) ? item.unitPrice : 0;
+    const baseTotal = qty * unit;
+    const finalTotal = Number.isFinite(item.totalPrice) ? item.totalPrice : baseTotal;
+    const discountValue = Math.max(0, baseTotal - finalTotal);
+    const discountPercent = (item as any).discountPercent ?? 0;
+    const discountAmount = (item as any).discountAmount ?? 0;
+    const label = discountPercent > 0 ? `${discountPercent}%` : discountAmount > 0 ? `R$ ${discountAmount}` : null;
+    return { baseTotal, finalTotal, discountValue, label, discountPercent, discountAmount };
+  };
+
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', {
       style: 'currency',
@@ -187,7 +199,20 @@ export function ProposalStep2Items({
                       {formatCurrency(item.unitPrice)}
                     </td>
                     <td className="px-4 py-3 text-gray-900 text-right">
-                      {formatCurrency(item.totalPrice)}
+                      {(() => {
+                        const info = computeItemDiscount(item);
+                        return (
+                          <div className="space-y-0.5">
+                            <div className="font-medium">{formatCurrency(info.finalTotal)}</div>
+                            {info.discountValue > 0 ? (
+                              <div className="text-[11px] text-gray-500">
+                                <div>Orig: {formatCurrency(info.baseTotal)}</div>
+                                <div className="text-red-600">Desc{info.label ? ` (${info.label})` : ''}: -{formatCurrency(info.discountValue)}</div>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">

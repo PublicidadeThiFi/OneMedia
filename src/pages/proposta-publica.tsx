@@ -465,9 +465,24 @@ export default function PropostaPublica() {
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm text-gray-900">x{fmtQuantity(it.quantity ?? 1)}</p>
-                          {typeof it.totalPrice === 'number' ? (
-                            <p className="text-sm font-semibold text-gray-900">{fmtCurrency(it.totalPrice)}</p>
-                          ) : null}
+                          {typeof it.totalPrice === 'number' ? (() => {
+                            const qty = typeof it.quantity === 'number' ? it.quantity : 1;
+                            const unit = typeof it.unitPrice === 'number' ? it.unitPrice : 0;
+                            const baseTotal = qty * unit;
+                            const finalTotal = it.totalPrice;
+                            const discountValue = Math.max(0, baseTotal - finalTotal);
+                            const dPct = (it as any).discountPercent;
+                            const dAmt = (it as any).discountAmount;
+                            const label = dPct ? `${dPct}%` : dAmt ? `R$ ${fmtCurrency(dAmt)}` : null;
+                            return (
+                              <>
+                                <p className="text-sm font-semibold text-gray-900">{fmtCurrency(finalTotal)}</p>
+                                {discountValue > 0 ? (
+                                  <p className="text-[11px] text-red-600">-{fmtCurrency(discountValue)}{label ? ` (${label})` : ''}</p>
+                                ) : null}
+                              </>
+                            );
+                          })() : null}
                           {typeof it.unitPrice === 'number' ? (
                             <p className="text-[11px] text-gray-500">{fmtCurrency(it.unitPrice)} / un</p>
                           ) : null}

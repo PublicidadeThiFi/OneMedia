@@ -54,6 +54,8 @@ function normalizeProposal(p: any): Proposal {
           ...i,
           unitPrice: typeof i.unitPrice === 'string' ? Number(i.unitPrice) : i.unitPrice,
           totalPrice: typeof i.totalPrice === 'string' ? Number(i.totalPrice) : i.totalPrice,
+          discountAmount: typeof i.discountAmount === 'string' ? Number(i.discountAmount) : i.discountAmount,
+          discountPercent: typeof i.discountPercent === 'string' ? Number(i.discountPercent) : i.discountPercent,
           startDate: i.startDate ? new Date(i.startDate) : undefined,
           endDate: i.endDate ? new Date(i.endDate) : undefined,
           createdAt: i.createdAt ? new Date(i.createdAt) : undefined,
@@ -99,6 +101,8 @@ function serializeProposalForApi(data: Partial<Proposal>) {
             endDate: toIso(i.endDate),
             quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity ?? 1),
             unitPrice: typeof i.unitPrice === 'number' ? i.unitPrice : Number(i.unitPrice ?? 0),
+            discountAmount: i.discountAmount === null ? null : (typeof i.discountAmount === 'number' ? i.discountAmount : (i.discountAmount !== undefined ? Number(i.discountAmount) : undefined)),
+            discountPercent: i.discountPercent === null ? null : (typeof i.discountPercent === 'number' ? i.discountPercent : (i.discountPercent !== undefined ? Number(i.discountPercent) : undefined)),
           });
         })
         .filter((i: any) => !!i.description && (!!i.mediaUnitId || !!i.productId))

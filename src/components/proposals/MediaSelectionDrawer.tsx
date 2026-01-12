@@ -48,10 +48,17 @@ export function MediaSelectionDrawer({
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(0);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
   const [startDate, setStartDate] = useState<Date | undefined>(defaultPeriod.startDate);
   const [endDate, setEndDate] = useState<Date | undefined>(defaultPeriod.endDate);
 
-  const totalPrice = quantity * unitPrice;
+  const baseTotal = quantity * unitPrice;
+  let discountedTotal = baseTotal;
+  if (discountPercent > 0) discountedTotal = discountedTotal * (1 - discountPercent / 100);
+  if (discountAmount > 0) discountedTotal = discountedTotal - discountAmount;
+  const totalPrice = Math.max(0, discountedTotal);
+  const computedDiscountValue = Math.max(0, baseTotal - totalPrice);
 
   const formatPrice = (price: number) => {
     return price.toLocaleString('pt-BR', {
@@ -208,6 +215,8 @@ export function MediaSelectionDrawer({
     setSelectedMediaUnit(media);
     setDescription(`${media.pointName || 'Ponto'} - ${media.label}`);
     setUnitPrice((media as any).priceMonth || 0);
+    setDiscountPercent(0);
+    setDiscountAmount(0);
     setQuantity(1);
     setStartDate(defaultPeriod.startDate);
     setEndDate(defaultPeriod.endDate);
@@ -226,6 +235,8 @@ export function MediaSelectionDrawer({
     setSelectedMediaUnit(null);
     setDescription(`${(point as any).name || 'Ponto'}`);
     setUnitPrice(0);
+    setDiscountPercent(0);
+    setDiscountAmount(0);
     setQuantity(1);
     setStartDate(defaultPeriod.startDate);
     setEndDate(defaultPeriod.endDate);
@@ -245,6 +256,8 @@ export function MediaSelectionDrawer({
       endDate,
       quantity,
       unitPrice,
+      discountPercent: discountPercent > 0 ? discountPercent : undefined,
+      discountAmount: discountAmount > 0 ? discountAmount : undefined,
       totalPrice,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -262,6 +275,8 @@ export function MediaSelectionDrawer({
     setDescription('');
     setQuantity(1);
     setUnitPrice(0);
+    setDiscountPercent(0);
+    setDiscountAmount(0);
     setStartDate(defaultPeriod.startDate);
     setEndDate(defaultPeriod.endDate);
     onOpenChange(false);
@@ -466,6 +481,41 @@ export function MediaSelectionDrawer({
 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
+                            <label className="text-sm text-gray-600 mb-1 block">Desconto em %</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={discountPercent || 0}
+                              onChange={(e) => {
+                                const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                setDiscountPercent(v);
+                                if (v > 0) setDiscountAmount(0);
+                              }}
+                              disabled={!!discountAmount}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm text-gray-600 mb-1 block">Desconto em R$</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={discountAmount || 0}
+                              onChange={(e) => {
+                                const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                setDiscountAmount(v);
+                                if (v > 0) setDiscountPercent(0);
+                              }}
+                              disabled={!!discountPercent}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-500">💡 Preencha apenas um campo. O desconto será aplicado sobre o total do item.</p>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
                             <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
                             <Input
                               type="date"
@@ -500,6 +550,18 @@ export function MediaSelectionDrawer({
                           <p className="text-sm text-indigo-700 mt-1">
                             {quantity} x {formatPrice(unitPrice)}
                           </p>
+                          {computedDiscountValue > 0 && (
+                            <div className="mt-2 text-xs text-indigo-800">
+                              <div className="flex justify-between">
+                                <span>Original:</span>
+                                <span>{formatPrice(baseTotal)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''}:</span>
+                                <span>-{formatPrice(computedDiscountValue)}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex gap-3">
