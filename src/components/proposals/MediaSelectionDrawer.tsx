@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, MapPin, Search, X } from 'lucide-react';
+import { ChevronRight, MapPin, Search } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import apiClient from '../../lib/apiClient';
@@ -290,32 +290,29 @@ export function MediaSelectionDrawer({
   }, [mediaPoints]);
 
   return (
-    <Drawer
+    <Dialog
       open={open}
       onOpenChange={(nextOpen: boolean) => {
-        // ShadCN dispara onOpenChange tanto para abrir quanto para fechar.
+        // ShadCN/Radix dispara onOpenChange tanto para abrir quanto para fechar.
         // Se fechou, resetamos; se abriu, delegamos para o estado do pai.
         if (!nextOpen) return handleClose();
         onOpenChange(true);
       }}
     >
-      <DrawerContent className="h-[90vh] max-w-4xl mx-auto">
-        <DrawerHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <DrawerTitle>Selecionar Mídia do Inventário</DrawerTitle>
-            <Button variant="ghost" size="icon" onClick={handleClose}>
-              <X className="w-4 h-4" />
-            </Button>
-          </div>
-        </DrawerHeader>
+      <DialogContent
+        className="flex flex-col p-0 gap-0 w-[95vw] sm:w-[92vw] md:w-[90vw] max-w-6xl h-[90vh] max-h-[90vh] overflow-hidden"
+      >
+        <DialogHeader className="px-6 py-4 border-b">
+          <DialogTitle>Selecionar Mídia do Inventário</DialogTitle>
+        </DialogHeader>
 
         {loading && <div className="p-6 text-gray-600">Carregando mídias...</div>}
         {!loading && error && <div className="p-6 text-red-600">{error}</div>}
 
         {!loading && !error && (
-          <div className="flex h-full">
+          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
             {/* Lista de Pontos */}
-            <div className="w-1/2 border-r border-gray-200 p-6 overflow-y-auto">
+            <div className="md:w-1/2 md:h-full h-[40%] md:border-r border-b md:border-b-0 border-gray-200 overflow-y-auto p-4 md:p-6">
               <div className="space-y-4 mb-6">
                 <div className="flex gap-4">
                   <div className="flex-1 relative">
@@ -406,196 +403,203 @@ export function MediaSelectionDrawer({
             </div>
 
             {/* Detalhes/Confirmação */}
-            <div className="w-1/2 p-6 overflow-y-auto">
-              {selectedPoint ? (
-                selectedPointUnits.length ? (
-                  <div className="space-y-6">
-                    <div>
-                      <h2 className="text-gray-900 mb-2">Detalhes da Mídia</h2>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <h3 className="text-gray-900 mb-1">{selectedPoint.name}</h3>
-                        <p className="text-gray-600 mb-2">{selectedPoint.type}</p>
-                        {formatAddress(selectedPoint) && (
-                          <p className="text-sm text-gray-500">{formatAddress(selectedPoint)}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {selectedPointUnits.length > 1 && (
-                      <div>
-                        <label className="text-sm text-gray-600 mb-1 block">Unidade</label>
-                        <Select
-                          value={selectedMediaUnit?.id ?? ''}
-                          onValueChange={(unitId: string) => {
-                            const u = selectedPointUnits.find((x) => x.id === unitId);
-                            if (u) handleSelectMediaUnit(u);
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma unidade" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {selectedPointUnits.map((u) => (
-                              <SelectItem key={u.id} value={u.id}>
-                                {u.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    {selectedMediaUnit && (
-                      <div className="space-y-4">
+            <div className="md:w-1/2 md:h-full h-[60%] flex-1 overflow-hidden p-4 md:p-6">
+              <div className="h-full flex flex-col">
+                <div className="flex-1 overflow-y-auto pr-1">
+                  {selectedPoint ? (
+                    selectedPointUnits.length ? (
+                      <div className="space-y-6">
                         <div>
-                          <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
-                          <Input
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Descrição do item"
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={quantity}
-                              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Preço/mês (R$) *</label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={unitPrice}
-                              onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
-                            />
+                          <h2 className="text-gray-900 mb-2">Detalhes da Mídia</h2>
+                          <div className="bg-gray-50 p-4 rounded-lg">
+                            <h3 className="text-gray-900 mb-1">{selectedPoint.name}</h3>
+                            <p className="text-gray-600 mb-2">{selectedPoint.type}</p>
+                            {formatAddress(selectedPoint) && (
+                              <p className="text-sm text-gray-500">{formatAddress(selectedPoint)}</p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        {selectedPointUnits.length > 1 && (
                           <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Desconto em %</label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={discountPercent || 0}
-                              onChange={(e) => {
-                                const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                setDiscountPercent(v);
-                                if (v > 0) setDiscountAmount(0);
+                            <label className="text-sm text-gray-600 mb-1 block">Unidade</label>
+                            <Select
+                              value={selectedMediaUnit?.id ?? ''}
+                              onValueChange={(unitId: string) => {
+                                const u = selectedPointUnits.find((x) => x.id === unitId);
+                                if (u) handleSelectMediaUnit(u);
                               }}
-                              disabled={!!discountAmount}
-                            />
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione uma unidade" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {selectedPointUnits.map((u) => (
+                                  <SelectItem key={u.id} value={u.id}>
+                                    {u.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
+                        )}
 
-                          <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Desconto em R$</label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={discountAmount || 0}
-                              onChange={(e) => {
-                                const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                setDiscountAmount(v);
-                                if (v > 0) setDiscountPercent(0);
-                              }}
-                              disabled={!!discountPercent}
-                            />
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-500">💡 Preencha apenas um campo. O desconto será aplicado sobre o total do item.</p>
+                        {selectedMediaUnit && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
+                              <Input
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Descrição do item"
+                              />
+                            </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
-                            <Input
-                              type="date"
-                              value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                              onChange={(e) =>
-                                setStartDate(
-                                  e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
-                                )
-                              }
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Data Fim</label>
-                            <Input
-                              type="date"
-                              value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                              onChange={(e) =>
-                                setEndDate(
-                                  e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
-                                )
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-                          <div className="flex justify-between items-center">
-                            <span className="text-indigo-900">Total do Item:</span>
-                            <span className="text-indigo-900 font-medium">{formatPrice(totalPrice)}</span>
-                          </div>
-                          <p className="text-sm text-indigo-700 mt-1">
-                            {quantity} x {formatPrice(unitPrice)}
-                          </p>
-                          {computedDiscountValue > 0 && (
-                            <div className="mt-2 text-xs text-indigo-800">
-                              <div className="flex justify-between">
-                                <span>Original:</span>
-                                <span>{formatPrice(baseTotal)}</span>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={quantity}
+                                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                />
                               </div>
-                              <div className="flex justify-between">
-                                <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''}:</span>
-                                <span>-{formatPrice(computedDiscountValue)}</span>
+
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Preço/mês (R$) *</label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={unitPrice}
+                                  onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                                />
                               </div>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="flex gap-3">
-                          <Button variant="outline" className="flex-1" onClick={handleClose}>
-                            Cancelar
-                          </Button>
-                          <Button className="flex-1" onClick={handleConfirm} disabled={!isValid}>
-                            Adicionar Item
-                          </Button>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Desconto em %</label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={discountPercent || 0}
+                                  onChange={(e) => {
+                                    const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                    setDiscountPercent(v);
+                                    if (v > 0) setDiscountAmount(0);
+                                  }}
+                                  disabled={!!discountAmount}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Desconto em R$</label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={discountAmount || 0}
+                                  onChange={(e) => {
+                                    const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                    setDiscountAmount(v);
+                                    if (v > 0) setDiscountPercent(0);
+                                  }}
+                                  disabled={!!discountPercent}
+                                />
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              💡 Preencha apenas um campo. O desconto será aplicado sobre o total do item.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
+                                <Input
+                                  type="date"
+                                  value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                                  onChange={(e) =>
+                                    setStartDate(
+                                      e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
+                                    )
+                                  }
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Data Fim</label>
+                                <Input
+                                  type="date"
+                                  value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                                  onChange={(e) =>
+                                    setEndDate(
+                                      e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                              <div className="flex justify-between items-center">
+                                <span className="text-indigo-900">Total do Item:</span>
+                                <span className="text-indigo-900 font-medium">{formatPrice(totalPrice)}</span>
+                              </div>
+                              <p className="text-sm text-indigo-700 mt-1">
+                                {quantity} x {formatPrice(unitPrice)}
+                              </p>
+                              {computedDiscountValue > 0 && (
+                                <div className="mt-2 text-xs text-indigo-800">
+                                  <div className="flex justify-between">
+                                    <span>Original:</span>
+                                    <span>{formatPrice(baseTotal)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''}:</span>
+                                    <span>-{formatPrice(computedDiscountValue)}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500">Este ponto ainda não possui unidades/mídias cadastradas.</p>
+                          <p className="text-sm text-gray-400 mt-2">Cadastre unidades no módulo de Inventário.</p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">Este ponto ainda não possui unidades/mídias cadastradas.</p>
-                      <p className="text-sm text-gray-400 mt-2">Cadastre unidades no módulo de Inventário.</p>
+                    )
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500">Selecione um ponto para adicionar à proposta</p>
+                      </div>
                     </div>
-                  </div>
-                )
-              ) : (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">Selecione um ponto para adicionar à proposta</p>
-                  </div>
+                  )}
                 </div>
-              )}
+
+                {/* Footer fixo (sempre visível) */}
+                <div className="pt-4 mt-4 border-t flex flex-col sm:flex-row gap-3">
+                  <Button variant="outline" className="flex-1" onClick={handleClose}>
+                    Cancelar
+                  </Button>
+                  <Button className="flex-1" onClick={handleConfirm} disabled={!isValid}>
+                    Adicionar Item
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         )}
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }
