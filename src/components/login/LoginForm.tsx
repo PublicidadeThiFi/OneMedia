@@ -52,7 +52,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="text-center mb-8">
-        <h2 className="text-gray-900 mb-2">Bem-vindo de volta</h2>
+        <h2 className="text-3xl font-semibold text-gray-900 mb-2">Bem-vindo de volta</h2>
         <p className="text-gray-600">
           Entre com suas credenciais para acessar o sistema
         </p>
@@ -60,73 +60,73 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
 
       {/* Global Error */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
       {/* Email Field */}
       <div>
-        <label className="block text-sm text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           E-mail corporativo <span className="text-red-600">*</span>
         </label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="seu.email@empresa.com.br"
-            className={`w-full pl-11 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5] ${
-              errors.email ? 'border-red-300' : 'border-gray-300'
+            className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+              errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
             }`}
             disabled={isLoading}
           />
         </div>
         {errors.email && (
-          <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+          <p className="mt-2 text-sm text-red-600">{errors.email}</p>
         )}
       </div>
 
       {/* Password Field */}
       <div>
-        <label className="block text-sm text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           Senha <span className="text-red-600">*</span>
         </label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type={showPassword ? 'text' : 'password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className={`w-full pl-11 pr-12 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4F46E5] ${
-              errors.password ? 'border-red-300' : 'border-gray-300'
+            className={`w-full pl-12 pr-12 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+              errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
             }`}
             disabled={isLoading}
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
             disabled={isLoading}
           >
             {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
         {errors.password && (
-          <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+          <p className="mt-2 text-sm text-red-600">{errors.password}</p>
         )}
       </div>
 
       {/* Remember Me & Forgot Password */}
       <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
-            className="w-4 h-4 text-[#4F46E5] border-gray-300 rounded focus:ring-[#4F46E5]"
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-600"
             disabled={isLoading}
           />
           <span className="text-sm text-gray-700">Lembrar de mim neste dispositivo</span>
@@ -135,7 +135,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
         <button
           type="button"
           onClick={handleForgotPassword}
-          className="text-sm text-[#4F46E5] hover:underline"
+          className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
           disabled={isLoading}
         >
           Esqueci minha senha
@@ -146,7 +146,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full bg-[#4F46E5] text-white px-8 py-3 rounded-lg hover:bg-[#4338CA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 font-medium"
       >
         {isLoading ? (
           <>
@@ -159,12 +159,12 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       </button>
 
       {/* Sign Up Link */}
-      <p className="text-center text-sm text-gray-600">
+      <p className="text-center text-sm text-gray-600 pt-2">
         Ainda não tem conta?{' '}
         <button
           type="button"
           onClick={() => navigate('/cadastro')}
-          className="text-[#4F46E5] hover:underline"
+          className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
           disabled={isLoading}
         >
           Começar teste grátis
