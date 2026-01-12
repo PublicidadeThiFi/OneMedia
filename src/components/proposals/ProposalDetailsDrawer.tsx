@@ -35,6 +35,17 @@ function formatDateBR(value: any): string {
   return `${dd}/${m}/${y}`;
 }
 
+function formatDateTimeBR(value: any): string {
+  if (!value) return '—';
+  const d = new Date(value as any);
+  if (Number.isNaN(d.getTime())) return '—';
+  try {
+    return d.toLocaleString('pt-BR');
+  } catch {
+    return '—';
+  }
+}
+
 async function safeCopy(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -499,7 +510,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
           </div>
 
           <div className="pt-4 border-t">
-            <p className="text-sm text-gray-500">Criado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}</p>
+            <p className="text-sm text-gray-500">Criado em {formatDateTimeBR(p.createdAt)}</p>
           </div>
         </div>
       </div>
