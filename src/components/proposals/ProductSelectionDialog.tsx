@@ -37,6 +37,8 @@ export function ProductSelectionDialog({
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(0);
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [startDate, setStartDate] = useState<Date | undefined>(defaultPeriod.startDate);
   const [endDate, setEndDate] = useState<Date | undefined>(defaultPeriod.endDate);
 
@@ -57,10 +59,32 @@ export function ProductSelectionDialog({
     if (product) {
       setDescription(product.name);
       setUnitPrice(Number(product.basePrice) || 0);
+      // reset desconto ao trocar produto
+      setDiscountPercent(0);
+      setDiscountAmount(0);
     }
   };
 
-  const totalPrice = quantity * unitPrice;
+  const baseTotal = quantity * unitPrice;
+  let discountedTotal = baseTotal;
+  const pct = Number.isFinite(discountPercent) ? discountPercent : 0;
+  const amt = Number.isFinite(discountAmount) ? discountAmount : 0;
+  if (pct > 0) discountedTotal = discountedTotal * (1 - pct / 100);
+  if (amt > 0) discountedTotal = discountedTotal - amt;
+  discountedTotal = Math.max(0, discountedTotal);
+  const computedDiscountValue = Math.max(0, baseTotal - discountedTotal);
+
+  const handleDiscountPercentChange = (value: string) => {
+    const next = Math.max(0, parseFloat(value) || 0);
+    setDiscountPercent(next);
+    if (next > 0) setDiscountAmount(0);
+  };
+
+  const handleDiscountAmountChange = (value: string) => {
+    const next = Math.max(0, parseFloat(value) || 0);
+    setDiscountAmount(next);
+    if (next > 0) setDiscountPercent(0);
+  };
 
   const handleConfirm = () => {
     if (!selectedProductId) return;
@@ -76,7 +100,9 @@ export function ProductSelectionDialog({
       endDate,
       quantity,
       unitPrice,
-      totalPrice,
+      discountPercent: pct > 0 ? pct : undefined,
+      discountAmount: amt > 0 ? amt : undefined,
+      totalPrice: discountedTotal,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -90,6 +116,8 @@ export function ProductSelectionDialog({
     setDescription('');
     setQuantity(1);
     setUnitPrice(0);
+    setDiscountPercent(0);
+    setDiscountAmount(0);
     setStartDate(defaultPeriod.startDate);
     setEndDate(defaultPeriod.endDate);
     onOpenChange(false);
@@ -109,7 +137,6 @@ export function ProductSelectionDialog({
         if (!nextOpen) return handleClose();
         onOpenChange(true);
       }}
-
     >
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -160,9 +187,7 @@ export function ProductSelectionDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-            <p className="text-sm text-gray-500">
-              Você pode personalizar a descrição que aparecerá na proposta.
-            </p>
+            <p className="text-sm text-gray-500">Você pode personalizar a descrição que aparecerá na proposta.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -185,9 +210,7 @@ export function ProductSelectionDialog({
               />
             </div>
           </div>
-          <p className="text-sm text-gray-500">
-            Opcional. Use se o produto/serviço tiver período específico.
-          </p>
+          <p className="text-sm text-gray-500">Opcional. Use se o produto/serviço tiver período específico.</p>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -213,14 +236,62 @@ export function ProductSelectionDialog({
             </div>
           </div>
 
-          <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+          <div className="space-y-2">
+            <Label>Desconto do Item (opcional)</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="discountPercent" className="text-sm text-gray-600">Desconto em %</Label>
+                <Input
+                  id="discountPercent"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discountPercent || 0}
+                  onChange={(e) => handleDiscountPercentChange(e.target.value)}
+                  disabled={!!discountAmount}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discountAmount" className="text-sm text-gray-600">Desconto em R$</Label>
+                <Input
+                  id="discountAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discountAmount || 0}
+                  onChange={(e) => handleDiscountAmountChange(e.target.value)}
+                  disabled={!!discountPercent}
+                />
+              </div>
+            </div>
+            <p className="text-sm text-gray-500">💡 Preencha apenas um campo. O desconto é aplicado sobre o total deste item.</p>
+          </div>
+
+          <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-indigo-900">Total do Item:</span>
-              <span className="text-indigo-900">{formatCurrency(totalPrice)}</span>
+              <span className="text-indigo-900 font-medium">{formatCurrency(discountedTotal)}</span>
             </div>
-            <p className="text-sm text-indigo-700 mt-1">
+
+            <p className="text-sm text-indigo-700">
               {quantity} x {formatCurrency(unitPrice)}
+              {computedDiscountValue > 0 ? ` • Desc: -${formatCurrency(computedDiscountValue)}` : ''}
             </p>
+
+            {computedDiscountValue > 0 && (
+              <div className="text-xs text-indigo-700">
+                <div className="flex justify-between">
+                  <span>Original:</span>
+                  <span>{formatCurrency(baseTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>
+                    Desconto{pct > 0 ? ` (${pct}%)` : ''}{amt > 0 ? ` (${formatCurrency(amt)})` : ''}:
+                  </span>
+                  <span>-{formatCurrency(computedDiscountValue)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
