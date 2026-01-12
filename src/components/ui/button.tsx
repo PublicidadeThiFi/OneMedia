@@ -39,6 +39,7 @@ function Button({
   variant,
   size,
   asChild = false,
+  type,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
@@ -50,6 +51,10 @@ function Button({
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      // IMPORTANT: ensure buttons do not accidentally submit a surrounding <form>
+      // (common cause of "white page" due to full page reload on Vercel).
+      // If a submit is needed, callers should pass type="submit" explicitly.
+      type={asChild ? undefined : (type ?? "button")}
       {...props}
     />
   );
