@@ -83,6 +83,30 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const [detailsDrawerProposal, setDetailsDrawerProposal] = useState<Proposal | null>(null);
   const [loadingSingle, setLoadingSingle] = useState(false);
 
+  // When viewing details we render an in-page view (not a modal) to avoid viewport cuts.
+  if (detailsDrawerProposal) {
+    return (
+      <div className="p-8">
+        <div className="flex items-center justify-between mb-6">
+          <Button
+            variant="outline"
+            onClick={() => setDetailsDrawerProposal(null)}
+            disabled={loadingSingle}
+          >
+            Voltar
+          </Button>
+        </div>
+
+        <ProposalDetailsDrawer
+          open={true}
+          onOpenChange={(open) => !open && setDetailsDrawerProposal(null)}
+          proposal={detailsDrawerProposal}
+          onNavigate={onNavigate}
+        />
+      </div>
+    );
+  }
+
   // Cards de estatísticas (baseado na lista carregada)
   const fallbackStats = useMemo(() => {
     const currentMonth = new Date().getMonth();

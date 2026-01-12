@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Copy, Link as LinkIcon, X } from 'lucide-react';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Button } from '../ui/button';
 import apiClient from '../../lib/apiClient';
 import { Proposal } from '../../types';
@@ -259,23 +258,25 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     }
   };
 
-  if (!proposal) return null;
+  if (!proposal || !open) return null;
 
+  // This component used to be a Drawer/Modal. It is now rendered as an in-page view
+  // to avoid viewport cuts and improve usability on desktop/mobile.
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh]">
-        <DrawerHeader className="flex items-center justify-between">
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 min-w-0">
-            <DrawerTitle className="truncate">{proposal.title || 'Proposta'}</DrawerTitle>
+            <h2 className="text-gray-900 truncate">{proposal.title || 'Proposta'}</h2>
             <ProposalStatusBadge status={p.status} />
           </div>
 
-          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Fechar">
             <X className="w-4 h-4" />
           </Button>
-        </DrawerHeader>
+        </div>
 
-        <div className="overflow-y-auto p-6 space-y-6">
+        <div className="space-y-6 pb-10">
           {/* Resumo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -501,7 +502,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
             <p className="text-sm text-gray-500">Criado em {new Date(p.createdAt).toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
-      </DrawerContent>
-    </Drawer>
+      </div>
+    </div>
   );
 }
