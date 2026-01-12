@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { LoginForm } from '../components/login/LoginForm';
 import { TwoFactorStep } from '../components/login/TwoFactorStep';
 import { LoginCredentials, TwoFactorPayload } from '../types/auth';
+import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Login() {
   const navigate = useNavigation();
@@ -41,19 +42,16 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">OOH</span>
-            </div>
-            <span className="text-base sm:text-lg text-gray-900">OneMedia</span>
-          </button>
+      <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
+          </div>
           <button
             onClick={() => navigate('/')}
-            className="text-sm text-gray-600 hover:text-[#4F46E5] transition-colors"
+            className="text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
           </button>
@@ -61,8 +59,8 @@ export default function Login() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8">
+      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-10">
           {requiresTwoFactor && pendingEmail ? (
             <TwoFactorStep
               email={pendingEmail}
@@ -81,12 +79,12 @@ export default function Login() {
         </div>
 
         {/* Help Text */}
-        <div className="mt-6 text-center px-2">
+        <div className="mt-8 text-center px-2">
           <p className="text-sm text-gray-600">
             Problemas para acessar?{' '}
             <button
               onClick={() => navigate('/contato')}
-              className="text-[#4F46E5] hover:underline"
+              className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
             >
               Entre em contato com o suporte
             </button>

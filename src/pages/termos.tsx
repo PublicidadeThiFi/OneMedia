@@ -7,7 +7,7 @@ export default function Termos() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">OOH</span>
             </div>
             <span className="text-lg text-gray-900">OneMedia</span>
@@ -28,14 +28,14 @@ export default function Termos() {
           <section>
             <h2 className="text-gray-900 mb-3">1. Aceitação dos Termos</h2>
             <p className="text-gray-600">
-              Ao acessar e usar o OneMedia, você concorda em cumprir e estar vinculado a estes Termos de Uso.
+              Ao acessar e usar o OOH Manager, você concorda em cumprir e estar vinculado a estes Termos de Uso.
             </p>
           </section>
 
           <section>
             <h2 className="text-gray-900 mb-3">2. Descrição do Serviço</h2>
             <p className="text-gray-600">
-              O OneMedia é uma plataforma SaaS para gestão de mídia OOH/DOOH, incluindo inventário, propostas, campanhas e financeiro.
+              O OOH Manager é uma plataforma SaaS para gestão de mídia OOH/DOOH, incluindo inventário, propostas, campanhas e financeiro.
             </p>
           </section>
 
@@ -56,7 +56,7 @@ export default function Termos() {
           <section>
             <h2 className="text-gray-900 mb-3">5. Propriedade Intelectual</h2>
             <p className="text-gray-600">
-              Todo o conteúdo, recursos e funcionalidades do OneMedia são de propriedade exclusiva da empresa e protegidos por direitos autorais.
+              Todo o conteúdo, recursos e funcionalidades do OOH Manager são de propriedade exclusiva da empresa e protegidos por direitos autorais.
             </p>
           </section>
 
@@ -69,7 +69,7 @@ export default function Termos() {
 
         <div className="mt-8 text-center">
           <a
-            href="/signup"
+            href="/cadastro"
             className="inline-flex items-center gap-2 text-gray-600 hover:text-[#4F46E5] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

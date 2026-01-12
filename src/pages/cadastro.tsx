@@ -5,6 +5,7 @@ import { Step1Plan } from '../components/signup/Step1Plan';
 import { Step2Company } from '../components/signup/Step2Company';
 import { Step3User } from '../components/signup/Step3User';
 import { SuccessScreen } from '../components/signup/SuccessScreen';
+import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 import {
   SignupPlanStep,
   SignupCompanyStep,
@@ -12,18 +13,14 @@ import {
   SignupPayload,
   PlanRange,
   PLAN_DEFINITIONS,
-  SignupRequestDto,
 } from '../types/signup';
-import {
-  onlyDigits,
-  isValidPhone,
+import { 
+  onlyDigits, 
+  isValidPhone, 
   isValidCNPJ,
   isValidEmail,
-  validatePasswordRequirements
+  validatePasswordRequirements 
 } from '../lib/validators';
-import apiClient from '../lib/apiClient';
-import { toast } from 'sonner';
-
 
 export default function Cadastro() {
   const navigate = useNavigation();
@@ -68,7 +65,7 @@ export default function Cadastro() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const planRange = urlParams.get('planRange') as PlanRange | null;
-
+    
     if (planRange && PLAN_DEFINITIONS.find((p) => p.range === planRange)) {
       setStep1Data({
         estimatedPoints: null,
@@ -172,6 +169,7 @@ export default function Cadastro() {
     }
   };
 
+  // Handle final submit
   const handleSubmit = async () => {
     if (!validateStep3()) {
       return;
@@ -179,94 +177,68 @@ export default function Cadastro() {
 
     setIsLoading(true);
 
-    try {
-      // Payload do fluxo de signup do frontend (apenas para debug)
-      const payload: SignupPayload = {
-        plan: {
-          platformPlanId: step1Data.selectedPlatformPlanId!,
-          planRange: step1Data.selectedPlanRange!,
-        },
-        company: {
-          fantasyName: step2Data.fantasyName,
-          legalName: step2Data.legalName || undefined,
-          cnpj: onlyDigits(step2Data.cnpj),
-          phone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
-          website: step2Data.website || undefined,
-          city: step2Data.city || undefined,
-          state: step2Data.state || undefined,
-          country: step2Data.country || undefined,
-        },
-        adminUser: {
-          name: step3Data.name,
-          email: step3Data.email,
-          phone: onlyDigits(step3Data.phone),
-          password: step3Data.password,
-        },
-      };
+    // Build the signup payload
+    const payload: SignupPayload = {
+      plan: {
+        platformPlanId: step1Data.selectedPlatformPlanId!,
+        planRange: step1Data.selectedPlanRange!,
+      },
+      company: {
+        fantasyName: step2Data.fantasyName,
+        legalName: step2Data.legalName || undefined,
+        cnpj: onlyDigits(step2Data.cnpj), // Send only digits
+        phone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined, // Send only digits
+        website: step2Data.website || undefined,
+        city: step2Data.city || undefined,
+        state: step2Data.state || undefined,
+        country: step2Data.country || undefined,
+      },
+      adminUser: {
+        name: step3Data.name,
+        email: step3Data.email,
+        phone: onlyDigits(step3Data.phone), // Send only digits
+        password: step3Data.password, // Send plain password - backend will hash it
+      },
+    };
 
-      console.log('Signup payload (frontend):', payload);
+    // TODO: Implement API call to POST /api/signup
+    // This should create:
+    // 1. Company with subscriptionStatus = TRIAL
+    // 2. User with role ADMINISTRATIVO linked to Company
+    // 3. PlatformSubscription with:
+    //    - planId from selected plan
+    //    - status = TRIAL
+    //    - maxOwnersPerMediaPoint = 1 (default: 1 proprietário por ponto)
+    //    - addonExtraStorage = false
+    //    - currentPeriodStart = now
+    //    - currentPeriodEnd = now + 30 days (or 14 days per v2)
+    
+    console.log('Signup payload (TODO: send to API):', payload);
 
-      // Payload no formato que o backend espera (SignupDto)
-      const apiPayload: SignupRequestDto = {
-        planId: step1Data.selectedPlatformPlanId!, // ⚠️ precisa ser UUID válido do PlatformPlan
+    // Simulate API call
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        companyName: step2Data.fantasyName,
-        companyEmail: undefined, // se adicionar campo de e-mail da empresa, preencha aqui
-        cnpj: onlyDigits(step2Data.cnpj),
-        companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
-        site: step2Data.website || undefined,
-        addressCity: step2Data.city || undefined,
-        addressState: step2Data.state || undefined,
-        addressCountry: step2Data.country || undefined,
-        estimatedUsers: step2Data.estimatedUsers
-          ? Number(step2Data.estimatedUsers)
-          : undefined,
+    setIsLoading(false);
+    setIsSuccess(true);
 
-        adminName: step3Data.name,
-        adminEmail: step3Data.email,
-        adminPhone: onlyDigits(step3Data.phone),
-        adminPassword: step3Data.password,
-        adminPasswordConfirmation: step3Data.confirmPassword,
-        acceptTerms: step3Data.acceptedTerms,
-      };
-
-      console.log('Enviando signup para API:', apiPayload);
-
-      const response = await apiClient.post('/signup', apiPayload);
-
-      console.log('Signup success:', response.data);
-
-      setIsSuccess(true);
-    } catch (err: any) {
-      console.error('Erro ao realizar cadastro', err);
-      const message =
-        err?.response?.data?.message ||
-        'Erro ao realizar cadastro. Tente novamente.';
-      toast.error(message);
-    } finally {
-      setIsLoading(false);
-    }
+    // TODO: When API is integrated, handle errors and show appropriate messages
+    // If successful, show success screen
+    // If error, show error toast and keep user on step 3
   };
-
-
-
 
   const stepTitles = ['Plano', 'Empresa', 'Acesso'];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">OOH</span>
-            </div>
-            <span className="text-lg text-gray-900">OneMedia</span>
-          </button>
+      <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
+          </div>
           <button
             onClick={() => navigate('/')}
-            className="text-sm text-gray-600 hover:text-[#4F46E5] transition-colors"
+            className="text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
           </button>
@@ -276,7 +248,7 @@ export default function Cadastro() {
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {isSuccess ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-12">
             <SuccessScreen
               companyName={step2Data.fantasyName}
               userEmail={step3Data.email}
@@ -288,7 +260,7 @@ export default function Cadastro() {
             <SignupStepper currentStep={currentStep} steps={stepTitles} />
 
             {/* Step Content */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-10 mt-8">
               {currentStep === 1 && (
                 <Step1Plan
                   data={step1Data}
