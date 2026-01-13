@@ -194,7 +194,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
         | string
         | undefined;
       const fileName =
-        parseFilename(cd) || `contrato-${proposal.id}.pdf`;
+        parseFilename(cd) || `proposta-${proposal.id}.pdf`;
 
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
@@ -209,7 +209,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
 
       window.URL.revokeObjectURL(url);
     } catch (e: any) {
-      setPdfError(e?.response?.data?.message || e?.message || 'Não foi possível baixar o contrato');
+      setPdfError(e?.response?.data?.message || e?.message || 'Não foi possível baixar o PDF da proposta');
     } finally {
       setPdfLoading(false);
     }
@@ -495,23 +495,20 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
             </div>
           </div>
 
-          {/* Contrato */}
+          {/* Proposta */}
           <div className="pt-4 border-t">
-            <h3 className="text-gray-900 mb-3">Contrato (PDF)</h3>
+            <h3 className="text-gray-900 mb-3">Proposta (PDF)</h3>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 variant="outline"
                 className="w-full sm:w-auto"
-                disabled={p.status !== 'APROVADA' || pdfLoading}
+                disabled={pdfLoading}
                 onClick={handleDownloadContract}
               >
-                {pdfLoading ? 'Baixando…' : 'Baixar contrato (PDF)'}
+                {pdfLoading ? 'Baixando…' : 'Baixar proposta (PDF)'}
               </Button>
             </div>
             {pdfError && <p className="mt-2 text-sm text-red-600">{pdfError}</p>}
-            {p.status !== 'APROVADA' && (
-              <p className="mt-2 text-xs text-gray-500">O contrato fica disponível quando a Proposta estiver aprovada.</p>
-            )}
           </div>
 
           <div className="pt-4 border-t">

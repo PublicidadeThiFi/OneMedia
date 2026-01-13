@@ -631,7 +631,7 @@ export default function PropostaPublica() {
 
             {actionError && <div className="mt-3 text-sm text-red-600">{actionError}</div>}
             {actionSuccess && <div className="mt-3 text-sm text-green-700">{actionSuccess}</div>}
-            {proposal?.status === 'APROVADA' && (
+            {proposal && (
               <a
                 className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
                 // Use the shorter /pdf alias for maximum compatibility across proxies/rewrite setups.
@@ -639,7 +639,7 @@ export default function PropostaPublica() {
                 target="_blank"
                 rel="noreferrer"
               >
-                Baixar contrato (PDF)
+                Baixar proposta (PDF)
               </a>
             )}
 
