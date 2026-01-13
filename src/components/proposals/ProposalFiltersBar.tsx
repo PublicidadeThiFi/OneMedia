@@ -45,7 +45,7 @@ export function ProposalFiltersBar({
         </SelectContent>
       </Select>
       
-      <Button variant="outline" className="gap-2" onClick={onOpenAdvancedFilters}>
+      <Button type="button" variant="outline" className="gap-2" onClick={onOpenAdvancedFilters}>
         <Filter className="w-4 h-4" />
         Mais Filtros
       </Button>

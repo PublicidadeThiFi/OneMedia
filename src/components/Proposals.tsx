@@ -39,7 +39,7 @@ class ProposalDetailsErrorBoundary extends Component<
           <p className="text-sm text-red-700 mb-4">
             Abra o console do navegador (F12) para ver o erro. Depois volte e tente novamente.
           </p>
-          <Button variant="outline" onClick={this.props.onBack}>
+          <Button type="button" variant="outline" onClick={this.props.onBack}>
             Voltar
           </Button>
         </div>
@@ -122,7 +122,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     return (
       <div className="p-8">
         <div className="flex items-center justify-between mb-6">
-          <Button
+          <Button type="button"
             variant="outline"
             onClick={() => setDetailsDrawerProposal(null)}
             disabled={loadingSingle}
@@ -278,7 +278,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
           </p>
         </div>
 
-        <Button className="gap-2" onClick={handleNewProposal} disabled={loadingSingle}>
+        <Button type="button" className="gap-2" onClick={handleNewProposal} disabled={loadingSingle}>
           <Plus className="w-4 h-4" />
           Nova Proposta
         </Button>
@@ -387,7 +387,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
             Página {page} de {totalPages || 1}
           </p>
           <div className="flex gap-2">
-            <Button
+            <Button type="button"
               variant="outline"
               size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -395,7 +395,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
             >
               Anterior
             </Button>
-            <Button
+            <Button type="button"
               variant="outline"
               size="sm"
               onClick={() => setPage((p) => Math.min(totalPages || 1, p + 1))}
