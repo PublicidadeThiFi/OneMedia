@@ -4,7 +4,7 @@
  * This is the authenticated user's main interface after login
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Component, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
@@ -41,6 +41,45 @@ export type Page =
 
 interface MainAppProps {
   initialPage?: Page;
+}
+
+class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => void }, { hasError: boolean; error?: unknown }> {
+  state = { hasError: false, error: undefined };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: unknown) {
+    // Log to console for diagnostics
+    // eslint-disable-next-line no-console
+    console.error('Error in page render:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6">
+          <div className="border border-red-200 rounded-lg bg-red-50 p-6">
+            <p className="text-red-700 font-medium mb-2">Ocorreu um erro ao abrir esta página.</p>
+            <p className="text-sm text-red-700 mb-4">Abra o console (F12) para ver detalhes.</p>
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false, error: undefined });
+                this.props.onReset?.();
+              }}
+              className="px-3 py-2 rounded bg-white border"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children as ReactNode;
+  }
 }
 
 export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
@@ -227,7 +266,9 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
-          {renderContent()}
+          <AppErrorBoundary onReset={() => window.dispatchEvent(new Event('app:navigation'))}>
+            {renderContent()}
+          </AppErrorBoundary>
         </main>
       </div>
     </div>
