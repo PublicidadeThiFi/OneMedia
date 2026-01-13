@@ -71,6 +71,12 @@ async function safeCopy(text: string) {
 export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate }: ProposalDetailsDrawerProps) {
   const p: any = proposal ?? {};
 
+  useEffect(() => {
+    // Debug: log when the drawer receives a proposal
+    // eslint-disable-next-line no-console
+    console.debug('ProposalDetailsDrawer mounted/render, proposal=', proposal, 'open=', open);
+  }, [proposal?.id, open]);
+
   // IMPORTANT: This component is used as an in-page view (not a modal).
   // It must NEVER fire extra authenticated requests on open just to resolve names.
   // Those extra calls (/clients/:id, /users/:id) were causing 401 refresh flows and
@@ -279,7 +285,13 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     }
   };
 
-  if (!proposal || !open) return null;
+  if (!proposal || !open) {
+    return (
+      <div className="p-6">
+        <p className="text-gray-600">Sem detalhes disponíveis.</p>
+      </div>
+    );
+  }
 
   // This component used to be a Drawer/Modal. It is now rendered as an in-page view
   // to avoid viewport cuts and improve usability on desktop/mobile.

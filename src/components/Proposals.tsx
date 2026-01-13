@@ -212,6 +212,10 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     try {
       setLoadingSingle(true);
       const full = await getProposalById(proposal.id);
+      // Debug: log the loaded proposal to help diagnose blank-view issues
+      // (will appear in the browser console)
+      // eslint-disable-next-line no-console
+      console.debug('Loaded proposal for details:', full);
       setDetailsDrawerProposal(full);
     } catch {
       toast.error('Erro ao carregar detalhes da proposta');
