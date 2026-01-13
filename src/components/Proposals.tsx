@@ -208,21 +208,26 @@ export function Proposals({ onNavigate }: ProposalsProps) {
     }
   };
 
-  const handleViewDetails = async (proposal: Proposal) => {
-    try {
-      setLoadingSingle(true);
-      const full = await getProposalById(proposal.id);
-      // Debug: log the loaded proposal to help diagnose blank-view issues
-      // (will appear in the browser console)
-      // eslint-disable-next-line no-console
-      console.debug('Loaded proposal for details:', full);
-      setDetailsDrawerProposal(full);
-    } catch {
-      toast.error('Erro ao carregar detalhes da proposta');
-    } finally {
-      setLoadingSingle(false);
-    }
-  };
+const handleViewDetails = async (proposal: Proposal) => {
+  // Immediately show the lightweight proposal we already have to avoid
+  // blocking the UI and triggering auth refresh flows.
+  setDetailsDrawerProposal(proposal);
+
+  // Fetch full proposal in background and patch details when available.
+  try {
+    setLoadingSingle(true);
+    const full = await getProposalById(proposal.id);
+    // eslint-disable-next-line no-console
+    console.debug('Loaded full proposal for details:', full);
+    setDetailsDrawerProposal((prev) => (prev && prev.id === full.id ? full : prev));
+  } catch (err) {
+    // Non-fatal: keep showing the lightweight proposal and log the issue.
+    // eslint-disable-next-line no-console
+    console.warn('Erro ao carregar detalhes completos da proposta:', err);
+  } finally {
+    setLoadingSingle(false);
+  }
+};
 
   const handleSendProposal = async (proposal: Proposal) => {
     try {
