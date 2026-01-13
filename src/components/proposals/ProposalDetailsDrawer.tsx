@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Link as LinkIcon, X } from 'lucide-react';
+import { Copy, Link as LinkIcon } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Dialog, DialogContent } from '../ui/dialog';
 import apiClient from '../../lib/apiClient';
 import { Proposal } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
@@ -94,7 +95,6 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
 
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [renderError, setRenderError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!proposal || !open) return;
@@ -286,45 +286,30 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     }
   };
 
-  if (!proposal || !open) {
-    return (
-      <div className="p-6">
-        <p className="text-gray-600">Sem detalhes disponíveis.</p>
-      </div>
-    );
-  }
+  // Keep this component mounted only when open to avoid rendering overhead.
+  // The Radix Dialog portal already handles mount/unmount of content, but we
+  // additionally guard to keep the parent tree clean.
+  if (!open) return null;
 
-  // Protect render from unexpected exceptions caused by malformed proposal payloads.
-  if (renderError) {
-    return (
-      <div className="p-6 border border-red-200 rounded-lg bg-red-50">
-        <p className="text-red-700 font-medium mb-2">Erro ao renderizar detalhes da proposta.</p>
-        <p className="text-sm text-red-700 mb-4">{String(renderError.message)}</p>
-        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-          Fechar
-        </Button>
-      </div>
-    );
-  }
-
-  // This component used to be a Drawer/Modal. It is now rendered as an in-page view
-  // to avoid viewport cuts and improve usability on desktop/mobile.
-  try {
-    return (
-      <div className="w-full">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between gap-3 mb-6">
-          <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-gray-900 truncate">{proposal.title || 'Proposta'}</h2>
-            <ProposalStatusBadge status={p.status} />
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="p-0 w-[96vw] max-w-7xl sm:max-w-7xl h-[90vh] overflow-hidden">
+        {!proposal ? (
+          <div className="p-6">
+            <p className="text-gray-600">Sem detalhes disponíveis.</p>
           </div>
+        ) : (
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="p-6 border-b">
+              <div className="flex items-center gap-3 min-w-0">
+                <h2 className="text-gray-900 truncate">{proposal.title || 'Proposta'}</h2>
+                <ProposalStatusBadge status={p.status} />
+              </div>
+            </div>
 
-          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Fechar">
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="space-y-6 pb-10">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Resumo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -379,8 +364,8 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
           <div>
             <h3 className="text-gray-900 mb-4">Itens da Proposta ({items.length})</h3>
             <div className="space-y-3">
-              {items.map((item) => (
-                <div key={item.id ?? `${item.description}-${Math.random()}`} className="border border-gray-200 rounded-lg p-4">
+              {items.map((item, idx) => (
+                <div key={item.id ?? `${item.description ?? 'item'}-${idx}`} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <p className="text-gray-900 flex-1">{item.description || 'Item'}</p>
                     {(() => {
@@ -541,15 +526,10 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
           <div className="pt-4 border-t">
             <p className="text-sm text-gray-500">Criado em {formatDateTimeBR(p.createdAt)}</p>
           </div>
+            </div>
           </div>
-        </div>
-      </div>
-    );
-  } catch (err: any) {
-    // Capture and display render errors to avoid blank screens.
-    // eslint-disable-next-line no-console
-    console.error('ProposalDetailsDrawer render error:', err);
-    setRenderError(err instanceof Error ? err : new Error(String(err)));
-    return null;
-  }
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }

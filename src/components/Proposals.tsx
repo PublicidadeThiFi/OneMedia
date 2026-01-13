@@ -117,32 +117,6 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const [detailsDrawerProposal, setDetailsDrawerProposal] = useState<Proposal | null>(null);
   const [loadingSingle, setLoadingSingle] = useState(false);
 
-  // When viewing details we render an in-page view (not a modal) to avoid viewport cuts.
-  if (detailsDrawerProposal) {
-    return (
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-6">
-          <Button type="button"
-            variant="outline"
-            onClick={() => setDetailsDrawerProposal(null)}
-            disabled={loadingSingle}
-          >
-            Voltar
-          </Button>
-        </div>
-
-        <ProposalDetailsErrorBoundary onBack={() => setDetailsDrawerProposal(null)}>
-          <ProposalDetailsDrawer
-            open={true}
-            onOpenChange={(open) => !open && setDetailsDrawerProposal(null)}
-            proposal={detailsDrawerProposal}
-            onNavigate={onNavigate}
-          />
-        </ProposalDetailsErrorBoundary>
-      </div>
-    );
-  }
-
   // Cards de estatísticas (baseado na lista carregada)
   const fallbackStats = useMemo(() => {
     const currentMonth = new Date().getMonth();
@@ -434,6 +408,18 @@ const handleViewDetails = async (proposal: Proposal) => {
         onSave={handleSaveProposal}
         onNavigate={onNavigate}
       />
+
+      {/* Detalhes da Proposta (view em Dialog grande, sem navegação/"página em branco") */}
+      <ProposalDetailsErrorBoundary onBack={() => setDetailsDrawerProposal(null)}>
+        <ProposalDetailsDrawer
+          open={!!detailsDrawerProposal}
+          onOpenChange={(open) => {
+            if (!open) setDetailsDrawerProposal(null);
+          }}
+          proposal={detailsDrawerProposal}
+          onNavigate={onNavigate}
+        />
+      </ProposalDetailsErrorBoundary>
     </div>
   );
 }
