@@ -94,6 +94,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
 
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [renderError, setRenderError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!proposal || !open) return;
@@ -293,12 +294,26 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
     );
   }
 
+  // Protect render from unexpected exceptions caused by malformed proposal payloads.
+  if (renderError) {
+    return (
+      <div className="p-6 border border-red-200 rounded-lg bg-red-50">
+        <p className="text-red-700 font-medium mb-2">Erro ao renderizar detalhes da proposta.</p>
+        <p className="text-sm text-red-700 mb-4">{String(renderError.message)}</p>
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          Fechar
+        </Button>
+      </div>
+    );
+  }
+
   // This component used to be a Drawer/Modal. It is now rendered as an in-page view
   // to avoid viewport cuts and improve usability on desktop/mobile.
-  return (
-    <div className="w-full">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between gap-3 mb-6">
+  try {
+    return (
+      <div className="w-full">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-gray-900 truncate">{proposal.title || 'Proposta'}</h2>
             <ProposalStatusBadge status={p.status} />
@@ -526,8 +541,15 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
           <div className="pt-4 border-t">
             <p className="text-sm text-gray-500">Criado em {formatDateTimeBR(p.createdAt)}</p>
           </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  } catch (err: any) {
+    // Capture and display render errors to avoid blank screens.
+    // eslint-disable-next-line no-console
+    console.error('ProposalDetailsDrawer render error:', err);
+    setRenderError(err instanceof Error ? err : new Error(String(err)));
+    return null;
+  }
 }
