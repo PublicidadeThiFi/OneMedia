@@ -38,6 +38,13 @@ export function Step3User({ data, onChange, onSubmit, onBack, errors, isLoading 
 
   return (
     <div>
+      {/* API / Global Error */}
+      {errors.api && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+          <p className="text-sm text-red-700 font-medium whitespace-pre-line">{errors.api}</p>
+        </div>
+      )}
+
       <div className="text-center mb-10">
         <h2 className="text-3xl font-semibold text-gray-900 mb-3">Seus dados de acesso</h2>
         <p className="text-gray-600">
