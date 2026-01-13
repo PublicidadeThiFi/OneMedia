@@ -71,8 +71,10 @@ async function safeCopy(text: string) {
 export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate }: ProposalDetailsDrawerProps) {
   const p: any = proposal ?? {};
 
-  const [client, setClient] = useState<any | null>(null);
-  const [user, setUser] = useState<any | null>(null);
+  // IMPORTANT: This component is used as an in-page view (not a modal).
+  // It must NEVER fire extra authenticated requests on open just to resolve names.
+  // Those extra calls (/clients/:id, /users/:id) were causing 401 refresh flows and
+  // blank screens. We only render what we already have in the proposal payload.
 
   const [publicHash, setPublicHash] = useState<string | null>(null);
   const [messageToken, setMessageToken] = useState<string | null>(null);
@@ -89,38 +91,41 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
 
   useEffect(() => {
     if (!proposal || !open) return;
-
-    setClient(null);
-    setUser(null);
     setLinkError(null);
     setLinkMessage(null);
     setPdfError(null);
 
     setPublicHash(p.publicHash ?? p.public_hash ?? null);
 
-    // carregar cliente / responsável (para exibir nome mesmo se backend não embutir)
-    const load = async () => {
-      try {
-        if (proposal.clientId) {
-          const res = await apiClient.get(`/clients/${proposal.clientId}`);
-          setClient(res.data);
-        }
-      } catch {
-        // silêncio: fallback para proposal.clientName
-      }
-
-      try {
-        if (p.responsibleUserId) {
-          const res = await apiClient.get(`/users/${p.responsibleUserId}`);
-          setUser(res.data);
-        }
-      } catch {
-        // silêncio: fallback para proposal.responsibleUserName
-      }
-    };
-
-    load();
   }, [proposal?.id, open]);
+
+  const clientName = useMemo(() => {
+    return (
+      p.clientName ||
+      proposal?.client?.companyName ||
+      proposal?.client?.contactName ||
+      (proposal as any)?.client?.companyName ||
+      (proposal as any)?.client?.contactName ||
+      '-'
+    );
+  }, [proposal, p.clientName]);
+
+  const clientContact = useMemo(() => {
+    // If we have both company and contact, show contact on a second line.
+    const company = proposal?.client?.companyName ?? (proposal as any)?.client?.companyName;
+    const contact = proposal?.client?.contactName ?? (proposal as any)?.client?.contactName;
+    if (company && contact) return contact;
+    return null;
+  }, [proposal]);
+
+  const responsibleName = useMemo(() => {
+    return (
+      p.responsibleUserName ||
+      proposal?.responsibleUser?.name ||
+      (proposal as any)?.responsibleUser?.name ||
+      '-'
+    );
+  }, [proposal, p.responsibleUserName]);
 
   const items = useMemo<any[]>(() => {
     if (!proposal) return [];
@@ -306,19 +311,14 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
             <div>
               <p className="text-sm text-gray-500 mb-1">Cliente</p>
               <p className="text-gray-900">
-                {client?.companyName ||
-                  client?.contactName ||
-                  p.clientName ||
-                  (proposal as any)?.client?.companyName ||
-                  (proposal as any)?.client?.contactName ||
-                  '-'}
+                {clientName}
               </p>
-              {client?.companyName && client?.contactName && <p className="text-sm text-gray-600">{client.contactName}</p>}
+              {clientContact && <p className="text-sm text-gray-600">{clientContact}</p>}
             </div>
 
             <div>
               <p className="text-sm text-gray-500 mb-1">Responsável</p>
-              <p className="text-gray-900">{user?.name || p.responsibleUserName || '-'}</p>
+              <p className="text-gray-900">{responsibleName}</p>
             </div>
 
             {(p.startDate || p.endDate) && (

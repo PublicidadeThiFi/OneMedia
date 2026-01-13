@@ -67,7 +67,22 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
   }
 
   if (!user) {
-    return null;
+    // Never render a blank screen: show a minimal fallback and a safe way back to login.
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-6 text-center">
+          <p className="text-gray-900 mb-2">Sua sessão expirou.</p>
+          <p className="text-sm text-gray-600 mb-4">Você precisa entrar novamente para continuar.</p>
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            className="w-full px-4 py-2 rounded-lg bg-[#4F46E5] text-white hover:opacity-95"
+          >
+            Ir para o login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Close mobile menu when navigating
