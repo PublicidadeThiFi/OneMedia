@@ -1,4 +1,5 @@
 import { Edit, ExternalLink, Eye, Send } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import { Button } from '../ui/button';
 import { Proposal, ProposalStatus } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
@@ -159,10 +160,10 @@ export function ProposalsTable({
                 {/* Ações */}
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">
-                    <Button
+                    <Button type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => onViewDetails(proposal)}
+                      onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); onViewDetails(proposal); }}
                       aria-label="Ver detalhes"
                     >
                       <Eye className="w-4 h-4" />
@@ -170,19 +171,19 @@ export function ProposalsTable({
 
                     {proposal.status === ProposalStatus.RASCUNHO && (
                       <>
-                        <Button
+                        <Button type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => onEditProposal(proposal)}
+                          onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); onEditProposal(proposal); }}
                           aria-label="Editar proposta"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
 
-                        <Button
+                        <Button type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => onSendProposal(proposal)}
+                          onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); onSendProposal(proposal); }}
                           aria-label="Enviar proposta"
                         >
                           <Send className="w-4 h-4" />
@@ -191,11 +192,11 @@ export function ProposalsTable({
                     )}
 
                     {proposal.publicHash && (
-                      <Button
+                      <Button type="button"
                         variant="ghost"
                         size="sm"
                         title={`Copiar link público: /p/${proposal.publicHash}`}
-                        onClick={() => openPublicLink(proposal.publicHash!)}
+                        onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); openPublicLink(proposal.publicHash!); }}
                         aria-label="Link público"
                       >
                         <ExternalLink className="w-4 h-4" />
