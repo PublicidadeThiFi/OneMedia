@@ -10,7 +10,7 @@ import {
   SignupPlanStep,
   SignupCompanyStep,
   SignupUserStep,
-  SignupPayload,
+  SignupRequestDto,
   PlanRange,
   PLAN_DEFINITIONS,
 } from '../types/signup';
@@ -21,6 +21,8 @@ import {
   isValidEmail,
   validatePasswordRequirements 
 } from '../lib/validators';
+
+import { publicApiClient } from '../lib/apiClient';
 
 export default function Cadastro() {
   const navigate = useNavigation();
@@ -66,18 +68,19 @@ export default function Cadastro() {
     const urlParams = new URLSearchParams(window.location.search);
     const planRange = urlParams.get('planRange') as PlanRange | null;
     
-    if (planRange && PLAN_DEFINITIONS.find((p) => p.range === planRange)) {
+    const plan = planRange ? PLAN_DEFINITIONS.find((p) => p.range === planRange) : undefined;
+    if (planRange && plan) {
       setStep1Data({
         estimatedPoints: null,
         selectedPlanRange: planRange,
-        selectedPlatformPlanId: `plan-${planRange}`, // Temporary mock ID
+        selectedPlatformPlanId: plan.id,
       });
     }
   }, []);
 
   // Step 1 validation
   const validateStep1 = (): boolean => {
-    if (!step1Data.selectedPlanRange) {
+    if (!step1Data.selectedPlanRange || !step1Data.selectedPlatformPlanId) {
       setStep1Error('Selecione um plano para continuar');
       return false;
     }
@@ -177,53 +180,56 @@ export default function Cadastro() {
 
     setIsLoading(true);
 
-    // Build the signup payload
-    const payload: SignupPayload = {
-      plan: {
-        platformPlanId: step1Data.selectedPlatformPlanId!,
-        planRange: step1Data.selectedPlanRange!,
-      },
-      company: {
-        fantasyName: step2Data.fantasyName,
-        legalName: step2Data.legalName || undefined,
-        cnpj: onlyDigits(step2Data.cnpj), // Send only digits
-        phone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined, // Send only digits
-        website: step2Data.website || undefined,
-        city: step2Data.city || undefined,
-        state: step2Data.state || undefined,
-        country: step2Data.country || undefined,
-      },
-      adminUser: {
-        name: step3Data.name,
-        email: step3Data.email,
-        phone: onlyDigits(step3Data.phone), // Send only digits
-        password: step3Data.password, // Send plain password - backend will hash it
-      },
-    };
+    try {
+      // Safety: if for some reason planId wasn't set, send user back to step 1.
+      if (!step1Data.selectedPlatformPlanId) {
+        setCurrentStep(1);
+        setStep1Error('Selecione um plano para continuar');
+        return;
+      }
 
-    // TODO: Implement API call to POST /api/signup
-    // This should create:
-    // 1. Company with subscriptionStatus = TRIAL
-    // 2. User with role ADMINISTRATIVO linked to Company
-    // 3. PlatformSubscription with:
-    //    - planId from selected plan
-    //    - status = TRIAL
-    //    - maxOwnersPerMediaPoint = 1 (default: 1 proprietário por ponto)
-    //    - addonExtraStorage = false
-    //    - currentPeriodStart = now
-    //    - currentPeriodEnd = now + 30 days (or 14 days per v2)
-    
-    console.log('Signup payload (TODO: send to API):', payload);
+      const estimatedUsers = step2Data.estimatedUsers?.trim()
+        ? Number(onlyDigits(step2Data.estimatedUsers))
+        : undefined;
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+      const dto: SignupRequestDto = {
+        planId: step1Data.selectedPlatformPlanId,
+        companyName: step2Data.fantasyName,
+        cnpj: step2Data.cnpj ? onlyDigits(step2Data.cnpj) : undefined,
+        companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
+        site: step2Data.website || undefined,
+        addressCity: step2Data.city || undefined,
+        addressState: step2Data.state || undefined,
+        addressCountry: step2Data.country || undefined,
+        estimatedUsers:
+          typeof estimatedUsers === 'number' && !Number.isNaN(estimatedUsers)
+            ? estimatedUsers
+            : undefined,
 
-    setIsLoading(false);
-    setIsSuccess(true);
+        adminName: step3Data.name,
+        adminEmail: step3Data.email,
+        adminPhone: step3Data.phone ? onlyDigits(step3Data.phone) : undefined,
+        adminPassword: step3Data.password,
+        adminPasswordConfirmation: step3Data.confirmPassword,
 
-    // TODO: When API is integrated, handle errors and show appropriate messages
-    // If successful, show success screen
-    // If error, show error toast and keep user on step 3
+        acceptTerms: !!step3Data.acceptedTerms,
+      };
+
+      await publicApiClient.post('/signup', dto);
+
+      setIsSuccess(true);
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.message;
+      const message = Array.isArray(apiMessage)
+        ? apiMessage.join('\n')
+        : typeof apiMessage === 'string'
+          ? apiMessage
+          : 'Erro ao criar conta. Verifique os dados e tente novamente.';
+
+      setStep3Errors({ api: message });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const stepTitles = ['Plano', 'Empresa', 'Acesso'];
