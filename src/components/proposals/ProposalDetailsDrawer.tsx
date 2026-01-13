@@ -293,13 +293,13 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 w-[96vw] max-w-7xl sm:max-w-7xl h-[90vh] overflow-hidden">
+      <DialogContent className="p-0 !w-[96vw] !max-w-[1400px] sm:!max-w-[1400px] h-[90vh] overflow-hidden">
         {!proposal ? (
           <div className="p-6">
             <p className="text-gray-600">Sem detalhes disponíveis.</p>
           </div>
         ) : (
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full min-h-0">
             {/* Header */}
             <div className="p-6 border-b">
               <div className="flex items-center gap-3 min-w-0">
@@ -309,7 +309,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
           {/* Resumo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
