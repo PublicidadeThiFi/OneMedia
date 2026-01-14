@@ -388,17 +388,29 @@ export default function PropostaPublica() {
             <h1 className="text-2xl font-semibold text-gray-900">{proposal.title || 'Proposta'}</h1>
             <p className="text-gray-600 mt-1">Para: {clientName}</p>
           </div>
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
-              proposal.status === 'APROVADA'
-                ? 'bg-green-100 text-green-800'
-                : proposal.status === 'REPROVADA'
-                ? 'bg-red-100 text-red-800'
-                : 'bg-yellow-100 text-yellow-800'
-            }`}
-          >
-            {proposal.status}
-          </span>
+
+          <div className="flex flex-col items-end gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${
+                          proposal.status === 'APROVADA'
+                            ? 'bg-green-100 text-green-800'
+                            : proposal.status === 'REPROVADA'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}
+                      >
+                        {proposal.status}
+                      </span>
+            <a
+              className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+              // Use the shorter /pdf alias for maximum compatibility across proxies/rewrite setups.
+              href={`${apiBase}/public/proposals/${publicHash}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Baixar proposta (PDF)
+            </a>
+          </div>
         </div>
 
         {/* Detalhes */}
@@ -631,18 +643,6 @@ export default function PropostaPublica() {
 
             {actionError && <div className="mt-3 text-sm text-red-600">{actionError}</div>}
             {actionSuccess && <div className="mt-3 text-sm text-green-700">{actionSuccess}</div>}
-            {proposal && (
-              <a
-                className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
-                // Use the shorter /pdf alias for maximum compatibility across proxies/rewrite setups.
-                href={`${apiBase}/public/proposals/${publicHash}/pdf`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Baixar proposta (PDF)
-              </a>
-            )}
-
             <div className="mt-4 flex flex-col sm:flex-row gap-2">
               <button
                 className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
