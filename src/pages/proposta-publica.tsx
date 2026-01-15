@@ -27,6 +27,7 @@ type PublicProposal = {
     quantity?: number | null;
     unitPrice?: number | null;
     totalPrice?: number | null;
+    decisionStatus?: 'PENDING' | 'ACCEPTED' | 'REJECTED' | null;
     product?: { id: string; name?: string | null } | null;
     mediaUnit?: { id: string; label?: string | null; mediaPointId?: string | null } | null;
   }>;
@@ -89,6 +90,10 @@ export default function PropostaPublica() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Media decisions (public portal) — media items only.
+  const [decisionSavingId, setDecisionSavingId] = useState<string | null>(null);
+  const [decisionSaveError, setDecisionSaveError] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<any[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -274,6 +279,41 @@ export default function PropostaPublica() {
     }
   };
 
+  const upsertMediaDecision = async (proposalItemId: string, decisionStatus: 'ACCEPTED' | 'REJECTED') => {
+    try {
+      setDecisionSavingId(proposalItemId);
+      setDecisionSaveError(null);
+
+      if (!decisionToken) throw new Error('Token ausente.');
+
+      const res = await fetch(
+        `${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/media-decisions`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: decisionToken,
+            decisions: [{ proposalItemId, decisionStatus }],
+            signerName: (portalName || signerName).trim() || undefined,
+            signerEmail: (portalContact || signerEmail).trim() || undefined,
+            comment: comment.trim() || undefined,
+          }),
+        }
+      );
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.message || 'Não foi possível salvar a decisão');
+      }
+
+      setProposal(json);
+    } catch (e: any) {
+      setDecisionSaveError(e?.message || 'Erro ao salvar decisão');
+    } finally {
+      setDecisionSavingId(null);
+    }
+  };
+
   const handleSendPortalMessage = async () => {
     if (!messageToken) return;
     if (!publicHash) return;
@@ -372,6 +412,24 @@ export default function PropostaPublica() {
 
   const items = Array.isArray(proposal.items) ? proposal.items : [];
 
+  const mediaItems = items.filter((it) => !!it.mediaUnitId);
+  const activeItems = items.filter((it) => {
+    if (!it.mediaUnitId) return true; // products/services are always included
+    const st = String((it as any).decisionStatus || 'PENDING').toUpperCase();
+    return st !== 'REJECTED';
+  });
+
+  const mediaStats = mediaItems.reduce(
+    (acc, it) => {
+      const st = String((it as any).decisionStatus || 'PENDING').toUpperCase();
+      if (st === 'REJECTED') acc.rejected += 1;
+      else if (st === 'ACCEPTED') acc.accepted += 1;
+      else acc.pending += 1;
+      return acc;
+    },
+    { accepted: 0, rejected: 0, pending: 0 }
+  );
+
   const clientName =
     proposal.clientName || proposal.client?.companyName || proposal.client?.contactName || 'Cliente';
 
@@ -456,11 +514,11 @@ export default function PropostaPublica() {
               <p className="text-gray-900 whitespace-pre-wrap">{proposal.notes || '—'}</p>
             </div>
 
-            {items.length > 0 && (
+            {activeItems.length > 0 && (
               <div className="sm:col-span-2">
                 <p className="text-xs text-gray-500">Itens</p>
                 <div className="mt-2 divide-y divide-gray-200 rounded-xl border border-gray-100">
-                  {items.map((it) => {
+                  {activeItems.map((it) => {
                     const title = it.product?.name || it.mediaUnit?.label || it.description || 'Item';
                     const subtitle =
                       it.description && (it.product?.name || it.mediaUnit?.label) ? it.description : null;
@@ -609,6 +667,89 @@ export default function PropostaPublica() {
             <p className="text-sm text-gray-600 mt-1">
               Você recebeu um link com permissão para <span className="font-medium">aprovar</span> ou <span className="font-medium">rejeitar</span> esta proposta.
             </p>
+
+            {mediaItems.length > 0 && (
+              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Decisão por ponto de mídia</h3>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Escolha <span className="font-medium">Aceito</span> ou <span className="font-medium">Recuso</span> para cada ponto de mídia.
+                      Produtos/Serviços não entram nessa decisão.
+                    </p>
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium text-green-700">Aceitos:</span> {mediaStats.accepted} •{' '}
+                    <span className="font-medium text-red-700">Recusados:</span> {mediaStats.rejected} •{' '}
+                    <span className="font-medium text-gray-700">Pendentes:</span> {mediaStats.pending}
+                  </div>
+                </div>
+
+                {decisionSaveError && <div className="mt-3 text-sm text-red-600">{decisionSaveError}</div>}
+
+                <div className="mt-3 divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white">
+                  {mediaItems.map((it) => {
+                    const title = it.mediaUnit?.label || it.description || 'Ponto de mídia';
+                    const st = String((it as any).decisionStatus || 'PENDING').toUpperCase();
+                    const isAccepted = st === 'ACCEPTED';
+                    const isRejected = st === 'REJECTED';
+                    const saving = decisionSavingId === it.id;
+
+                    return (
+                      <div key={it.id} className="p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{title}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            {fmtDate(it.startDate)} {it.endDate ? `— ${fmtDate(it.endDate)}` : ''}
+                          </p>
+                          {typeof it.totalPrice === 'number' ? (
+                            <p className="text-xs text-gray-700 mt-1">Total: {fmtCurrency(it.totalPrice)}</p>
+                          ) : null}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span
+                            className={`hidden sm:inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                              isRejected
+                                ? 'bg-red-100 text-red-800'
+                                : isAccepted
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {isRejected ? 'RECUSADO' : isAccepted ? 'ACEITO' : 'PENDENTE'}
+                          </span>
+
+                          <button
+                            className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium border disabled:opacity-50 ${
+                              isAccepted
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white text-gray-900 border-gray-200 hover:bg-green-50'
+                            }`}
+                            onClick={() => upsertMediaDecision(it.id, 'ACCEPTED')}
+                            disabled={saving || actionLoading || proposal.status === 'APROVADA' || proposal.status === 'REPROVADA'}
+                          >
+                            {saving && isAccepted ? 'Salvando…' : 'Aceito'}
+                          </button>
+
+                          <button
+                            className={`inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-medium border disabled:opacity-50 ${
+                              isRejected
+                                ? 'bg-red-600 text-white border-red-600'
+                                : 'bg-white text-gray-900 border-gray-200 hover:bg-red-50'
+                            }`}
+                            onClick={() => upsertMediaDecision(it.id, 'REJECTED')}
+                            disabled={saving || actionLoading || proposal.status === 'APROVADA' || proposal.status === 'REPROVADA'}
+                          >
+                            {saving && isRejected ? 'Salvando…' : 'Recuso'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
