@@ -412,6 +412,7 @@ export interface ProposalItem {
   proposalId: string;
   mediaUnitId?: string;
   productId?: string;
+  mediaPointOwnerId?: string | null;
   description: string;
   startDate?: Date;
   endDate?: Date;

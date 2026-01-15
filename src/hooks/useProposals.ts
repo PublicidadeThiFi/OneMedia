@@ -96,6 +96,7 @@ function serializeProposalForApi(data: Partial<Proposal>) {
           return stripUndefined({
             mediaUnitId,
             productId,
+            mediaPointOwnerId: mediaUnitId ? cleanUuid(i.mediaPointOwnerId) : undefined,
             description: String(i.description ?? '').trim(),
             startDate: toIso(i.startDate),
             endDate: toIso(i.endDate),
