@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import apiClient from '../../lib/apiClient';
-import { MediaPoint, MediaType, MediaUnit, ProposalItem } from '../../types';
+import { MediaPoint, MediaPointOwner, MediaType, MediaUnit, ProposalItem } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
 
 interface MediaSelectionDrawerProps {
@@ -45,6 +45,11 @@ export function MediaSelectionDrawer({
   // Seleção
   const [selectedMediaPointId, setSelectedMediaPointId] = useState<string | null>(null);
   const [selectedMediaUnit, setSelectedMediaUnit] = useState<MediaUnitWithPoint | null>(null);
+
+  const [mediaPointOwners, setMediaPointOwners] = useState<MediaPointOwner[]>([]);
+  const [ownersLoading, setOwnersLoading] = useState(false);
+  const [ownersError, setOwnersError] = useState<string | null>(null);
+  const [selectedMediaPointOwnerId, setSelectedMediaPointOwnerId] = useState<string>('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(0);
@@ -97,6 +102,9 @@ export function MediaSelectionDrawer({
         // Reset de seleção a cada abertura
         setSelectedMediaPointId(null);
         setSelectedMediaUnit(null);
+        setMediaPointOwners([]);
+        setOwnersError(null);
+        setSelectedMediaPointOwnerId('');
 
         // 1) Carrega TODOS os pontos (paginado)
         const all: MediaPoint[] = [];
@@ -222,8 +230,34 @@ export function MediaSelectionDrawer({
     setEndDate(defaultPeriod.endDate);
   };
 
+  const loadOwnersForPoint = async (mediaPointId: string) => {
+    try {
+      setOwnersLoading(true);
+      setOwnersError(null);
+      setMediaPointOwners([]);
+      setSelectedMediaPointOwnerId('');
+
+      const res = await apiClient.get<any>(`/media-points/${mediaPointId}/owners`);
+      const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+      const owners: MediaPointOwner[] = Array.isArray(data) ? data : [];
+
+      setMediaPointOwners(owners);
+      if (owners.length === 1) {
+        setSelectedMediaPointOwnerId(owners[0].id);
+      }
+    } catch (e) {
+      setOwnersError('Erro ao carregar empresas vinculadas ao ponto.');
+      setMediaPointOwners([]);
+      setSelectedMediaPointOwnerId('');
+    } finally {
+      setOwnersLoading(false);
+    }
+  };
+
   const handleSelectPoint = (point: MediaPoint) => {
     setSelectedMediaPointId((point as any).id);
+
+    void loadOwnersForPoint((point as any).id);
 
     const units = unitsByPointId.get((point as any).id) ?? [];
     if (units.length > 0) {
@@ -251,6 +285,7 @@ export function MediaSelectionDrawer({
       proposalId: '',
       mediaUnitId: selectedMediaUnit.id,
       productId: undefined,
+      mediaPointOwnerId: selectedMediaUnit.id ? (selectedMediaPointOwnerId || null) : null,
       description,
       startDate,
       endDate,
@@ -272,6 +307,9 @@ export function MediaSelectionDrawer({
     setTypeFilter('all');
     setSelectedMediaPointId(null);
     setSelectedMediaUnit(null);
+    setMediaPointOwners([]);
+    setOwnersError(null);
+    setSelectedMediaPointOwnerId('');
     setDescription('');
     setQuantity(1);
     setUnitPrice(0);
@@ -282,7 +320,8 @@ export function MediaSelectionDrawer({
     onOpenChange(false);
   };
 
-  const isValid = !!selectedMediaUnit && !!description && quantity > 0 && unitPrice >= 0;
+  const hasOwners = mediaPointOwners.length > 0;
+  const isValid = !!selectedMediaUnit && !!description && quantity > 0 && unitPrice >= 0 && hasOwners && !!selectedMediaPointOwnerId && !ownersLoading && !ownersError;
 
   const mediaTypes = useMemo(() => {
     const types = new Set(mediaPoints.map((p: any) => p.type));
@@ -447,6 +486,35 @@ export function MediaSelectionDrawer({
 
                         {selectedMediaUnit && (
                           <div className="space-y-4">
+                            <div>
+                              <label className="text-sm text-gray-600 mb-1 block">Empresa vinculada *</label>
+                              {ownersLoading && <div className="text-sm text-gray-500">Carregando empresas...</div>}
+                              {!ownersLoading && ownersError && <div className="text-sm text-red-600">{ownersError}</div>}
+                              {!ownersLoading && !ownersError && (
+                                mediaPointOwners.length ? (
+                                  <Select value={selectedMediaPointOwnerId} onValueChange={setSelectedMediaPointOwnerId}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={mediaPointOwners.length > 1 ? 'Selecione a empresa' : 'Empresa'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {mediaPointOwners.map((o) => {
+                                        const name = (o.ownerCompany?.name || o.ownerName || 'Empresa').trim();
+                                        const doc = (o.ownerCompany?.document || o.ownerDocument || '').trim();
+                                        const label = doc ? `${name} • ${doc}` : name;
+                                        return (
+                                          <SelectItem key={o.id} value={o.id}>
+                                            {label}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">Este ponto não possui empresa vinculada. Vincule uma empresa ao ponto no Inventário para poder adicioná-lo à proposta.</div>
+                                )
+                              )}
+                              <p className="text-xs text-gray-500 mt-1">A empresa selecionada será usada como referência do item (e no PDF na próxima etapa).</p>
+                            </div>
                             <div>
                               <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
                               <Input
