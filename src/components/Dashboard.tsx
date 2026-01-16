@@ -99,6 +99,11 @@ const DASHBOARD_BACKEND_ROUTES = {
   alerts: '/api/dashboard/alerts',
   drilldown: '/api/dashboard/drilldown',
 
+  // Comercial
+  commercialSummary: '/api/dashboard/commercial/summary',
+  stalledProposals: '/api/dashboard/proposals/stalled',
+  sellerRanking: '/api/dashboard/commercial/sellers/ranking',
+
   // Extras (quando formos evoluir os widgets):
   revenueTimeseries: '/api/dashboard/revenue/timeseries',
   cashflowTimeseries: '/api/dashboard/cashflow/timeseries',
@@ -194,6 +199,43 @@ type DashboardOverviewDTO = OverviewKpis;
 // Funil Comercial (aba Comercial)
 // Prisma: Proposal, Client, User (responsibleUserId), ProposalItem (para composição por mídia/produto)
 type DashboardFunnelDTO = CommercialFunnel;
+
+// Comercial - KPIs e listas específicas
+type CommercialSummary = {
+  proposalsTotal: number;
+  approvalRatePercent: number;
+  averageDaysToClose: number;
+  activePipelineAmountCents: number;
+  stalledProposalsCount: number;
+};
+
+type DashboardCommercialSummaryDTO = CommercialSummary;
+
+type StalledProposalRow = {
+  id: string;
+  title: string;
+  client: string;
+  daysWithoutUpdate: number;
+  amountCents: number;
+};
+
+type DashboardStalledProposalsDTO = {
+  rows: StalledProposalRow[];
+};
+
+type SellerRankingRow = {
+  id: string;
+  name: string;
+  city?: string;
+  dealsWon: number;
+  dealsInPipeline: number;
+  amountWonCents: number;
+  amountPipelineCents: number;
+};
+
+type DashboardSellerRankingDTO = {
+  rows: SellerRankingRow[];
+};
 
 // Alertas (aba Executivo/Operações/Financeiro)
 // Prisma: BillingInvoice, Campaign, Reservation, MediaPoint/MediaUnit (e regras de negócio)
@@ -328,7 +370,7 @@ type FunnelStage = {
 type CommercialFunnel = {
   stages: FunnelStage[];
   averageDaysToClose: number;
-  stalledProposals: { id: string; title: string; client: string; daysWithoutUpdate: number; amountCents: number }[];
+  stalledProposals: StalledProposalRow[];
 };
 
 type AlertItem = {
@@ -482,6 +524,73 @@ const mockApi = {
       averageDaysToClose: 9 + (s % 17),
       stalledProposals,
     };
+  },
+
+  fetchCommercialSummary: (companyId: string, filters: DashboardFilters): CommercialSummary => {
+    // BACKEND: GET /dashboard/commercial/summary?...
+    // Prisma: Proposal, ProposalItem, Client, User
+    const s = seedNumber(
+      `${companyId}:commercialSummary:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`,
+    );
+
+    // Reaproveita o mesmo "universo" do funil para manter coerência visual
+    const funnel = mockApi.fetchCommercialFunnel(companyId, filters);
+    const proposalsTotal = 18 + (s % 28);
+    const approvalRatePercent = 25 + (s % 55);
+    const averageDaysToClose = funnel.averageDaysToClose;
+    const activePipelineAmountCents = funnel.stages.reduce((acc, st) => acc + (st.amountCents || 0), 0);
+    const stalledProposalsCount = funnel.stalledProposals.length;
+
+    return {
+      proposalsTotal,
+      approvalRatePercent,
+      averageDaysToClose,
+      activePipelineAmountCents,
+      stalledProposalsCount,
+    };
+  },
+
+  fetchStalledProposals: (companyId: string, filters: DashboardFilters): DashboardStalledProposalsDTO => {
+    // BACKEND: GET /dashboard/proposals/stalled?...
+    const funnel = mockApi.fetchCommercialFunnel(companyId, filters);
+    return { rows: funnel.stalledProposals };
+  },
+
+  fetchSellerRanking: (companyId: string, filters: DashboardFilters): DashboardSellerRankingDTO => {
+    // BACKEND: GET /dashboard/commercial/sellers/ranking?...
+    // Prisma: User (sales), Proposal (responsibleUserId, status), Campaign (opcional)
+    const s = seedNumber(
+      `${companyId}:sellerRanking:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`,
+    );
+    const city = filters.city?.trim() || undefined;
+
+    const names = ['Ana', 'Bruno', 'Carla', 'Diego', 'Eduarda', 'Felipe', 'Giovana', 'Henrique'];
+
+    const rows: SellerRankingRow[] = Array.from({ length: 8 }).map((_, i) => {
+      const id = `USR-${(s % 7000) + 2000 + i}`;
+      const dealsWon = 1 + ((s + i * 11) % 12);
+      const dealsInPipeline = 1 + ((s + i * 19) % 16);
+      const amountWonCents = 380000 + ((s + i * 997) % 4200000);
+      const amountPipelineCents = 220000 + ((s + i * 733) % 3600000);
+      return {
+        id,
+        name: names[i % names.length],
+        city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
+        dealsWon,
+        dealsInPipeline,
+        amountWonCents,
+        amountPipelineCents,
+      };
+    });
+
+    const q = normalizeText(filters.query);
+    const filtered = q
+      ? rows.filter((r) => includesNormalized(`${r.id} ${r.name} ${r.city || ''}`, q))
+      : rows;
+
+    // Ordena por valor ganho desc
+    filtered.sort((a, b) => (b.amountWonCents ?? 0) - (a.amountWonCents ?? 0));
+    return { rows: filtered };
   },
 
   fetchAlerts: (companyId: string, filters: DashboardFilters): AlertItem[] => {
@@ -1088,6 +1197,34 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       dashboardGetJson<DashboardFunnelDTO>(DASHBOARD_BACKEND_ROUTES.funnel, backendQs, { signal }),
   });
 
+  // Comercial (Etapa 7): KPIs e listas dedicadas (mantendo a UI igual)
+  const commercialSummaryQ = useDashboardQuery<DashboardCommercialSummaryDTO>({
+    enabled: !!company && tab === 'comercial',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchCommercialSummary(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardCommercialSummaryDTO>(DASHBOARD_BACKEND_ROUTES.commercialSummary, backendQs, { signal }),
+  });
+
+  const stalledProposalsQ = useDashboardQuery<DashboardStalledProposalsDTO>({
+    enabled: !!company && tab === 'comercial',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchStalledProposals(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardStalledProposalsDTO>(DASHBOARD_BACKEND_ROUTES.stalledProposals, backendQs, { signal }),
+  });
+
+  const sellerRankingQ = useDashboardQuery<DashboardSellerRankingDTO>({
+    enabled: !!company && tab === 'comercial',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchSellerRanking(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardSellerRankingDTO>(DASHBOARD_BACKEND_ROUTES.sellerRanking, backendQs, { signal }),
+  });
+
   // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
   const alertsQ = useDashboardQuery<DashboardAlertsDTO>({
     enabled: !!company,
@@ -1173,6 +1310,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const overview = overviewQ.data;
   const funnel = funnelQ.data;
+  const commercialSummary = commercialSummaryQ.data;
   const alerts = alertsQ.data || [];
 
   const revenueTs = revenueTsQ.data?.points || [];
@@ -1184,6 +1322,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const agingSummary = agingQ.data;
   const oohOpsItems = oohOpsQ.data?.items || [];
   const popRows = popQ.data?.rows || [];
+
+  const stalledProposalsRows = stalledProposalsQ.data?.rows || [];
+  const sellerRankingRows = sellerRankingQ.data?.rows || [];
 
 
   // URL pública do mapa (mock)
@@ -1308,6 +1449,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const executiveLoading = overviewQ.status !== 'ready';
   const commercialLoading = funnelQ.status !== 'ready';
+  const commercialKpisLoading = commercialSummaryQ.status !== 'ready';
 
   return (
     <div className="p-6 md:p-8">
@@ -1663,25 +1805,25 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Propostas (período)"
-              value={overview ? String(overview.proposalsTotal) : undefined}
+              value={commercialSummary ? String(commercialSummary.proposalsTotal) : undefined}
               delta={overview?.trends.proposals.deltaPercent}
               spark={overview?.trends.proposals.points}
-              loading={executiveLoading}
+              loading={commercialKpisLoading}
               onClick={() => openDrilldown('Propostas', 'proposalsTotal', 'BACKEND: /dashboard/proposals')}
             />
 
             <KpiCard
               label="Taxa de aprovação"
-              value={overview ? `${overview.approvalRatePercent}%` : undefined}
-              helper="BACKEND: /dashboard/proposals/approval-rate"
-              loading={executiveLoading}
+              value={commercialSummary ? `${commercialSummary.approvalRatePercent}%` : undefined}
+              helper={`BACKEND: ${DASHBOARD_BACKEND_ROUTES.commercialSummary}?${backendQs}`}
+              loading={commercialKpisLoading}
             />
 
             <KpiCard
               label="Ciclo médio"
-              value={funnel ? `${funnel.averageDaysToClose} dias` : undefined}
-              helper="BACKEND: /dashboard/proposals/time-to-close"
-              loading={commercialLoading}
+              value={commercialSummary ? `${commercialSummary.averageDaysToClose} dias` : funnel ? `${funnel.averageDaysToClose} dias` : undefined}
+              helper={`BACKEND: ${DASHBOARD_BACKEND_ROUTES.commercialSummary}?${backendQs}`}
+              loading={commercialKpisLoading && commercialLoading}
             />
 
             <KpiCard
@@ -1696,27 +1838,32 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
               title="Funil comercial"
-              subtitle="Pipeline por etapa (mock)"
+              subtitle={`Pipeline por etapa (${funnelQ.source})`}
               loading={commercialLoading}
               error={funnelQ.status === 'error' ? { title: 'Falha ao carregar funil', description: funnelQ.errorMessage } : null}
               actions={
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={() => {
-                    if (!funnel) return;
-                    const rows = funnel.stages.map((s) => ({
-                      id: s.key,
-                      title: s.label,
-                      subtitle: `Qtd: ${s.count}`,
-                      status: '',
-                      amountCents: s.amountCents,
-                    }));
-                    exportDrilldownCsv('funil_comercial', rows);
-                  }}
-                >
-                  Exportar CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => funnelQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => {
+                      if (!funnel) return;
+                      const rows = funnel.stages.map((s) => ({
+                        id: s.key,
+                        title: s.label,
+                        subtitle: `Qtd: ${s.count}`,
+                        status: '',
+                        amountCents: s.amountCents,
+                      }));
+                      exportDrilldownCsv('funil_comercial', rows);
+                    }}
+                  >
+                    Exportar CSV
+                  </Button>
+                </div>
               }
             >
               {funnel ? (
@@ -1737,50 +1884,163 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       </div>
                     );
                   })}
-                  <p className="text-xs text-gray-500 mt-4">BACKEND: /dashboard/funnel</p>
+                  <p className="text-xs text-gray-500 mt-4">
+                    BACKEND: {DASHBOARD_BACKEND_ROUTES.funnel}?{backendQs}
+                  </p>
                 </div>
               ) : null}
             </WidgetCard>
 
-            <WidgetCard
-              title="Propostas paradas"
-              subtitle="Ações rápidas (mock)"
-              loading={commercialLoading}
-              error={funnelQ.status === 'error' ? { title: 'Falha ao carregar lista', description: funnelQ.errorMessage } : null}
-              empty={!!funnel && funnel.stalledProposals.length === 0 && funnelQ.status === 'ready'}
-              emptyTitle="Nada aqui"
-              emptyDescription="Nenhuma proposta parou com os filtros atuais."
-              actions={
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={() => openDrilldown('Propostas paradas', 'stalledProposals', 'BACKEND: /dashboard/proposals/stalled')}
-                >
-                  Ver todas
-                </Button>
-              }
-            >
-              <div className="space-y-3">
-                {funnel?.stalledProposals.slice(0, 5).map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="w-full text-left border border-gray-200 rounded-lg p-3 hover:bg-gray-50"
-                    onClick={() => onNavigate('proposals')}
-                  >
-                    <div className="flex items-start justify-between gap-3">
+            <div className="space-y-6">
+              <WidgetCard
+                title="Propostas paradas"
+                subtitle={`Ações rápidas (${stalledProposalsQ.source})`}
+                loading={stalledProposalsQ.status === 'loading' && !stalledProposalsQ.data}
+                error={
+                  stalledProposalsQ.status === 'error'
+                    ? { title: 'Falha ao carregar lista', description: stalledProposalsQ.errorMessage }
+                    : null
+                }
+                empty={stalledProposalsRows.length === 0 && stalledProposalsQ.status === 'ready'}
+                emptyTitle="Nada aqui"
+                emptyDescription="Nenhuma proposta parou com os filtros atuais."
+                actions={
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" className="h-9" onClick={() => stalledProposalsQ.refetch()}>
+                      Recarregar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => {
+                        const rows: DrilldownRow[] = stalledProposalsRows.map((p) => ({
+                          id: p.id,
+                          title: p.title,
+                          subtitle: `${p.client} • ${p.daysWithoutUpdate} dias sem atualização`,
+                          status: '',
+                          amountCents: p.amountCents,
+                        }));
+                        exportDrilldownCsv('propostas_paradas', rows);
+                      }}
+                    >
+                      Exportar CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-9"
+                      onClick={() =>
+                        openDrilldown(
+                          'Propostas paradas',
+                          'stalledProposals',
+                          `BACKEND: ${DASHBOARD_BACKEND_ROUTES.stalledProposals}?${backendQs}`,
+                        )
+                      }
+                    >
+                      Ver todas
+                    </Button>
+                  </div>
+                }
+              >
+                <div className="space-y-3">
+                  {stalledProposalsRows.slice(0, 5).map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="w-full text-left border border-gray-200 rounded-lg p-3 hover:bg-gray-50"
+                      onClick={() => onNavigate('proposals')}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-gray-900">{p.title}</p>
+                          <p className="text-xs text-gray-500">
+                            {p.client} • {p.daysWithoutUpdate} dias sem atualização
+                          </p>
+                        </div>
+                        <p className="text-sm text-gray-700">{formatCurrency(p.amountCents)}</p>
+                      </div>
+                    </button>
+                  ))}
+
+                  <p className="text-xs text-gray-500 mt-3">
+                    BACKEND: {DASHBOARD_BACKEND_ROUTES.stalledProposals}?{backendQs}
+                  </p>
+                </div>
+              </WidgetCard>
+
+              <WidgetCard
+                title="Ranking de vendedores"
+                subtitle={`Performance (${sellerRankingQ.source})`}
+                loading={sellerRankingQ.status === 'loading' && !sellerRankingQ.data}
+                error={
+                  sellerRankingQ.status === 'error'
+                    ? { title: 'Falha ao carregar ranking', description: sellerRankingQ.errorMessage }
+                    : null
+                }
+                empty={sellerRankingRows.length === 0 && sellerRankingQ.status === 'ready'}
+                emptyTitle="Sem dados"
+                emptyDescription="Nenhum vendedor encontrado com os filtros atuais."
+                actions={
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" className="h-9" onClick={() => sellerRankingQ.refetch()}>
+                      Recarregar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => {
+                        const rows: DrilldownRow[] = sellerRankingRows.map((r) => ({
+                          id: r.id,
+                          title: r.name,
+                          subtitle: `${r.city || ''} • Ganhas: ${r.dealsWon} • Pipeline: ${r.dealsInPipeline}`.trim(),
+                          status: '',
+                          amountCents: r.amountWonCents,
+                        }));
+                        exportDrilldownCsv('ranking_vendedores', rows);
+                      }}
+                    >
+                      Exportar CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-9"
+                      onClick={() =>
+                        openDrilldown(
+                          'Ranking de vendedores',
+                          'sellerRanking',
+                          `BACKEND: ${DASHBOARD_BACKEND_ROUTES.sellerRanking}?${backendQs}`,
+                        )
+                      }
+                    >
+                      Ver detalhes
+                    </Button>
+                  </div>
+                }
+              >
+                <div className="space-y-3">
+                  {sellerRankingRows.slice(0, 6).map((r, idx) => (
+                    <div key={r.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
                       <div>
-                        <p className="text-sm text-gray-900">{p.title}</p>
-                        <p className="text-xs text-gray-500">
-                          {p.client} • {p.daysWithoutUpdate} dias sem atualização
+                        <p className="text-sm text-gray-900">
+                          {idx + 1}. {r.name}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {r.city ? `${r.city} • ` : ''}
+                          Ganhas: {r.dealsWon} • Pipeline: {r.dealsInPipeline}
                         </p>
                       </div>
-                      <p className="text-sm text-gray-700">{formatCurrency(p.amountCents)}</p>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-700">{formatCurrency(r.amountWonCents)}</p>
+                        <p className="text-xs text-gray-500">Pipeline: {formatCurrency(r.amountPipelineCents)}</p>
+                      </div>
                     </div>
-                  </button>
-                ))}
-              </div>
-            </WidgetCard>
+                  ))}
+
+                  <p className="text-xs text-gray-500 mt-3">
+                    BACKEND: {DASHBOARD_BACKEND_ROUTES.sellerRanking}?{backendQs}
+                  </p>
+                </div>
+              </WidgetCard>
+            </div>
           </div>
         </div>
       ) : null}
