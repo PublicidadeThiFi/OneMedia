@@ -205,6 +205,41 @@ type DashboardDrilldownDTO = {
   };
 };
 
+type TimeseriesPoint = {
+  date: string; // ISO date/datetime
+  valueCents: number; // valor em centavos (pode ser negativo para fluxo)
+};
+
+type DashboardTimeseriesDTO = {
+  points: TimeseriesPoint[];
+};
+
+type InventoryMapPin = {
+  id: string;
+  label: string;
+  city?: string;
+  occupancyPercent: number;
+  lat?: number;
+  lng?: number;
+};
+
+type DashboardInventoryMapDTO = {
+  pins: InventoryMapPin[];
+};
+
+type InventoryRankingRow = {
+  id: string;
+  label: string;
+  city?: string;
+  occupancyPercent: number;
+  activeCampaigns: number;
+  revenueCents: number;
+};
+
+type DashboardInventoryRankingDTO = {
+  rows: InventoryRankingRow[];
+};
+
 type KpiTrend = {
   deltaPercent: number; // variação vs período anterior
   points: number[]; // série curta para sparkline simples
@@ -454,7 +489,103 @@ const mockApi = {
     };
   },
 
-  getPublicMapUrl: (companyId: string) => {
+  
+
+  fetchRevenueTimeseries: (companyId: string, filters: DashboardFilters): DashboardTimeseriesDTO => {
+    // BACKEND: GET /dashboard/revenue/timeseries?...
+    const s = seedNumber(`${companyId}:revts:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const now = new Date();
+    const len = filters.datePreset === '7d' ? 7 : filters.datePreset === '30d' ? 14 : 18;
+
+    const points: TimeseriesPoint[] = Array.from({ length: len }).map((_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (len - 1 - i));
+      const base = 350000 + (s % 900000);
+      const wave = ((s + i * 131) % 17) - 8;
+      const valueCents = base + wave * 42000 + (i % 3) * 15000;
+      return { date: d.toISOString(), valueCents };
+    });
+
+    return { points };
+  },
+
+  fetchCashflowTimeseries: (companyId: string, filters: DashboardFilters): DashboardTimeseriesDTO => {
+    // BACKEND: GET /dashboard/cashflow/timeseries?...
+    const s = seedNumber(`${companyId}:cashts:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const now = new Date();
+    const len = filters.datePreset === '7d' ? 7 : filters.datePreset === '30d' ? 14 : 18;
+
+    const points: TimeseriesPoint[] = Array.from({ length: len }).map((_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (len - 1 - i));
+      const base = 180000 + (s % 650000);
+      const wave = ((s + i * 97) % 21) - 10;
+      // cashflow pode oscilar e até ficar negativo
+      const valueCents = base + wave * 38000 + ((i % 4) - 1) * 12000;
+      return { date: d.toISOString(), valueCents };
+    });
+
+    return { points };
+  },
+
+  fetchInventoryMap: (companyId: string, filters: DashboardFilters): DashboardInventoryMapDTO => {
+    // BACKEND: GET /dashboard/inventory/map?...
+    const s = seedNumber(`${companyId}:invmap:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const city = filters.city?.trim() || undefined;
+
+    const pins: InventoryMapPin[] = Array.from({ length: 18 }).map((_, i) => {
+      const id = `MP-${(s % 9000) + 1000 + i}`;
+      const occ = clamp(35 + ((s + i * 13) % 60), 0, 100);
+      return {
+        id,
+        label: `Ponto ${String.fromCharCode(65 + (i % 26))}-${(s % 90) + i + 1}`,
+        city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
+        occupancyPercent: occ,
+        // Coordenadas fictícias (só para referência visual futura)
+        lat: -15.7 + ((s + i * 3) % 100) / 1000,
+        lng: -47.9 + ((s + i * 7) % 100) / 1000,
+      };
+    });
+
+    const q = normalizeText(filters.query);
+    const filtered = q
+      ? pins.filter((p) => includesNormalized(`${p.id} ${p.label} ${p.city || ''}`, q))
+      : pins;
+
+    return { pins: filtered };
+  },
+
+  fetchInventoryRanking: (companyId: string, filters: DashboardFilters): DashboardInventoryRankingDTO => {
+    // BACKEND: GET /dashboard/inventory/ranking?...
+    const s = seedNumber(`${companyId}:invrank:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const city = filters.city?.trim() || undefined;
+
+    const rows: InventoryRankingRow[] = Array.from({ length: 12 }).map((_, i) => {
+      const id = `UNIT-${(s % 8000) + 2000 + i}`;
+      const occ = clamp(40 + ((s + i * 17) % 55), 0, 100);
+      const revenueCents = 140000 + ((s + i * 999) % 1200000);
+      const activeCampaigns = 1 + ((s + i * 29) % 6);
+      return {
+        id,
+        label: ['Painel', 'Empena', 'Relógio', 'Totem', 'Outdoor'][i % 5] + ` ${String.fromCharCode(65 + (i % 26))}`,
+        city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
+        occupancyPercent: occ,
+        activeCampaigns,
+        revenueCents,
+      };
+    });
+
+    const q = normalizeText(filters.query);
+    const filtered = q
+      ? rows.filter((r) => includesNormalized(`${r.id} ${r.label} ${r.city || ''}`, q))
+      : rows;
+
+    // ordena por ocupação desc
+    filtered.sort((a, b) => (b.occupancyPercent ?? 0) - (a.occupancyPercent ?? 0));
+
+    return { rows: filtered };
+  },
+getPublicMapUrl: (companyId: string) => {
     // BACKEND: company.publicMapUrl (ou service de infra)
     const s = seedNumber(companyId);
     return `https://onemedia.app/public/map/${companyId}?t=${s % 100000}`;
@@ -688,6 +819,40 @@ function exportDrilldownCsv(label: string, rows: DrilldownRow[]) {
   toast.success('CSV exportado (mock)', { description: filename });
 }
 
+function formatShortDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString('pt-BR');
+  } catch {
+    return iso;
+  }
+}
+
+function timeseriesToSpark(points: TimeseriesPoint[]) {
+  const values = points.map((p) => (p?.valueCents ?? 0) / 100);
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = Math.max(1, max - min);
+  return values.map((v) => {
+    const n = ((v - min) / range) * 90 + 5;
+    return Math.round(clamp(n, 5, 95));
+  });
+}
+
+function exportTimeseriesCsv(label: string, points: TimeseriesPoint[]) {
+  const header = ['date', 'value'];
+  const lines = [header.join(';')];
+
+  for (const p of points) {
+    lines.push([escapeCsvValue(p.date), escapeCsvValue(formatCurrency(p.valueCents))].join(';'));
+  }
+
+  const safe = label.replace(/[^a-z0-9\-\_]+/gi, '_').slice(0, 40);
+  const filename = `export_${safe || 'dashboard'}.csv`;
+  downloadTextFile(filename, lines.join('\n'), 'text/csv;charset=utf-8');
+  toast.success('CSV exportado', { description: filename });
+}
+
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
   const { company } = useCompany();
@@ -748,9 +913,52 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       dashboardGetJson<DashboardAlertsDTO>(DASHBOARD_BACKEND_ROUTES.alerts, backendQs, { signal }),
   });
 
+  const revenueTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
+    enabled: !!company && tab === 'executivo',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchRevenueTimeseries(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.revenueTimeseries, backendQs, { signal }),
+  });
+
+  const cashflowTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
+    enabled: !!company && tab === 'financeiro',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchCashflowTimeseries(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.cashflowTimeseries, backendQs, { signal }),
+  });
+
+  const inventoryMapQ = useDashboardQuery<DashboardInventoryMapDTO>({
+    enabled: !!company && tab === 'inventario',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchInventoryMap(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardInventoryMapDTO>(DASHBOARD_BACKEND_ROUTES.inventoryMap, backendQs, { signal }),
+  });
+
+  const inventoryRankingQ = useDashboardQuery<DashboardInventoryRankingDTO>({
+    enabled: !!company && tab === 'inventario',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchInventoryRanking(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardInventoryRankingDTO>(DASHBOARD_BACKEND_ROUTES.inventoryRanking, backendQs, { signal }),
+  });
+
+
   const overview = overviewQ.data;
   const funnel = funnelQ.data;
   const alerts = alertsQ.data || [];
+
+  const revenueTs = revenueTsQ.data?.points || [];
+  const cashflowTs = cashflowTsQ.data?.points || [];
+  const inventoryPins = inventoryMapQ.data?.pins || [];
+  const inventoryRankingRows = inventoryRankingQ.data?.rows || [];
+
 
   // URL pública do mapa (mock)
   const publicMapUrl = useMemo(() => {
@@ -1112,17 +1320,49 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
               title="Tendência de Receita"
-              subtitle="Gráfico (mock)"
-              loading={executiveLoading}
+              subtitle={`Série (${revenueTsQ.source})`}
+              loading={revenueTsQ.status === 'loading' && !revenueTsQ.data}
+              error={
+                revenueTsQ.status === 'error'
+                  ? { title: 'Falha ao carregar série', description: revenueTsQ.errorMessage }
+                  : null
+              }
+              empty={revenueTs.length === 0 && revenueTsQ.status === 'ready'}
+              emptyTitle="Sem dados"
+              emptyDescription="Não há pontos para o período/filtros atuais."
               actions={
-                <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Tendência de Receita')}>
-                  Exportar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => revenueTsQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportTimeseriesCsv('tendencia_receita', revenueTs)}
+                  >
+                    Exportar CSV
+                  </Button>
+                </div>
               }
             >
-              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                Gráfico (mock) • BACKEND: /dashboard/revenue/timeseries
-              </div>
+              {revenueTs.length > 0 ? (
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-gray-900">{formatCurrency(revenueTs[revenueTs.length - 1].valueCents)}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Último ponto: {formatShortDate(revenueTs[revenueTs.length - 1].date)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-3">
+                      BACKEND: {DASHBOARD_BACKEND_ROUTES.revenueTimeseries}?{backendQs}
+                    </p>
+                  </div>
+                  <Sparkline points={timeseriesToSpark(revenueTs)} />
+                </div>
+              ) : (
+                <div className="h-40 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                  Série sem dados
+                </div>
+              )}
             </WidgetCard>
 
             <WidgetCard
@@ -1354,17 +1594,49 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
               title="Fluxo de caixa"
-              subtitle="Série por dia/semana (mock)"
-              loading={executiveLoading}
+              subtitle={`Série (${cashflowTsQ.source})`}
+              loading={cashflowTsQ.status === 'loading' && !cashflowTsQ.data}
+              error={
+                cashflowTsQ.status === 'error'
+                  ? { title: 'Falha ao carregar série', description: cashflowTsQ.errorMessage }
+                  : null
+              }
+              empty={cashflowTs.length === 0 && cashflowTsQ.status === 'ready'}
+              emptyTitle="Sem dados"
+              emptyDescription="Não há pontos para o período/filtros atuais."
               actions={
-                <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Fluxo de caixa')}>
-                  Exportar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => cashflowTsQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportTimeseriesCsv('fluxo_caixa', cashflowTs)}
+                  >
+                    Exportar CSV
+                  </Button>
+                </div>
               }
             >
-              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                BACKEND: /dashboard/cashflow/timeseries
-              </div>
+              {cashflowTs.length > 0 ? (
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm text-gray-900">{formatCurrency(cashflowTs[cashflowTs.length - 1].valueCents)}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Último ponto: {formatShortDate(cashflowTs[cashflowTs.length - 1].date)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-3">
+                      BACKEND: {DASHBOARD_BACKEND_ROUTES.cashflowTimeseries}?{backendQs}
+                    </p>
+                  </div>
+                  <Sparkline points={timeseriesToSpark(cashflowTs)} />
+                </div>
+              ) : (
+                <div className="h-40 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                  Série sem dados
+                </div>
+              )}
             </WidgetCard>
 
             <WidgetCard
@@ -1439,46 +1711,96 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
               title="Mapa e ocupação"
-              subtitle="Mapa (mock) • pins por ocupação"
-              loading={executiveLoading}
+              subtitle={`Pins (${inventoryMapQ.source})`}
+              loading={inventoryMapQ.status === 'loading' && !inventoryMapQ.data}
+              error={
+                inventoryMapQ.status === 'error'
+                  ? { title: 'Falha ao carregar mapa', description: inventoryMapQ.errorMessage }
+                  : null
+              }
+              empty={inventoryPins.length === 0 && inventoryMapQ.status === 'ready'}
+              emptyTitle="Sem pontos"
+              emptyDescription="Nenhum ponto encontrado para os filtros atuais."
               actions={
-                <Button variant="outline" className="h-9" onClick={() => setShareMapOpen(true)}>
-                  Compartilhar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => inventoryMapQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button variant="outline" className="h-9" onClick={() => setShareMapOpen(true)}>
+                    Compartilhar
+                  </Button>
+                </div>
               }
             >
-              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-sm text-gray-500 gap-2">
-                <p>Mapa (mock)</p>
-                <p className="text-xs">BACKEND: /dashboard/inventory/map</p>
+              <div className="space-y-3">
+                <div className="h-28 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-sm text-gray-500 gap-1">
+                  <p>Mapa (placeholder)</p>
+                  <p className="text-xs">BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryMap}?{backendQs}</p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-900">{inventoryPins.length} pontos</p>
+                  <p className="text-xs text-gray-500">exibindo 5</p>
+                </div>
+
+                <div className="space-y-2">
+                  {inventoryPins.slice(0, 5).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-900">{p.label}</p>
+                        <p className="text-xs text-gray-500">{p.city || '—'}</p>
+                      </div>
+                      <span className="text-sm text-gray-700">{Math.round(p.occupancyPercent)}%</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </WidgetCard>
 
             <WidgetCard
               title="Ranking de pontos"
-              subtitle="Top 5 (mock)"
-              loading={executiveLoading}
+              subtitle={`Top 5 (${inventoryRankingQ.source})`}
+              loading={inventoryRankingQ.status === 'loading' && !inventoryRankingQ.data}
+              error={
+                inventoryRankingQ.status === 'error'
+                  ? { title: 'Falha ao carregar ranking', description: inventoryRankingQ.errorMessage }
+                  : null
+              }
+              empty={inventoryRankingRows.length === 0 && inventoryRankingQ.status === 'ready'}
+              emptyTitle="Sem dados"
+              emptyDescription="Nenhum ponto ranqueado para os filtros atuais."
               actions={
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={() => openDrilldown('Ranking de pontos', 'inventoryRanking', 'BACKEND: /dashboard/inventory/ranking')}
-                >
-                  Ver lista
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => inventoryRankingQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => openDrilldown('Ranking de pontos', 'inventoryRanking', 'BACKEND: /dashboard/inventory/ranking')}
+                  >
+                    Ver lista
+                  </Button>
+                </div>
               }
             >
               <div className="space-y-3">
-                {['Painel A', 'Painel B', 'Painel C', 'Painel D', 'Painel E'].map((name, idx) => (
-                  <div key={name} className="flex items-center justify-between">
+                {inventoryRankingRows.slice(0, 5).map((r, idx) => (
+                  <div key={r.id} className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-900">
-                        {idx + 1}. {name}
+                        {idx + 1}. {r.label}
                       </p>
-                      <p className="text-xs text-gray-500">Cidade: {filters.city || '—'}</p>
+                      <p className="text-xs text-gray-500">
+                        {r.city || '—'} • {r.activeCampaigns} campanhas • {formatCurrency(r.revenueCents)}
+                      </p>
                     </div>
-                    <span className="text-sm text-gray-700">{overview ? `${Math.round(overview.occupancyPercent - idx * 3)}%` : '—'}</span>
+                    <span className="text-sm text-gray-700">{Math.round(r.occupancyPercent)}%</span>
                   </div>
                 ))}
+                <p className="text-xs text-gray-500 mt-3">
+                  BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryRanking}?{backendQs}
+                </p>
               </div>
             </WidgetCard>
           </div>
