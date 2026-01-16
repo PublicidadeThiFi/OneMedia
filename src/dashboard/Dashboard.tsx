@@ -30,16 +30,42 @@ import { dashboardGetJson } from '../services/dashboard';
 
 import { DASHBOARD_BACKEND_ROUTES, DASHBOARD_DATA_MODE, DRILLDOWN_PAGE_SIZE } from './constants';
 import { exportAgingBucketsCsv, exportDrilldownCsv, exportTimeseriesCsv } from './csv';
-import { getDrilldownSpec } from './drilldownSpec';
+import { getDrilldownSpec, type DrilldownColumnSpec, type DrilldownSortDir } from './drilldownSpec';
 import { mockApi } from './mockApi';
 import { buildDashboardBackendQuery, toQueryString } from './query';
-import type { DashboardFilters, DashboardProps, DashboardTab, DatePreset, DrilldownState } from './types';
+import { getDashboardPermissions } from './permissions';
+import { deleteSavedView, loadSavedViews, makeSavedViewId, upsertSavedView, type SavedDashboardView } from './savedViews';
+import type {
+  DashboardAlertsDTO,
+  DashboardCommercialSummaryDTO,
+  DashboardDoohProofOfPlaySummaryDTO,
+  DashboardDrilldownDTO,
+  DashboardFilters,
+  DashboardFunnelDTO,
+  DashboardInventoryMapDTO,
+  DashboardInventoryRankingDTO,
+  DashboardOohOpsSummaryDTO,
+  DashboardOverviewDTO,
+  DashboardProps,
+  DashboardReceivablesAgingSummaryDTO,
+  DashboardSellerRankingDTO,
+  DashboardStalledProposalsDTO,
+  DashboardTab,
+  DashboardTimeseriesDTO,
+  DashboardTopClientsDTO,
+  DatePreset,
+  DrilldownRow,
+  DrilldownState,
+  MediaTypeFilter,
+} from './types';
 import {
   formatCell,
   formatCurrency,
   formatShortDate,
   includesNormalized,
   normalizeText,
+  seedNumber,
+  smartEmptyDescription,
   timeseriesToSpark,
   uniqById,
 } from './utils';
@@ -55,6 +81,22 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     city: '',
     mediaType: 'ALL',
   });
+
+  // Etapa 12: permissoes + saved views (MVP: localStorage)
+  const perms = useMemo(() => getDashboardPermissions(user, company), [user, company]);
+  const companyKey = useMemo(() => String((company as any)?.id ?? ''), [company]);
+  const userKey = useMemo(() => {
+    const u: any = user as any;
+    return String(u?.id ?? u?.uid ?? u?.userId ?? u?.email ?? '');
+  }, [user]);
+
+  const [savedViews, setSavedViews] = useState<SavedDashboardView[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string>('');
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [saveViewMode, setSaveViewMode] = useState<'create' | 'update'>('create');
+  const [saveViewName, setSaveViewName] = useState('');
+
+  const allowedTabsKey = useMemo(() => (perms.allowedTabs || []).join('|'), [perms.allowedTabs]);
 
   const [shareMapOpen, setShareMapOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -338,6 +380,28 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }));
   }, [tab]);
 
+  // Etapa 12: aplica permissoes - garante que a aba atual eh permitida
+  useEffect(() => {
+    if (!perms.allowedTabs.includes(tab)) {
+      setTab(perms.allowedTabs[0] || 'executivo');
+    }
+  }, [allowedTabsKey, tab]);
+
+  // Etapa 12: carrega visoes salvas do localStorage (por usuario/empresa)
+  useEffect(() => {
+    if (!perms.canManageSavedViews) return;
+    if (!companyKey || !userKey) return;
+    setSavedViews(loadSavedViews(companyKey, userKey));
+  }, [companyKey, userKey, perms.canManageSavedViews]);
+
+  // Se a visao ativa sumir (ex: foi deletada em outra aba), limpa selecao
+  useEffect(() => {
+    if (!activeViewId) return;
+    if (!savedViews.some((v) => v.id === activeViewId)) setActiveViewId('');
+  }, [activeViewId, savedViews]);
+
+  const smartEmpty = (base: string) => smartEmptyDescription(filters, base);
+
   if (!company || !user) {
     return (
       <div className="p-8">
@@ -432,11 +496,103 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     toast.success('Filtros limpos');
   };
 
-  const saveViewMock = () => {
-    // BACKEND: persistir preset de visão do usuário (ex: /dashboard/views)
-    toast.success('Visão salva (mock)', {
-      description: 'Depois vamos salvar no backend como preset do usuário/empresa.',
+  const tabLabel = (t: DashboardTab) => {
+    if (t === 'executivo') return 'Executivo';
+    if (t === 'comercial') return 'Comercial';
+    if (t === 'operacoes') return 'Operações';
+    if (t === 'financeiro') return 'Financeiro';
+    if (t === 'inventario') return 'Inventário';
+    return t;
+  };
+
+  const applySavedView = (view: SavedDashboardView) => {
+    const desiredTab = perms.allowedTabs.includes(view.tab) ? view.tab : perms.allowedTabs[0] || 'executivo';
+    if (desiredTab != view.tab) {
+      toast.message('Visão aplicada com ajustes', {
+        description: `A aba "${tabLabel(view.tab)}" não está liberada para seu perfil. Abrimos "${tabLabel(desiredTab)}".`,
+      });
+    } else {
+      toast.success(`Visão aplicada: ${view.name}`);
+    }
+
+    setTab(desiredTab);
+    setFilters(view.filters);
+  };
+
+  const handleSelectSavedView = (id: string) => {
+    setActiveViewId(id);
+    if (!id) return;
+    const view = savedViews.find((v) => v.id === id);
+    if (!view) return;
+    applySavedView(view);
+  };
+
+  const openSaveViewDialog = (mode: 'create' | 'update') => {
+    if (!perms.canManageSavedViews) return;
+    setSaveViewMode(mode);
+
+    if (mode === 'update' && activeViewId) {
+      const current = savedViews.find((v) => v.id === activeViewId);
+      setSaveViewName(current?.name || '');
+    } else {
+      // sugestao baseada no contexto atual
+      setSaveViewName(`Minha visão - ${tabLabel(tab)}`);
+    }
+
+    setSaveViewOpen(true);
+  };
+
+  const confirmSaveView = () => {
+    if (!perms.canManageSavedViews) return;
+    if (!companyKey || !userKey) {
+      toast.error('Não foi possível salvar a visão: faltam dados de usuário/empresa');
+      return;
+    }
+
+    const name = (saveViewName || '').trim();
+    if (!name) {
+      toast.error('Informe um nome para a visão');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const layout = { version: 1 as const };
+
+    const existing = saveViewMode === 'update' ? savedViews.find((v) => v.id === activeViewId) : undefined;
+    const id = existing?.id || makeSavedViewId();
+
+    const nextView: SavedDashboardView = {
+      id,
+      name,
+      tab,
+      filters,
+      layout,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+
+    const next = upsertSavedView(companyKey, userKey, nextView);
+    setSavedViews(next);
+    setActiveViewId(id);
+    setSaveViewOpen(false);
+
+    toast.success(saveViewMode === 'update' ? 'Visão atualizada' : 'Visão salva', {
+      description: `MVP (localStorage). BACKEND: futuramente /dashboard/views (por usuário/empresa).`,
     });
+  };
+
+  const handleDeleteActiveView = () => {
+    if (!perms.canManageSavedViews) return;
+    if (!companyKey || !userKey || !activeViewId) return;
+
+    const view = savedViews.find((v) => v.id === activeViewId);
+    const ok = window.confirm(`Excluir a visão "${view?.name || 'Sem nome'}"?`);
+    if (!ok) return;
+
+    const next = deleteSavedView(companyKey, userKey, activeViewId);
+    setSavedViews(next);
+    setActiveViewId('');
+    toast.success('Visão excluída');
   };
 
   const executiveLoading = overviewQ.status !== 'ready';
@@ -489,12 +645,70 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                {perms.canManageSavedViews ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="h-9 rounded-md border border-gray-200 bg-white px-3 text-sm min-w-[180px]"
+                        value={activeViewId}
+                        onChange={(e) => handleSelectSavedView(e.target.value)}
+                      >
+                        <option value="">Visões salvas</option>
+                        {savedViews.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      {activeViewId ? (
+                        <Button
+                          variant="ghost"
+                          className="h-9 px-2"
+                          onClick={() => setActiveViewId('')}
+                          title="Desselecionar"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      className="h-9 flex items-center gap-2"
+                      onClick={() => openSaveViewDialog('create')}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Salvar visão
+                    </Button>
+
+                    {activeViewId ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          className="h-9 flex items-center gap-2"
+                          onClick={() => openSaveViewDialog('update')}
+                        >
+                          <Check className="w-4 h-4" />
+                          Atualizar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-9 flex items-center gap-2"
+                          onClick={handleDeleteActiveView}
+                        >
+                          <X className="w-4 h-4" />
+                          Excluir
+                        </Button>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+
                 <Button variant="outline" className="h-9" onClick={clearFilters}>
                   Limpar
                 </Button>
-                <Button variant="outline" className="h-9 flex items-center gap-2" onClick={saveViewMock}>
-                  Salvar visão
-                </Button>
+
                 <Button
                   variant="outline"
                   className="h-9 flex items-center gap-2"
@@ -567,36 +781,46 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
         {/* Tabs by persona */}
         <div className="flex items-center gap-2 flex-wrap">
-          <TabButton
-            active={tab === 'executivo'}
-            icon={<TrendingUp className="w-4 h-4" />}
-            label="Executivo"
-            onClick={() => setTab('executivo')}
-          />
-          <TabButton
-            active={tab === 'comercial'}
-            icon={<BarChart3 className="w-4 h-4" />}
-            label="Comercial"
-            onClick={() => setTab('comercial')}
-          />
-          <TabButton
-            active={tab === 'operacoes'}
-            icon={<PieChart className="w-4 h-4" />}
-            label="Operações"
-            onClick={() => setTab('operacoes')}
-          />
-          <TabButton
-            active={tab === 'financeiro'}
-            icon={<Wallet className="w-4 h-4" />}
-            label="Financeiro"
-            onClick={() => setTab('financeiro')}
-          />
-          <TabButton
-            active={tab === 'inventario'}
-            icon={<Building2 className="w-4 h-4" />}
-            label="Inventário"
-            onClick={() => setTab('inventario')}
-          />
+          {perms.allowedTabs.includes('executivo') ? (
+            <TabButton
+              active={tab === 'executivo'}
+              icon={<TrendingUp className="w-4 h-4" />}
+              label="Executivo"
+              onClick={() => setTab('executivo')}
+            />
+          ) : null}
+          {perms.allowedTabs.includes('comercial') ? (
+            <TabButton
+              active={tab === 'comercial'}
+              icon={<BarChart3 className="w-4 h-4" />}
+              label="Comercial"
+              onClick={() => setTab('comercial')}
+            />
+          ) : null}
+          {perms.allowedTabs.includes('operacoes') ? (
+            <TabButton
+              active={tab === 'operacoes'}
+              icon={<PieChart className="w-4 h-4" />}
+              label="Operações"
+              onClick={() => setTab('operacoes')}
+            />
+          ) : null}
+          {perms.allowedTabs.includes('financeiro') ? (
+            <TabButton
+              active={tab === 'financeiro'}
+              icon={<Wallet className="w-4 h-4" />}
+              label="Financeiro"
+              onClick={() => setTab('financeiro')}
+            />
+          ) : null}
+          {perms.allowedTabs.includes('inventario') ? (
+            <TabButton
+              active={tab === 'inventario'}
+              icon={<Building2 className="w-4 h-4" />}
+              label="Inventário"
+              onClick={() => setTab('inventario')}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -648,7 +872,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             error={alertsQ.status === 'error' ? { title: 'Falha ao carregar alertas', description: alertsQ.errorMessage } : null}
             empty={alerts.length === 0 && alertsQ.status === 'ready'}
             emptyTitle="Sem alertas"
-            emptyDescription="Nada para destacar com os filtros atuais."
+            emptyDescription={smartEmpty("Nada para destacar com os filtros atuais.")}
             actions={
               <Button variant="outline" className="h-9" onClick={() => alertsQ.refetch()}>
                 Recarregar
@@ -689,7 +913,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={revenueTs.length === 0 && revenueTsQ.status === 'ready'}
               emptyTitle="Sem dados"
-              emptyDescription="Não há pontos para o período/filtros atuais."
+              emptyDescription={smartEmpty("Não há pontos para o período/filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => revenueTsQ.refetch()}>
@@ -736,7 +960,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={topClientsRows.length === 0 && topClientsQ.status === 'ready'}
               emptyTitle="Sem dados"
-              emptyDescription="Nenhum cliente encontrado com os filtros atuais."
+              emptyDescription={smartEmpty("Nenhum cliente encontrado com os filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => topClientsQ.refetch()}>
@@ -895,7 +1119,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 }
                 empty={stalledProposalsRows.length === 0 && stalledProposalsQ.status === 'ready'}
                 emptyTitle="Nada aqui"
-                emptyDescription="Nenhuma proposta parou com os filtros atuais."
+                emptyDescription={smartEmpty("Nenhuma proposta parou com os filtros atuais.")}
                 actions={
                   <div className="flex items-center gap-2">
                     <Button variant="outline" className="h-9" onClick={() => stalledProposalsQ.refetch()}>
@@ -970,7 +1194,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 }
                 empty={sellerRankingRows.length === 0 && sellerRankingQ.status === 'ready'}
                 emptyTitle="Sem dados"
-                emptyDescription="Nenhum vendedor encontrado com os filtros atuais."
+                emptyDescription={smartEmpty("Nenhum vendedor encontrado com os filtros atuais.")}
                 actions={
                   <div className="flex items-center gap-2">
                     <Button variant="outline" className="h-9" onClick={() => sellerRankingQ.refetch()}>
@@ -1063,7 +1287,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={oohOpsItems.length === 0 && oohOpsQ.status === 'ready'}
               emptyTitle="Sem pendências"
-              emptyDescription="Nada em aberto com os filtros atuais."
+              emptyDescription={smartEmpty("Nada em aberto com os filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => oohOpsQ.refetch()}>
@@ -1132,7 +1356,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={popRows.length === 0 && popQ.status === 'ready'}
               emptyTitle="Sem dados"
-              emptyDescription="Nenhum registro POP com os filtros atuais."
+              emptyDescription={smartEmpty("Nenhum registro POP com os filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => popQ.refetch()}>
@@ -1228,7 +1452,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={cashflowTs.length === 0 && cashflowTsQ.status === 'ready'}
               emptyTitle="Sem dados"
-              emptyDescription="Não há pontos para o período/filtros atuais."
+              emptyDescription={smartEmpty("Não há pontos para o período/filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => cashflowTsQ.refetch()}>
@@ -1275,7 +1499,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={(agingSummary?.buckets?.length || 0) === 0 && agingQ.status === 'ready'}
               emptyTitle="Sem dados"
-              emptyDescription="Não há faixas de aging para o período/filtros atuais."
+              emptyDescription={smartEmpty("Não há faixas de aging para o período/filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => agingQ.refetch()}>
@@ -1366,7 +1590,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={inventoryPins.length === 0 && inventoryMapQ.status === 'ready'}
               emptyTitle="Sem pontos"
-              emptyDescription="Nenhum ponto encontrado para os filtros atuais."
+              emptyDescription={smartEmpty("Nenhum ponto encontrado para os filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => inventoryMapQ.refetch()}>
@@ -1414,7 +1638,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
               empty={inventoryRankingRows.length === 0 && inventoryRankingQ.status === 'ready'}
               emptyTitle="Sem dados"
-              emptyDescription="Nenhum ponto ranqueado para os filtros atuais."
+              emptyDescription={smartEmpty("Nenhum ponto ranqueado para os filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => inventoryRankingQ.refetch()}>
@@ -1693,6 +1917,47 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
         </div>
       ) : null}
+
+      {/* Modal: Salvar Visão */}
+      <Dialog open={saveViewOpen} onOpenChange={setSaveViewOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{saveViewMode === 'update' ? 'Atualizar visão' : 'Salvar visão'}</DialogTitle>
+            <DialogDescription>
+              Salva a aba atual, filtros globais e um layout (MVP) como um preset. No MVP fica no localStorage; depois
+              será persistido no backend.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Nome da visão</label>
+              <Input value={saveViewName} onChange={(e) => setSaveViewName(e.target.value)} className="h-9" />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Pill label="Aba" value={tabLabel(tab)} />
+              <Pill label="Período" value={filters.datePreset.toUpperCase()} />
+              {filters.city ? <Pill label="Cidade" value={filters.city} /> : null}
+              {filters.query ? <Pill label="Busca" value={filters.query} /> : null}
+              <Pill label="Tipo" value={filters.mediaType} />
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" className="h-9" onClick={() => setSaveViewOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="h-9" onClick={confirmSaveView}>
+                {saveViewMode === 'update' ? 'Atualizar' : 'Salvar'}
+              </Button>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              MVP: localStorage. BACKEND SWAP POINT: GET/POST/DELETE /dashboard/views (por usuário/empresa).
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Compartilhar Mapa */}
       <Dialog open={shareMapOpen} onOpenChange={setShareMapOpen}>

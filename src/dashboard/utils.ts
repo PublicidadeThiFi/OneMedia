@@ -1,4 +1,4 @@
-import type { DrilldownCellValue, DrilldownRow, TimeseriesPoint } from './types';
+import type { DashboardFilters, DrilldownCellValue, DrilldownRow, TimeseriesPoint } from './types';
 
 export function formatCurrency(cents: number) {
   const value = (cents ?? 0) / 100;
@@ -95,4 +95,49 @@ export function timeseriesToSpark(points: TimeseriesPoint[]) {
     const n = ((v - min) / range) * 90 + 5;
     return Math.round(clamp(n, 5, 95));
   });
+}
+
+
+// ============================================================
+// Etapa 12 - Empty states mais inteligentes
+// ============================================================
+
+export function describeFiltersForEmpty(filters: DashboardFilters): { hint?: string; suggestions?: string[] } {
+  const active: string[] = [];
+  const suggestions: string[] = [];
+
+  if (filters.query) {
+    active.push(`busca "${filters.query}"`);
+    suggestions.push('Limpe o campo de busca.');
+  }
+
+  if (filters.city) {
+    active.push(`cidade/região "${filters.city}"`);
+    suggestions.push('Remova o filtro de cidade/região.');
+  }
+
+  if (filters.mediaType && filters.mediaType !== 'ALL') {
+    active.push(`tipo ${filters.mediaType}`);
+    suggestions.push('Tente alternar para OOH + DOOH.');
+  }
+
+  if (!active.length) {
+    return { hint: undefined, suggestions: undefined };
+  }
+
+  const hint = `Com os filtros atuais (${active.join(', ')}), não encontramos resultados.`;
+  return { hint, suggestions };
+}
+
+export function smartEmptyDescription(filters: DashboardFilters, base?: string): string {
+  const baseTxt = (base || '').trim();
+  const info = describeFiltersForEmpty(filters);
+
+  const parts: string[] = [];
+  if (baseTxt) parts.push(baseTxt.replace(/\.*$/, ''));
+  if (info.hint) parts.push(info.hint);
+  if (info.suggestions && info.suggestions.length) {
+    parts.push(`Sugestões: ${info.suggestions.join(' ')}`);
+  }
+  return parts.filter(Boolean).join(' ');
 }
