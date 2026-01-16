@@ -30,6 +30,8 @@ import { Page } from '../App';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { toast } from 'sonner';
+import { useDashboardQuery, type DashboardDataMode } from '../hooks/useDashboardQuery';
+import { dashboardGetJson } from '../services/dashboard';
 
 /**
  * =========================
@@ -70,6 +72,12 @@ type DashboardFilters = {
   city: string;
   mediaType: MediaTypeFilter;
 };
+
+// Etapa 4: modo de dados. Padrão = mock.
+// Para testar backend, defina VITE_DASHBOARD_DATA_MODE=backend (Vite).
+const DASHBOARD_DATA_MODE: DashboardDataMode =
+  (((import.meta as any)?.env?.VITE_DASHBOARD_DATA_MODE as string) === 'backend' ? 'backend' : 'mock');
+
 
 
 /**
@@ -639,55 +647,6 @@ function KpiCard({
   );
 }
 
-type MockQueryState<T> = {
-  status: 'idle' | 'loading' | 'ready' | 'error';
-  data?: T;
-  errorMessage?: string;
-  refetch: () => void;
-};
-
-function useMockQuery<T>(opts: {
-  enabled: boolean;
-  deps: unknown[];
-  delayMs?: number;
-  compute: () => T;
-}): MockQueryState<T> {
-  const { enabled, deps, delayMs = 220, compute } = opts;
-  const [state, setState] = useState<Omit<MockQueryState<T>, 'refetch'>>({
-    status: enabled ? 'loading' : 'idle',
-    data: undefined,
-    errorMessage: undefined,
-  });
-  const [nonce, setNonce] = useState(0);
-
-  useEffect(() => {
-    if (!enabled) {
-      setState({ status: 'idle', data: undefined, errorMessage: undefined });
-      return;
-    }
-
-    setState((s) => ({ ...s, status: 'loading', errorMessage: undefined }));
-
-    const timer = window.setTimeout(() => {
-      try {
-        const data = compute();
-        setState({ status: 'ready', data, errorMessage: undefined });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Erro inesperado';
-        setState({ status: 'error', data: undefined, errorMessage: msg });
-      }
-    }, delayMs);
-
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, nonce, ...deps]);
-
-  return {
-    ...state,
-    refetch: () => setNonce((n) => n + 1),
-  };
-}
-
 function escapeCsvValue(value: unknown) {
   const s = String(value ?? '');
   if (/[\n\r";,]/.test(s)) {
@@ -745,8 +704,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [copied, setCopied] = useState(false);
 
   // Etapa 3: este objeto representa exatamente o que vira query params no backend.
-  // Etapa 4+: trocar useMockQuery/mockApi por hooks/services reais usando (company.id + backendQuery).
+  // Etapa 4: hooks/services adicionados (useDashboardQuery + services/dashboard). Modo padrão = mock; backend via env.
   const backendQuery = useMemo(() => buildDashboardBackendQuery(filters), [filters]);
+
+  const backendQs = useMemo(() => toQueryString(backendQuery), [backendQuery]);
 
   const [drilldown, setDrilldown] = useState<DrilldownState>({
     open: false,
@@ -758,24 +719,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardOverview(company.id, backendQuery)
-  const overviewQ = useMockQuery<DashboardOverviewDTO>({
+  const overviewQ = useDashboardQuery<DashboardOverviewDTO>({
     enabled: !!company,
-    deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
-    compute: () => mockApi.fetchOverviewKpis(company!.id, filters),
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchOverviewKpis(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardOverviewDTO>(DASHBOARD_BACKEND_ROUTES.overview, backendQs, { signal }),
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardFunnel(company.id, backendQuery)
-  const funnelQ = useMockQuery<DashboardFunnelDTO>({
+  const funnelQ = useDashboardQuery<DashboardFunnelDTO>({
     enabled: !!company,
-    deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
-    compute: () => mockApi.fetchCommercialFunnel(company!.id, filters),
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchCommercialFunnel(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardFunnelDTO>(DASHBOARD_BACKEND_ROUTES.funnel, backendQs, { signal }),
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
-  const alertsQ = useMockQuery<DashboardAlertsDTO>({
+  const alertsQ = useDashboardQuery<DashboardAlertsDTO>({
     enabled: !!company,
-    deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
-    compute: () => mockApi.fetchAlerts(company!.id, filters),
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchAlerts(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardAlertsDTO>(DASHBOARD_BACKEND_ROUTES.alerts, backendQs, { signal }),
   });
 
   const overview = overviewQ.data;
@@ -861,19 +831,30 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
     // Mock async: simula carregamento por clique
     window.setTimeout(() => {
-      try {
-        const res = mockApi.fetchDrilldown(company.id, key, filters);
-        const rows = res.rows;
-        setDrilldown((s) => ({ ...s, rows, status: 'ready', errorMessage: undefined }));
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Erro inesperado ao carregar detalhes';
-        setDrilldown((s) => ({ ...s, status: 'error', errorMessage: msg }));
-      }
+      (async () => {
+        try {
+          const path = `${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}`;
+          const res =
+            DASHBOARD_DATA_MODE === 'backend'
+              ? await dashboardGetJson<DashboardDrilldownDTO>(path, qs)
+              : mockApi.fetchDrilldown(company.id, key, filters);
+
+          const rows = res.rows;
+          setDrilldown((s) => ({ ...s, rows, status: 'ready', errorMessage: undefined }));
+        } catch (e) {
+          const anyErr = e as any;
+          const msg =
+            typeof anyErr?.message === 'string' && anyErr.message.trim()
+              ? anyErr.message.trim()
+              : 'Erro inesperado ao carregar detalhes';
+          setDrilldown((s) => ({ ...s, status: 'error', errorMessage: msg }));
+        }
+      })();
     }, 220);
   };
 
   const exportCsvMock = (label: string) => {
-    const qs = toQueryString(backendQuery);
+    const qs = backendQs;
     toast.message(`Export (mock): ${label}`, {
       description: `Na integração, isso vai gerar CSV/PDF do recorte atual de filtros.\n${DASHBOARD_BACKEND_ROUTES.overview}?${qs}`,
     });
