@@ -78,6 +78,9 @@ type DashboardFilters = {
 const DASHBOARD_DATA_MODE: DashboardDataMode =
   (((import.meta as any)?.env?.VITE_DASHBOARD_DATA_MODE as string) === 'backend' ? 'backend' : 'mock');
 
+// Drilldown (drawer): paginação padrão
+const DRILLDOWN_PAGE_SIZE = 20;
+
 
 
 /**
@@ -246,7 +249,9 @@ type DashboardAlertsDTO = AlertItem[];
 type DashboardDrilldownDTO = {
   rows: DrilldownRow[];
   paging?: {
-    cursor?: string;
+    // cursor de paginação (próxima página).
+    // Compatibilidade: se o backend ainda devolver 'cursor', a UI tenta ler também.
+    nextCursor?: string;
     hasMore: boolean;
   };
 };
@@ -392,11 +397,20 @@ type DrilldownRow = {
 
 type DrilldownState = {
   open: boolean;
+  key?: string;
   title: string;
   rows: DrilldownRow[];
   hint?: string;
   status: 'idle' | 'loading' | 'ready' | 'error';
   errorMessage?: string;
+
+  // paginação (drawer)
+  cursor?: string;
+  nextCursor?: string;
+  hasMore: boolean;
+
+  // busca local no drawer (não altera filtros globais)
+  search: string;
 };
 
 function formatCurrency(cents: number) {
@@ -439,6 +453,18 @@ function includesNormalized(haystack: string, needle: string) {
   if (!n) return true;
   return h.includes(n);
 }
+
+function uniqById<T extends { id: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const r of rows) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
+}
+
 
 /**
  * MOCK API (Etapa 1-3)
@@ -632,11 +658,19 @@ const mockApi = {
     return all.filter((a) => includesNormalized(`${a.title} ${a.description}`, q));
   },
 
-  fetchDrilldown: (companyId: string, key: string, filters: DashboardFilters): DashboardDrilldownDTO => {
+  fetchDrilldown: (
+    companyId: string,
+    key: string,
+    filters: DashboardFilters,
+    opts?: { cursor?: string; limit?: number },
+  ): DashboardDrilldownDTO => {
     // BACKEND: GET /dashboard/drilldown/<key>?...
     const s = seedNumber(`${companyId}:drill:${key}:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
 
-    const rows = Array.from({ length: 12 }).map((_, idx) => ({
+    const total = 55 + (s % 25);
+    const q = normalizeText(filters.query);
+
+    const allRows: DrilldownRow[] = Array.from({ length: total }).map((_, idx) => ({
       id: `${key}-${(s % 9000) + 1000 + idx}`,
       title: `${key.toUpperCase()} • Item ${(s % 90) + idx + 1}`,
       subtitle: ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][idx % 5],
@@ -644,13 +678,27 @@ const mockApi = {
       status: ['ATIVA', 'AGUARDANDO', 'VENCIDA', 'APROVADA'][idx % 4],
     }));
 
+    const filtered = q
+      ? allRows.filter((r) => includesNormalized(`${r.id} ${r.title} ${r.subtitle || ''} ${r.status || ''}`, q))
+      : allRows;
+
+    const limit = Math.max(1, Math.min(opts?.limit ?? DRILLDOWN_PAGE_SIZE, 100));
+    let offset = 0;
+    if (opts?.cursor) {
+      const parsed = Number.parseInt(String(opts.cursor), 10);
+      offset = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+
+    const pageRows = filtered.slice(offset, offset + limit);
+    const nextOffset = offset + limit;
+    const hasMore = nextOffset < filtered.length;
+    const nextCursor = hasMore ? String(nextOffset) : undefined;
+
     return {
-      rows,
-      paging: { hasMore: false },
+      rows: pageRows,
+      paging: { hasMore, nextCursor },
     };
   },
-
-  
 
   fetchRevenueTimeseries: (companyId: string, filters: DashboardFilters): DashboardTimeseriesDTO => {
     // BACKEND: GET /dashboard/revenue/timeseries?...
@@ -1170,11 +1218,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const [drilldown, setDrilldown] = useState<DrilldownState>({
     open: false,
+    key: undefined,
     title: '',
     rows: [],
     hint: undefined,
     status: 'idle',
     errorMessage: undefined,
+    cursor: undefined,
+    nextCursor: undefined,
+    hasMore: false,
+    search: '',
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardOverview(company.id, backendQuery)
@@ -1234,6 +1287,84 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     fetcher: (signal) =>
       dashboardGetJson<DashboardAlertsDTO>(DASHBOARD_BACKEND_ROUTES.alerts, backendQs, { signal }),
   });
+
+  // Drilldown (Etapa 8): agora usa useDashboardQuery + paginação (cursor)
+  const drilldownQs = useMemo(() => {
+    if (!drilldown.key) return backendQs;
+    return toQueryString(backendQuery, {
+      cursor: drilldown.cursor,
+      limit: String(DRILLDOWN_PAGE_SIZE),
+    });
+  }, [backendQuery, backendQs, drilldown.key, drilldown.cursor]);
+
+  const drilldownQ = useDashboardQuery<DashboardDrilldownDTO>({
+    enabled: !!company && drilldown.open && !!drilldown.key,
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, drilldown.key, drilldownQs],
+    computeMock: () => mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
+      cursor: drilldown.cursor,
+      limit: DRILLDOWN_PAGE_SIZE,
+    }),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardDrilldownDTO>(`${DASHBOARD_BACKEND_ROUTES.drilldown}/${drilldown.key}`, drilldownQs, {
+        signal,
+      }),
+  });
+
+  // Reaplica drilldown quando filtros globais mudam (evita misturar páginas de recortes diferentes)
+  useEffect(() => {
+    if (!drilldown.open) return;
+    setDrilldown((s) => ({
+      ...s,
+      cursor: undefined,
+      nextCursor: undefined,
+      hasMore: false,
+      rows: [],
+      status: s.key ? 'loading' : s.status,
+      errorMessage: undefined,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendQs]);
+
+  // Sincroniza estado do drawer com a query do drilldown (append no load-more)
+  useEffect(() => {
+    if (!drilldown.open || !drilldown.key) return;
+
+    if (drilldownQ.status === 'loading') {
+      setDrilldown((s) => ({ ...s, status: 'loading', errorMessage: undefined }));
+      return;
+    }
+
+    if (drilldownQ.status === 'error') {
+      setDrilldown((s) => ({
+        ...s,
+        status: 'error',
+        errorMessage: drilldownQ.errorMessage || 'Erro inesperado ao carregar detalhes',
+      }));
+      return;
+    }
+
+    if (drilldownQ.status === 'ready') {
+      const dto = drilldownQ.data;
+      const paging: any = dto?.paging || {};
+      const nextCursor: string | undefined = paging.nextCursor ?? paging.cursor;
+      const hasMore = Boolean(paging.hasMore && nextCursor);
+      const incoming = dto?.rows || [];
+
+      setDrilldown((prev) => {
+        const append = Boolean(prev.cursor && prev.rows.length > 0);
+        const merged = append ? uniqById([...(prev.rows || []), ...incoming]) : incoming;
+        return {
+          ...prev,
+          rows: merged,
+          status: 'ready',
+          errorMessage: undefined,
+          hasMore,
+          nextCursor,
+        };
+      });
+    }
+  }, [drilldown.open, drilldown.key, drilldownQ.status, drilldownQ.data, drilldownQ.errorMessage]);
 
   const revenueTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
     enabled: !!company && tab === 'executivo',
@@ -1335,7 +1466,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // Reset drilldown when tab changes (evita confusão)
   useEffect(() => {
-    setDrilldown((s) => ({ ...s, open: false, status: 'idle', rows: [] }));
+    setDrilldown(() => ({
+      open: false,
+      key: undefined,
+      title: '',
+      rows: [],
+      hint: undefined,
+      status: 'idle',
+      errorMessage: undefined,
+      cursor: undefined,
+      nextCursor: undefined,
+      hasMore: false,
+      search: '',
+    }));
   }, [tab]);
 
   if (!company || !user) {
@@ -1392,40 +1535,24 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   const openDrilldown = (title: string, key: string, hint?: string) => {
-    const qs = toQueryString(backendQuery, { key });
+    const qs = toQueryString(backendQuery, {
+      limit: String(DRILLDOWN_PAGE_SIZE),
+    });
     const autoHint = `BACKEND: GET ${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}?${qs}`;
 
     setDrilldown({
       open: true,
+      key,
       title,
       rows: [],
       hint: hint ? `${hint} • ${autoHint}` : autoHint,
       status: 'loading',
       errorMessage: undefined,
+      cursor: undefined,
+      nextCursor: undefined,
+      hasMore: false,
+      search: '',
     });
-
-    // Mock async: simula carregamento por clique
-    window.setTimeout(() => {
-      (async () => {
-        try {
-          const path = `${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}`;
-          const res =
-            DASHBOARD_DATA_MODE === 'backend'
-              ? await dashboardGetJson<DashboardDrilldownDTO>(path, qs)
-              : mockApi.fetchDrilldown(company.id, key, filters);
-
-          const rows = res.rows;
-          setDrilldown((s) => ({ ...s, rows, status: 'ready', errorMessage: undefined }));
-        } catch (e) {
-          const anyErr = e as any;
-          const msg =
-            typeof anyErr?.message === 'string' && anyErr.message.trim()
-              ? anyErr.message.trim()
-              : 'Erro inesperado ao carregar detalhes';
-          setDrilldown((s) => ({ ...s, status: 'error', errorMessage: msg }));
-        }
-      })();
-    }, 220);
   };
 
   const exportCsvMock = (label: string) => {
@@ -2482,44 +2609,116 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             <div className="p-4 overflow-y-auto flex-1">
-              {drilldown.status === 'loading' ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-5 w-2/3" />
-                  <Skeleton className="h-5 w-1/2" />
-                  <Skeleton className="h-24 w-full" />
-                  <Skeleton className="h-24 w-full" />
-                </div>
-              ) : drilldown.status === 'error' ? (
-                <ErrorState title="Falha ao carregar detalhes" description={drilldown.errorMessage} />
-              ) : drilldown.rows.length === 0 ? (
-                <EmptyState title="Sem itens" description="Nada encontrado para este recorte de filtros." />
-              ) : (
-                <div className="space-y-3">
-                  {drilldown.rows.map((r) => (
-                    <div key={r.id} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-gray-900">{r.title}</p>
-                          {r.subtitle ? <p className="text-xs text-gray-500">{r.subtitle}</p> : null}
-                          {r.status ? <p className="text-xs text-gray-500 mt-1">Status: {r.status}</p> : null}
-                        </div>
-                        {typeof r.amountCents === 'number' ? <p className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</p> : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-4">
+              {/* Busca local no drawer (não altera filtros globais) */}
+              <div className="mb-3 flex items-center gap-2">
+                <Input
+                  value={drilldown.search}
+                  onChange={(e) => setDrilldown((s) => ({ ...s, search: e.target.value }))}
+                  placeholder="Filtrar itens..."
+                  className="h-9"
+                />
                 <Button
                   variant="outline"
-                  className="w-full h-9"
-                  onClick={() => exportDrilldownCsv(drilldown.title, drilldown.rows)}
-                  disabled={drilldown.rows.length === 0 || drilldown.status !== 'ready'}
+                  className="h-9"
+                  onClick={() => {
+                    // recomeça do zero
+                    setDrilldown((s) => ({
+                      ...s,
+                      cursor: undefined,
+                      nextCursor: undefined,
+                      hasMore: false,
+                      rows: [],
+                      status: 'loading',
+                      errorMessage: undefined,
+                    }));
+                    drilldownQ.refetch();
+                  }}
+                  disabled={!drilldown.key || drilldown.status === 'loading'}
                 >
-                  Exportar CSV (mock)
+                  Recarregar
                 </Button>
               </div>
+
+              {(() => {
+                const q = normalizeText(drilldown.search);
+                const visible = q
+                  ? drilldown.rows.filter((r) =>
+                      includesNormalized(`${r.id} ${r.title} ${r.subtitle || ''} ${r.status || ''}`, q),
+                    )
+                  : drilldown.rows;
+
+                const isInitialLoading = drilldown.status === 'loading' && drilldown.rows.length === 0;
+                const isLoadingMore = drilldown.status === 'loading' && drilldown.rows.length > 0;
+
+                return (
+                  <>
+                    {isInitialLoading ? (
+                      <div className="space-y-3">
+                        <Skeleton className="h-5 w-2/3" />
+                        <Skeleton className="h-5 w-1/2" />
+                        <Skeleton className="h-24 w-full" />
+                        <Skeleton className="h-24 w-full" />
+                      </div>
+                    ) : drilldown.status === 'error' ? (
+                      <ErrorState title="Falha ao carregar detalhes" description={drilldown.errorMessage} />
+                    ) : visible.length === 0 ? (
+                      <EmptyState title="Sem itens" description="Nada encontrado para este recorte (ou filtro local)." />
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-500">
+                            {visible.length} de {drilldown.rows.length} itens carregados
+                            {drilldown.hasMore ? ' • mais disponível' : ''}
+                          </p>
+                          <p className="text-xs text-gray-500">Fonte: {drilldownQ.source}</p>
+                        </div>
+
+                        {visible.map((r) => (
+                          <div key={r.id} className="border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm text-gray-900">{r.title}</p>
+                                {r.subtitle ? <p className="text-xs text-gray-500">{r.subtitle}</p> : null}
+                                {r.status ? <p className="text-xs text-gray-500 mt-1">Status: {r.status}</p> : null}
+                              </div>
+                              {typeof r.amountCents === 'number' ? (
+                                <p className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+
+                        {drilldown.hasMore && drilldown.nextCursor ? (
+                          <Button
+                            variant="outline"
+                            className="w-full h-9"
+                            onClick={() =>
+                              setDrilldown((s) => ({
+                                ...s,
+                                cursor: s.nextCursor,
+                                status: 'loading',
+                                errorMessage: undefined,
+                              }))
+                            }
+                            disabled={drilldown.status === 'loading'}
+                          >
+                            {isLoadingMore ? 'Carregando...' : 'Carregar mais'}
+                          </Button>
+                        ) : null}
+
+                        <Button
+                          variant="outline"
+                          className="w-full h-9"
+                          onClick={() => exportDrilldownCsv(drilldown.title, visible)}
+                          disabled={visible.length === 0 || drilldown.status === 'loading'}
+                        >
+                          Exportar CSV (mock)
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="p-4 border-t border-gray-200">
