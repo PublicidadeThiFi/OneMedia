@@ -15,6 +15,9 @@ import {
   BarChart3,
   Wallet,
   Building2,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -387,12 +390,15 @@ type AlertItem = {
   ctaPage?: Page;
 };
 
+type DrilldownCellValue = string | number | boolean | null | undefined;
+
 type DrilldownRow = {
   id: string;
   title: string;
   subtitle?: string;
   amountCents?: number;
   status?: string;
+  fields?: Record<string, DrilldownCellValue>;
 };
 
 type DrilldownState = {
@@ -403,6 +409,10 @@ type DrilldownState = {
   hint?: string;
   status: 'idle' | 'loading' | 'ready' | 'error';
   errorMessage?: string;
+
+  // ordenação (server-side no backend; mock respeita)
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
 
   // paginação (drawer)
   cursor?: string;
@@ -464,6 +474,246 @@ function uniqById<T extends { id: string }>(rows: T[]): T[] {
   }
   return out;
 }
+
+// =========================
+// ETAPA 9 - DRILLDOWN CONFIG (por chave)
+// =========================
+
+type DrilldownSortDir = 'asc' | 'desc';
+
+type DrilldownColumnSpec = {
+  id: string;
+  label: string;
+  align?: 'left' | 'right';
+  sortable?: boolean;
+  sortKey?: string;
+  csv?: boolean;
+  get: (row: DrilldownRow) => DrilldownCellValue;
+  render?: (value: DrilldownCellValue, row: DrilldownRow) => ReactNode;
+};
+
+type DrilldownKeySpec = {
+  defaultSort?: { by: string; dir: DrilldownSortDir };
+  columns: DrilldownColumnSpec[];
+  rowAction?: { label: string; page: Page };
+};
+
+function getRowField(row: DrilldownRow, key: string): DrilldownCellValue {
+  if (key === 'id') return row.id;
+  if (key === 'title') return row.title;
+  if (key === 'subtitle') return row.subtitle;
+  if (key === 'status') return row.status;
+  if (key === 'amountCents') return row.amountCents;
+  return row.fields ? row.fields[key] : undefined;
+}
+
+function formatCell(value: DrilldownCellValue, kind?: 'currency' | 'percent' | 'datetime' | 'date'): string {
+  if (value === null || value === undefined) return '—';
+  if (kind === 'currency') return formatCurrency(Number(value) || 0);
+  if (kind === 'percent') return `${Math.round(Number(value) || 0)}%`;
+  if (kind === 'datetime') {
+    const ms = Date.parse(String(value));
+    if (!Number.isFinite(ms)) return String(value);
+    return new Date(ms).toLocaleString('pt-BR');
+  }
+  if (kind === 'date') {
+    const ms = Date.parse(String(value));
+    if (!Number.isFinite(ms)) return String(value);
+    return new Date(ms).toLocaleDateString('pt-BR');
+  }
+  return String(value);
+}
+
+function getDrilldownSpec(key?: string): DrilldownKeySpec {
+  const commonMoney: DrilldownColumnSpec = {
+    id: 'amountCents',
+    label: 'Valor',
+    align: 'right',
+    sortable: true,
+    sortKey: 'amountCents',
+    get: (r) => r.amountCents,
+    render: (v) => <span className="tabular-nums">{formatCell(v, 'currency')}</span>,
+  }
+  ;
+  // NOTE: We'll build specs per key below; for unknown keys, show base columns.
+  const base: DrilldownKeySpec = {
+    defaultSort: { by: 'amountCents', dir: 'desc' },
+    columns: [
+      { id: 'title', label: 'Item', sortable: true, sortKey: 'title', get: (r) => r.title },
+      { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+      { id: 'status', label: 'Status', sortable: true, sortKey: 'status', get: (r) => r.status },
+      commonMoney,
+    ],
+  };
+
+  if (!key) return base;
+
+  switch (key) {
+    case 'revenueRecognized':
+    case 'revenueToInvoice':
+      return {
+        ...base,
+        defaultSort: { by: 'amountCents', dir: 'desc' },
+        rowAction: { label: 'Abrir Financeiro', page: 'financial' },
+        columns: [
+          { id: 'title', label: 'Cliente/Fatura', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          { id: 'status', label: 'Status', sortable: true, sortKey: 'status', get: (r) => r.status },
+          commonMoney,
+        ],
+      };
+
+    case 'receivablesOpen':
+    case 'receivablesOverdue':
+      return {
+        ...base,
+        defaultSort: { by: 'amountCents', dir: 'desc' },
+        rowAction: { label: 'Abrir Financeiro', page: 'financial' },
+      };
+
+    case 'proposalsTotal':
+      return {
+        ...base,
+        defaultSort: { by: 'status', dir: 'asc' },
+        rowAction: { label: 'Abrir Propostas', page: 'proposals' },
+      };
+
+    case 'campaignsActive':
+    case 'awaitingMaterial':
+      return {
+        ...base,
+        defaultSort: { by: 'status', dir: 'asc' },
+        rowAction: { label: 'Abrir Campanhas', page: 'campaigns' },
+      };
+
+    case 'topClients':
+      return {
+        defaultSort: { by: 'amountCents', dir: 'desc' },
+        rowAction: { label: 'Abrir Clientes', page: 'clients' },
+        columns: [
+          { id: 'title', label: 'Cliente', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          {
+            id: 'campaignsCount',
+            label: 'Campanhas',
+            align: 'right',
+            sortable: true,
+            sortKey: 'campaignsCount',
+            get: (r) => getRowField(r, 'campaignsCount'),
+            render: (v) => <span className="tabular-nums">{formatCell(v)}</span>,
+          },
+          commonMoney,
+        ],
+      };
+
+    case 'inventoryRanking':
+    case 'occupancy':
+      return {
+        defaultSort: { by: 'occupancyPercent', dir: 'desc' },
+        rowAction: { label: 'Abrir Inventário', page: 'inventory' },
+        columns: [
+          { id: 'title', label: 'Ponto', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          {
+            id: 'occupancyPercent',
+            label: 'Ocupação',
+            align: 'right',
+            sortable: true,
+            sortKey: 'occupancyPercent',
+            get: (r) => getRowField(r, 'occupancyPercent'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'percent')}</span>,
+          },
+          {
+            id: 'activeCampaigns',
+            label: 'Campanhas',
+            align: 'right',
+            sortable: true,
+            sortKey: 'activeCampaigns',
+            get: (r) => getRowField(r, 'activeCampaigns'),
+            render: (v) => <span className="tabular-nums">{formatCell(v)}</span>,
+          },
+          {
+            id: 'revenueCents',
+            label: 'Receita',
+            align: 'right',
+            sortable: true,
+            sortKey: 'revenueCents',
+            get: (r) => getRowField(r, 'revenueCents') ?? r.amountCents,
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'currency')}</span>,
+          },
+        ],
+      };
+
+    case 'oohOps':
+      return {
+        defaultSort: { by: 'dueDate', dir: 'asc' },
+        rowAction: { label: 'Abrir Campanhas', page: 'campaigns' },
+        columns: [
+          { id: 'title', label: 'Pendência', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          { id: 'status', label: 'Status', sortable: true, sortKey: 'status', get: (r) => r.status },
+          {
+            id: 'dueDate',
+            label: 'Venc.',
+            sortable: true,
+            sortKey: 'dueDate',
+            get: (r) => getRowField(r, 'dueDate'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'date')}</span>,
+          },
+        ],
+      };
+
+    case 'proofOfPlay':
+      return {
+        defaultSort: { by: 'uptimePercent', dir: 'desc' },
+        rowAction: { label: 'Abrir Inventário', page: 'inventory' },
+        columns: [
+          { id: 'title', label: 'Tela', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          {
+            id: 'uptimePercent',
+            label: 'Uptime',
+            align: 'right',
+            sortable: true,
+            sortKey: 'uptimePercent',
+            get: (r) => getRowField(r, 'uptimePercent'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'percent')}</span>,
+          },
+          {
+            id: 'plays',
+            label: 'Plays',
+            align: 'right',
+            sortable: true,
+            sortKey: 'plays',
+            get: (r) => getRowField(r, 'plays'),
+            render: (v) => <span className="tabular-nums">{formatCell(v)}</span>,
+          },
+          {
+            id: 'lastSeen',
+            label: 'Última',
+            sortable: true,
+            sortKey: 'lastSeen',
+            get: (r) => getRowField(r, 'lastSeen'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'datetime')}</span>,
+          },
+        ],
+      };
+
+    case 'aging':
+      return {
+        defaultSort: { by: 'amountCents', dir: 'desc' },
+        rowAction: { label: 'Abrir Financeiro', page: 'financial' },
+        columns: [
+          { id: 'title', label: 'Faixa', sortable: true, sortKey: 'title', get: (r) => r.title },
+          commonMoney,
+        ],
+      };
+
+    default:
+      return base;
+  }
+}
+
 
 
 /**
@@ -662,25 +912,118 @@ const mockApi = {
     companyId: string,
     key: string,
     filters: DashboardFilters,
-    opts?: { cursor?: string; limit?: number },
+    opts?: { cursor?: string; limit?: number; sortBy?: string; sortDir?: DrilldownSortDir },
   ): DashboardDrilldownDTO => {
     // BACKEND: GET /dashboard/drilldown/<key>?...
     const s = seedNumber(`${companyId}:drill:${key}:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
 
     const total = 55 + (s % 25);
-    const q = normalizeText(filters.query);
+    const q = normalizeText(filters.query);    const allRows: DrilldownRow[] = Array.from({ length: total }).map((_, idx) => {
+      const city = ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][idx % 5];
+      const base: DrilldownRow = {
+        id: `${key}-${(s % 9000) + 1000 + idx}`,
+        title: `${key.toUpperCase()} • Item ${(s % 90) + idx + 1}`,
+        subtitle: city,
+        amountCents: 80000 + ((s + idx * 1234) % 1400000),
+        status: ['ATIVA', 'AGUARDANDO', 'VENCIDA', 'APROVADA'][idx % 4],
+        fields: {},
+      };
 
-    const allRows: DrilldownRow[] = Array.from({ length: total }).map((_, idx) => ({
-      id: `${key}-${(s % 9000) + 1000 + idx}`,
-      title: `${key.toUpperCase()} • Item ${(s % 90) + idx + 1}`,
-      subtitle: ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][idx % 5],
-      amountCents: 80000 + ((s + idx * 1234) % 1400000),
-      status: ['ATIVA', 'AGUARDANDO', 'VENCIDA', 'APROVADA'][idx % 4],
-    }));
+      // Ajustes por chave (Etapa 9): adiciona campos para colunas específicas
+      if (key === 'topClients') {
+        base.title = `Cliente ${(s % 70) + idx + 1}`;
+        base.status = undefined;
+        base.fields = {
+          campaignsCount: 1 + ((s + idx) % 8),
+          averageTicketCents: Math.floor((base.amountCents || 0) / Math.max(1, 1 + ((s + idx) % 8))),
+        };
+      }
+
+      if (key === 'inventoryRanking' || key === 'occupancy') {
+        const occ = clamp(35 + ((s + idx * 7) % 60), 0, 100);
+        base.title = `Ponto ${String.fromCharCode(65 + (idx % 26))}-${(s % 90) + idx + 1}`;
+        base.status = undefined;
+        base.fields = {
+          occupancyPercent: occ,
+          activeCampaigns: (s + idx) % 6,
+          revenueCents: base.amountCents,
+        };
+      }
+
+      if (key === 'oohOps') {
+        const due = new Date();
+        due.setDate(due.getDate() + ((idx % 12) - 3));
+        base.title = `Pendência OOH ${(s % 40) + idx + 1}`;
+        base.status = ['OK', 'PENDING', 'LATE'][idx % 3];
+        base.amountCents = undefined;
+        base.fields = {
+          dueDate: due.toISOString(),
+        };
+      }
+
+      if (key === 'proofOfPlay') {
+        const last = new Date();
+        last.setMinutes(last.getMinutes() - ((idx % 180) + 5));
+        base.title = `Tela ${(s % 300) + idx + 1}`;
+        base.status = undefined;
+        base.amountCents = undefined;
+        base.fields = {
+          uptimePercent: clamp(72 + ((s + idx * 9) % 28), 0, 100),
+          plays: 1000 + ((s + idx * 17) % 9000),
+          lastSeen: last.toISOString(),
+        };
+      }
+
+      if (key === 'aging') {
+        const labels = ['0-7', '8-15', '16-30', '31-60', '61+'];
+        const label = labels[idx % labels.length];
+        base.id = `aging-${label}-${idx}`;
+        base.title = label;
+        base.subtitle = undefined;
+        base.status = undefined;
+        base.amountCents = 20000 + ((s + idx * 999) % 2800000);
+        base.fields = {};
+      }
+
+      return base;
+    });
 
     const filtered = q
       ? allRows.filter((r) => includesNormalized(`${r.id} ${r.title} ${r.subtitle || ''} ${r.status || ''}`, q))
       : allRows;
+
+    // Ordenação (Etapa 9): mock respeita sortBy/sortDir para simular server-side ordering
+    const sortBy = opts?.sortBy;
+    const sortDir: DrilldownSortDir = opts?.sortDir || 'desc';
+
+    const sorted = sortBy
+      ? [...filtered].sort((a, b) => {
+          const av = getRowField(a, sortBy);
+          const bv = getRowField(b, sortBy);
+
+          const aNum = typeof av === 'number' ? av : Number.NaN;
+          const bNum = typeof bv === 'number' ? bv : Number.NaN;
+
+          let cmp = 0;
+          if (Number.isFinite(aNum) && Number.isFinite(bNum)) {
+            cmp = aNum - bNum;
+          } else {
+            const aStr = av === null || av === undefined ? '' : String(av);
+            const bStr = bv === null || bv === undefined ? '' : String(bv);
+
+            // tenta ordenar por data quando possível
+            const aMs = Date.parse(aStr);
+            const bMs = Date.parse(bStr);
+            if (Number.isFinite(aMs) && Number.isFinite(bMs)) {
+              cmp = aMs - bMs;
+            } else {
+              cmp = aStr.localeCompare(bStr, 'pt-BR');
+            }
+          }
+
+          return sortDir === 'asc' ? cmp : -cmp;
+        })
+      : filtered;
 
     const limit = Math.max(1, Math.min(opts?.limit ?? DRILLDOWN_PAGE_SIZE, 100));
     let offset = 0;
@@ -689,9 +1032,9 @@ const mockApi = {
       offset = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
     }
 
-    const pageRows = filtered.slice(offset, offset + limit);
+    const pageRows = sorted.slice(offset, offset + limit);
     const nextOffset = offset + limit;
-    const hasMore = nextOffset < filtered.length;
+    const hasMore = nextOffset < sorted.length;
     const nextCursor = hasMore ? String(nextOffset) : undefined;
 
     return {
@@ -1122,25 +1465,35 @@ function downloadTextFile(filename: string, content: string, mime = 'text/plain;
   URL.revokeObjectURL(url);
 }
 
-function exportDrilldownCsv(label: string, rows: DrilldownRow[]) {
-  const header = ['id', 'title', 'subtitle', 'status', 'amount'];
-  const lines = [header.join(';')];
+function exportDrilldownCsv(label: string, rows: DrilldownRow[], columns?: DrilldownColumnSpec[]) {
+  const cols = (columns || [
+    { id: 'id', label: 'id', get: (r: DrilldownRow) => r.id },
+    { id: 'title', label: 'item', get: (r: DrilldownRow) => r.title },
+    { id: 'subtitle', label: 'cidade', get: (r: DrilldownRow) => r.subtitle },
+    { id: 'status', label: 'status', get: (r: DrilldownRow) => r.status },
+    { id: 'amountCents', label: 'valor', get: (r: DrilldownRow) => r.amountCents },
+  ]).filter((c) => c.csv !== false);
+
+  const header = cols.map((c) => c.label);
+  const lines = [header.map(escapeCsvValue).join(';')];
 
   for (const r of rows) {
-    const line = [
-      escapeCsvValue(r.id),
-      escapeCsvValue(r.title),
-      escapeCsvValue(r.subtitle || ''),
-      escapeCsvValue(r.status || ''),
-      escapeCsvValue(typeof r.amountCents === 'number' ? formatCurrency(r.amountCents) : ''),
-    ];
-    lines.push(line.join(';'));
+    const values = cols.map((c) => {
+      const v = c.get(r);
+      // tenta manter valores amigáveis para planilha
+      if (c.id === 'amountCents') return formatCell(v, 'currency');
+      if (c.id.toLowerCase().includes('percent')) return formatCell(v, 'percent');
+      if (c.id === 'lastSeen') return formatCell(v, 'datetime');
+      if (c.id === 'dueDate') return formatCell(v, 'date');
+      return formatCell(v);
+    });
+    lines.push(values.map(escapeCsvValue).join(';'));
   }
 
   const safe = label.replace(/[^a-z0-9\-\_]+/gi, '_').slice(0, 40);
-  const filename = `export_${safe || 'dashboard'}.csv`;
+  const filename = `export_${safe || 'drilldown'}.csv`;
   downloadTextFile(filename, lines.join('\n'), 'text/csv;charset=utf-8');
-  toast.success('CSV exportado (mock)', { description: filename });
+  toast.success('CSV exportado', { description: filename });
 }
 
 function exportAgingBucketsCsv(label: string, buckets: AgingBucket[], totalCents?: number) {
@@ -1224,6 +1577,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     hint: undefined,
     status: 'idle',
     errorMessage: undefined,
+    sortBy: undefined,
+    sortDir: undefined,
     cursor: undefined,
     nextCursor: undefined,
     hasMore: false,
@@ -1294,8 +1649,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     return toQueryString(backendQuery, {
       cursor: drilldown.cursor,
       limit: String(DRILLDOWN_PAGE_SIZE),
+      sortBy: drilldown.sortBy,
+      sortDir: drilldown.sortDir,
     });
-  }, [backendQuery, backendQs, drilldown.key, drilldown.cursor]);
+  }, [backendQuery, backendQs, drilldown.key, drilldown.cursor, drilldown.sortBy, drilldown.sortDir]);
 
   const drilldownQ = useDashboardQuery<DashboardDrilldownDTO>({
     enabled: !!company && drilldown.open && !!drilldown.key,
@@ -1304,6 +1661,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     computeMock: () => mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
       cursor: drilldown.cursor,
       limit: DRILLDOWN_PAGE_SIZE,
+      sortBy: drilldown.sortBy,
+      sortDir: drilldown.sortDir,
     }),
     fetcher: (signal) =>
       dashboardGetJson<DashboardDrilldownDTO>(`${DASHBOARD_BACKEND_ROUTES.drilldown}/${drilldown.key}`, drilldownQs, {
@@ -1474,6 +1833,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       hint: undefined,
       status: 'idle',
       errorMessage: undefined,
+      sortBy: undefined,
+      sortDir: undefined,
       cursor: undefined,
       nextCursor: undefined,
       hasMore: false,
@@ -1535,8 +1896,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   const openDrilldown = (title: string, key: string, hint?: string) => {
+    const spec = getDrilldownSpec(key);
+    const sortBy = spec.defaultSort?.by;
+    const sortDir = spec.defaultSort?.dir;
+
     const qs = toQueryString(backendQuery, {
       limit: String(DRILLDOWN_PAGE_SIZE),
+      sortBy,
+      sortDir,
     });
     const autoHint = `BACKEND: GET ${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}?${qs}`;
 
@@ -1548,6 +1915,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       hint: hint ? `${hint} • ${autoHint}` : autoHint,
       status: 'loading',
       errorMessage: undefined,
+      sortBy,
+      sortDir,
       cursor: undefined,
       nextCursor: undefined,
       hasMore: false,
@@ -2673,20 +3042,118 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                           <p className="text-xs text-gray-500">Fonte: {drilldownQ.source}</p>
                         </div>
 
-                        {visible.map((r) => (
-                          <div key={r.id} className="border border-gray-200 rounded-lg p-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm text-gray-900">{r.title}</p>
-                                {r.subtitle ? <p className="text-xs text-gray-500">{r.subtitle}</p> : null}
-                                {r.status ? <p className="text-xs text-gray-500 mt-1">Status: {r.status}</p> : null}
-                              </div>
-                              {typeof r.amountCents === 'number' ? (
-                                <p className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</p>
-                              ) : null}
+                        {(() => {
+                          const spec = getDrilldownSpec(drilldown.key);
+                          const cols = spec.columns;
+                          const currentSortBy = drilldown.sortBy;
+                          const currentSortDir = drilldown.sortDir;
+
+                          const onToggleSort = (col: DrilldownColumnSpec) => {
+                            if (!col.sortable) return;
+                            const nextBy = col.sortKey || col.id;
+                            const nextDir: DrilldownSortDir =
+                              currentSortBy === nextBy ? (currentSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+
+                            setDrilldown((s) => ({
+                              ...s,
+                              sortBy: nextBy,
+                              sortDir: nextDir,
+                              cursor: undefined,
+                              nextCursor: undefined,
+                              hasMore: false,
+                              rows: [],
+                              status: 'loading',
+                              errorMessage: undefined,
+                            }));
+                          };
+
+                          return (
+                            <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                              <table className="min-w-full text-sm">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    {cols.map((c) => {
+                                      const active = (currentSortBy || '') === (c.sortKey || c.id);
+                                      const icon = !c.sortable ? null : active ? (
+                                        currentSortDir === 'asc' ? (
+                                          <ChevronUp className="w-4 h-4" />
+                                        ) : (
+                                          <ChevronDown className="w-4 h-4" />
+                                        )
+                                      ) : (
+                                        <ArrowUpDown className="w-4 h-4 opacity-60" />
+                                      );
+
+                                      const content = (
+                                        <span className="inline-flex items-center gap-1">
+                                          {c.label}
+                                          {icon}
+                                        </span>
+                                      );
+
+                                      return (
+                                        <th
+                                          key={c.id}
+                                          className={[
+                                            'px-3 py-2 text-xs font-medium text-gray-600 whitespace-nowrap',
+                                            c.align === 'right' ? 'text-right' : 'text-left',
+                                          ].join(' ')}
+                                        >
+                                          {c.sortable ? (
+                                            <button
+                                              type="button"
+                                              className="hover:text-gray-900"
+                                              onClick={() => onToggleSort(c)}
+                                            >
+                                              {content}
+                                            </button>
+                                          ) : (
+                                            content
+                                          )}
+                                        </th>
+                                      );
+                                    })}
+                                    {spec.rowAction ? (
+                                      <th className="px-3 py-2 text-xs font-medium text-gray-600 text-right whitespace-nowrap">Ações</th>
+                                    ) : null}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {visible.map((r) => (
+                                    <tr key={r.id} className="border-t border-gray-200">
+                                      {cols.map((c) => {
+                                        const v = c.get(r);
+                                        const rendered = c.render ? c.render(v, r) : <span>{formatCell(v)}</span>;
+                                        return (
+                                          <td
+                                            key={c.id}
+                                            className={[
+                                              'px-3 py-2 text-sm text-gray-800 whitespace-nowrap',
+                                              c.align === 'right' ? 'text-right' : 'text-left',
+                                            ].join(' ')}
+                                          >
+                                            {rendered}
+                                          </td>
+                                        );
+                                      })}
+                                      {spec.rowAction ? (
+                                        <td className="px-3 py-2 text-right">
+                                          <Button
+                                            variant="outline"
+                                            className="h-8"
+                                            onClick={() => onNavigate(spec.rowAction!.page)}
+                                          >
+                                            {spec.rowAction.label}
+                                          </Button>
+                                        </td>
+                                      ) : null}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })()}
 
                         {drilldown.hasMore && drilldown.nextCursor ? (
                           <Button
@@ -2709,7 +3176,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         <Button
                           variant="outline"
                           className="w-full h-9"
-                          onClick={() => exportDrilldownCsv(drilldown.title, visible)}
+                          onClick={() => {
+                            const spec = getDrilldownSpec(drilldown.key);
+                            exportDrilldownCsv(drilldown.title, visible, spec.columns);
+                          }}
                           disabled={visible.length === 0 || drilldown.status === 'loading'}
                         >
                           Exportar CSV (mock)
