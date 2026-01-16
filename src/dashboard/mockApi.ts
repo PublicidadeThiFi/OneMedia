@@ -3,7 +3,6 @@ import type {
   CommercialFunnel,
   CommercialSummary,
   DashboardAlertsDTO,
-  DashboardCashflowTimeseriesDTO,
   DashboardCommercialSummaryDTO,
   DashboardDoohProofOfPlaySummaryDTO,
   DashboardDrilldownDTO,
@@ -12,22 +11,24 @@ import type {
   DashboardInventoryRankingDTO,
   DashboardOohOpsSummaryDTO,
   DashboardReceivablesAgingSummaryDTO,
-  DashboardRevenueTimeseriesDTO,
+  AgingBucket,
   DashboardSellerRankingDTO,
+  SellerRankingRow,
   DashboardStalledProposalsDTO,
+  DashboardTimeseriesDTO,
   DashboardTopClientsDTO,
+  DrilldownRow,
   FunnelStage,
   InventoryMapPin,
   InventoryRankingRow,
   OohOpsItem,
   OverviewKpis,
   ProofOfPlayRow,
-  ReceivablesAgingSummary,
   TimeseriesPoint,
   TopClientRow,
-  DrilldownRow,
 } from './types';
 import { buildSpark, clamp, getRowField, includesNormalized, normalizeText, seedNumber, uniqById } from './utils';
+import { DRILLDOWN_PAGE_SIZE } from './constants';
 
 export const mockApi = {
   fetchOverviewKpis: (companyId: string, filters: DashboardFilters): OverviewKpis => {
@@ -212,7 +213,7 @@ export const mockApi = {
     companyId: string,
     key: string,
     filters: DashboardFilters,
-    opts?: { cursor?: string; limit?: number; sortBy?: string; sortDir?: DrilldownSortDir },
+    opts?: { cursor?: string; limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc' },
   ): DashboardDrilldownDTO => {
     // BACKEND: GET /dashboard/drilldown/<key>?...
     const s = seedNumber(`${companyId}:drill:${key}:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
@@ -294,7 +295,7 @@ export const mockApi = {
 
     // Ordenação (Etapa 9): mock respeita sortBy/sortDir para simular server-side ordering
     const sortBy = opts?.sortBy;
-    const sortDir: DrilldownSortDir = opts?.sortDir || 'desc';
+    const sortDir: 'asc' | 'desc' = opts?.sortDir || 'desc';
 
     const sorted = sortBy
       ? [...filtered].sort((a, b) => {
