@@ -44,6 +44,11 @@ import { toast } from 'sonner';
  * - Padronizar widgets (WidgetCard/KpiCard) e estados (loading/empty/error)
  * - Exportação CSV mock (client-side) para listas/tabelas
  *
+ * Objetivo (Etapa 3):
+ * - Definir contratos (DTOs) por widget/aba
+ * - Padronizar query params (filtros globais -> dateFrom/dateTo/q/city/mediaType)
+ * - Mapear, no código, quais models do Prisma alimentam cada bloco (para a troca futura)
+ *
  * Integração com backend (Etapa 4+):
  * - Substituir as funções de mock em "mockApi" por chamadas reais (services + hooks)
  * - Cada função mock tem um comentário "BACKEND:" indicando o ponto de troca.
@@ -64,6 +69,132 @@ type DashboardFilters = {
   query: string; // texto livre (cliente, campanha, proposta...)
   city: string;
   mediaType: MediaTypeFilter;
+};
+
+
+/**
+ * =========================
+ *  ETAPA 3 - CONTRATOS (DTO) + QUERY PARAMS
+ * =========================
+ *
+ * A partir daqui, a ideia é que o FRONT trate o retorno do backend como DTOs estáveis,
+ * e só depois (se necessário) mapeie para o formato usado nos componentes.
+ *
+ * IMPORTANTE: neste estágio ainda está tudo MOCKADO, mas os tipos e os endpoints
+ * já ficam definidos para a troca futura (Etapa 4+).
+ */
+
+// Sugestão de rotas (placeholders). Ajustar para as rotas reais do seu backend quando integrar.
+const DASHBOARD_BACKEND_ROUTES = {
+  overview: '/api/dashboard/overview',
+  funnel: '/api/dashboard/funnel',
+  alerts: '/api/dashboard/alerts',
+  drilldown: '/api/dashboard/drilldown',
+
+  // Extras (quando formos evoluir os widgets):
+  revenueTimeseries: '/api/dashboard/revenue/timeseries',
+  cashflowTimeseries: '/api/dashboard/cashflow/timeseries',
+  inventoryMap: '/api/dashboard/inventory/map',
+  inventoryRanking: '/api/dashboard/inventory/ranking',
+} as const;
+
+// Query params padronizados para o Dashboard (filtros globais).
+// Observação: o backend pode preferir dateFrom/dateTo ao invés de "datePreset".
+// Mantemos um helper para resolver o preset em intervalos ISO.
+type DashboardBackendQuery = {
+  dateFrom: string; // ISO datetime
+  dateTo: string; // ISO datetime
+  q?: string; // busca textual
+  city?: string;
+  mediaType?: Exclude<MediaTypeFilter, 'ALL'>;
+};
+
+function resolveDateRangeFromPreset(preset: DatePreset): { dateFrom: string; dateTo: string } {
+  const now = new Date();
+  const from = new Date(now);
+
+  if (preset === '7d') {
+    from.setDate(from.getDate() - 7);
+  } else if (preset === '30d') {
+    from.setDate(from.getDate() - 30);
+  } else if (preset === '90d') {
+    from.setDate(from.getDate() - 90);
+  } else if (preset === 'ytd') {
+    from.setMonth(0, 1);
+    from.setHours(0, 0, 0, 0);
+  }
+
+  return {
+    dateFrom: from.toISOString(),
+    dateTo: now.toISOString(),
+  };
+}
+
+function buildDashboardBackendQuery(filters: DashboardFilters): DashboardBackendQuery {
+  const { dateFrom, dateTo } = resolveDateRangeFromPreset(filters.datePreset);
+
+  return {
+    dateFrom,
+    dateTo,
+    q: filters.query?.trim() ? filters.query.trim() : undefined,
+    city: filters.city?.trim() ? filters.city.trim() : undefined,
+    mediaType: filters.mediaType === 'ALL' ? undefined : filters.mediaType,
+  };
+}
+
+
+function toQueryString(query: DashboardBackendQuery, extra?: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+  const merged: Record<string, string | undefined> = {
+    dateFrom: query.dateFrom,
+    dateTo: query.dateTo,
+    q: query.q,
+    city: query.city,
+    mediaType: query.mediaType,
+    ...(extra || {}),
+  };
+
+  for (const [k, v] of Object.entries(merged)) {
+    if (v === undefined || v === null) continue;
+    const vv = String(v).trim();
+    if (!vv) continue;
+    params.set(k, vv);
+  }
+
+  return params.toString();
+}
+
+// --- DTOs (contratos) ---
+// Neste arquivo, mantemos os DTOs equivalentes aos tipos internos usados pelos widgets.
+// Na integração real, o service/hook deve retornar estes DTOs diretamente.
+
+// Dashboard Overview (aba Executivo + KPIs gerais)
+// Prisma (fontes típicas): Proposal, Campaign, BillingInvoice, CashTransaction, MediaUnit, Reservation, Client
+// - proposalsTotal: Proposal.createdAt (ou Proposal.startDate) no range
+// - approvalRatePercent: Proposal.status (APROVADA/REPROVADA/...)
+// - campaignsActive*: Campaign.status (ATIVA/EM_VEICULACAO/...)
+// - revenueRecognized: BillingInvoice.status=PAGA (paidAt no range) OU CashTransaction(flowType=RECEITA, isPaid=true)
+// - revenueToInvoice/receivables: BillingInvoice.status=ABERTA/VENCIDA
+// - occupancyPercent: Reservation (CONFIRMADA) ou CampaignItem no range vs total de MediaUnits
+
+type DashboardOverviewDTO = OverviewKpis;
+
+// Funil Comercial (aba Comercial)
+// Prisma: Proposal, Client, User (responsibleUserId), ProposalItem (para composição por mídia/produto)
+type DashboardFunnelDTO = CommercialFunnel;
+
+// Alertas (aba Executivo/Operações/Financeiro)
+// Prisma: BillingInvoice, Campaign, Reservation, MediaPoint/MediaUnit (e regras de negócio)
+type DashboardAlertsDTO = AlertItem[];
+
+// Drill-down (listas acionáveis ao clicar nos KPIs/widgets)
+// Prisma: depende da chave (ex: receivablesOverdue -> BillingInvoice; occupancy -> Reservation/CampaignItem; etc.)
+type DashboardDrilldownDTO = {
+  rows: DrilldownRow[];
+  paging?: {
+    cursor?: string;
+    hasMore: boolean;
+  };
 };
 
 type KpiTrend = {
@@ -175,9 +306,15 @@ function includesNormalized(haystack: string, needle: string) {
 /**
  * MOCK API (Etapa 1-3)
  *
- * BACKEND INTEGRATION POINTS:
- * - Trocar cada função por um service/hook (ex: services/dashboard.ts + hooks/useDashboardKpis.ts)
- * - Padrão de filtros: mapear DashboardFilters -> query params
+ * BACKEND INTEGRATION POINTS (Etapa 4+):
+ * - Trocar cada função por um service/hook (ex: services/dashboard.ts + hooks/useDashboardOverview.ts)
+ * - Usar buildDashboardBackendQuery(filters) para montar dateFrom/dateTo/q/city/mediaType
+ *
+ * Mapa (alto nível) de blocos -> Prisma:
+ * - Overview/KPIs: Proposal, Campaign, BillingInvoice, CashTransaction, MediaUnit, Reservation, Client
+ * - Funil Comercial: Proposal (+responsibleUserId), Client, User
+ * - Alertas: BillingInvoice, Campaign, Reservation, MediaPoint/MediaUnit
+ * - Drilldowns: variam por chave (ex: receivablesOverdue -> BillingInvoice; stalledProposals -> Proposal)
  */
 const mockApi = {
   fetchOverviewKpis: (companyId: string, filters: DashboardFilters): OverviewKpis => {
@@ -291,17 +428,22 @@ const mockApi = {
     return all.filter((a) => includesNormalized(`${a.title} ${a.description}`, q));
   },
 
-  fetchDrilldownRows: (companyId: string, key: string, filters: DashboardFilters): DrilldownRow[] => {
+  fetchDrilldown: (companyId: string, key: string, filters: DashboardFilters): DashboardDrilldownDTO => {
     // BACKEND: GET /dashboard/drilldown/<key>?...
     const s = seedNumber(`${companyId}:drill:${key}:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
 
-    return Array.from({ length: 12 }).map((_, idx) => ({
+    const rows = Array.from({ length: 12 }).map((_, idx) => ({
       id: `${key}-${(s % 9000) + 1000 + idx}`,
       title: `${key.toUpperCase()} • Item ${(s % 90) + idx + 1}`,
       subtitle: ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][idx % 5],
       amountCents: 80000 + ((s + idx * 1234) % 1400000),
       status: ['ATIVA', 'AGUARDANDO', 'VENCIDA', 'APROVADA'][idx % 4],
     }));
+
+    return {
+      rows,
+      paging: { hasMore: false },
+    };
   },
 
   getPublicMapUrl: (companyId: string) => {
@@ -602,6 +744,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [shareMapOpen, setShareMapOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Etapa 3: este objeto representa exatamente o que vira query params no backend.
+  // Etapa 4+: trocar useMockQuery/mockApi por hooks/services reais usando (company.id + backendQuery).
+  const backendQuery = useMemo(() => buildDashboardBackendQuery(filters), [filters]);
+
   const [drilldown, setDrilldown] = useState<DrilldownState>({
     open: false,
     title: '',
@@ -611,19 +757,22 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     errorMessage: undefined,
   });
 
-  const overviewQ = useMockQuery<OverviewKpis>({
+  // BACKEND SWAP POINT (Etapa 4+): useDashboardOverview(company.id, backendQuery)
+  const overviewQ = useMockQuery<DashboardOverviewDTO>({
     enabled: !!company,
     deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
     compute: () => mockApi.fetchOverviewKpis(company!.id, filters),
   });
 
-  const funnelQ = useMockQuery<CommercialFunnel>({
+  // BACKEND SWAP POINT (Etapa 4+): useDashboardFunnel(company.id, backendQuery)
+  const funnelQ = useMockQuery<DashboardFunnelDTO>({
     enabled: !!company,
     deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
     compute: () => mockApi.fetchCommercialFunnel(company!.id, filters),
   });
 
-  const alertsQ = useMockQuery<AlertItem[]>({
+  // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
+  const alertsQ = useMockQuery<DashboardAlertsDTO>({
     enabled: !!company,
     deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
     compute: () => mockApi.fetchAlerts(company!.id, filters),
@@ -698,11 +847,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   const openDrilldown = (title: string, key: string, hint?: string) => {
+    const qs = toQueryString(backendQuery, { key });
+    const autoHint = `BACKEND: GET ${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}?${qs}`;
+
     setDrilldown({
       open: true,
       title,
       rows: [],
-      hint,
+      hint: hint ? `${hint} • ${autoHint}` : autoHint,
       status: 'loading',
       errorMessage: undefined,
     });
@@ -710,7 +862,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     // Mock async: simula carregamento por clique
     window.setTimeout(() => {
       try {
-        const rows = mockApi.fetchDrilldownRows(company.id, key, filters);
+        const res = mockApi.fetchDrilldown(company.id, key, filters);
+        const rows = res.rows;
         setDrilldown((s) => ({ ...s, rows, status: 'ready', errorMessage: undefined }));
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Erro inesperado ao carregar detalhes';
@@ -720,8 +873,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   const exportCsvMock = (label: string) => {
+    const qs = toQueryString(backendQuery);
     toast.message(`Export (mock): ${label}`, {
-      description: 'Na integração, isso vai gerar CSV/PDF do recorte atual de filtros.',
+      description: `Na integração, isso vai gerar CSV/PDF do recorte atual de filtros.\n${DASHBOARD_BACKEND_ROUTES.overview}?${qs}`,
     });
   };
 
