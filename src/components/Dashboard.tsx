@@ -40,6 +40,10 @@ import { toast } from 'sonner';
  * - Criar o novo layout do Dashboard (filtros globais + abas por persona + widgets + drill-down)
  * - 100% mockado DENTRO deste arquivo, para evoluirmos depois para hooks/services/rotas reais.
  *
+ * Objetivo (Etapa 2):
+ * - Padronizar widgets (WidgetCard/KpiCard) e estados (loading/empty/error)
+ * - Exportação CSV mock (client-side) para listas/tabelas
+ *
  * Integração com backend (Etapa 4+):
  * - Substituir as funções de mock em "mockApi" por chamadas reais (services + hooks)
  * - Cada função mock tem um comentário "BACKEND:" indicando o ponto de troca.
@@ -123,6 +127,8 @@ type DrilldownState = {
   title: string;
   rows: DrilldownRow[];
   hint?: string;
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  errorMessage?: string;
 };
 
 function formatCurrency(cents: number) {
@@ -153,6 +159,17 @@ function buildSpark(seed: number, len = 10) {
     pts.push(v);
   }
   return pts;
+}
+
+function normalizeText(v: string) {
+  return (v || '').trim().toLowerCase();
+}
+
+function includesNormalized(haystack: string, needle: string) {
+  const h = normalizeText(haystack);
+  const n = normalizeText(needle);
+  if (!n) return true;
+  return h.includes(n);
 }
 
 /**
@@ -212,7 +229,7 @@ const mockApi = {
       { key: 'active', label: 'Em Veiculação', count: 3 + (s % 5), amountCents: 650000 + (s % 1500000) },
     ];
 
-    const stalledProposals = Array.from({ length: 6 }).map((_, idx) => {
+    const stalled = Array.from({ length: 6 }).map((_, idx) => {
       const id = `PROP-${(s % 9000) + 1000 + idx}`;
       return {
         id,
@@ -222,6 +239,11 @@ const mockApi = {
         amountCents: 120000 + ((s + idx * 777) % 900000),
       };
     });
+
+    const q = normalizeText(filters.query);
+    const stalledProposals = q
+      ? stalled.filter((p) => includesNormalized(`${p.id} ${p.title} ${p.client}`, q))
+      : stalled;
 
     return {
       stages,
@@ -236,7 +258,7 @@ const mockApi = {
 
     const pick = <T,>(arr: T[]) => arr[s % arr.length];
 
-    return [
+    const all: AlertItem[] = [
       {
         id: `AL-${s % 1000}`,
         severity: 'HIGH',
@@ -262,6 +284,11 @@ const mockApi = {
         ctaPage: 'inventory',
       },
     ];
+
+    const q = normalizeText(filters.query);
+    if (!q) return all;
+
+    return all.filter((a) => includesNormalized(`${a.title} ${a.description}`, q));
   },
 
   fetchDrilldownRows: (companyId: string, key: string, filters: DashboardFilters): DrilldownRow[] => {
@@ -284,6 +311,32 @@ const mockApi = {
   },
 };
 
+// ---------------------------
+// UI helpers (Etapa 2)
+// ---------------------------
+
+function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded bg-gray-100 ${className}`} />;
+}
+
+function EmptyState({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="py-10 flex flex-col items-center justify-center text-center">
+      <p className="text-sm text-gray-900">{title}</p>
+      {description ? <p className="text-xs text-gray-500 mt-1 max-w-sm">{description}</p> : null}
+    </div>
+  );
+}
+
+function ErrorState({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="py-10 flex flex-col items-center justify-center text-center">
+      <p className="text-sm text-red-700">{title}</p>
+      {description ? <p className="text-xs text-red-700/80 mt-1 max-w-sm">{description}</p> : null}
+    </div>
+  );
+}
+
 function Sparkline({ points }: { points: number[] }) {
   const max = Math.max(...points, 1);
   const min = Math.min(...points, 0);
@@ -293,13 +346,7 @@ function Sparkline({ points }: { points: number[] }) {
     <div className="flex items-end gap-0.5 h-6">
       {points.map((p, idx) => {
         const h = Math.round(((p - min) / range) * 22) + 2;
-        return (
-          <div
-            key={idx}
-            className="w-1 rounded-sm bg-gray-200"
-            style={{ height: `${h}px` }}
-          />
-        );
+        return <div key={idx} className="w-1 rounded-sm bg-gray-200" style={{ height: `${h}px` }} />;
       })}
     </div>
   );
@@ -308,7 +355,12 @@ function Sparkline({ points }: { points: number[] }) {
 function Delta({ value }: { value: number }) {
   const sign = value > 0 ? '+' : '';
   const color = value > 0 ? 'text-green-600' : value < 0 ? 'text-red-600' : 'text-gray-500';
-  return <span className={`text-xs ${color}`}>{sign}{value}%</span>;
+  return (
+    <span className={`text-xs ${color}`}>
+      {sign}
+      {value}%
+    </span>
+  );
 }
 
 function TabButton({
@@ -338,13 +390,7 @@ function TabButton({
   );
 }
 
-function Pill({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function Pill({ label, value }: { label: string; value: string }) {
   return (
     <div className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-700 text-xs whitespace-nowrap">
       <span className="text-gray-500">{label}:</span> {value}
@@ -353,13 +399,192 @@ function Pill({
 }
 
 function SeverityDot({ severity }: { severity: AlertItem['severity'] }) {
-  const cls =
-    severity === 'HIGH'
-      ? 'bg-red-500'
-      : severity === 'MEDIUM'
-        ? 'bg-yellow-500'
-        : 'bg-green-500';
+  const cls = severity === 'HIGH' ? 'bg-red-500' : severity === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500';
   return <span className={`inline-block w-2.5 h-2.5 rounded-full ${cls}`} />;
+}
+
+function WidgetCard({
+  title,
+  subtitle,
+  actions,
+  loading,
+  error,
+  empty,
+  emptyTitle,
+  emptyDescription,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  loading?: boolean;
+  error?: { title: string; description?: string } | null;
+  empty?: boolean;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            {subtitle ? <p className="text-xs text-gray-500 mt-1">{subtitle}</p> : null}
+          </div>
+          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-3">
+            <Skeleton className="h-5 w-1/2" />
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        ) : error ? (
+          <ErrorState title={error.title} description={error.description} />
+        ) : empty ? (
+          <EmptyState title={emptyTitle || 'Sem dados'} description={emptyDescription} />
+        ) : (
+          children
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  helper,
+  delta,
+  spark,
+  onClick,
+  loading,
+}: {
+  label: string;
+  value?: string;
+  helper?: string;
+  delta?: number;
+  spark?: number[];
+  onClick?: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <Card className={onClick ? 'cursor-pointer hover:shadow-sm' : ''} onClick={onClick}>
+      <CardContent className="pt-5">
+        <p className="text-xs text-gray-500">{label}</p>
+        {loading ? (
+          <div className="mt-2">
+            <Skeleton className="h-7 w-2/3" />
+            <Skeleton className="h-4 w-1/2 mt-2" />
+          </div>
+        ) : (
+          <>
+            <p className="text-gray-900 mt-1">{value || '—'}</p>
+            {helper ? <p className="text-xs text-gray-500 mt-2">{helper}</p> : null}
+            {typeof delta === 'number' && spark ? (
+              <div className="mt-2 flex items-center justify-between">
+                <Delta value={delta} />
+                <Sparkline points={spark} />
+              </div>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type MockQueryState<T> = {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  data?: T;
+  errorMessage?: string;
+  refetch: () => void;
+};
+
+function useMockQuery<T>(opts: {
+  enabled: boolean;
+  deps: unknown[];
+  delayMs?: number;
+  compute: () => T;
+}): MockQueryState<T> {
+  const { enabled, deps, delayMs = 220, compute } = opts;
+  const [state, setState] = useState<Omit<MockQueryState<T>, 'refetch'>>({
+    status: enabled ? 'loading' : 'idle',
+    data: undefined,
+    errorMessage: undefined,
+  });
+  const [nonce, setNonce] = useState(0);
+
+  useEffect(() => {
+    if (!enabled) {
+      setState({ status: 'idle', data: undefined, errorMessage: undefined });
+      return;
+    }
+
+    setState((s) => ({ ...s, status: 'loading', errorMessage: undefined }));
+
+    const timer = window.setTimeout(() => {
+      try {
+        const data = compute();
+        setState({ status: 'ready', data, errorMessage: undefined });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erro inesperado';
+        setState({ status: 'error', data: undefined, errorMessage: msg });
+      }
+    }, delayMs);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, nonce, ...deps]);
+
+  return {
+    ...state,
+    refetch: () => setNonce((n) => n + 1),
+  };
+}
+
+function escapeCsvValue(value: unknown) {
+  const s = String(value ?? '');
+  if (/[\n\r";,]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function downloadTextFile(filename: string, content: string, mime = 'text/plain;charset=utf-8') {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportDrilldownCsv(label: string, rows: DrilldownRow[]) {
+  const header = ['id', 'title', 'subtitle', 'status', 'amount'];
+  const lines = [header.join(';')];
+
+  for (const r of rows) {
+    const line = [
+      escapeCsvValue(r.id),
+      escapeCsvValue(r.title),
+      escapeCsvValue(r.subtitle || ''),
+      escapeCsvValue(r.status || ''),
+      escapeCsvValue(typeof r.amountCents === 'number' ? formatCurrency(r.amountCents) : ''),
+    ];
+    lines.push(line.join(';'));
+  }
+
+  const safe = label.replace(/[^a-z0-9\-\_]+/gi, '_').slice(0, 40);
+  const filename = `export_${safe || 'dashboard'}.csv`;
+  downloadTextFile(filename, lines.join('\n'), 'text/csv;charset=utf-8');
+  toast.success('CSV exportado (mock)', { description: filename });
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
@@ -382,22 +607,31 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     title: '',
     rows: [],
     hint: undefined,
+    status: 'idle',
+    errorMessage: undefined,
   });
 
-  const overview = useMemo(() => {
-    if (!company) return null;
-    return mockApi.fetchOverviewKpis(company.id, filters);
-  }, [company, filters]);
+  const overviewQ = useMockQuery<OverviewKpis>({
+    enabled: !!company,
+    deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
+    compute: () => mockApi.fetchOverviewKpis(company!.id, filters),
+  });
 
-  const funnel = useMemo(() => {
-    if (!company) return null;
-    return mockApi.fetchCommercialFunnel(company.id, filters);
-  }, [company, filters]);
+  const funnelQ = useMockQuery<CommercialFunnel>({
+    enabled: !!company,
+    deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
+    compute: () => mockApi.fetchCommercialFunnel(company!.id, filters),
+  });
 
-  const alerts = useMemo(() => {
-    if (!company) return [];
-    return mockApi.fetchAlerts(company.id, filters);
-  }, [company, filters]);
+  const alertsQ = useMockQuery<AlertItem[]>({
+    enabled: !!company,
+    deps: [company?.id, filters.datePreset, filters.query, filters.city, filters.mediaType],
+    compute: () => mockApi.fetchAlerts(company!.id, filters),
+  });
+
+  const overview = overviewQ.data;
+  const funnel = funnelQ.data;
+  const alerts = alertsQ.data || [];
 
   // URL pública do mapa (mock)
   const publicMapUrl = useMemo(() => {
@@ -407,10 +641,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // Reset drilldown when tab changes (evita confusão)
   useEffect(() => {
-    setDrilldown((s) => ({ ...s, open: false }));
+    setDrilldown((s) => ({ ...s, open: false, status: 'idle', rows: [] }));
   }, [tab]);
 
-  if (!company || !user || !overview || !funnel) {
+  if (!company || !user) {
     return (
       <div className="p-8">
         <div className="flex items-center justify-center h-64">
@@ -425,18 +659,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   /**
    * Copia o link do mapa público para a área de transferência
-   * TODO: Reutilizar esta lógica em outras telas de compartilhamento quando necessário
    */
   const handleCopyMapLink = async () => {
     try {
-      // Tenta usar a API Clipboard moderna
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(publicMapUrl);
         setCopied(true);
         toast.success('Link do mapa copiado para a área de transferência!');
         setTimeout(() => setCopied(false), 2000);
       } else {
-        // Fallback para navegadores que não suportam clipboard API
         const textArea = document.createElement('textarea');
         textArea.value = publicMapUrl;
         textArea.style.position = 'fixed';
@@ -467,13 +698,28 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   const openDrilldown = (title: string, key: string, hint?: string) => {
-    if (!company) return;
-    const rows = mockApi.fetchDrilldownRows(company.id, key, filters);
-    setDrilldown({ open: true, title, rows, hint });
+    setDrilldown({
+      open: true,
+      title,
+      rows: [],
+      hint,
+      status: 'loading',
+      errorMessage: undefined,
+    });
+
+    // Mock async: simula carregamento por clique
+    window.setTimeout(() => {
+      try {
+        const rows = mockApi.fetchDrilldownRows(company.id, key, filters);
+        setDrilldown((s) => ({ ...s, rows, status: 'ready', errorMessage: undefined }));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Erro inesperado ao carregar detalhes';
+        setDrilldown((s) => ({ ...s, status: 'error', errorMessage: msg }));
+      }
+    }, 220);
   };
 
   const exportCsvMock = (label: string) => {
-    // BACKEND: exportação real (CSV/PDF) por widget
     toast.message(`Export (mock): ${label}`, {
       description: 'Na integração, isso vai gerar CSV/PDF do recorte atual de filtros.',
     });
@@ -491,6 +737,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     });
   };
 
+  const executiveLoading = overviewQ.status !== 'ready';
+  const commercialLoading = funnelQ.status !== 'ready';
+
   return (
     <div className="p-6 md:p-8">
       {/* Header */}
@@ -498,41 +747,24 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-gray-900 mb-1">Dashboard</h1>
-            <p className="text-gray-600">
-              Visão geral da operação • filtros globais • drill-down por widget (mock)
-            </p>
+            <p className="text-gray-600">Visão geral • filtros globais • drill-down por widget (mock)</p>
           </div>
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              className="h-9 flex items-center gap-2"
-              onClick={() => onNavigate('proposals')}
-            >
+            <Button className="h-9 flex items-center gap-2" onClick={() => onNavigate('proposals')}>
               <Plus className="w-4 h-4" />
               Nova Proposta
             </Button>
-            <Button
-              variant="outline"
-              className="h-9 flex items-center gap-2"
-              onClick={() => onNavigate('inventory')}
-            >
+            <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => onNavigate('inventory')}>
               <Plus className="w-4 h-4" />
               Nova Mídia
             </Button>
-            <Button
-              variant="outline"
-              className="h-9 flex items-center gap-2"
-              onClick={() => onNavigate('mediakit')}
-            >
+            <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => onNavigate('mediakit')}>
               <Globe className="w-4 h-4" />
               Mídia Kit
             </Button>
-            <Button
-              variant="outline"
-              className="h-9 flex items-center gap-2"
-              onClick={() => setShareMapOpen(true)}
-            >
+            <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => setShareMapOpen(true)}>
               <Share2 className="w-4 h-4" />
               Compartilhar Mapa
             </Button>
@@ -554,18 +786,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={clearFilters}
-                >
+                <Button variant="outline" className="h-9" onClick={clearFilters}>
                   Limpar
                 </Button>
-                <Button
-                  variant="outline"
-                  className="h-9 flex items-center gap-2"
-                  onClick={saveViewMock}
-                >
+                <Button variant="outline" className="h-9 flex items-center gap-2" onClick={saveViewMock}>
                   Salvar visão
                 </Button>
                 <Button
@@ -630,10 +854,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
             {/* Active filter pills (informativo) */}
             <div className="mt-4 flex items-center gap-2 flex-wrap">
-              <Pill
-                label="Período"
-                value={filters.datePreset.toUpperCase()}
-              />
+              <Pill label="Período" value={filters.datePreset.toUpperCase()} />
               {filters.query ? <Pill label="Busca" value={filters.query} /> : null}
               {filters.city ? <Pill label="Cidade" value={filters.city} /> : null}
               <Pill label="Tipo" value={filters.mediaType} />
@@ -681,114 +902,124 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="space-y-6">
           {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Receita reconhecida', 'revenueRecognized', 'BACKEND: /dashboard/revenue/recognized')}>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Receita reconhecida</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.revenueRecognizedCents)}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <Delta value={overview.trends.revenue.deltaPercent} />
-                  <Sparkline points={overview.trends.revenue.points} />
-                </div>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Receita reconhecida"
+              value={overview ? formatCurrency(overview.revenueRecognizedCents) : undefined}
+              delta={overview?.trends.revenue.deltaPercent}
+              spark={overview?.trends.revenue.points}
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Receita reconhecida', 'revenueRecognized', 'BACKEND: /dashboard/revenue/recognized')}
+            />
 
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('A faturar', 'revenueToInvoice', 'BACKEND: /dashboard/revenue/to-invoice')}>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">A faturar</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.revenueToInvoiceCents)}</p>
-                <p className="text-xs text-gray-500 mt-2">Forecast simplificado (mock)</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="A faturar"
+              value={overview ? formatCurrency(overview.revenueToInvoiceCents) : undefined}
+              helper="Forecast simplificado (mock)"
+              loading={executiveLoading}
+              onClick={() => openDrilldown('A faturar', 'revenueToInvoice', 'BACKEND: /dashboard/revenue/to-invoice')}
+            />
 
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Ocupação', 'occupancy', 'BACKEND: /dashboard/occupancy')}>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Ocupação</p>
-                <p className="text-gray-900 mt-1">{overview.occupancyPercent}%</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <Delta value={overview.trends.occupancy.deltaPercent} />
-                  <Sparkline points={overview.trends.occupancy.points} />
-                </div>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Ocupação"
+              value={overview ? `${overview.occupancyPercent}%` : undefined}
+              delta={overview?.trends.occupancy.deltaPercent}
+              spark={overview?.trends.occupancy.points}
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Ocupação', 'occupancy', 'BACKEND: /dashboard/occupancy')}
+            />
 
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Inadimplência', 'receivablesOverdue', 'BACKEND: /dashboard/receivables/aging')}>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Inadimplência</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.receivablesOverdueCents)}</p>
-                <p className="text-xs text-gray-500 mt-2">Aging (mock)</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Inadimplência"
+              value={overview ? formatCurrency(overview.receivablesOverdueCents) : undefined}
+              helper="Aging (mock)"
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Inadimplência', 'receivablesOverdue', 'BACKEND: /dashboard/receivables/aging')}
+            />
           </div>
 
           {/* Alerts */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Atenção hoje</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                {alerts.map((a) => (
-                  <div key={a.id} className="border border-gray-200 rounded-lg p-4 bg-white">
-                    <div className="flex items-start gap-2">
-                      <SeverityDot severity={a.severity} />
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-900">{a.title}</p>
-                        <p className="text-xs text-gray-500 mt-1">{a.description}</p>
-                      </div>
-                      <AlertTriangle className="w-4 h-4 text-gray-400" />
+          <WidgetCard
+            title="Atenção hoje"
+            subtitle="Alertas inteligentes (mock) — filtrados pela busca"
+            loading={alertsQ.status === 'loading' && !alertsQ.data}
+            error={alertsQ.status === 'error' ? { title: 'Falha ao carregar alertas', description: alertsQ.errorMessage } : null}
+            empty={alerts.length === 0 && alertsQ.status === 'ready'}
+            emptyTitle="Sem alertas"
+            emptyDescription="Nada para destacar com os filtros atuais."
+            actions={
+              <Button variant="outline" className="h-9" onClick={() => alertsQ.refetch()}>
+                Recarregar
+              </Button>
+            }
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {alerts.map((a) => (
+                <div key={a.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                  <div className="flex items-start gap-2">
+                    <SeverityDot severity={a.severity} />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-900">{a.title}</p>
+                      <p className="text-xs text-gray-500 mt-1">{a.description}</p>
                     </div>
-                    {a.ctaLabel && a.ctaPage ? (
-                      <Button
-                        variant="outline"
-                        className="w-full mt-3 h-9"
-                        onClick={() => onNavigate(a.ctaPage!)}
-                      >
-                        {a.ctaLabel}
-                      </Button>
-                    ) : null}
+                    <AlertTriangle className="w-4 h-4 text-gray-400" />
+                  </div>
+                  {a.ctaLabel && a.ctaPage ? (
+                    <Button variant="outline" className="w-full mt-3 h-9" onClick={() => onNavigate(a.ctaPage!)}>
+                      {a.ctaLabel}
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </WidgetCard>
+
+          {/* Widgets */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <WidgetCard
+              title="Tendência de Receita"
+              subtitle="Gráfico (mock)"
+              loading={executiveLoading}
+              actions={
+                <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Tendência de Receita')}>
+                  Exportar
+                </Button>
+              }
+            >
+              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                Gráfico (mock) • BACKEND: /dashboard/revenue/timeseries
+              </div>
+            </WidgetCard>
+
+            <WidgetCard
+              title="Top Clientes"
+              subtitle="Ranking (mock)"
+              loading={executiveLoading}
+              actions={
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => openDrilldown('Top Clientes', 'topClients', 'BACKEND: /dashboard/clients/top')}
+                >
+                  Ver detalhes
+                </Button>
+              }
+            >
+              <div className="space-y-3">
+                {['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map((name, idx) => (
+                  <div key={name} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-900">
+                        {idx + 1}. {name}
+                      </p>
+                      <p className="text-xs text-gray-500">Ticket médio: {overview ? formatCurrency(overview.averageTicketCents) : '—'}</p>
+                    </div>
+                    <span className="text-sm text-gray-700">
+                      {overview ? formatCurrency(overview.averageTicketCents + idx * 70000) : '—'}
+                    </span>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Widgets placeholder */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Tendência de Receita</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Tendência de Receita')}>Exportar</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                  Gráfico (mock) • BACKEND: /dashboard/revenue/timeseries
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Top Clientes</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => openDrilldown('Top Clientes', 'topClients', 'BACKEND: /dashboard/clients/top')}>Ver detalhes</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map((name, idx) => (
-                    <div key={name} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-900">{idx + 1}. {name}</p>
-                        <p className="text-xs text-gray-500">Ticket médio: {formatCurrency(overview.averageTicketCents)}</p>
-                      </div>
-                      <span className="text-sm text-gray-700">{formatCurrency(overview.averageTicketCents + idx * 70000)}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            </WidgetCard>
           </div>
         </div>
       ) : null}
@@ -796,51 +1027,65 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {tab === 'comercial' ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Propostas', 'proposalsTotal', 'BACKEND: /dashboard/proposals') }>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Propostas (período)</p>
-                <p className="text-gray-900 mt-1">{overview.proposalsTotal}</p>
-                <div className="mt-2 flex items-center justify-between">
-                  <Delta value={overview.trends.proposals.deltaPercent} />
-                  <Sparkline points={overview.trends.proposals.points} />
-                </div>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Propostas (período)"
+              value={overview ? String(overview.proposalsTotal) : undefined}
+              delta={overview?.trends.proposals.deltaPercent}
+              spark={overview?.trends.proposals.points}
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Propostas', 'proposalsTotal', 'BACKEND: /dashboard/proposals')}
+            />
 
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Taxa de aprovação</p>
-                <p className="text-gray-900 mt-1">{overview.approvalRatePercent}%</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/proposals/approval-rate</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Taxa de aprovação"
+              value={overview ? `${overview.approvalRatePercent}%` : undefined}
+              helper="BACKEND: /dashboard/proposals/approval-rate"
+              loading={executiveLoading}
+            />
 
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Ciclo médio</p>
-                <p className="text-gray-900 mt-1">{funnel.averageDaysToClose} dias</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/proposals/time-to-close</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Ciclo médio"
+              value={funnel ? `${funnel.averageDaysToClose} dias` : undefined}
+              helper="BACKEND: /dashboard/proposals/time-to-close"
+              loading={commercialLoading}
+            />
 
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Campanhas ativas', 'campaignsActive', 'BACKEND: /dashboard/campaigns/active') }>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Campanhas ativas</p>
-                <p className="text-gray-900 mt-1">{overview.campaignsActiveCount}</p>
-                <p className="text-xs text-gray-500 mt-2">Total: {formatCurrency(overview.campaignsActiveAmountCents)}</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Campanhas ativas"
+              value={overview ? String(overview.campaignsActiveCount) : undefined}
+              helper={overview ? `Total: ${formatCurrency(overview.campaignsActiveAmountCents)}` : '—'}
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Campanhas ativas', 'campaignsActive', 'BACKEND: /dashboard/campaigns/active')}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Funil comercial</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Funil comercial')}>Exportar</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
+            <WidgetCard
+              title="Funil comercial"
+              subtitle="Pipeline por etapa (mock)"
+              loading={commercialLoading}
+              error={funnelQ.status === 'error' ? { title: 'Falha ao carregar funil', description: funnelQ.errorMessage } : null}
+              actions={
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => {
+                    if (!funnel) return;
+                    const rows = funnel.stages.map((s) => ({
+                      id: s.key,
+                      title: s.label,
+                      subtitle: `Qtd: ${s.count}`,
+                      status: '',
+                      amountCents: s.amountCents,
+                    }));
+                    exportDrilldownCsv('funil_comercial', rows);
+                  }}
+                >
+                  Exportar CSV
+                </Button>
+              }
+            >
+              {funnel ? (
                 <div className="space-y-4">
                   {funnel.stages.map((s) => {
                     const maxCount = Math.max(...funnel.stages.map((x) => x.count), 1);
@@ -854,51 +1099,54 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
                           <div className="h-2 bg-gray-300" style={{ width: `${w}%` }} />
                         </div>
-                        {s.amountCents > 0 ? (
-                          <p className="text-xs text-gray-500 mt-1">{formatCurrency(s.amountCents)}</p>
-                        ) : null}
+                        {s.amountCents > 0 ? <p className="text-xs text-gray-500 mt-1">{formatCurrency(s.amountCents)}</p> : null}
                       </div>
                     );
                   })}
+                  <p className="text-xs text-gray-500 mt-4">BACKEND: /dashboard/funnel</p>
                 </div>
-                <p className="text-xs text-gray-500 mt-4">BACKEND: /dashboard/funnel</p>
-              </CardContent>
-            </Card>
+              ) : null}
+            </WidgetCard>
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Propostas paradas</CardTitle>
-                  <Button
-                    variant="outline"
-                    className="h-9"
-                    onClick={() => openDrilldown('Propostas paradas', 'stalledProposals', 'BACKEND: /dashboard/proposals/stalled')}
+            <WidgetCard
+              title="Propostas paradas"
+              subtitle="Ações rápidas (mock)"
+              loading={commercialLoading}
+              error={funnelQ.status === 'error' ? { title: 'Falha ao carregar lista', description: funnelQ.errorMessage } : null}
+              empty={!!funnel && funnel.stalledProposals.length === 0 && funnelQ.status === 'ready'}
+              emptyTitle="Nada aqui"
+              emptyDescription="Nenhuma proposta parou com os filtros atuais."
+              actions={
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => openDrilldown('Propostas paradas', 'stalledProposals', 'BACKEND: /dashboard/proposals/stalled')}
+                >
+                  Ver todas
+                </Button>
+              }
+            >
+              <div className="space-y-3">
+                {funnel?.stalledProposals.slice(0, 5).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="w-full text-left border border-gray-200 rounded-lg p-3 hover:bg-gray-50"
+                    onClick={() => onNavigate('proposals')}
                   >
-                    Ver todas
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {funnel.stalledProposals.slice(0, 5).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className="w-full text-left border border-gray-200 rounded-lg p-3 hover:bg-gray-50"
-                      onClick={() => onNavigate('proposals')}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-gray-900">{p.title}</p>
-                          <p className="text-xs text-gray-500">{p.client} • {p.daysWithoutUpdate} dias sem atualização</p>
-                        </div>
-                        <p className="text-sm text-gray-700">{formatCurrency(p.amountCents)}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-gray-900">{p.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {p.client} • {p.daysWithoutUpdate} dias sem atualização
+                        </p>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                      <p className="text-sm text-gray-700">{formatCurrency(p.amountCents)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </WidgetCard>
           </div>
         </div>
       ) : null}
@@ -906,57 +1154,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {tab === 'operacoes' ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Aguardando material', 'awaitingMaterial', 'BACKEND: /dashboard/campaigns/awaiting-material') }>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Aguardando material</p>
-                <p className="text-gray-900 mt-1">{2 + (seedNumber(company.id) % 7)}</p>
-                <p className="text-xs text-gray-500 mt-2">SLA (mock)</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Em instalação</p>
-                <p className="text-gray-900 mt-1">{1 + (seedNumber(company.id + 'inst') % 5)}</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/ops/installation</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">DOOH Uptime</p>
-                <p className="text-gray-900 mt-1">{92 + (seedNumber(company.id + 'upt') % 7)}%</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/dooh/uptime</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Falhas / Offline</p>
-                <p className="text-gray-900 mt-1">{seedNumber(company.id + 'off') % 9}</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/dooh/offline</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Aguardando material"
+              value={String(2 + (seedNumber(company.id) % 7))}
+              helper="SLA (mock)"
+              onClick={() => openDrilldown('Aguardando material', 'awaitingMaterial', 'BACKEND: /dashboard/campaigns/awaiting-material')}
+            />
+            <KpiCard label="Em instalação" value={String(1 + (seedNumber(company.id + 'inst') % 5))} helper="BACKEND: /dashboard/ops/installation" />
+            <KpiCard label="DOOH Uptime" value={`${92 + (seedNumber(company.id + 'upt') % 7)}%`} helper="BACKEND: /dashboard/dooh/uptime" />
+            <KpiCard label="Falhas / Offline" value={String(seedNumber(company.id + 'off') % 9)} helper="BACKEND: /dashboard/dooh/offline" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Status operacional (OOH)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                  Checklist / SLA / pendências (mock) • BACKEND: /dashboard/ooh/ops
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Proof-of-play (DOOH)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                  Relatório POP (mock) • BACKEND: /dashboard/dooh/proof-of-play
-                </div>
-              </CardContent>
-            </Card>
+            <WidgetCard title="Status operacional (OOH)" subtitle="Checklist / SLA / pendências (mock)" actions={
+              <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Status operacional (OOH)')}>Exportar</Button>
+            }>
+              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                BACKEND: /dashboard/ooh/ops
+              </div>
+            </WidgetCard>
+
+            <WidgetCard title="Proof-of-play (DOOH)" subtitle="Relatório POP (mock)" actions={
+              <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Proof-of-play (DOOH)')}>Exportar</Button>
+            }>
+              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                BACKEND: /dashboard/dooh/proof-of-play
+              </div>
+            </WidgetCard>
           </div>
         </div>
       ) : null}
@@ -964,74 +1188,85 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {tab === 'financeiro' ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Contas a receber', 'receivablesOpen', 'BACKEND: /dashboard/receivables/open') }>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Contas a receber</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.revenueToInvoiceCents + 900000)}</p>
-                <p className="text-xs text-gray-500 mt-2">Forecast (mock)</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">A vencer (7 dias)</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.revenueToInvoiceCents * 0.35)}</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/receivables/due-7d</p>
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => openDrilldown('Vencidas', 'receivablesOverdue', 'BACKEND: /dashboard/receivables/overdue') }>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Vencidas</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.receivablesOverdueCents)}</p>
-                <p className="text-xs text-gray-500 mt-2">Aging (mock)</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Recebido no mês</p>
-                <p className="text-gray-900 mt-1">{formatCurrency(overview.revenueRecognizedCents * 0.42)}</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/cashflow/received-this-month</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Contas a receber"
+              value={overview ? formatCurrency(overview.revenueToInvoiceCents + 900000) : undefined}
+              helper="Forecast (mock)"
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Contas a receber', 'receivablesOpen', 'BACKEND: /dashboard/receivables/open')}
+            />
+            <KpiCard
+              label="A vencer (7 dias)"
+              value={overview ? formatCurrency(overview.revenueToInvoiceCents * 0.35) : undefined}
+              helper="BACKEND: /dashboard/receivables/due-7d"
+              loading={executiveLoading}
+            />
+            <KpiCard
+              label="Vencidas"
+              value={overview ? formatCurrency(overview.receivablesOverdueCents) : undefined}
+              helper="Aging (mock)"
+              loading={executiveLoading}
+              onClick={() => openDrilldown('Vencidas', 'receivablesOverdue', 'BACKEND: /dashboard/receivables/overdue')}
+            />
+            <KpiCard
+              label="Recebido no mês"
+              value={overview ? formatCurrency(overview.revenueRecognizedCents * 0.42) : undefined}
+              helper="BACKEND: /dashboard/cashflow/received-this-month"
+              loading={executiveLoading}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Fluxo de caixa (mock)</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Fluxo de caixa')}>Exportar</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                  Série por dia/semana • BACKEND: /dashboard/cashflow/timeseries
-                </div>
-              </CardContent>
-            </Card>
+            <WidgetCard
+              title="Fluxo de caixa"
+              subtitle="Série por dia/semana (mock)"
+              loading={executiveLoading}
+              actions={
+                <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Fluxo de caixa')}>
+                  Exportar
+                </Button>
+              }
+            >
+              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
+                BACKEND: /dashboard/cashflow/timeseries
+              </div>
+            </WidgetCard>
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Aging (mock)</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => openDrilldown('Aging', 'aging', 'BACKEND: /dashboard/receivables/aging')}>Ver lista</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {[['0-7 dias', 0.22], ['8-15 dias', 0.18], ['16-30 dias', 0.27], ['31+ dias', 0.33]].map(([label, ratio]) => (
-                    <div key={label as string}>
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm text-gray-700">{label as string}</p>
-                        <p className="text-sm text-gray-900">{formatCurrency(overview.revenueToInvoiceCents * (ratio as number))}</p>
+            <WidgetCard
+              title="Aging (mock)"
+              subtitle="Distribuição por faixa"
+              loading={executiveLoading}
+              actions={
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => openDrilldown('Aging', 'aging', 'BACKEND: /dashboard/receivables/aging')}
+                >
+                  Ver lista
+                </Button>
+              }
+            >
+              <div className="space-y-3">
+                {overview
+                  ? [
+                      ['0-7 dias', 0.22],
+                      ['8-15 dias', 0.18],
+                      ['16-30 dias', 0.27],
+                      ['31+ dias', 0.33],
+                    ].map(([label, ratio]) => (
+                      <div key={label as string}>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm text-gray-700">{label as string}</p>
+                          <p className="text-sm text-gray-900">{formatCurrency(overview.revenueToInvoiceCents * (ratio as number))}</p>
+                        </div>
+                        <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
+                          <div className="h-2 bg-gray-300" style={{ width: `${Math.round((ratio as number) * 100)}%` }} />
+                        </div>
                       </div>
-                      <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
-                        <div className="h-2 bg-gray-300" style={{ width: `${Math.round((ratio as number) * 100)}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    ))
+                  : null}
+              </div>
+            </WidgetCard>
           </div>
         </div>
       ) : null}
@@ -1039,73 +1274,78 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {tab === 'inventario' ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="cursor-pointer hover:shadow-sm" onClick={() => onNavigate('inventory') }>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Inventário total</p>
-                <p className="text-gray-900 mt-1">{overview.inventoryTotalPoints}</p>
-                <p className="text-xs text-gray-500 mt-2">BACKEND: /dashboard/inventory/summary</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Disponíveis</p>
-                <p className="text-gray-900 mt-1">{Math.round(overview.inventoryTotalPoints * (1 - overview.occupancyPercent / 100))}</p>
-                <p className="text-xs text-gray-500 mt-2">Ocupação: {overview.occupancyPercent}%</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Clientes ativos</p>
-                <p className="text-gray-900 mt-1">{overview.clientsActiveCount}</p>
-                <p className="text-xs text-gray-500 mt-2">Ticket médio: {formatCurrency(overview.averageTicketCents)}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-5">
-                <p className="text-xs text-gray-500">Campanhas ativas</p>
-                <p className="text-gray-900 mt-1">{overview.campaignsActiveCount}</p>
-                <p className="text-xs text-gray-500 mt-2">Total: {formatCurrency(overview.campaignsActiveAmountCents)}</p>
-              </CardContent>
-            </Card>
+            <KpiCard
+              label="Inventário total"
+              value={overview ? String(overview.inventoryTotalPoints) : undefined}
+              helper="BACKEND: /dashboard/inventory/summary"
+              loading={executiveLoading}
+              onClick={() => onNavigate('inventory')}
+            />
+            <KpiCard
+              label="Disponíveis"
+              value={overview ? String(Math.round(overview.inventoryTotalPoints * (1 - overview.occupancyPercent / 100))) : undefined}
+              helper={overview ? `Ocupação: ${overview.occupancyPercent}%` : '—'}
+              loading={executiveLoading}
+            />
+            <KpiCard
+              label="Clientes ativos"
+              value={overview ? String(overview.clientsActiveCount) : undefined}
+              helper={overview ? `Ticket médio: ${formatCurrency(overview.averageTicketCents)}` : '—'}
+              loading={executiveLoading}
+            />
+            <KpiCard
+              label="Campanhas ativas"
+              value={overview ? String(overview.campaignsActiveCount) : undefined}
+              helper={overview ? `Total: ${formatCurrency(overview.campaignsActiveAmountCents)}` : '—'}
+              loading={executiveLoading}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Mapa e ocupação</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => setShareMapOpen(true)}>Compartilhar</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="h-52 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-sm text-gray-500 gap-2">
-                  <p>Mapa (mock) • pins por ocupação</p>
-                  <p className="text-xs">BACKEND: /dashboard/inventory/map</p>
-                </div>
-              </CardContent>
-            </Card>
+            <WidgetCard
+              title="Mapa e ocupação"
+              subtitle="Mapa (mock) • pins por ocupação"
+              loading={executiveLoading}
+              actions={
+                <Button variant="outline" className="h-9" onClick={() => setShareMapOpen(true)}>
+                  Compartilhar
+                </Button>
+              }
+            >
+              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-sm text-gray-500 gap-2">
+                <p>Mapa (mock)</p>
+                <p className="text-xs">BACKEND: /dashboard/inventory/map</p>
+              </div>
+            </WidgetCard>
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Ranking de pontos</CardTitle>
-                  <Button variant="outline" className="h-9" onClick={() => openDrilldown('Ranking de pontos', 'inventoryRanking', 'BACKEND: /dashboard/inventory/ranking')}>Ver lista</Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {['Painel A', 'Painel B', 'Painel C', 'Painel D', 'Painel E'].map((name, idx) => (
-                    <div key={name} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-900">{idx + 1}. {name}</p>
-                        <p className="text-xs text-gray-500">Cidade: {filters.city || '—'}</p>
-                      </div>
-                      <span className="text-sm text-gray-700">{Math.round(overview.occupancyPercent - idx * 3)}%</span>
+            <WidgetCard
+              title="Ranking de pontos"
+              subtitle="Top 5 (mock)"
+              loading={executiveLoading}
+              actions={
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => openDrilldown('Ranking de pontos', 'inventoryRanking', 'BACKEND: /dashboard/inventory/ranking')}
+                >
+                  Ver lista
+                </Button>
+              }
+            >
+              <div className="space-y-3">
+                {['Painel A', 'Painel B', 'Painel C', 'Painel D', 'Painel E'].map((name, idx) => (
+                  <div key={name} className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-900">
+                        {idx + 1}. {name}
+                      </p>
+                      <p className="text-xs text-gray-500">Cidade: {filters.city || '—'}</p>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <span className="text-sm text-gray-700">{overview ? `${Math.round(overview.occupancyPercent - idx * 3)}%` : '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </WidgetCard>
           </div>
         </div>
       ) : null}
@@ -1113,18 +1353,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {/* Drill-down Drawer (custom) */}
       {drilldown.open ? (
         <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setDrilldown((s) => ({ ...s, open: false }))}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDrilldown((s) => ({ ...s, open: false }))} />
 
           <div className="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-white shadow-xl flex flex-col">
             <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-3">
               <div>
                 <p className="text-gray-900">{drilldown.title}</p>
-                {drilldown.hint ? (
-                  <p className="text-xs text-gray-500 mt-1">{drilldown.hint}</p>
-                ) : null}
+                {drilldown.hint ? <p className="text-xs text-gray-500 mt-1">{drilldown.hint}</p> : null}
               </div>
               <button
                 type="button"
@@ -1136,38 +1371,48 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             <div className="p-4 overflow-y-auto flex-1">
-              <div className="space-y-3">
-                {drilldown.rows.map((r) => (
-                  <div key={r.id} className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-gray-900">{r.title}</p>
-                        {r.subtitle ? <p className="text-xs text-gray-500">{r.subtitle}</p> : null}
-                        {r.status ? <p className="text-xs text-gray-500 mt-1">Status: {r.status}</p> : null}
+              {drilldown.status === 'loading' ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="h-5 w-1/2" />
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : drilldown.status === 'error' ? (
+                <ErrorState title="Falha ao carregar detalhes" description={drilldown.errorMessage} />
+              ) : drilldown.rows.length === 0 ? (
+                <EmptyState title="Sem itens" description="Nada encontrado para este recorte de filtros." />
+              ) : (
+                <div className="space-y-3">
+                  {drilldown.rows.map((r) => (
+                    <div key={r.id} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-gray-900">{r.title}</p>
+                          {r.subtitle ? <p className="text-xs text-gray-500">{r.subtitle}</p> : null}
+                          {r.status ? <p className="text-xs text-gray-500 mt-1">Status: {r.status}</p> : null}
+                        </div>
+                        {typeof r.amountCents === 'number' ? <p className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</p> : null}
                       </div>
-                      {typeof r.amountCents === 'number' ? (
-                        <p className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</p>
-                      ) : null}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               <div className="mt-4">
                 <Button
                   variant="outline"
                   className="w-full h-9"
-                  onClick={() => exportCsvMock(drilldown.title)}
+                  onClick={() => exportDrilldownCsv(drilldown.title, drilldown.rows)}
+                  disabled={drilldown.rows.length === 0 || drilldown.status !== 'ready'}
                 >
-                  Exportar lista (mock)
+                  Exportar CSV (mock)
                 </Button>
               </div>
             </div>
 
             <div className="p-4 border-t border-gray-200">
-              <p className="text-xs text-gray-500">
-                Este drawer é mock. Na integração, ele abrirá listas reais filtradas (com paginação/ordenação).
-              </p>
+              <p className="text-xs text-gray-500">Este drawer é mock. Na integração, ele abrirá listas reais filtradas (com paginação/ordenação).</p>
             </div>
           </div>
         </div>
@@ -1179,8 +1424,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <DialogHeader>
             <DialogTitle>Compartilhar mapa de pontos</DialogTitle>
             <DialogDescription>
-              Compartilhe o link público do mapa de pontos de mídia da sua empresa.
-              Qualquer pessoa com o link poderá visualizar os pontos disponíveis.
+              Compartilhe o link público do mapa de pontos de mídia da sua empresa. Qualquer pessoa com o link poderá
+              visualizar os pontos disponíveis.
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center space-x-2">
