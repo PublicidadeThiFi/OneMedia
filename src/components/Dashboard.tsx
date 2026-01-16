@@ -102,6 +102,10 @@ const DASHBOARD_BACKEND_ROUTES = {
   // Extras (quando formos evoluir os widgets):
   revenueTimeseries: '/api/dashboard/revenue/timeseries',
   cashflowTimeseries: '/api/dashboard/cashflow/timeseries',
+  topClients: '/api/dashboard/top/clients',
+  receivablesAgingSummary: '/api/dashboard/receivables/aging/summary',
+  oohOpsSummary: '/api/dashboard/ooh/ops/summary',
+  doohProofOfPlaySummary: '/api/dashboard/dooh/proof-of-play/summary',
   inventoryMap: '/api/dashboard/inventory/map',
   inventoryRanking: '/api/dashboard/inventory/ranking',
 } as const;
@@ -238,6 +242,54 @@ type InventoryRankingRow = {
 
 type DashboardInventoryRankingDTO = {
   rows: InventoryRankingRow[];
+};
+
+type TopClientRow = {
+  id: string;
+  name: string;
+  city?: string;
+  amountCents: number;
+  campaignsCount: number;
+  averageTicketCents?: number;
+};
+
+type DashboardTopClientsDTO = {
+  rows: TopClientRow[];
+};
+
+type AgingBucket = {
+  label: string;
+  amountCents: number;
+};
+
+type DashboardReceivablesAgingSummaryDTO = {
+  totalCents: number;
+  buckets: AgingBucket[];
+};
+
+type OohOpsItem = {
+  id: string;
+  title: string;
+  status: 'OK' | 'PENDING' | 'LATE';
+  city?: string;
+  dueDate?: string; // ISO date
+};
+
+type DashboardOohOpsSummaryDTO = {
+  items: OohOpsItem[];
+};
+
+type ProofOfPlayRow = {
+  id: string;
+  screen: string;
+  city?: string;
+  uptimePercent: number;
+  plays: number;
+  lastSeen?: string; // ISO datetime
+};
+
+type DashboardDoohProofOfPlaySummaryDTO = {
+  rows: ProofOfPlayRow[];
 };
 
 type KpiTrend = {
@@ -585,7 +637,122 @@ const mockApi = {
 
     return { rows: filtered };
   },
-getPublicMapUrl: (companyId: string) => {
+
+  fetchTopClients: (companyId: string, filters: DashboardFilters): DashboardTopClientsDTO => {
+    // BACKEND: GET /dashboard/top/clients?...
+    // Prisma: Client, Proposal, Campaign, BillingInvoice/CashTransaction (para receita)
+    const s = seedNumber(`${companyId}:topclients:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const city = filters.city?.trim() || undefined;
+
+    const baseNames = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Omega', 'Sigma', 'Kappa', 'Lambda'];
+
+    const rows: TopClientRow[] = Array.from({ length: 10 }).map((_, i) => {
+      const id = `CL-${(s % 6000) + 3000 + i}`;
+      const amountCents = 350000 + ((s + i * 997) % 3800000);
+      const campaignsCount = 1 + ((s + i * 37) % 6);
+      const averageTicketCents = Math.floor(amountCents / Math.max(1, campaignsCount));
+      return {
+        id,
+        name: baseNames[i % baseNames.length] + (i < 5 ? '' : ` ${String.fromCharCode(65 + (i % 26))}`),
+        city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
+        amountCents,
+        campaignsCount,
+        averageTicketCents,
+      };
+    });
+
+    const q = normalizeText(filters.query);
+    const filtered = q
+      ? rows.filter((r) => includesNormalized(`${r.id} ${r.name} ${r.city || ''}`, q))
+      : rows;
+
+    filtered.sort((a, b) => (b.amountCents ?? 0) - (a.amountCents ?? 0));
+    return { rows: filtered };
+  },
+
+  fetchReceivablesAgingSummary: (companyId: string, filters: DashboardFilters): DashboardReceivablesAgingSummaryDTO => {
+    // BACKEND: GET /dashboard/receivables/aging/summary?...
+    // Prisma: BillingInvoice (status OPEN/OVERDUE + dueDate), CashTransaction (recebidos)
+    const s = seedNumber(`${companyId}:aging:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const totalCents = 900000 + (s % 5500000);
+    const ratios = [0.22, 0.18, 0.27, 0.33];
+    const labels = ['0-7 dias', '8-15 dias', '16-30 dias', '31+ dias'];
+
+    const buckets: AgingBucket[] = labels.map((label, idx) => {
+      const wiggle = ((s + idx * 31) % 11) - 5; // -5..+5
+      const ratio = clamp(ratios[idx] + wiggle * 0.005, 0.08, 0.6);
+      const amountCents = Math.round(totalCents * ratio);
+      return { label, amountCents };
+    });
+
+    return { totalCents, buckets };
+  },
+
+  fetchOohOpsSummary: (companyId: string, filters: DashboardFilters): DashboardOohOpsSummaryDTO => {
+    // BACKEND: GET /dashboard/ooh/ops/summary?...
+    // Prisma: Campaign (status/etapas), Reservation (instalação), MediaUnit/MediaPoint (pendências)
+    const s = seedNumber(`${companyId}:oohops:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const city = filters.city?.trim() || undefined;
+    const statuses: Array<OohOpsItem['status']> = ['OK', 'PENDING', 'LATE'];
+    const titles = ['Aguardando material', 'Agendar instalação', 'Revisar arte', 'Pendência de foto', 'Recolher prova', 'Confirmar local'];
+
+    const items: OohOpsItem[] = Array.from({ length: 10 }).map((_, i) => {
+      const id = `OPS-${(s % 7000) + 1000 + i}`;
+      const due = new Date();
+      due.setDate(due.getDate() + ((s + i * 7) % 12) - 4);
+      const status = statuses[(s + i * 13) % statuses.length];
+      return {
+        id,
+        title: titles[i % titles.length],
+        status,
+        city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
+        dueDate: due.toISOString(),
+      };
+    });
+
+    const q = normalizeText(filters.query);
+    const filtered = q
+      ? items.filter((it) => includesNormalized(`${it.id} ${it.title} ${it.city || ''} ${it.status}`, q))
+      : items;
+
+    // Ordena por urgência: LATE > PENDING > OK
+    const rank = (st: OohOpsItem['status']) => (st === 'LATE' ? 2 : st === 'PENDING' ? 1 : 0);
+    filtered.sort((a, b) => rank(b.status) - rank(a.status));
+    return { items: filtered };
+  },
+
+  fetchDoohProofOfPlaySummary: (companyId: string, filters: DashboardFilters): DashboardDoohProofOfPlaySummaryDTO => {
+    // BACKEND: GET /dashboard/dooh/proof-of-play/summary?...
+    // Prisma: Screen/Device (DOOH), logs de exibição (proofOfPlay), falhas/offline
+    const s = seedNumber(`${companyId}:pop:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const city = filters.city?.trim() || undefined;
+
+    const rows: ProofOfPlayRow[] = Array.from({ length: 10 }).map((_, i) => {
+      const id = `SCR-${(s % 9000) + 1000 + i}`;
+      const uptimePercent = clamp(88 + ((s + i * 9) % 15), 0, 100);
+      const plays = 1200 + ((s + i * 77) % 6200);
+      const lastSeen = new Date();
+      lastSeen.setMinutes(lastSeen.getMinutes() - ((s + i * 23) % 600));
+      return {
+        id,
+        screen: `Tela ${String.fromCharCode(65 + (i % 26))}-${(s % 90) + i + 1}`,
+        city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
+        uptimePercent,
+        plays,
+        lastSeen: lastSeen.toISOString(),
+      };
+    });
+
+    const q = normalizeText(filters.query);
+    const filtered = q
+      ? rows.filter((r) => includesNormalized(`${r.id} ${r.screen} ${r.city || ''}`, q))
+      : rows;
+
+    filtered.sort((a, b) => (b.uptimePercent ?? 0) - (a.uptimePercent ?? 0));
+    return { rows: filtered };
+  },
+
+  getPublicMapUrl: (companyId: string) => {
     // BACKEND: company.publicMapUrl (ou service de infra)
     const s = seedNumber(companyId);
     return `https://onemedia.app/public/map/${companyId}?t=${s % 100000}`;
@@ -819,6 +986,24 @@ function exportDrilldownCsv(label: string, rows: DrilldownRow[]) {
   toast.success('CSV exportado (mock)', { description: filename });
 }
 
+function exportAgingBucketsCsv(label: string, buckets: AgingBucket[], totalCents?: number) {
+  const header = ['bucket', 'amount', 'total'];
+  const lines = [header.join(';')];
+
+  for (const b of buckets) {
+    lines.push([
+      escapeCsvValue(b.label),
+      escapeCsvValue(formatCurrency(b.amountCents)),
+      escapeCsvValue(typeof totalCents === 'number' ? formatCurrency(totalCents) : ''),
+    ].join(';'));
+  }
+
+  const safe = label.replace(/[^a-z0-9\-\_]+/gi, '_').slice(0, 40);
+  const filename = `export_${safe || 'dashboard'}_aging.csv`;
+  downloadTextFile(filename, lines.join('\n'), 'text/csv;charset=utf-8');
+  toast.success('CSV exportado (mock)', { description: filename });
+}
+
 function formatShortDate(iso: string) {
   try {
     return new Date(iso).toLocaleDateString('pt-BR');
@@ -949,6 +1134,42 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       dashboardGetJson<DashboardInventoryRankingDTO>(DASHBOARD_BACKEND_ROUTES.inventoryRanking, backendQs, { signal }),
   });
 
+  const topClientsQ = useDashboardQuery<DashboardTopClientsDTO>({
+    enabled: !!company && tab === 'executivo',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchTopClients(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardTopClientsDTO>(DASHBOARD_BACKEND_ROUTES.topClients, backendQs, { signal }),
+  });
+
+  const agingQ = useDashboardQuery<DashboardReceivablesAgingSummaryDTO>({
+    enabled: !!company && tab === 'financeiro',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchReceivablesAgingSummary(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardReceivablesAgingSummaryDTO>(DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary, backendQs, { signal }),
+  });
+
+  const oohOpsQ = useDashboardQuery<DashboardOohOpsSummaryDTO>({
+    enabled: !!company && tab === 'operacoes',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchOohOpsSummary(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardOohOpsSummaryDTO>(DASHBOARD_BACKEND_ROUTES.oohOpsSummary, backendQs, { signal }),
+  });
+
+  const popQ = useDashboardQuery<DashboardDoohProofOfPlaySummaryDTO>({
+    enabled: !!company && tab === 'operacoes',
+    mode: DASHBOARD_DATA_MODE,
+    deps: [company?.id, backendQs],
+    computeMock: () => mockApi.fetchDoohProofOfPlaySummary(company!.id, filters),
+    fetcher: (signal) =>
+      dashboardGetJson<DashboardDoohProofOfPlaySummaryDTO>(DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary, backendQs, { signal }),
+  });
+
 
   const overview = overviewQ.data;
   const funnel = funnelQ.data;
@@ -958,6 +1179,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const cashflowTs = cashflowTsQ.data?.points || [];
   const inventoryPins = inventoryMapQ.data?.pins || [];
   const inventoryRankingRows = inventoryRankingQ.data?.rows || [];
+
+  const topClientsRows = topClientsQ.data?.rows || [];
+  const agingSummary = agingQ.data;
+  const oohOpsItems = oohOpsQ.data?.items || [];
+  const popRows = popQ.data?.rows || [];
 
 
   // URL pública do mapa (mock)
@@ -1367,32 +1593,65 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
             <WidgetCard
               title="Top Clientes"
-              subtitle="Ranking (mock)"
-              loading={executiveLoading}
+              subtitle={`Ranking (${topClientsQ.source})`}
+              loading={topClientsQ.status === 'loading' && !topClientsQ.data}
+              error={
+                topClientsQ.status === 'error'
+                  ? { title: 'Falha ao carregar ranking', description: topClientsQ.errorMessage }
+                  : null
+              }
+              empty={topClientsRows.length === 0 && topClientsQ.status === 'ready'}
+              emptyTitle="Sem dados"
+              emptyDescription="Nenhum cliente encontrado com os filtros atuais."
               actions={
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={() => openDrilldown('Top Clientes', 'topClients', 'BACKEND: /dashboard/clients/top')}
-                >
-                  Ver detalhes
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => topClientsQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => {
+                      const rows: DrilldownRow[] = topClientsRows.map((r) => ({
+                        id: r.id,
+                        title: r.name,
+                        subtitle: `${r.city || ''} • Campanhas: ${r.campaignsCount}`.trim(),
+                        status: '',
+                        amountCents: r.amountCents,
+                      }));
+                      exportDrilldownCsv('top_clientes', rows);
+                    }}
+                  >
+                    Exportar CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => openDrilldown('Top Clientes', 'topClients', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.topClients}`)}
+                  >
+                    Ver detalhes
+                  </Button>
+                </div>
               }
             >
               <div className="space-y-3">
-                {['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map((name, idx) => (
-                  <div key={name} className="flex items-center justify-between">
+                {topClientsRows.slice(0, 5).map((r, idx) => (
+                  <div key={r.id} className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-900">
-                        {idx + 1}. {name}
+                        {idx + 1}. {r.name}
                       </p>
-                      <p className="text-xs text-gray-500">Ticket médio: {overview ? formatCurrency(overview.averageTicketCents) : '—'}</p>
+                      <p className="text-xs text-gray-500">
+                        {r.city ? `${r.city} • ` : ''}Campanhas: {r.campaignsCount}
+                        {typeof r.averageTicketCents === 'number' ? ` • Ticket: ${formatCurrency(r.averageTicketCents)}` : ''}
+                      </p>
                     </div>
-                    <span className="text-sm text-gray-700">
-                      {overview ? formatCurrency(overview.averageTicketCents + idx * 70000) : '—'}
-                    </span>
+                    <span className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</span>
                   </div>
                 ))}
+                <p className="text-xs text-gray-500 mt-3">
+                  BACKEND: {DASHBOARD_BACKEND_ROUTES.topClients}?{backendQs}
+                </p>
               </div>
             </WidgetCard>
           </div>
@@ -1541,19 +1800,133 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <WidgetCard title="Status operacional (OOH)" subtitle="Checklist / SLA / pendências (mock)" actions={
-              <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Status operacional (OOH)')}>Exportar</Button>
-            }>
-              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                BACKEND: /dashboard/ooh/ops
+            <WidgetCard
+              title="Status operacional (OOH)"
+              subtitle={`Checklist / SLA / pendências (${oohOpsQ.source})`}
+              loading={oohOpsQ.status === 'loading' && !oohOpsQ.data}
+              error={
+                oohOpsQ.status === 'error'
+                  ? { title: 'Falha ao carregar status operacional', description: oohOpsQ.errorMessage }
+                  : null
+              }
+              empty={oohOpsItems.length === 0 && oohOpsQ.status === 'ready'}
+              emptyTitle="Sem pendências"
+              emptyDescription="Nada em aberto com os filtros atuais."
+              actions={
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => oohOpsQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => {
+                      const rows: DrilldownRow[] = oohOpsItems.map((it) => ({
+                        id: it.id,
+                        title: it.title,
+                        subtitle: `${it.city || ''}${it.dueDate ? ` • Até: ${formatShortDate(it.dueDate)}` : ''}`.trim(),
+                        status: it.status,
+                      }));
+                      exportDrilldownCsv('ooh_status_operacional', rows);
+                    }}
+                  >
+                    Exportar CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => openDrilldown('Status operacional (OOH)', 'oohOps', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.oohOpsSummary}`)}
+                  >
+                    Ver detalhes
+                  </Button>
+                </div>
+              }
+            >
+              <div className="space-y-3">
+                {oohOpsItems.slice(0, 6).map((it) => {
+                  const pill =
+                    it.status === 'OK'
+                      ? 'bg-green-100 text-green-700'
+                      : it.status === 'PENDING'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-red-100 text-red-700';
+                  return (
+                    <div key={it.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
+                      <div>
+                        <p className="text-sm text-gray-900">{it.title}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {it.city ? `${it.city} • ` : ''}
+                          {it.dueDate ? `Até: ${formatShortDate(it.dueDate)}` : '—'}
+                        </p>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${pill}`}>{it.status}</span>
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-gray-500 mt-3">
+                  BACKEND: {DASHBOARD_BACKEND_ROUTES.oohOpsSummary}?{backendQs}
+                </p>
               </div>
             </WidgetCard>
 
-            <WidgetCard title="Proof-of-play (DOOH)" subtitle="Relatório POP (mock)" actions={
-              <Button variant="outline" className="h-9" onClick={() => exportCsvMock('Proof-of-play (DOOH)')}>Exportar</Button>
-            }>
-              <div className="h-52 border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-sm text-gray-500">
-                BACKEND: /dashboard/dooh/proof-of-play
+            <WidgetCard
+              title="Proof-of-play (DOOH)"
+              subtitle={`Relatório POP (${popQ.source})`}
+              loading={popQ.status === 'loading' && !popQ.data}
+              error={
+                popQ.status === 'error'
+                  ? { title: 'Falha ao carregar POP', description: popQ.errorMessage }
+                  : null
+              }
+              empty={popRows.length === 0 && popQ.status === 'ready'}
+              emptyTitle="Sem dados"
+              emptyDescription="Nenhum registro POP com os filtros atuais."
+              actions={
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => popQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => {
+                      const rows: DrilldownRow[] = popRows.map((r) => ({
+                        id: r.id,
+                        title: r.screen,
+                        subtitle: `${r.city || ''}${r.lastSeen ? ` • ${formatShortDate(r.lastSeen)}` : ''}`.trim(),
+                        status: `${r.uptimePercent}%`,
+                      }));
+                      exportDrilldownCsv('proof_of_play', rows);
+                    }}
+                  >
+                    Exportar CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => openDrilldown('Proof-of-play (DOOH)', 'proofOfPlay', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary}`)}
+                  >
+                    Ver detalhes
+                  </Button>
+                </div>
+              }
+            >
+              <div className="space-y-3">
+                {popRows.slice(0, 6).map((r) => (
+                  <div key={r.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
+                    <div>
+                      <p className="text-sm text-gray-900">{r.screen}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {r.city ? `${r.city} • ` : ''}Plays: {r.plays} • Último: {r.lastSeen ? formatShortDate(r.lastSeen) : '—'}
+                      </p>
+                    </div>
+                    <span className="text-sm text-gray-700">{r.uptimePercent}%</span>
+                  </div>
+                ))}
+
+                <p className="text-xs text-gray-500 mt-3">
+                  BACKEND: {DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary}?{backendQs}
+                </p>
               </div>
             </WidgetCard>
           </div>
@@ -1640,38 +2013,59 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </WidgetCard>
 
             <WidgetCard
-              title="Aging (mock)"
-              subtitle="Distribuição por faixa"
-              loading={executiveLoading}
+              title="Aging"
+              subtitle={`Distribuição por faixa (${agingQ.source})`}
+              loading={agingQ.status === 'loading' && !agingQ.data}
+              error={
+                agingQ.status === 'error'
+                  ? { title: 'Falha ao carregar aging', description: agingQ.errorMessage }
+                  : null
+              }
+              empty={(agingSummary?.buckets?.length || 0) === 0 && agingQ.status === 'ready'}
+              emptyTitle="Sem dados"
+              emptyDescription="Não há faixas de aging para o período/filtros atuais."
               actions={
-                <Button
-                  variant="outline"
-                  className="h-9"
-                  onClick={() => openDrilldown('Aging', 'aging', 'BACKEND: /dashboard/receivables/aging')}
-                >
-                  Ver lista
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="h-9" onClick={() => agingQ.refetch()}>
+                    Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportAgingBucketsCsv('aging', agingSummary?.buckets || [], agingSummary?.totalCents)}
+                  >
+                    Exportar CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => openDrilldown('Aging', 'aging', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary}`)}
+                  >
+                    Ver lista
+                  </Button>
+                </div>
               }
             >
               <div className="space-y-3">
-                {overview
-                  ? [
-                      ['0-7 dias', 0.22],
-                      ['8-15 dias', 0.18],
-                      ['16-30 dias', 0.27],
-                      ['31+ dias', 0.33],
-                    ].map(([label, ratio]) => (
-                      <div key={label as string}>
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm text-gray-700">{label as string}</p>
-                          <p className="text-sm text-gray-900">{formatCurrency(overview.revenueToInvoiceCents * (ratio as number))}</p>
-                        </div>
-                        <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
-                          <div className="h-2 bg-gray-300" style={{ width: `${Math.round((ratio as number) * 100)}%` }} />
-                        </div>
+                {(agingSummary?.buckets || []).map((b) => {
+                  const max = Math.max(...(agingSummary?.buckets || []).map((x) => x.amountCents), 1);
+                  const w = Math.round((b.amountCents / max) * 100);
+                  return (
+                    <div key={b.label}>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm text-gray-700">{b.label}</p>
+                        <p className="text-sm text-gray-900">{formatCurrency(b.amountCents)}</p>
                       </div>
-                    ))
-                  : null}
+                      <div className="w-full h-2 rounded bg-gray-100 overflow-hidden">
+                        <div className="h-2 bg-gray-300" style={{ width: `${w}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <p className="text-xs text-gray-500 mt-3">
+                  BACKEND: {DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary}?{backendQs}
+                </p>
               </div>
             </WidgetCard>
           </div>
