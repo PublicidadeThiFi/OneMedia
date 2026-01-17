@@ -104,6 +104,100 @@ export function getDrilldownSpec(key?: string): DrilldownKeySpec {
         ],
       };
 
+
+
+    case 'inventoryPin':
+      return {
+        defaultSort: { by: 'endsAt', dir: 'desc' },
+        rowAction: { label: 'Abrir Inventário', page: 'inventory' },
+        columns: [
+          { id: 'title', label: 'Ativo', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Campanha', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          {
+            id: 'region',
+            label: 'Região',
+            sortable: true,
+            sortKey: 'region',
+            get: (r) => getRowField(r, 'region'),
+          },
+          {
+            id: 'line',
+            label: 'Linha',
+            sortable: true,
+            sortKey: 'line',
+            get: (r) => getRowField(r, 'line'),
+          },
+          {
+            id: 'startsAt',
+            label: 'Início',
+            sortable: true,
+            sortKey: 'startsAt',
+            get: (r) => getRowField(r, 'startsAt'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'date')}</span>,
+          },
+          {
+            id: 'endsAt',
+            label: 'Fim',
+            sortable: true,
+            sortKey: 'endsAt',
+            get: (r) => getRowField(r, 'endsAt'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'date')}</span>,
+          },
+          { id: 'status', label: 'Status', sortable: true, sortKey: 'status', get: (r) => r.status },
+          commonMoney,
+        ],
+      };
+
+    case 'inventoryRegionLine':
+      return {
+        defaultSort: { by: 'occupancyPercent', dir: 'desc' },
+        rowAction: { label: 'Abrir Inventário', page: 'inventory' },
+        columns: [
+          { id: 'title', label: 'Ponto', sortable: true, sortKey: 'title', get: (r) => r.title },
+          { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
+          {
+            id: 'region',
+            label: 'Região',
+            sortable: true,
+            sortKey: 'region',
+            get: (r) => getRowField(r, 'region'),
+          },
+          {
+            id: 'line',
+            label: 'Linha',
+            sortable: true,
+            sortKey: 'line',
+            get: (r) => getRowField(r, 'line'),
+          },
+          {
+            id: 'occupancyPercent',
+            label: 'Ocupação',
+            align: 'right',
+            sortable: true,
+            sortKey: 'occupancyPercent',
+            get: (r) => getRowField(r, 'occupancyPercent'),
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'percent')}</span>,
+          },
+          {
+            id: 'activeCampaigns',
+            label: 'Campanhas',
+            align: 'right',
+            sortable: true,
+            sortKey: 'activeCampaigns',
+            get: (r) => getRowField(r, 'activeCampaigns'),
+            render: (v) => <span className="tabular-nums">{formatCell(v)}</span>,
+          },
+          {
+            id: 'revenueCents',
+            label: 'Receita',
+            align: 'right',
+            sortable: true,
+            sortKey: 'revenueCents',
+            get: (r) => getRowField(r, 'revenueCents') ?? r.amountCents,
+            render: (v) => <span className="tabular-nums">{formatCell(v, 'currency')}</span>,
+          },
+        ],
+      };
     case 'receivablesOverdue':
       return {
         defaultSort: { by: 'dueDate', dir: 'asc' },
