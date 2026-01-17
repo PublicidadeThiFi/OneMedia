@@ -319,7 +319,7 @@ export function ProposalStep2Items({
         onOpenChange={setShowMediaDrawer}
         defaultPeriod={{
           startDate: formData.campaignStartDate,
-          endDate: formData.campaignEndDate,
+          endDate: (formData as any).campaignEndDate,
         }}
         onAddItem={handleAddMediaItem}
       />
@@ -330,7 +330,7 @@ export function ProposalStep2Items({
         onOpenChange={setShowProductDialog}
         defaultPeriod={{
           startDate: formData.campaignStartDate,
-          endDate: formData.campaignEndDate,
+          endDate: (formData as any).campaignEndDate,
         }}
         onAddItem={handleAddProductItem}
       />
