@@ -90,6 +90,12 @@ export enum BillingStatus {
   CANCELADA = 'CANCELADA',
 }
 
+// Novo fluxo: faturas podem ser de aluguel recorrente ou custos iniciais (produção/instalação)
+export enum BillingInvoiceType {
+  RENT = 'RENT',
+  UPFRONT = 'UPFRONT',
+}
+
 export enum PaymentMethod {
   PIX = 'PIX',
   BOLETO = 'BOLETO',
@@ -523,6 +529,18 @@ export interface BillingInvoice {
   clientId: string;
   proposalId?: string;
   campaignId?: string;
+
+  /** Tipo da cobrança (aluguel recorrente ou custos iniciais) */
+  type?: BillingInvoiceType;
+  /** Período que está sendo pago (quando aplicável) */
+  periodStart?: Date;
+  periodEnd?: Date;
+  /** Sequência do ciclo (1, 2, 3...) */
+  sequence?: number;
+  /** Cancelamento lógico (quando backend materializa inadimplência/cancelamento) */
+  cancelledAt?: Date | null;
+  /** Regra de 30 dias antes do vencimento: requer confirmação do cliente (MVP) */
+  requiresConfirmation?: boolean;
 
   // campos derivados para UI
   clientName?: string | null;

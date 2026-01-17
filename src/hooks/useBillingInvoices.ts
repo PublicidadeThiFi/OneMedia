@@ -6,8 +6,12 @@ export interface UseBillingInvoicesParams {
   search?: string;
   status?: BillingStatus | string;
   clientId?: string;
+  campaignId?: string;
+  proposalId?: string;
   dueDateFrom?: string;
   dueDateTo?: string;
+  orderBy?: string;
+  orderDirection?: 'asc' | 'desc';
 }
 
 // Resposta pode ser um array direto ou um objeto paginado
@@ -33,6 +37,9 @@ function normalizeInvoice(raw: any): BillingInvoice {
   return {
     ...raw,
     dueDate: toDate(raw?.dueDate) ?? new Date(),
+    periodStart: toDate(raw?.periodStart) ?? undefined,
+    periodEnd: toDate(raw?.periodEnd) ?? undefined,
+    cancelledAt: toDate(raw?.cancelledAt),
     paidAt: toDate(raw?.paidAt),
     createdAt: toDate(raw?.createdAt) ?? new Date(),
     updatedAt: toDate(raw?.updatedAt) ?? new Date(),
@@ -103,7 +110,17 @@ export function useBillingInvoices(params: UseBillingInvoicesParams = {}) {
   useEffect(() => {
     fetchInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.search, params.status, params.clientId, params.dueDateFrom, params.dueDateTo]);
+  }, [
+    params.search,
+    params.status,
+    params.clientId,
+    params.campaignId,
+    params.proposalId,
+    params.dueDateFrom,
+    params.dueDateTo,
+    params.orderBy,
+    params.orderDirection,
+  ]);
 
   return {
     invoices,

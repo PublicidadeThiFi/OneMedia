@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
-import { Campaign, BillingInvoice, BillingStatus, Reservation } from '../../types';
+import { Campaign, BillingInvoice, BillingStatus, BillingInvoiceType, Reservation } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
@@ -92,6 +92,58 @@ export function CampaignDetailsDrawer({
       .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
 
     return { paid, openAmount };
+  }, [invoices]);
+
+  const paymentGate = useMemo(() => {
+    const isPaid = (inv: BillingInvoice) => inv.status === BillingStatus.PAGA;
+    const isCancelled = (inv: BillingInvoice) => inv.status === BillingStatus.CANCELADA;
+    if (!invoices.length) return { ok: true, pending: [] as BillingInvoice[] };
+
+    const upfront = invoices.filter((i) => i.type === BillingInvoiceType.UPFRONT && !isCancelled(i));
+    const rent = invoices.filter((i) => i.type === BillingInvoiceType.RENT && !isCancelled(i));
+    const firstRent = rent
+      .slice()
+      .sort((a, b) => {
+        const sa = a.sequence ?? 9999;
+        const sb = b.sequence ?? 9999;
+        if (sa !== sb) return sa - sb;
+        return new Date(a.dueDate as any).getTime() - new Date(b.dueDate as any).getTime();
+      })[0];
+
+    let required: BillingInvoice[] = [];
+    if (upfront.length || rent.length) {
+      required = [...upfront, ...(firstRent ? [firstRent] : [])];
+    } else {
+      const minDue = Math.min(...invoices.map((i) => new Date(i.dueDate as any).getTime()));
+      required = invoices.filter((i) => new Date(i.dueDate as any).getTime() === minDue);
+    }
+
+    const pending = required.filter((i) => !isPaid(i));
+    return { ok: pending.length === 0, pending };
+  }, [invoices]);
+
+  const anchorDay = useMemo(() => {
+    if (!campaign) return null;
+    if (campaign.approvedAt) return new Date(campaign.approvedAt as any).getDate();
+    if (invoices.length) return new Date(invoices[0].dueDate as any).getDate();
+    return null;
+  }, [campaign, invoices]);
+
+  const nextDue = useMemo(() => {
+    const isPaid = (inv: BillingInvoice) => inv.status === BillingStatus.PAGA;
+    const isCancelled = (inv: BillingInvoice) => inv.status === BillingStatus.CANCELADA;
+    return (
+      invoices
+        .filter((i) => !isPaid(i) && !isCancelled(i))
+        .slice()
+        .sort((a, b) => new Date(a.dueDate as any).getTime() - new Date(b.dueDate as any).getTime())[0] || null
+    );
+  }, [invoices]);
+
+  const hasConfirmationAlert = useMemo(() => {
+    return invoices.some(
+      (i) => !!i.requiresConfirmation && i.status !== BillingStatus.PAGA && i.status !== BillingStatus.CANCELADA
+    );
   }, [invoices]);
 
   if (!campaign) return null;
@@ -256,9 +308,36 @@ export function CampaignDetailsDrawer({
                   </p>
                 )}
 
+                {!hasCheckIn && invoices.length > 0 ? (
+                  <div
+                    className={`rounded-lg p-3 text-sm ${paymentGate.ok ? 'bg-green-50 border border-green-200 text-green-900' : 'bg-red-50 border border-red-200 text-red-900'}`}
+                  >
+                    {paymentGate.ok
+                      ? 'Pagamento inicial OK — check-in liberado'
+                      : 'Pagamento inicial pendente — check-in ficará bloqueado'}
+
+                    {!paymentGate.ok && paymentGate.pending.length > 0 ? (
+                      <ul className="mt-2 list-disc pl-5 text-sm text-red-800 space-y-1">
+                        {paymentGate.pending.map((inv) => (
+                          <li key={inv.id}>
+                            {inv.type === BillingInvoiceType.UPFRONT
+                              ? 'Custos iniciais (produção/instalação)'
+                              : inv.type === BillingInvoiceType.RENT
+                              ? 'Aluguel (primeiro ciclo)'
+                              : 'Fatura inicial'}{' '}
+                            — venc. {new Date(inv.dueDate as any).toLocaleDateString('pt-BR')}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {!hasCheckIn && onRequestCheckIn && campaign.status === 'EM_INSTALACAO' && (
                   <div>
-                    <Button onClick={() => onRequestCheckIn(campaign)}>Realizar check-in</Button>
+                    <Button onClick={() => onRequestCheckIn(campaign)} disabled={invoices.length > 0 && !paymentGate.ok}>
+                      Realizar check-in
+                    </Button>
                   </div>
                 )}
               </div>
@@ -295,6 +374,34 @@ export function CampaignDetailsDrawer({
                   Atualizar
                 </Button>
               </div>
+
+              {/* Mensagens do novo fluxo (recorrência + bloqueio de check-in) */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
+                <div className="flex flex-wrap items-center gap-2 justify-between">
+                  <span>
+                    <b>Regra:</b> o primeiro pagamento deve estar <b>pago</b> para liberar o check-in.
+                  </span>
+                  {anchorDay ? <Badge className="bg-gray-100 text-gray-800">Recorrência: dia {anchorDay}</Badge> : null}
+                </div>
+                {nextDue ? (
+                  <div className="mt-1 text-xs text-blue-800">
+                    Próximo vencimento: <b>{new Date(nextDue.dueDate as any).toLocaleDateString('pt-BR')}</b>
+                  </div>
+                ) : null}
+                {hasConfirmationAlert ? (
+                  <div className="mt-1 text-xs text-blue-800">
+                    <b>Atenção:</b> existe uma cobrança marcada como “requer confirmação” (regra de 30 dias antes do vencimento).
+                  </div>
+                ) : null}
+              </div>
+
+              {invoices.length > 0 ? (
+                <div
+                  className={`border rounded-lg p-4 text-sm ${paymentGate.ok ? 'bg-green-50 border-green-200 text-green-900' : 'bg-red-50 border-red-200 text-red-900'}`}
+                >
+                  {paymentGate.ok ? 'Pagamento inicial OK — check-in liberado' : 'Pagamento inicial pendente — check-in bloqueado'}
+                </div>
+              ) : null}
 
               {loading ? (
                 <div className="text-sm text-gray-500">Carregando faturas...</div>
