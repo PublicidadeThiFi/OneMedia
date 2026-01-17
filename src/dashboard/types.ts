@@ -80,6 +80,7 @@ export type {
 export type DrilldownState = {
   open: boolean;
   key?: string;
+  params?: Record<string, string>;
   title: string;
   rows: DrilldownRowContract[];
   hint?: string;

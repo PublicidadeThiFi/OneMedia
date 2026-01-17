@@ -213,13 +213,21 @@ export const mockApi = {
     companyId: string,
     key: string,
     filters: DashboardFilters,
-    opts?: { cursor?: string; limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc' },
+    opts?: { cursor?: string; limit?: number; sortBy?: string; sortDir?: 'asc' | 'desc'; params?: Record<string, string> },
   ): DashboardDrilldownDTO => {
     // BACKEND: GET /dashboard/drilldown/<key>?...
-    const s = seedNumber(`${companyId}:drill:${key}:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}`);
+    const paramsKey = opts?.params
+      ? Object.entries(opts.params)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => `${k}=${v}`)
+          .join('&')
+      : '';
+
+    const s = seedNumber(`${companyId}:drill:${key}:${filters.datePreset}:${filters.query}:${filters.city}:${filters.mediaType}:${paramsKey}`);
 
     const total = 55 + (s % 25);
-    const q = normalizeText(filters.query);    const allRows: DrilldownRow[] = Array.from({ length: total }).map((_, idx) => {
+    const q = normalizeText(filters.query);
+    const allRows: DrilldownRow[] = Array.from({ length: total }).map((_, idx) => {
       const city = ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][idx % 5];
       const base: DrilldownRow = {
         id: `${key}-${(s % 9000) + 1000 + idx}`,
@@ -251,6 +259,39 @@ export const mockApi = {
         };
       }
 
+
+
+      if (key === 'inventoryPin') {
+        const pinId = opts?.params?.pinId || 'PIN';
+        const starts = new Date();
+        starts.setDate(starts.getDate() - ((idx % 20) + 1));
+        const ends = new Date(starts);
+        ends.setDate(ends.getDate() + ((idx % 40) + 7));
+
+        base.title = `Ativo ${(s % 120) + idx + 1}`;
+        base.subtitle = `Campanha ${(s % 60) + (idx % 20) + 1} • ${pinId}`;
+        base.status = ['ATIVA', 'PAUSADA', 'AGENDADA'][idx % 3];
+        base.fields = {
+          region: opts?.params?.region,
+          line: opts?.params?.line,
+          startsAt: starts.toISOString(),
+          endsAt: ends.toISOString(),
+        };
+      }
+
+      if (key === 'inventoryRegionLine') {
+        const occ = clamp(35 + ((s + idx * 7) % 60), 0, 100);
+        base.title = `Ponto ${String.fromCharCode(65 + (idx % 26))}-${(s % 90) + idx + 1}`;
+        base.status = undefined;
+        base.subtitle = opts?.params?.region || base.subtitle;
+        base.fields = {
+          region: opts?.params?.region,
+          line: opts?.params?.line,
+          occupancyPercent: occ,
+          activeCampaigns: (s + idx) % 6,
+          revenueCents: base.amountCents,
+        };
+      }
       if (key === 'oohOps') {
         const due = new Date();
         due.setDate(due.getDate() + ((idx % 12) - 3));
@@ -394,6 +435,9 @@ export const mockApi = {
         label: `Ponto ${String.fromCharCode(65 + (i % 26))}-${(s % 90) + i + 1}`,
         city: city || ['Brasília', 'Goiânia', 'São Paulo', 'Recife', 'Curitiba'][i % 5],
         occupancyPercent: occ,
+        region: ["Centro", "Norte", "Sul", "Leste", "Oeste"][i % 5],
+        line: ["Linha A", "Linha B", "Linha C"][i % 3],
+
         // Coordenadas fictícias (só para referência visual futura)
         lat: -15.7 + ((s + i * 3) % 100) / 1000,
         lng: -47.9 + ((s + i * 7) % 100) / 1000,

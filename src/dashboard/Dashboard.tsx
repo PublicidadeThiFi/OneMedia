@@ -77,6 +77,7 @@ import {
   uniqById,
 } from './utils';
 import { EmptyState, ErrorState, KpiCard, Pill, SeverityDot, Skeleton, Sparkline, TabButton, WidgetCard } from './ui';
+import { InventoryMap, InventoryRegionLineHeatmap } from './components/InventoryMap';
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
   const { company } = useCompany();
@@ -136,6 +137,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     mode: DASHBOARD_DATA_MODE,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchOverviewKpis(company!.id, filters),
+
     fetcher: (signal) =>
       dashboardGetJson<DashboardOverviewDTO>(DASHBOARD_BACKEND_ROUTES.overview, backendQs, { signal }),
   });
@@ -196,19 +198,22 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       limit: String(DRILLDOWN_PAGE_SIZE),
       sortBy: drilldown.sortBy,
       sortDir: drilldown.sortDir,
+      ...(drilldown.params || {}),
     });
-  }, [backendQuery, backendQs, drilldown.key, drilldown.cursor, drilldown.sortBy, drilldown.sortDir]);
+  }, [backendQuery, backendQs, drilldown.key, drilldown.cursor, drilldown.sortBy, drilldown.sortDir, drilldown.params]);
 
   const drilldownQ = useDashboardQuery<DashboardDrilldownDTO>({
     enabled: !!company && drilldown.open && !!drilldown.key,
     mode: DASHBOARD_DATA_MODE,
     deps: [company?.id, drilldown.key, drilldownQs],
-    computeMock: () => mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
-      cursor: drilldown.cursor,
-      limit: DRILLDOWN_PAGE_SIZE,
-      sortBy: drilldown.sortBy,
-      sortDir: drilldown.sortDir,
-    }),
+    computeMock: () =>
+      mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
+        cursor: drilldown.cursor,
+        limit: DRILLDOWN_PAGE_SIZE,
+        sortBy: drilldown.sortBy,
+        sortDir: drilldown.sortDir,
+        params: drilldown.params,
+      }),
     fetcher: (signal) =>
       dashboardGetJson<DashboardDrilldownDTO>(`${DASHBOARD_BACKEND_ROUTES.drilldown}/${drilldown.key}`, drilldownQs, {
         signal,
@@ -462,7 +467,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
   };
 
-  const openDrilldown = (title: string, key: string, hint?: string) => {
+  const openDrilldown = (title: string, key: string, hint?: string, params?: Record<string, string | undefined>) => {
+    const cleanParams: Record<string, string> = {};
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (typeof v === 'string' && v.length > 0) cleanParams[k] = v;
+      }
+    }
+
     const spec = getDrilldownSpec(key);
     const sortBy = spec.defaultSort?.by;
     const sortDir = spec.defaultSort?.dir;
@@ -471,12 +483,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       limit: String(DRILLDOWN_PAGE_SIZE),
       sortBy,
       sortDir,
+      ...cleanParams,
     });
     const autoHint = `BACKEND: GET ${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}?${qs}`;
 
     setDrilldown({
       open: true,
       key,
+      params: Object.keys(cleanParams).length ? cleanParams : undefined,
       title,
       rows: [],
       hint: hint ? `${hint} • ${autoHint}` : autoHint,
@@ -1838,27 +1852,29 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
             >
               <div className="space-y-3">
-                <div className="h-28 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-sm text-gray-500 gap-1">
-                  <p>Mapa (placeholder)</p>
-                  <p className="text-xs backend-hint">BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryMap}?{backendQs}</p>
-                </div>
+                <p className="text-xs backend-hint">BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryMap}?{backendQs}</p>
 
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-900">{inventoryPins.length} pontos</p>
-                  <p className="text-xs text-gray-500">exibindo 5</p>
-                </div>
+                <InventoryMap
+                  pins={inventoryPins}
+                  height={320}
+                  onPinClick={(pin) =>
+                    openDrilldown(`Ponto — ${pin.label}`, 'inventoryPin', 'BACKEND: /dashboard/inventory/pin', {
+                      pinId: pin.id,
+                      region: pin.region || pin.city || undefined,
+                      line: pin.line || undefined,
+                    })
+                  }
+                />
 
-                <div className="space-y-2">
-                  {inventoryPins.slice(0, 5).map((p) => (
-                    <div key={p.id} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-900">{p.label}</p>
-                        <p className="text-xs text-gray-500">{p.city || '—'}</p>
-                      </div>
-                      <span className="text-sm text-gray-700">{Math.round(p.occupancyPercent)}%</span>
-                    </div>
-                  ))}
-                </div>
+                <InventoryRegionLineHeatmap
+                  pins={inventoryPins}
+                  onSelect={(region, line) =>
+                    openDrilldown(`Ocupação — ${region} / ${line}`, 'inventoryRegionLine', 'BACKEND: /dashboard/inventory/map/heat', {
+                      region,
+                      line,
+                    })
+                  }
+                />
               </div>
             </WidgetCard>
 
