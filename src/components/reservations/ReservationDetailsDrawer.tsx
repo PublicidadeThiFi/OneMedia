@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Reservation, ReservationStatus } from '../../types';
+import { Reservation } from '../../types';
 import { ReservationStatusBadge } from './ReservationStatusBadge';
 import { toast } from 'sonner';
 
@@ -15,8 +14,6 @@ interface ReservationDetailsDrawerProps {
   unitLabel?: string;
   pointName?: string;
   amount?: number;
-  onUpdateReservation?: (id: string, payload: Partial<Reservation>) => Promise<void> | void;
-  onDeleteReservation?: (id: string) => Promise<void> | void;
 }
 
 export function ReservationDetailsDrawer({
@@ -27,23 +24,9 @@ export function ReservationDetailsDrawer({
   unitLabel,
   pointName,
   amount,
-  onUpdateReservation,
-  onDeleteReservation,
 }: ReservationDetailsDrawerProps) {
   if (!reservation) return null;
   // TODO: Enriquecer com dados de unidade/cliente via props quando disponíveis
-
-  const [updating, setUpdating] = useState(false);
-
-  const setStatus = async (status: ReservationStatus) => {
-    if (!onUpdateReservation) return;
-    try {
-      setUpdating(true);
-      await onUpdateReservation(reservation.id, { status });
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   const handleNavigateToProposal = () => {
     // TODO: Navegar para módulo de Propostas
@@ -136,6 +119,11 @@ export function ReservationDetailsDrawer({
               <div>
                 <h4 className="text-gray-900 mb-3">Origem da Reserva</h4>
 
+                <div className="text-sm text-gray-600 mb-3">
+                  Reservas são geradas automaticamente no check-in da campanha e ficam disponíveis aqui apenas para
+                  consulta.
+                </div>
+
                 {(reservation.proposalId || (reservation as any).proposalTitle) && (
                   <div className="bg-gray-50 p-4 rounded-lg mb-3">
                     <div className="flex items-center justify-between">
@@ -167,47 +155,6 @@ export function ReservationDetailsDrawer({
                     </div>
                   </div>
                 )}
-
-                {/* Ações */}
-                <div className="flex flex-wrap items-center gap-2 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={updating || reservation.status === ReservationStatus.RESERVADA}
-                    onClick={() => setStatus(ReservationStatus.RESERVADA)}
-                  >
-                    Em negociação
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={updating || reservation.status === ReservationStatus.CONFIRMADA}
-                    onClick={() => setStatus(ReservationStatus.CONFIRMADA)}
-                  >
-                    Confirmar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600"
-                    disabled={updating || reservation.status === ReservationStatus.CANCELADA}
-                    onClick={() => setStatus(ReservationStatus.CANCELADA)}
-                  >
-                    Cancelar
-                  </Button>
-
-                  <div className="flex-1" />
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600"
-                    disabled={updating}
-                    onClick={() => onDeleteReservation && reservation && onDeleteReservation(reservation.id)}
-                  >
-                    Excluir
-                  </Button>
-                </div>
 
                 {!reservation.proposalId && !reservation.campaignId && !((reservation as any).proposalTitle) && !((reservation as any).campaignName) && (
                   <div className="text-center py-8 text-gray-500 text-sm">

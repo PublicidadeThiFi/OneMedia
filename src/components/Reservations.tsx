@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -101,8 +100,6 @@ export function Reservations() {
     loading,
     error,
     refetch,
-    updateReservation,
-    deleteReservation,
   } = useReservations({
     startDate: startDateISO,
     endDate: endDateISO,
@@ -195,32 +192,12 @@ export function Reservations() {
     return dayReservations.filter((res) => res.status !== ReservationStatus.CANCELADA).length;
   }, [selectedDay, dayReservations]);
 
-  const handleUpdateReservation = async (id: string, payload: Partial<Reservation>) => {
-    try {
-      await updateReservation(id, payload);
-      toast.success('Reserva atualizada com sucesso!');
-      refetch();
-    } catch {
-      toast.error('Erro ao atualizar reserva');
-    }
-  };
-
-  const handleDeleteReservation = async (id: string) => {
-    try {
-      await deleteReservation(id);
-      toast.success('Reserva excluída com sucesso!');
-      refetch();
-    } catch {
-      toast.error('Erro ao excluir reserva');
-    }
-  };
-
   return (
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-gray-900 mb-2">Reservas</h1>
-        <p className="text-gray-600">Visualize e gerencie reservas por calendário.</p>
+        <p className="text-gray-600">Visualize reservas por calendário.</p>
       </div>
 
       {/* Cards de Estatísticas */}
@@ -412,8 +389,6 @@ export function Reservations() {
         unitLabel={(detailsDrawerReservation as any)?.mediaUnitLabel ?? undefined}
         pointName={(detailsDrawerReservation as any)?.mediaPointName ?? undefined}
         amount={detailsDrawerReservation?.estimatedAmount}
-        onUpdateReservation={handleUpdateReservation}
-        onDeleteReservation={handleDeleteReservation}
       />
     </div>
   );
