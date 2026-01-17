@@ -29,7 +29,14 @@ import { useDashboardQuery } from '../hooks/useDashboardQuery';
 import { dashboardGetJson } from '../services/dashboard';
 
 import { DASHBOARD_BACKEND_ROUTES, DASHBOARD_DATA_MODE, DRILLDOWN_PAGE_SIZE } from './constants';
-import { exportAgingBucketsCsv, exportDrilldownCsv, exportTimeseriesCsv } from './csv';
+import {
+  downloadTextFile,
+  escapeCsvValue,
+  exportAgingBucketsCsv,
+  exportDrilldownCsv,
+  exportTimeseriesCsv,
+} from './csv';
+import { printElementToPdf } from './pdf';
 import { getDrilldownSpec, type DrilldownColumnSpec, type DrilldownSortDir } from './drilldownSpec';
 import { mockApi } from './mockApi';
 import { buildDashboardBackendQuery, toQueryString } from './query';
@@ -484,11 +491,141 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     });
   };
 
-  const exportCsvMock = (label: string) => {
-    const qs = backendQs;
-    toast.message(`Export (mock): ${label}`, {
-      description: `Na integração, isso vai gerar CSV/PDF do recorte atual de filtros.\n${DASHBOARD_BACKEND_ROUTES.overview}?${qs}`,
-    });
+  // Etapa 13: exportacoes reais
+  const buildExportMeta = (extra?: Array<{ label: string; value: string }>) => {
+    const name = String((company as any)?.name ?? (company as any)?.title ?? (company as any)?.label ?? company.id);
+    const period = `${formatShortDate(backendQuery.dateFrom)} - ${formatShortDate(backendQuery.dateTo)}`;
+    const base: Array<{ label: string; value: string }> = [
+      { label: 'Empresa', value: name },
+      { label: 'Aba', value: tabLabel(tab) },
+      { label: 'Período', value: period },
+      { label: 'Tipo', value: String(filters.mediaType) },
+    ];
+    if (filters.query) base.push({ label: 'Busca', value: String(filters.query) });
+    if (filters.city) base.push({ label: 'Cidade', value: String(filters.city) });
+    return [...(extra || []), ...base];
+  };
+
+  const exportViewPdf = (kind: 'view' | 'monthly') => {
+    const el = document.getElementById('dashboard-export-root');
+    if (!el) {
+      toast.error('Não foi possível exportar PDF: área do dashboard não encontrada');
+      return;
+    }
+
+    const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const title = kind === 'monthly' ? `Snapshot mensal — ${tabLabel(tab)}` : `Dashboard — ${tabLabel(tab)}`;
+    const subtitle = String((company as any)?.name ?? (company as any)?.title ?? (company as any)?.label ?? company.id);
+    const meta = buildExportMeta(kind === 'monthly' ? [{ label: 'Snapshot', value: month }] : undefined);
+    printElementToPdf({ element: el, title, subtitle, meta });
+  };
+
+  const exportWidgetPdf = (widgetId: string, widgetTitle: string) => {
+    const el = document.getElementById(widgetId);
+    if (!el) {
+      toast.error('Não foi possível exportar o widget: elemento não encontrado');
+      return;
+    }
+    const subtitle = `${String((company as any)?.name ?? (company as any)?.title ?? company.id)} • ${tabLabel(tab)}`;
+    printElementToPdf({ element: el, title: widgetTitle, subtitle, meta: buildExportMeta() });
+  };
+
+  const exportViewCsv = () => {
+    const now = new Date();
+    const stamp = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const safeTab = tabLabel(tab).toLowerCase().replace(/[^a-z0-9]+/gi, '_');
+    const filename = `dashboard_${safeTab}_${stamp}.csv`;
+
+    const rows: Array<[string, string]> = [];
+    const companyName = String((company as any)?.name ?? (company as any)?.title ?? (company as any)?.label ?? company.id);
+    rows.push(['Empresa', companyName]);
+    rows.push(['Aba', tabLabel(tab)]);
+    rows.push(['Período', `${formatShortDate(backendQuery.dateFrom)} - ${formatShortDate(backendQuery.dateTo)}`]);
+    rows.push(['Tipo', String(filters.mediaType)]);
+    if (filters.city) rows.push(['Cidade', String(filters.city)]);
+    if (filters.query) rows.push(['Busca', String(filters.query)]);
+
+    const add = (k: string, v: unknown) => rows.push([k, v == null ? '' : String(v)]);
+
+    if (tab === 'executivo') {
+      if (overview) {
+        add('Receita reconhecida', formatCurrency(overview.revenueRecognizedCents));
+        add('A faturar', formatCurrency(overview.revenueToInvoiceCents));
+        add('Ocupação', `${overview.occupancyPercent}%`);
+        add('Inadimplência', formatCurrency(overview.receivablesOverdueCents));
+        add('Campanhas ativas', overview.campaignsActiveCount);
+        add('Clientes ativos', overview.clientsActiveCount);
+        add('Ticket médio', formatCurrency(overview.averageTicketCents));
+      }
+      const high = alerts.filter((a) => a.severity === 'HIGH').length;
+      const med = alerts.filter((a) => a.severity === 'MEDIUM').length;
+      const low = alerts.filter((a) => a.severity === 'LOW').length;
+      add('Alertas HIGH', high);
+      add('Alertas MEDIUM', med);
+      add('Alertas LOW', low);
+      topClientsRows.slice(0, 8).forEach((r, idx) => {
+        add(`Top cliente ${idx + 1}`, `${r.name} — ${formatCurrency(r.amountCents)} (${r.campaignsCount} camp.)`);
+      });
+    } else if (tab === 'comercial') {
+      if (commercialSummary) {
+        add('Propostas (total)', commercialSummary.proposalsTotal);
+        add('Taxa de aprovação', `${commercialSummary.approvalRatePercent}%`);
+        add('Ciclo médio (dias)', commercialSummary.averageDaysToClose);
+        add('Pipeline ativo', formatCurrency(commercialSummary.activePipelineAmountCents));
+        add('Propostas paradas', commercialSummary.stalledProposalsCount);
+      }
+      funnel?.stages?.forEach((s) => {
+        add(`Funil • ${s.label} (qtde)`, s.count);
+        add(`Funil • ${s.label} (valor)`, formatCurrency(s.amountCents));
+      });
+      stalledProposalsRows.slice(0, 8).forEach((r, idx) => {
+        add(`Parada ${idx + 1}`, `${r.title} • ${r.client} • ${r.daysWithoutUpdate}d • ${formatCurrency(r.amountCents)}`);
+      });
+      sellerRankingRows.slice(0, 8).forEach((r, idx) => {
+        add(
+          `Vendedor ${idx + 1}`,
+          `${r.name} • ganhos: ${r.dealsWon} (${formatCurrency(r.amountWonCents)}) • pipeline: ${r.dealsInPipeline}`,
+        );
+      });
+    } else if (tab === 'operacoes') {
+      const ok = oohOpsItems.filter((i) => i.status === 'OK').length;
+      const pend = oohOpsItems.filter((i) => i.status === 'PENDING').length;
+      const late = oohOpsItems.filter((i) => i.status === 'LATE').length;
+      add('OOH • itens OK', ok);
+      add('OOH • pendências', pend);
+      add('OOH • atrasos', late);
+      const avgUptime = popRows.length ? Math.round(popRows.reduce((s, r) => s + r.uptimePercent, 0) / popRows.length) : 0;
+      const totalPlays = popRows.reduce((s, r) => s + r.plays, 0);
+      add('DOOH • telas', popRows.length);
+      add('DOOH • uptime médio', `${avgUptime}%`);
+      add('DOOH • plays', totalPlays);
+    } else if (tab === 'financeiro') {
+      if (cashflowTs.length) {
+        add('Fluxo caixa (último)', formatCurrency(cashflowTs[cashflowTs.length - 1].valueCents));
+      }
+      if (agingSummary) {
+        add('Recebíveis (total)', formatCurrency(agingSummary.totalCents));
+        agingSummary.buckets.slice(0, 12).forEach((b) => {
+          add(`Aging • ${b.label}`, formatCurrency(b.amountCents));
+        });
+      }
+    } else if (tab === 'inventario') {
+      add('Pins (mapa)', inventoryPins.length);
+      const avgOcc = inventoryPins.length
+        ? Math.round(inventoryPins.reduce((s, p) => s + (p.occupancyPercent || 0), 0) / inventoryPins.length)
+        : 0;
+      add('Ocupação média (mapa)', `${avgOcc}%`);
+      inventoryRankingRows.slice(0, 10).forEach((r, idx) => {
+        add(
+          `Ranking ${idx + 1}`,
+          `${r.label}${r.city ? ` (${r.city})` : ''} • occ: ${r.occupancyPercent}% • camp: ${r.activeCampaigns} • ${formatCurrency(r.revenueCents)}`,
+        );
+      });
+    }
+
+    const lines = ['key;value', ...rows.map(([k, v]) => [k, v].map(escapeCsvValue).join(';'))];
+    downloadTextFile(filename, lines.join('\n'), 'text/csv;charset=utf-8');
+    toast.success('CSV exportado', { description: filename });
   };
 
   const clearFilters = () => {
@@ -709,13 +846,25 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   Limpar
                 </Button>
 
+                <Button variant="outline" className="h-9 flex items-center gap-2" onClick={exportViewCsv}>
+                  <Download className="w-4 h-4" />
+                  Exportar CSV
+                </Button>
                 <Button
                   variant="outline"
                   className="h-9 flex items-center gap-2"
-                  onClick={() => exportCsvMock('Dashboard (recorte atual)')}
+                  onClick={() => exportViewPdf('view')}
                 >
                   <Download className="w-4 h-4" />
-                  Exportar
+                  Exportar PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9 flex items-center gap-2"
+                  onClick={() => exportViewPdf('monthly')}
+                >
+                  <Download className="w-4 h-4" />
+                  Snapshot mensal
                 </Button>
               </div>
             </div>
@@ -826,7 +975,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Tab Content */}
       {tab === 'executivo' ? (
-        <div className="space-y-6">
+        <div id="dashboard-export-root" className="space-y-6">
           {/* KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
@@ -866,6 +1015,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
           {/* Alerts */}
           <WidgetCard
+            id="dash-widget-alerts"
             title="Atenção hoje"
             subtitle="Alertas inteligentes (mock) — filtrados pela busca"
             loading={alertsQ.status === 'loading' && !alertsQ.data}
@@ -874,9 +1024,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             emptyTitle="Sem alertas"
             emptyDescription={smartEmpty("Nada para destacar com os filtros atuais.")}
             actions={
-              <Button variant="outline" className="h-9" onClick={() => alertsQ.refetch()}>
-                Recarregar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="h-9" onClick={() => alertsQ.refetch()}>
+                  Recarregar
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-9"
+                  onClick={() => exportWidgetPdf('dash-widget-alerts', 'Atenção hoje')}
+                >
+                  Exportar PDF
+                </Button>
+              </div>
             }
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -903,6 +1062,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           {/* Widgets */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
+              id="dash-widget-revenue-trend"
               title="Tendência de Receita"
               subtitle={`Série (${revenueTsQ.source})`}
               loading={revenueTsQ.status === 'loading' && !revenueTsQ.data}
@@ -919,12 +1079,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button variant="outline" className="h-9" onClick={() => revenueTsQ.refetch()}>
                     Recarregar
                   </Button>
+                  <Button variant="outline" className="h-9" onClick={() => exportTimeseriesCsv('tendencia_receita', revenueTs)}>
+                    Exportar CSV
+                  </Button>
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => exportTimeseriesCsv('tendencia_receita', revenueTs)}
+                    onClick={() => exportWidgetPdf('dash-widget-revenue-trend', 'Tendência de Receita')}
                   >
-                    Exportar CSV
+                    Exportar PDF
                   </Button>
                 </div>
               }
@@ -936,7 +1099,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <p className="text-xs text-gray-500 mt-1">
                       Último ponto: {formatShortDate(revenueTs[revenueTs.length - 1].date)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-3">
+                    <p className="text-xs text-gray-500 mt-3 backend-hint">
                       BACKEND: {DASHBOARD_BACKEND_ROUTES.revenueTimeseries}?{backendQs}
                     </p>
                   </div>
@@ -950,6 +1113,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </WidgetCard>
 
             <WidgetCard
+              id="dash-widget-top-clients"
               title="Top Clientes"
               subtitle={`Ranking (${topClientsQ.source})`}
               loading={topClientsQ.status === 'loading' && !topClientsQ.data}
@@ -985,6 +1149,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-top-clients', 'Top Clientes')}
+                  >
+                    Exportar PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
                     onClick={() => openDrilldown('Top Clientes', 'topClients', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.topClients}`)}
                   >
                     Ver detalhes
@@ -1007,7 +1178,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <span className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</span>
                   </div>
                 ))}
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs text-gray-500 mt-3 backend-hint">
                   BACKEND: {DASHBOARD_BACKEND_ROUTES.topClients}?{backendQs}
                 </p>
               </div>
@@ -1017,7 +1188,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       ) : null}
 
       {tab === 'comercial' ? (
-        <div className="space-y-6">
+        <div id="dashboard-export-root" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Propostas (período)"
@@ -1053,6 +1224,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
+              id="dash-widget-funnel"
               title="Funil comercial"
               subtitle={`Pipeline por etapa (${funnelQ.source})`}
               loading={commercialLoading}
@@ -1079,6 +1251,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   >
                     Exportar CSV
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-funnel', 'Funil comercial')}
+                  >
+                    Exportar PDF
+                  </Button>
                 </div>
               }
             >
@@ -1100,7 +1279,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       </div>
                     );
                   })}
-                  <p className="text-xs text-gray-500 mt-4">
+                  <p className="text-xs text-gray-500 mt-4 backend-hint">
                     BACKEND: {DASHBOARD_BACKEND_ROUTES.funnel}?{backendQs}
                   </p>
                 </div>
@@ -1109,6 +1288,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
             <div className="space-y-6">
               <WidgetCard
+                id="dash-widget-stalled-proposals"
                 title="Propostas paradas"
                 subtitle={`Ações rápidas (${stalledProposalsQ.source})`}
                 loading={stalledProposalsQ.status === 'loading' && !stalledProposalsQ.data}
@@ -1140,6 +1320,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       }}
                     >
                       Exportar CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => exportWidgetPdf('dash-widget-stalled-proposals', 'Propostas paradas')}
+                    >
+                      Exportar PDF
                     </Button>
                     <Button
                       variant="outline"
@@ -1177,13 +1364,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </button>
                   ))}
 
-                  <p className="text-xs text-gray-500 mt-3">
+                  <p className="text-xs text-gray-500 mt-3 backend-hint">
                     BACKEND: {DASHBOARD_BACKEND_ROUTES.stalledProposals}?{backendQs}
                   </p>
                 </div>
               </WidgetCard>
 
               <WidgetCard
+                id="dash-widget-seller-ranking"
                 title="Ranking de vendedores"
                 subtitle={`Performance (${sellerRankingQ.source})`}
                 loading={sellerRankingQ.status === 'loading' && !sellerRankingQ.data}
@@ -1215,6 +1403,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       }}
                     >
                       Exportar CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="h-9"
+                      onClick={() => exportWidgetPdf('dash-widget-seller-ranking', 'Ranking de vendedores')}
+                    >
+                      Exportar PDF
                     </Button>
                     <Button
                       variant="outline"
@@ -1251,7 +1446,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </div>
                   ))}
 
-                  <p className="text-xs text-gray-500 mt-3">
+                  <p className="text-xs text-gray-500 mt-3 backend-hint">
                     BACKEND: {DASHBOARD_BACKEND_ROUTES.sellerRanking}?{backendQs}
                   </p>
                 </div>
@@ -1262,7 +1457,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       ) : null}
 
       {tab === 'operacoes' ? (
-        <div className="space-y-6">
+        <div id="dashboard-export-root" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Aguardando material"
@@ -1277,6 +1472,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
+              id="dash-widget-ooh-ops"
               title="Status operacional (OOH)"
               subtitle={`Checklist / SLA / pendências (${oohOpsQ.source})`}
               loading={oohOpsQ.status === 'loading' && !oohOpsQ.data}
@@ -1311,6 +1507,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-ooh-ops', 'Status operacional (OOH)')}
+                  >
+                    Exportar PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
                     onClick={() => openDrilldown('Status operacional (OOH)', 'oohOps', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.oohOpsSummary}`)}
                   >
                     Ver detalhes
@@ -1339,13 +1542,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </div>
                   );
                 })}
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs text-gray-500 mt-3 backend-hint">
                   BACKEND: {DASHBOARD_BACKEND_ROUTES.oohOpsSummary}?{backendQs}
                 </p>
               </div>
             </WidgetCard>
 
             <WidgetCard
+              id="dash-widget-pop"
               title="Proof-of-play (DOOH)"
               subtitle={`Relatório POP (${popQ.source})`}
               loading={popQ.status === 'loading' && !popQ.data}
@@ -1380,6 +1584,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-pop', 'Proof-of-play (DOOH)')}
+                  >
+                    Exportar PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
                     onClick={() => openDrilldown('Proof-of-play (DOOH)', 'proofOfPlay', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary}`)}
                   >
                     Ver detalhes
@@ -1400,7 +1611,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   </div>
                 ))}
 
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs text-gray-500 mt-3 backend-hint">
                   BACKEND: {DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary}?{backendQs}
                 </p>
               </div>
@@ -1410,7 +1621,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       ) : null}
 
       {tab === 'financeiro' ? (
-        <div className="space-y-6">
+        <div id="dashboard-export-root" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Contas a receber"
@@ -1442,6 +1653,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
+              id="dash-widget-cashflow"
               title="Fluxo de caixa"
               subtitle={`Série (${cashflowTsQ.source})`}
               loading={cashflowTsQ.status === 'loading' && !cashflowTsQ.data}
@@ -1465,6 +1677,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   >
                     Exportar CSV
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-cashflow', 'Fluxo de caixa')}
+                  >
+                    Exportar PDF
+                  </Button>
                 </div>
               }
             >
@@ -1475,7 +1694,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <p className="text-xs text-gray-500 mt-1">
                       Último ponto: {formatShortDate(cashflowTs[cashflowTs.length - 1].date)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-3">
+                    <p className="text-xs text-gray-500 mt-3 backend-hint">
                       BACKEND: {DASHBOARD_BACKEND_ROUTES.cashflowTimeseries}?{backendQs}
                     </p>
                   </div>
@@ -1489,6 +1708,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </WidgetCard>
 
             <WidgetCard
+              id="dash-widget-aging"
               title="Aging"
               subtitle={`Distribuição por faixa (${agingQ.source})`}
               loading={agingQ.status === 'loading' && !agingQ.data}
@@ -1511,6 +1731,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     onClick={() => exportAgingBucketsCsv('aging', agingSummary?.buckets || [], agingSummary?.totalCents)}
                   >
                     Exportar CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-aging', 'Aging')}
+                  >
+                    Exportar PDF
                   </Button>
                   <Button
                     variant="outline"
@@ -1539,7 +1766,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   );
                 })}
 
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs text-gray-500 mt-3 backend-hint">
                   BACKEND: {DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary}?{backendQs}
                 </p>
               </div>
@@ -1549,7 +1776,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       ) : null}
 
       {tab === 'inventario' ? (
-        <div className="space-y-6">
+        <div id="dashboard-export-root" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Inventário total"
@@ -1580,6 +1807,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
+              id="dash-widget-inventory-map"
               title="Mapa e ocupação"
               subtitle={`Pins (${inventoryMapQ.source})`}
               loading={inventoryMapQ.status === 'loading' && !inventoryMapQ.data}
@@ -1599,13 +1827,20 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button variant="outline" className="h-9" onClick={() => setShareMapOpen(true)}>
                     Compartilhar
                   </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-inventory-map', 'Mapa e ocupação')}
+                  >
+                    Exportar PDF
+                  </Button>
                 </div>
               }
             >
               <div className="space-y-3">
                 <div className="h-28 border border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-sm text-gray-500 gap-1">
                   <p>Mapa (placeholder)</p>
-                  <p className="text-xs">BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryMap}?{backendQs}</p>
+                  <p className="text-xs backend-hint">BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryMap}?{backendQs}</p>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -1628,6 +1863,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </WidgetCard>
 
             <WidgetCard
+              id="dash-widget-inventory-ranking"
               title="Ranking de pontos"
               subtitle={`Top 5 (${inventoryRankingQ.source})`}
               loading={inventoryRankingQ.status === 'loading' && !inventoryRankingQ.data}
@@ -1643,6 +1879,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => inventoryRankingQ.refetch()}>
                     Recarregar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => exportWidgetPdf('dash-widget-inventory-ranking', 'Ranking de pontos')}
+                  >
+                    Exportar PDF
                   </Button>
                   <Button
                     variant="outline"
@@ -1668,7 +1911,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <span className="text-sm text-gray-700">{Math.round(r.occupancyPercent)}%</span>
                   </div>
                 ))}
-                <p className="text-xs text-gray-500 mt-3">
+                <p className="text-xs text-gray-500 mt-3 backend-hint">
                   BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryRanking}?{backendQs}
                 </p>
               </div>
@@ -1686,7 +1929,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-3">
               <div>
                 <p className="text-gray-900">{drilldown.title}</p>
-                {drilldown.hint ? <p className="text-xs text-gray-500 mt-1">{drilldown.hint}</p> : null}
+                {drilldown.hint ? (
+                  <p className="text-xs text-gray-500 mt-1 backend-hint">{drilldown.hint}</p>
+                ) : null}
               </div>
               <button
                 type="button"

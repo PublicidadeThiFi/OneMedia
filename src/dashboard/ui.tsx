@@ -93,6 +93,7 @@ export function SeverityDot({ severity }: { severity: AlertItem['severity'] }) {
 }
 
 export function WidgetCard({
+  id,
   title,
   subtitle,
   actions,
@@ -103,6 +104,7 @@ export function WidgetCard({
   emptyDescription,
   children,
 }: {
+  id?: string;
   title: string;
   subtitle?: string;
   actions?: ReactNode;
@@ -114,32 +116,38 @@ export function WidgetCard({
   children: ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle>{title}</CardTitle>
-            {subtitle ? <p className="text-xs text-gray-500 mt-1">{subtitle}</p> : null}
+    <div id={id} className="print-avoid-break">
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle>{title}</CardTitle>
+              {subtitle ? <p className="text-xs text-gray-500 mt-1">{subtitle}</p> : null}
+            </div>
+            {actions ? (
+              <div className="flex items-center gap-2" data-no-print>
+                {actions}
+              </div>
+            ) : null}
           </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-5 w-1/2" />
-            <Skeleton className="h-5 w-2/3" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        ) : error ? (
-          <ErrorState title={error.title} description={error.description} />
-        ) : empty ? (
-          <EmptyState title={emptyTitle || 'Sem dados'} description={emptyDescription} />
-        ) : (
-          children
-        )}
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-1/2" />
+              <Skeleton className="h-5 w-2/3" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : error ? (
+            <ErrorState title={error.title} description={error.description} />
+          ) : empty ? (
+            <EmptyState title={emptyTitle || 'Sem dados'} description={emptyDescription} />
+          ) : (
+            children
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -172,7 +180,13 @@ export function KpiCard({
         ) : (
           <>
             <p className="text-gray-900 mt-1">{value || '—'}</p>
-            {helper ? <p className="text-xs text-gray-500 mt-2">{helper}</p> : null}
+            {helper ? (
+              <p
+                className={`text-xs text-gray-500 mt-2 ${helper.includes('BACKEND:') ? 'backend-hint' : ''}`.trim()}
+              >
+                {helper}
+              </p>
+            ) : null}
             {typeof delta === 'number' && spark ? (
               <div className="mt-2 flex items-center justify-between">
                 <Delta value={delta} />
