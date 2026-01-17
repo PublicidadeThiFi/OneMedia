@@ -22,7 +22,6 @@ export interface ProposalFormData {
   responsibleUserId: string;
   title?: string;
   campaignStartDate?: Date;
-  campaignEndDate?: Date;
   validUntil?: Date;
   conditionsText?: string;
   discountPercent?: number;
@@ -115,7 +114,6 @@ export function ProposalFormWizard({
         responsibleUserId: proposal.responsibleUserId,
         title: proposal.title || '',
         campaignStartDate: parseApiDateToLocalMidnight((proposal as any).startDate),
-        campaignEndDate: parseApiDateToLocalMidnight((proposal as any).endDate),
         validUntil: parseApiDateToLocalMidnight((proposal as any).validUntil),
         conditionsText: (proposal.conditionsText || '').replace(/\\n/g, '\n'),
         discountPercent,
@@ -198,7 +196,6 @@ const preparePayload = (status: ProposalStatus) => {
     status: status,
     // Convertemos para string para o JSON, o 'any' evita o erro de tipagem no onSave
     startDate: formData.campaignStartDate?.toISOString(),
-    endDate: formData.campaignEndDate?.toISOString(),
     validUntil: formData.validUntil?.toISOString(),
     discountPercent: Number(formData.discountPercent || 0),
     discountAmount: Number(formData.discountAmount || 0),

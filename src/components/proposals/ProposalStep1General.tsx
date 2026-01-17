@@ -115,46 +115,27 @@ export function ProposalStep1General({
         </p>
       </div>
 
-      {/* Período geral da campanha */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="campaignStartDate">Data de Início</Label>
-          <Input
-            id="campaignStartDate"
-            type="date"
-            value={
-              formData.campaignStartDate
-                ? formData.campaignStartDate.toISOString().split('T')[0]
-                : ''
-            }
-            onChange={(e) =>
-              onChange({
-                campaignStartDate: e.target.value ? parseLocalDate(e.target.value) : undefined,
-              })
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="campaignEndDate">Data de Término</Label>
-          <Input
-            id="campaignEndDate"
-            type="date"
-            value={
-              formData.campaignEndDate
-                ? formData.campaignEndDate.toISOString().split('T')[0]
-                : ''
-            }
-            onChange={(e) =>
-              onChange({
-                campaignEndDate: e.target.value ? parseLocalDate(e.target.value) : undefined,
-              })
-            }
-          />
-        </div>
+      {/* Data de início da campanha (referência) */}
+      <div className="space-y-2">
+        <Label htmlFor="campaignStartDate">Data de Início</Label>
+        <Input
+          id="campaignStartDate"
+          type="date"
+          value={
+            formData.campaignStartDate
+              ? formData.campaignStartDate.toISOString().split('T')[0]
+              : ''
+          }
+          onChange={(e) =>
+            onChange({
+              campaignStartDate: e.target.value ? parseLocalDate(e.target.value) : undefined,
+            })
+          }
+        />
+        <p className="text-sm text-gray-500">
+          Opcional. Serve como referência/padrão; a duração real será definida por item no próximo passo.
+        </p>
       </div>
-      <p className="text-sm text-gray-500">
-        💡 Esse período será usado como padrão ao adicionar itens no próximo passo
-      </p>
 
       {/* Validade da proposta */}
       <div className="space-y-2">
