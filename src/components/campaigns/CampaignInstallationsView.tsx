@@ -6,6 +6,7 @@ import { Campaign, CampaignStatus } from '../../types';
 interface CampaignInstallationsViewProps {
   campaigns: Campaign[];
   onViewDetails: (campaign: Campaign) => void;
+  onCheckIn?: (campaign: Campaign) => void;
 }
 
 /**
@@ -14,7 +15,7 @@ interface CampaignInstallationsViewProps {
  * Obs: este componente **não** é o Drawer de detalhes.
  * Ele recebe uma lista de campanhas e filtra as que estão em EM_INSTALACAO.
  */
-export function CampaignInstallationsView({ campaigns, onViewDetails }: CampaignInstallationsViewProps) {
+export function CampaignInstallationsView({ campaigns, onViewDetails, onCheckIn }: CampaignInstallationsViewProps) {
   const installationCampaigns = (campaigns || []).filter((c) => c.status === CampaignStatus.EM_INSTALACAO);
 
   return (
@@ -25,7 +26,7 @@ export function CampaignInstallationsView({ campaigns, onViewDetails }: Campaign
           <div className="flex-1">
             <h3 className="text-sm font-medium text-orange-900">Instalações OOH</h3>
             <p className="text-sm text-orange-700 mt-1">
-              Acompanhe campanhas que estão em fase de instalação. Abra os detalhes para gerenciar reservas e o status.
+              Acompanhe campanhas em fase de instalação. Ao concluir a instalação, realize o <b>check-in</b> com 1 foto por face.
             </p>
           </div>
         </div>
@@ -40,8 +41,9 @@ export function CampaignInstallationsView({ campaigns, onViewDetails }: Campaign
       ) : (
         <div className="space-y-4">
           {installationCampaigns.map((campaign) => {
-            const start = new Date(campaign.startDate);
-            const end = new Date(campaign.endDate);
+            const deadline = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
+            const start = campaign.startDate ? new Date(campaign.startDate as any) : null;
+            const end = campaign.endDate ? new Date(campaign.endDate as any) : null;
             const unitsCount =
               typeof campaign.reservedUnitsCount === 'number'
                 ? campaign.reservedUnitsCount
@@ -55,9 +57,7 @@ export function CampaignInstallationsView({ campaigns, onViewDetails }: Campaign
                     <h3 className="text-lg font-semibold text-gray-900">{campaign.name}</h3>
                     <p className="text-sm text-gray-500 mt-1">{clientName}</p>
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                      <span>
-                        {start.toLocaleDateString('pt-BR')} - {end.toLocaleDateString('pt-BR')}
-                      </span>
+                      <span>{deadline ? `Check-in at\u00e9 ${deadline.toLocaleDateString('pt-BR')}` : start && end ? `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}` : '-'}</span>
                       <span>•</span>
                       <span>{unitsCount} unidades</span>
                     </div>
@@ -66,9 +66,17 @@ export function CampaignInstallationsView({ campaigns, onViewDetails }: Campaign
                     )}
                   </div>
 
-                  <Button variant="outline" onClick={() => onViewDetails(campaign)}>
-                    Ver detalhes
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => onViewDetails(campaign)}>
+                      Ver detalhes
+                    </Button>
+
+                    {onCheckIn && (
+                      <Button onClick={() => onCheckIn(campaign)}>
+                        Check-in
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

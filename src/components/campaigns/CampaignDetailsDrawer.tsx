@@ -15,6 +15,7 @@ interface CampaignDetailsDrawerProps {
   onOpenChange: (open: boolean) => void;
   campaign: Campaign | null;
   defaultTab?: string;
+  onRequestCheckIn?: (campaign: Campaign) => void;
 }
 
 export function CampaignDetailsDrawer({
@@ -22,6 +23,7 @@ export function CampaignDetailsDrawer({
   onOpenChange,
   campaign,
   defaultTab = 'summary',
+  onRequestCheckIn,
 }: CampaignDetailsDrawerProps) {
   const navigate = useNavigation();
   const [loading, setLoading] = useState(false);
@@ -64,6 +66,22 @@ export function CampaignDetailsDrawer({
   const clientLabel =
     campaign?.client?.companyName || campaign?.client?.contactName || (campaign as any)?.clientName || '-';
 
+  const hasCheckIn = !!campaign?.checkInAt;
+  const checkInDeadlineAt = campaign?.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
+
+  const periodLabel = useMemo(() => {
+    if (!campaign) return '-';
+    const start = campaign.startDate ? new Date(campaign.startDate as any) : null;
+    const end = campaign.endDate ? new Date(campaign.endDate as any) : null;
+    if (hasCheckIn) {
+      return `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`;
+    }
+    if (checkInDeadlineAt) {
+      return `Check-in até ${checkInDeadlineAt.toLocaleDateString('pt-BR')}`;
+    }
+    return `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`;
+  }, [campaign, hasCheckIn, checkInDeadlineAt]);
+
   const totals = useMemo(() => {
     const paid = invoices
       .filter((inv) => inv.status === BillingStatus.PAGA)
@@ -77,6 +95,8 @@ export function CampaignDetailsDrawer({
   }, [invoices]);
 
   if (!campaign) return null;
+
+  
 
   const getReservationStatusBadge = (status: string) => {
     const base = 'bg-gray-100 text-gray-800';
@@ -103,10 +123,7 @@ export function CampaignDetailsDrawer({
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span>{clientLabel}</span>
                 <span>•</span>
-                <span>
-                  {new Date(campaign.startDate).toLocaleDateString('pt-BR')} -{' '}
-                  {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
-                </span>
+                <span>{periodLabel}</span>
                 {campaign.totalAmountCents && (
                   <>
                     <span>•</span>
@@ -171,8 +188,8 @@ export function CampaignDetailsDrawer({
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-600 mb-2">Notas</p>
                 <p className="text-sm text-gray-500">
-                  Campanhas usam as <b>reservas</b> para controlar veiculações. Os itens detalhados (campaign-items)
-                  ainda não existem no backend.
+                  No novo fluxo, as <b>reservas</b> são criadas automaticamente ao concluir o <b>check-in</b>
+                  (1 foto por face). Antes do check-in, é normal a campanha não ter reservas.
                 </p>
               </div>
             </TabsContent>
@@ -190,7 +207,7 @@ export function CampaignDetailsDrawer({
                 <div className="text-sm text-gray-500">Carregando reservas...</div>
               ) : reservations.length === 0 ? (
                 <div className="text-sm text-gray-500">
-                  Nenhuma reserva encontrada. Use <b>Gerar Booking</b> para criar as reservas.
+                  Nenhuma reserva encontrada. As reservas serão criadas automaticamente ao concluir o <b>check-in</b>.
                 </div>
               ) : (
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -221,17 +238,34 @@ export function CampaignDetailsDrawer({
 
             {/* Aba: Instalações OOH */}
             <TabsContent value="installations" className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <p className="text-sm text-blue-900 mb-2">📋 Instalações</p>
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg space-y-2">
+                <p className="text-sm text-blue-900">📸 Check-in de Instalação</p>
                 <p className="text-sm text-blue-800">
-                  Este painel usa as reservas como base. (A distinção OOH/DOOH por unidade será refinada quando o
-                  backend expor o tipo do ponto na reserva.)
+                  Para iniciar a veiculação, realize o <b>check-in</b> enviando 1 foto por face/unidade.
                 </p>
+
+                {!hasCheckIn && checkInDeadlineAt && (
+                  <p className="text-sm text-blue-800">
+                    Prazo limite: <b>{checkInDeadlineAt.toLocaleDateString('pt-BR')}</b>
+                  </p>
+                )}
+
+                {hasCheckIn && campaign.checkInAt && (
+                  <p className="text-sm text-blue-800">
+                    Check-in realizado em: <b>{new Date(campaign.checkInAt as any).toLocaleString('pt-BR')}</b>
+                  </p>
+                )}
+
+                {!hasCheckIn && onRequestCheckIn && campaign.status === 'EM_INSTALACAO' && (
+                  <div>
+                    <Button onClick={() => onRequestCheckIn(campaign)}>Realizar check-in</Button>
+                  </div>
+                )}
               </div>
 
               {reservations.length === 0 ? (
                 <div className="text-sm text-gray-500">
-                  Nenhuma reserva encontrada. Use <b>Gerar Booking</b> para criar as reservas.
+                  Nenhuma reserva encontrada. As reservas serão criadas ao concluir o <b>check-in</b>.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -247,9 +281,6 @@ export function CampaignDetailsDrawer({
                         </div>
                         {getReservationStatusBadge(r.status)}
                       </div>
-                      <p className="text-xs text-gray-500 mt-3">
-                        Checklist e fotos de instalação serão integrados em uma etapa posterior.
-                      </p>
                     </div>
                   ))}
                 </div>
