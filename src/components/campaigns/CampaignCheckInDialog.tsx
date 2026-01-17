@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
-import { BillingInvoice, BillingStatus, Campaign } from '../../types';
+import { BillingInvoice, BillingInvoiceType, BillingStatus, Campaign } from '../../types';
 
 type UnitRow = {
   mediaUnitId: string;
@@ -31,6 +31,8 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const [status, setStatus] = useState<CheckInStatusResponse | null>(null);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
   const [filesByUnit, setFilesByUnit] = useState<Record<string, File | null>>({});
   const [photosByUnit, setPhotosByUnit] = useState<Record<string, string>>({});
 
@@ -84,12 +86,83 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
     }
   };
 
+  const loadInvoices = async () => {
+    if (!campaign) return;
+    try {
+      setInvoicesLoading(true);
+      const res = await apiClient.get<BillingInvoice[]>('/billing-invoices', {
+        params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
+      });
+      setInvoices(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      // Sem bloquear a UI; backend também valida no confirm.
+      setInvoices([]);
+    } finally {
+      setInvoicesLoading(false);
+    }
+  };
+
+  const paymentGate = useMemo(() => {
+    if (!campaign) return { ok: true, pending: [] as BillingInvoice[], nextDue: null as BillingInvoice | null };
+    if (!invoices?.length) return { ok: true, pending: [] as BillingInvoice[], nextDue: null as BillingInvoice | null };
+
+    const isPaid = (inv: BillingInvoice) => inv.status === BillingStatus.PAGA;
+    const isCancelled = (inv: BillingInvoice) => inv.status === BillingStatus.CANCELADA;
+
+    // 1) Preferir o novo modelo (type/sequence). Fallback para o mais antigo: usa a(s) fatura(s) de menor vencimento.
+    const upfront = invoices.filter((i) => i.type === BillingInvoiceType.UPFRONT && !isCancelled(i));
+    const rent = invoices.filter((i) => i.type === BillingInvoiceType.RENT && !isCancelled(i));
+
+    const firstRent = rent
+      .slice()
+      .sort((a, b) => {
+        const sa = a.sequence ?? 9999;
+        const sb = b.sequence ?? 9999;
+        if (sa !== sb) return sa - sb;
+        return new Date(a.dueDate as any).getTime() - new Date(b.dueDate as any).getTime();
+      })[0];
+
+    let required: BillingInvoice[] = [];
+    if (upfront.length || rent.length) {
+      required = [...upfront, ...(firstRent ? [firstRent] : [])];
+    } else {
+      const minDue = Math.min(...invoices.map((i) => new Date(i.dueDate as any).getTime()));
+      required = invoices.filter((i) => new Date(i.dueDate as any).getTime() === minDue);
+    }
+
+    const pending = required.filter((i) => !isPaid(i));
+    const nextDue = invoices
+      .filter((i) => !isPaid(i) && !isCancelled(i))
+      .slice()
+      .sort((a, b) => new Date(a.dueDate as any).getTime() - new Date(b.dueDate as any).getTime())[0] || null;
+
+    return { ok: pending.length === 0, pending, nextDue };
+  }, [campaign, invoices]);
+
+  const billingAnchorDay = useMemo(() => {
+    if (!campaign) return null;
+    if (campaign.approvedAt) return new Date(campaign.approvedAt as any).getDate();
+    if (paymentGate.nextDue) return new Date(paymentGate.nextDue.dueDate as any).getDate();
+    if (invoices?.length) return new Date(invoices[0].dueDate as any).getDate();
+    return null;
+  }, [campaign, invoices, paymentGate.nextDue]);
+
+  const hasConfirmationAlert = useMemo(() => {
+    return invoices?.some(
+      (i) =>
+        !!i.requiresConfirmation &&
+        i.status !== BillingStatus.PAGA &&
+        i.status !== BillingStatus.CANCELADA
+    );
+  }, [invoices]);
+
   useEffect(() => {
     if (!open) return;
     // reset local
     setFilesByUnit({});
     setPhotosByUnit({});
     loadStatus();
+    loadInvoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, campaign?.id]);
 
@@ -105,20 +178,37 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
         params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
       });
       const invoices = Array.isArray(res.data) ? res.data : [];
+      setInvoices(invoices);
       if (invoices.length === 0) return true; // backend valida de verdade
 
-      // Regra mínima: faturas já vencidas ou do ciclo inicial devem estar pagas.
-      const now = new Date();
-      const blocking = invoices.filter((inv) => {
-        if (inv.status === BillingStatus.PAGA) return false;
-        const due = new Date(inv.dueDate as any);
-        return due.getTime() <= now.getTime();
-      });
+      // Regra de UI: antes do check-in, o pagamento inicial deve estar quitado (aluguel + custos iniciais, se houver).
+      const isPaid = (inv: BillingInvoice) => inv.status === BillingStatus.PAGA;
+      const isCancelled = (inv: BillingInvoice) => inv.status === BillingStatus.CANCELADA;
+      const upfront = invoices.filter((i) => i.type === BillingInvoiceType.UPFRONT && !isCancelled(i));
+      const rent = invoices.filter((i) => i.type === BillingInvoiceType.RENT && !isCancelled(i));
+      const firstRent = rent
+        .slice()
+        .sort((a, b) => {
+          const sa = a.sequence ?? 9999;
+          const sb = b.sequence ?? 9999;
+          if (sa !== sb) return sa - sb;
+          return new Date(a.dueDate as any).getTime() - new Date(b.dueDate as any).getTime();
+        })[0];
 
-      if (blocking.length > 0) {
-        toast.error('Check-in bloqueado: existe pagamento pendente.');
+      let required: BillingInvoice[] = [];
+      if (upfront.length || rent.length) {
+        required = [...upfront, ...(firstRent ? [firstRent] : [])];
+      } else {
+        const minDue = Math.min(...invoices.map((i) => new Date(i.dueDate as any).getTime()));
+        required = invoices.filter((i) => new Date(i.dueDate as any).getTime() === minDue);
+      }
+
+      const pending = required.filter((i) => !isPaid(i));
+      if (pending.length > 0) {
+        toast.error('Check-in bloqueado: pagamento inicial pendente.');
         return false;
       }
+
       return true;
     } catch (err) {
       // Se falhar, backend ainda vai bloquear no confirm.
@@ -211,7 +301,58 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
             <p className="text-xs text-blue-800">
               <b>Importante:</b> o pagamento inicial deve estar quitado para liberar o check-in.
             </p>
+            {billingAnchorDay ? (
+              <p className="text-xs text-blue-800">
+                Cobrança recorrente: vencimento todo dia <b>{billingAnchorDay}</b>.
+              </p>
+            ) : null}
+            {hasConfirmationAlert ? (
+              <p className="text-xs text-blue-800">
+                <b>Atenção:</b> existe uma cobrança que requer confirmação do cliente (regra de 30 dias antes do vencimento).
+              </p>
+            ) : null}
           </div>
+
+          {/* Gate de pagamento (UI) */}
+          {invoicesLoading ? (
+            <div className="text-sm text-gray-500">Carregando status de pagamento...</div>
+          ) : invoices.length > 0 ? (
+            <div
+              className={`border rounded-lg p-4 ${paymentGate.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
+            >
+              <div className="flex items-center justify-between">
+                <p className={`text-sm ${paymentGate.ok ? 'text-green-900' : 'text-red-900'}`}>
+                  {paymentGate.ok ? 'Pagamento inicial OK — check-in liberado' : 'Pagamento inicial pendente — check-in bloqueado'}
+                </p>
+                {paymentGate.nextDue ? (
+                  <Badge className="bg-gray-100 text-gray-800">
+                    Próximo venc.: {new Date(paymentGate.nextDue.dueDate as any).toLocaleDateString('pt-BR')}
+                  </Badge>
+                ) : null}
+              </div>
+
+              {!paymentGate.ok && paymentGate.pending.length > 0 ? (
+                <ul className="mt-2 list-disc pl-5 text-sm text-red-800 space-y-1">
+                  {paymentGate.pending.map((inv) => (
+                    <li key={inv.id}>
+                      {inv.type === BillingInvoiceType.UPFRONT
+                        ? 'Custos iniciais (produção/instalação)'
+                        : inv.type === BillingInvoiceType.RENT
+                        ? 'Aluguel (primeiro ciclo)'
+                        : 'Fatura inicial'}{' '}
+                      — venc. {new Date(inv.dueDate as any).toLocaleDateString('pt-BR')} — R$ {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {hasConfirmationAlert ? (
+                <p className="mt-2 text-xs text-gray-700">
+                  Atenção: há faturas marcadas como <b>necessita confirmação</b> (regra de 30 dias antes).
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-between">
             <h3 className="text-sm text-gray-900">Unidades para check-in</h3>
@@ -292,7 +433,15 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancelar
             </Button>
-            <Button onClick={handleConfirm} disabled={loading || isDeadlineExpired}>
+            <Button
+              onClick={handleConfirm}
+              disabled={
+                loading ||
+                isDeadlineExpired ||
+                (status?.canConfirm === false) ||
+                (invoices.length > 0 && !paymentGate.ok)
+              }
+            >
               {loading ? 'Confirmando...' : 'Confirmar Check-in'}
             </Button>
           </div>
