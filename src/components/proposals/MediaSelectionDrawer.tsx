@@ -3,32 +3,30 @@ import { ChevronRight, MapPin, Search } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
+import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import apiClient from '../../lib/apiClient';
-import { MediaPoint, MediaPointOwner, MediaType, MediaUnit, ProposalItem } from '../../types';
+import { MediaPoint, MediaPointOwner, MediaType, MediaUnit, ProductionCosts, ProposalItem } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
 
 interface MediaSelectionDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultPeriod: {
-    startDate?: Date;
-    endDate?: Date;
-  };
   onAddItem: (item: ProposalItem) => void;
 }
 
 type MediaUnitWithPoint = MediaUnit & {
+  pointId?: string;
   pointName?: string;
   pointType?: MediaType;
   pointAddress?: string;
   dimensions?: string;
+  productionCosts?: ProductionCosts | null;
 };
 
 export function MediaSelectionDrawer({
   open,
   onOpenChange,
-  defaultPeriod,
   onAddItem,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
@@ -55,8 +53,12 @@ export function MediaSelectionDrawer({
   const [unitPrice, setUnitPrice] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
-  const [startDate, setStartDate] = useState<Date | undefined>(defaultPeriod.startDate);
-  const [endDate, setEndDate] = useState<Date | undefined>(defaultPeriod.endDate);
+
+  // Novo fluxo: tempo de ocupacao (multiplo de 15, max 360)
+  const OCCUPATION_MAX_DAYS = 360;
+  const [occupationMode, setOccupationMode] = useState<'15' | '30' | 'custom'>('30');
+  const [occupationDays, setOccupationDays] = useState<number>(30);
+  const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
 
   const baseTotal = quantity * unitPrice;
   let discountedTotal = baseTotal;
@@ -64,6 +66,51 @@ export function MediaSelectionDrawer({
   if (discountAmount > 0) discountedTotal = discountedTotal - discountAmount;
   const totalPrice = Math.max(0, discountedTotal);
   const computedDiscountValue = Math.max(0, baseTotal - totalPrice);
+
+  const getOccupationBreakdown = (days: number) => {
+    const d = Math.max(0, Math.floor(days));
+    const months = Math.floor(d / 30);
+    const rem = d % 30;
+    const biweeks = rem === 15 ? 1 : 0;
+    return { months, biweeks };
+  };
+
+  const safeNumber = (v: any) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const computedPricing = useMemo(() => {
+    const priceMonth = safeNumber(selectedMediaUnit?.priceMonth ?? 0);
+    const priceBiweekly = safeNumber((selectedMediaUnit as any)?.priceWeek ?? 0);
+    const prod = safeNumber(selectedMediaUnit?.productionCosts?.lona ?? 0);
+    const inst = safeNumber(selectedMediaUnit?.productionCosts?.montagem ?? 0);
+
+    const { months, biweeks } = getOccupationBreakdown(occupationDays);
+    const rentPerUnit = months * priceMonth + biweeks * priceBiweekly;
+    const upfrontPerUnit = inst + (clientProvidesBanner ? 0 : prod);
+    const perUnitTotal = rentPerUnit + upfrontPerUnit;
+
+    return {
+      priceMonth,
+      priceBiweekly,
+      months,
+      biweeks,
+      rentPerUnit,
+      prod,
+      inst,
+      upfrontPerUnit,
+      perUnitTotal,
+    };
+  }, [selectedMediaUnit, occupationDays, clientProvidesBanner]);
+
+  useEffect(() => {
+    if (!selectedMediaUnit) {
+      setUnitPrice(0);
+      return;
+    }
+    setUnitPrice(computedPricing.perUnitTotal);
+  }, [selectedMediaUnit, computedPricing.perUnitTotal]);
 
   const formatPrice = (price: number) => {
     return price.toLocaleString('pt-BR', {
@@ -145,11 +192,13 @@ export function MediaSelectionDrawer({
 
           return rawUnits.map((u: any) => ({
             ...u,
+            pointId: p.id,
             pointName: p.name,
             pointType: p.type,
             pointAddress: formatAddress(p),
             dimensions: formatDimensions(u),
             mediaPointId: p.id,
+            productionCosts: (p as any).productionCosts ?? null,
           }));
         });
 
@@ -164,11 +213,20 @@ export function MediaSelectionDrawer({
     };
 
     if (open) {
-      setStartDate(defaultPeriod.startDate);
-      setEndDate(defaultPeriod.endDate);
+      // reset selecao
+      setSelectedMediaPointId(null);
+      setSelectedMediaUnit(null);
+      setSelectedMediaPointOwnerId('');
+      setDescription('');
+      setQuantity(1);
+      setDiscountPercent(0);
+      setDiscountAmount(0);
+      setOccupationMode('30');
+      setOccupationDays(30);
+      setClientProvidesBanner(false);
       load();
     }
-  }, [open, defaultPeriod.startDate, defaultPeriod.endDate]);
+  }, [open]);
 
   const unitsByPointId = useMemo(() => {
     const map = new Map<string, MediaUnitWithPoint[]>();
@@ -222,12 +280,12 @@ export function MediaSelectionDrawer({
   const handleSelectMediaUnit = (media: MediaUnitWithPoint) => {
     setSelectedMediaUnit(media);
     setDescription(`${media.pointName || 'Ponto'} - ${media.label}`);
-    setUnitPrice((media as any).priceMonth || 0);
     setDiscountPercent(0);
     setDiscountAmount(0);
     setQuantity(1);
-    setStartDate(defaultPeriod.startDate);
-    setEndDate(defaultPeriod.endDate);
+    setOccupationMode('30');
+    setOccupationDays(30);
+    setClientProvidesBanner(false);
   };
 
   const loadOwnersForPoint = async (mediaPointId: string) => {
@@ -272,12 +330,17 @@ export function MediaSelectionDrawer({
     setDiscountPercent(0);
     setDiscountAmount(0);
     setQuantity(1);
-    setStartDate(defaultPeriod.startDate);
-    setEndDate(defaultPeriod.endDate);
+    setOccupationMode('30');
+    setOccupationDays(30);
+    setClientProvidesBanner(false);
   };
 
   const handleConfirm = () => {
     if (!selectedMediaUnit) return;
+
+    const days = occupationDays;
+    const rentTotalSnapshot = quantity * computedPricing.rentPerUnit;
+    const upfrontTotalSnapshot = quantity * computedPricing.upfrontPerUnit;
 
     const item: ProposalItem = {
       id: `item${Date.now()}${Math.random()}`,
@@ -287,8 +350,14 @@ export function MediaSelectionDrawer({
       productId: undefined,
       mediaPointOwnerId: selectedMediaUnit.id ? (selectedMediaPointOwnerId || null) : null,
       description,
-      startDate,
-      endDate,
+      occupationDays: days,
+      clientProvidesBanner,
+      priceMonthSnapshot: computedPricing.priceMonth,
+      priceBiweeklySnapshot: computedPricing.priceBiweekly,
+      productionCostSnapshot: computedPricing.prod,
+      installationCostSnapshot: computedPricing.inst,
+      rentTotalSnapshot,
+      upfrontTotalSnapshot,
       quantity,
       unitPrice,
       discountPercent: discountPercent > 0 ? discountPercent : undefined,
@@ -315,13 +384,24 @@ export function MediaSelectionDrawer({
     setUnitPrice(0);
     setDiscountPercent(0);
     setDiscountAmount(0);
-    setStartDate(defaultPeriod.startDate);
-    setEndDate(defaultPeriod.endDate);
+    setOccupationMode('30');
+    setOccupationDays(30);
+    setClientProvidesBanner(false);
     onOpenChange(false);
   };
 
   const hasOwners = mediaPointOwners.length > 0;
-  const isValid = !!selectedMediaUnit && !!description && quantity > 0 && unitPrice >= 0 && hasOwners && !!selectedMediaPointOwnerId && !ownersLoading && !ownersError;
+  const isOccupationValid = occupationDays >= 15 && occupationDays % 15 === 0 && occupationDays <= OCCUPATION_MAX_DAYS;
+  const isValid =
+    !!selectedMediaUnit &&
+    !!description &&
+    quantity > 0 &&
+    unitPrice >= 0 &&
+    isOccupationValid &&
+    hasOwners &&
+    !!selectedMediaPointOwnerId &&
+    !ownersLoading &&
+    !ownersError;
 
   const mediaTypes = useMemo(() => {
     const types = new Set(mediaPoints.map((p: any) => p.type));
@@ -524,6 +604,135 @@ export function MediaSelectionDrawer({
                               />
                             </div>
 
+                            {/* Tempo de ocupação (novo fluxo) */}
+                            <div className="space-y-3">
+                              <div>
+                                <label className="text-sm text-gray-600 mb-1 block">Tempo de ocupação *</label>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={occupationMode === '15' ? 'default' : 'outline'}
+                                    onClick={() => {
+                                      setOccupationMode('15');
+                                      setOccupationDays(15);
+                                    }}
+                                  >
+                                    15 dias
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={occupationMode === '30' ? 'default' : 'outline'}
+                                    onClick={() => {
+                                      setOccupationMode('30');
+                                      setOccupationDays(30);
+                                    }}
+                                  >
+                                    30 dias
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={occupationMode === 'custom' ? 'default' : 'outline'}
+                                    onClick={() => {
+                                      setOccupationMode('custom');
+                                      // começa com 15 para evitar estado inválido
+                                      setOccupationDays((prev) => (prev >= 15 ? prev : 15));
+                                    }}
+                                  >
+                                    Personalizado
+                                  </Button>
+                                </div>
+
+                                <div className="mt-2">
+                                  {occupationMode === 'custom' ? (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setOccupationDays((d) => Math.min(OCCUPATION_MAX_DAYS, Math.max(0, d) + 15))
+                                        }
+                                      >
+                                        +15 dias
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setOccupationDays((d) => Math.min(OCCUPATION_MAX_DAYS, Math.max(0, d) + 30))
+                                        }
+                                      >
+                                        +30 dias
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => setOccupationDays(0)}
+                                      >
+                                        Limpar
+                                      </Button>
+                                      <span className="text-sm text-gray-700">Total: <b>{occupationDays}</b> dias</span>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-gray-500">Total: {occupationDays} dias</p>
+                                  )}
+
+                                  {!isOccupationValid && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Selecione um tempo válido (múltiplo de 15, máximo {OCCUPATION_MAX_DAYS} dias).
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-2">
+                                <Checkbox
+                                  id="clientProvidesBanner"
+                                  checked={clientProvidesBanner}
+                                  onCheckedChange={(v: boolean | 'indeterminate') => setClientProvidesBanner(v === true)}
+                                />
+                                <div>
+                                  <label htmlFor="clientProvidesBanner" className="text-sm text-gray-700">
+                                    Cliente irá fornecer a lona
+                                  </label>
+                                  <p className="text-xs text-gray-500">
+                                    Se marcado, não contabiliza custo de produção (somente instalação/montagem).
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-sm text-gray-600 mb-1 block">Preço mensal</label>
+                                  <Input value={formatPrice(computedPricing.priceMonth)} readOnly disabled />
+                                </div>
+                                <div>
+                                  <label className="text-sm text-gray-600 mb-1 block">Preço quinzenal</label>
+                                  <Input value={formatPrice(computedPricing.priceBiweekly)} readOnly disabled />
+                                </div>
+                              </div>
+
+                              <div className="bg-gray-50 p-3 rounded-lg border">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Aluguel por unidade</span>
+                                  <span className="text-gray-900">{formatPrice(computedPricing.rentPerUnit)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">Custos (produção/instalação)</span>
+                                  <span className="text-gray-900">{formatPrice(computedPricing.upfrontPerUnit)}</span>
+                                </div>
+                                <div className="flex justify-between text-sm font-medium border-t pt-2 mt-2">
+                                  <span className="text-gray-900">Total por unidade</span>
+                                  <span className="text-gray-900">{formatPrice(computedPricing.perUnitTotal)}</span>
+                                </div>
+                              </div>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
@@ -536,16 +745,16 @@ export function MediaSelectionDrawer({
                               </div>
 
                               <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Preço/mês (R$) *</label>
+                                <label className="text-sm text-gray-600 mb-1 block">Preço por unidade (calculado)</label>
                                 <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={unitPrice}
-                                  onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                                  value={formatPrice(unitPrice)}
+                                  readOnly
+                                  disabled
                                 />
                               </div>
                             </div>
+
+                            
 
                             <div className="grid grid-cols-2 gap-4">
                               <div>
@@ -583,35 +792,6 @@ export function MediaSelectionDrawer({
                             <p className="text-xs text-gray-500">
                               💡 Preencha apenas um campo. O desconto será aplicado sobre o total do item.
                             </p>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Data Início</label>
-                                <Input
-                                  type="date"
-                                  value={startDate ? startDate.toISOString().split('T')[0] : ''}
-                                  onChange={(e) =>
-                                    setStartDate(
-                                      e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
-                                    )
-                                  }
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Data Fim</label>
-                                <Input
-                                  type="date"
-                                  value={endDate ? endDate.toISOString().split('T')[0] : ''}
-                                  onChange={(e) =>
-                                    setEndDate(
-                                      e.target.value ? new Date(`${e.target.value}T00:00:00`) : undefined
-                                    )
-                                  }
-                                />
-                              </div>
-                            </div>
-
                             <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
                               <div className="flex justify-between items-center">
                                 <span className="text-indigo-900">Total do Item:</span>

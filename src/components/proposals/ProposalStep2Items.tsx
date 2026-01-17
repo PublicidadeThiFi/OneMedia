@@ -12,13 +12,13 @@ import { ProposalItemEditDialog } from './ProposalItemEditDialog';
 interface ProposalStep2ItemsProps {
   formData: ProposalFormData;
   onItemsChange: (items: ProposalItem[]) => void;
-  onDiscountChange: (data: Partial<ProposalFormData>) => void;
+  onMetaChange: (data: Partial<ProposalFormData>) => void;
 }
 
 export function ProposalStep2Items({
   formData,
   onItemsChange,
-  onDiscountChange,
+  onMetaChange,
 }: ProposalStep2ItemsProps) {
   const [showMediaDrawer, setShowMediaDrawer] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -82,18 +82,50 @@ export function ProposalStep2Items({
     return `${dd}/${m}/${y}`;
   };
 
+  const formatOccupationDays = (days?: number) => {
+    const d = Number(days ?? 0);
+    if (!Number.isFinite(d) || d <= 0) return '—';
+    return `${d} dias`;
+  };
+
   const handleDiscountPercentChange = (value: string) => {
     const percent = parseFloat(value) || 0;
-    onDiscountChange({ discountPercent: percent, discountAmount: 0 });
+    onMetaChange({ discountPercent: percent, discountAmount: 0 });
   };
 
   const handleDiscountAmountChange = (value: string) => {
     const amount = parseFloat(value) || 0;
-    onDiscountChange({ discountAmount: amount, discountPercent: 0 });
+    onMetaChange({ discountAmount: amount, discountPercent: 0 });
+  };
+
+  const handleAssemblyMaxDaysChange = (value: string) => {
+    const v = value === '' ? undefined : Math.max(0, Math.floor(Number(value)));
+    onMetaChange({ assemblyMaxDays: Number.isFinite(Number(v)) ? v : undefined } as any);
   };
 
   return (
     <div className="space-y-6">
+      {/* Configuracoes globais do passo 2 */}
+      <div className="border rounded-lg p-4 bg-gray-50">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="assemblyMaxDays">Período máximo de montagem (dias)</Label>
+            <Input
+              id="assemblyMaxDays"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="Ex.: 7"
+              value={formData.assemblyMaxDays ?? ''}
+              onChange={(e) => handleAssemblyMaxDaysChange(e.target.value)}
+            />
+            <p className="text-xs text-gray-500">
+              Opcional. Após aprovar a proposta, o check-in deve ocorrer até esse prazo.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Barra de ações */}
       <div className="flex flex-wrap gap-3">
         <Button
@@ -157,7 +189,7 @@ export function ProposalStep2Items({
                 <tr>
                   <th className="text-left px-4 py-3 text-sm text-gray-600">Item</th>
                   <th className="text-left px-4 py-3 text-sm text-gray-600">Tipo</th>
-                  <th className="text-left px-4 py-3 text-sm text-gray-600">Período</th>
+                  <th className="text-left px-4 py-3 text-sm text-gray-600">Tempo de ocupação</th>
                   <th className="text-right px-4 py-3 text-sm text-gray-600">Qtd</th>
                   <th className="text-right px-4 py-3 text-sm text-gray-600">
                     Preço Unit.
@@ -190,7 +222,11 @@ export function ProposalStep2Items({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      {formatDate(item.startDate)} - {formatDate(item.endDate)}
+                      {item.mediaUnitId
+                        ? formatOccupationDays((item as any).occupationDays)
+                        : (item.startDate || item.endDate)
+                          ? `${formatDate(item.startDate)} - ${formatDate(item.endDate)}`
+                          : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900 text-right">
                       {item.quantity}
@@ -317,10 +353,6 @@ export function ProposalStep2Items({
       <MediaSelectionDrawer
         open={showMediaDrawer}
         onOpenChange={setShowMediaDrawer}
-        defaultPeriod={{
-          startDate: formData.campaignStartDate,
-          endDate: (formData as any).campaignEndDate,
-        }}
         onAddItem={handleAddMediaItem}
       />
 
@@ -330,7 +362,6 @@ export function ProposalStep2Items({
         onOpenChange={setShowProductDialog}
         defaultPeriod={{
           startDate: formData.campaignStartDate,
-          endDate: (formData as any).campaignEndDate,
         }}
         onAddItem={handleAddProductItem}
       />
