@@ -42,6 +42,9 @@ import { mockApi } from './mockApi';
 import { buildDashboardBackendQuery, toQueryString } from './query';
 import { getDashboardPermissions } from './permissions';
 import { deleteSavedView, loadSavedViews, makeSavedViewId, upsertSavedView, type SavedDashboardView } from './savedViews';
+import { useCachedQueryData } from './cache';
+import { useWidgetMetrics } from './metrics';
+import { runDashboardQaChecksOnce } from './qa';
 import type {
   DashboardAlertsDTO,
   DashboardCommercialSummaryDTO,
@@ -83,12 +86,35 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const { company } = useCompany();
 
   const [tab, setTab] = useState<DashboardTab>('executivo');
-  const [filters, setFilters] = useState<DashboardFilters>({
+  const initialFilters: DashboardFilters = {
     datePreset: '30d',
     query: '',
     city: '',
     mediaType: 'ALL',
-  });
+  };
+
+  // Etapa 15: drafts (UX) + debounce para evitar refetch a cada tecla
+  const [filtersDraft, setFiltersDraft] = useState<DashboardFilters>(initialFilters);
+  const [filters, setFilters] = useState<DashboardFilters>(initialFilters);
+  const [isApplyingFilters, setIsApplyingFilters] = useState(false);
+
+  useEffect(() => {
+    const needsDebounce = filtersDraft.query !== filters.query || filtersDraft.city !== filters.city;
+    if (!needsDebounce) {
+      setIsApplyingFilters(false);
+      return;
+    }
+
+    setIsApplyingFilters(true);
+    const debounceTimer = window.setTimeout(() => {
+      setFilters((s) => ({ ...s, query: filtersDraft.query, city: filtersDraft.city }));
+      setIsApplyingFilters(false);
+    }, 350);
+
+    return () => window.clearTimeout(debounceTimer);
+  }, [filtersDraft.query, filtersDraft.city, filters.query, filters.city]);
+
+
 
   // Etapa 12: permissoes + saved views (MVP: localStorage)
   const perms = useMemo(() => getDashboardPermissions(user, company), [user, company]);
@@ -347,24 +373,74 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       dashboardGetJson<DashboardDoohProofOfPlaySummaryDTO>(DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary, backendQs, { signal }),
   });
 
+  // Etapa 15: cache local por (empresa + filtros) para evitar flicker em refetch
+  const overview = useCachedQueryData<DashboardOverviewDTO>(`overview:${company?.id || ''}:${backendQs}`, overviewQ);
+  const funnel = useCachedQueryData<DashboardFunnelDTO>(`funnel:${company?.id || ''}:${backendQs}`, funnelQ);
+  const commercialSummary = useCachedQueryData<DashboardCommercialSummaryDTO>(
+    `commercialSummary:${company?.id || ''}:${backendQs}`,
+    commercialSummaryQ,
+  );
+  const alertsDto = useCachedQueryData<DashboardAlertsDTO>(`alerts:${company?.id || ''}:${backendQs}`, alertsQ);
+  const alerts = alertsDto || [];
 
-  const overview = overviewQ.data;
-  const funnel = funnelQ.data;
-  const commercialSummary = commercialSummaryQ.data;
-  const alerts = alertsQ.data || [];
+  const revenueTsDto = useCachedQueryData<DashboardTimeseriesDTO>(`revenueTs:${company?.id || ''}:${backendQs}`, revenueTsQ);
+  const cashflowTsDto = useCachedQueryData<DashboardTimeseriesDTO>(`cashflowTs:${company?.id || ''}:${backendQs}`, cashflowTsQ);
+  const inventoryMapDto = useCachedQueryData<DashboardInventoryMapDTO>(`inventoryMap:${company?.id || ''}:${backendQs}`, inventoryMapQ);
+  const inventoryRankingDto = useCachedQueryData<DashboardInventoryRankingDTO>(
+    `inventoryRanking:${company?.id || ''}:${backendQs}`,
+    inventoryRankingQ,
+  );
 
-  const revenueTs = revenueTsQ.data?.points || [];
-  const cashflowTs = cashflowTsQ.data?.points || [];
-  const inventoryPins = inventoryMapQ.data?.pins || [];
-  const inventoryRankingRows = inventoryRankingQ.data?.rows || [];
+  const topClientsDto = useCachedQueryData<DashboardTopClientsDTO>(`topClients:${company?.id || ''}:${backendQs}`, topClientsQ);
+  const agingSummary = useCachedQueryData<DashboardReceivablesAgingSummaryDTO>(`aging:${company?.id || ''}:${backendQs}`, agingQ);
+  const oohOpsDto = useCachedQueryData<DashboardOohOpsSummaryDTO>(`oohOps:${company?.id || ''}:${backendQs}`, oohOpsQ);
+  const popDto = useCachedQueryData<DashboardDoohProofOfPlaySummaryDTO>(`pop:${company?.id || ''}:${backendQs}`, popQ);
 
-  const topClientsRows = topClientsQ.data?.rows || [];
-  const agingSummary = agingQ.data;
-  const oohOpsItems = oohOpsQ.data?.items || [];
-  const popRows = popQ.data?.rows || [];
+  const stalledProposalsDto = useCachedQueryData<DashboardStalledProposalsDTO>(
+    `stalledProposals:${company?.id || ''}:${backendQs}`,
+    stalledProposalsQ,
+  );
+  const sellerRankingDto = useCachedQueryData<DashboardSellerRankingDTO>(
+    `sellerRanking:${company?.id || ''}:${backendQs}`,
+    sellerRankingQ,
+  );
 
-  const stalledProposalsRows = stalledProposalsQ.data?.rows || [];
-  const sellerRankingRows = sellerRankingQ.data?.rows || [];
+  const revenueTs = revenueTsDto?.points || [];
+  const cashflowTs = cashflowTsDto?.points || [];
+  const inventoryPins = inventoryMapDto?.pins || [];
+  const inventoryRankingRows = inventoryRankingDto?.rows || [];
+
+  const topClientsRows = topClientsDto?.rows || [];
+  const oohOpsItems = oohOpsDto?.items || [];
+  const popRows = popDto?.rows || [];
+  const stalledProposalsRows = stalledProposalsDto?.rows || [];
+  const sellerRankingRows = sellerRankingDto?.rows || [];
+
+
+  const metricsCtx = useMemo(
+    () => ({ companyId: company?.id ? String(company.id) : undefined, tab, backendQs }),
+    [company?.id, tab, backendQs],
+  );
+
+  useWidgetMetrics('overview', overviewQ, metricsCtx);
+  useWidgetMetrics('alerts', alertsQ, metricsCtx);
+  useWidgetMetrics('funnel', funnelQ, metricsCtx);
+  useWidgetMetrics('commercialSummary', commercialSummaryQ, metricsCtx);
+  useWidgetMetrics('stalledProposals', stalledProposalsQ, metricsCtx);
+  useWidgetMetrics('sellerRanking', sellerRankingQ, metricsCtx);
+  useWidgetMetrics('revenueTs', revenueTsQ, metricsCtx);
+  useWidgetMetrics('cashflowTs', cashflowTsQ, metricsCtx);
+  useWidgetMetrics('topClients', topClientsQ, metricsCtx);
+  useWidgetMetrics('aging', agingQ, metricsCtx);
+  useWidgetMetrics('oohOps', oohOpsQ, metricsCtx);
+  useWidgetMetrics('pop', popQ, metricsCtx);
+  useWidgetMetrics('inventoryMap', inventoryMapQ, metricsCtx);
+  useWidgetMetrics('inventoryRanking', inventoryRankingQ, metricsCtx);
+  useWidgetMetrics('drilldown', drilldownQ, metricsCtx);
+
+  useEffect(() => {
+    runDashboardQaChecksOnce();
+  }, []);
 
 
   // URL pública do mapa (mock)
@@ -513,10 +589,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       { label: 'Empresa', value: name },
       { label: 'Aba', value: tabLabel(tab) },
       { label: 'Período', value: period },
-      { label: 'Tipo', value: String(filters.mediaType) },
+      { label: 'Tipo', value: String(filtersDraft.mediaType) },
     ];
-    if (filters.query) base.push({ label: 'Busca', value: String(filters.query) });
-    if (filters.city) base.push({ label: 'Cidade', value: String(filters.city) });
+    if (filtersDraft.query) base.push({ label: 'Busca', value: String(filtersDraft.query) });
+    if (filtersDraft.city) base.push({ label: 'Cidade', value: String(filtersDraft.city) });
     return [...(extra || []), ...base];
   };
 
@@ -555,9 +631,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     rows.push(['Empresa', companyName]);
     rows.push(['Aba', tabLabel(tab)]);
     rows.push(['Período', `${formatShortDate(backendQuery.dateFrom)} - ${formatShortDate(backendQuery.dateTo)}`]);
-    rows.push(['Tipo', String(filters.mediaType)]);
-    if (filters.city) rows.push(['Cidade', String(filters.city)]);
-    if (filters.query) rows.push(['Busca', String(filters.query)]);
+    rows.push(['Tipo', String(filtersDraft.mediaType)]);
+    if (filtersDraft.city) rows.push(['Cidade', String(filtersDraft.city)]);
+    if (filtersDraft.query) rows.push(['Busca', String(filtersDraft.query)]);
 
     const add = (k: string, v: unknown) => rows.push([k, v == null ? '' : String(v)]);
 
@@ -643,7 +719,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   const clearFilters = () => {
-    setFilters({ datePreset: '30d', query: '', city: '', mediaType: 'ALL' });
+    setFiltersDraft(initialFilters);
+    setFilters(initialFilters);
     toast.success('Filtros limpos');
   };
 
@@ -667,6 +744,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
 
     setTab(desiredTab);
+    setFiltersDraft(view.filters);
     setFilters(view.filters);
   };
 
@@ -716,7 +794,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       id,
       name,
       tab,
-      filters,
+      filters: filtersDraft,
       layout,
       createdAt: existing?.createdAt || now,
       updatedAt: now,
@@ -745,6 +823,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     setActiveViewId('');
     toast.success('Visão excluída');
   };
+
+  // Etapa 15: tratamento de erro padronizado por widget
+  const widgetError = (title: string, q: { status?: string; errorMessage?: string }) =>
+    q.status === 'error'
+      ? { title, description: q.errorMessage || 'Tente novamente.' }
+      : null;
 
   const executiveLoading = overviewQ.status !== 'ready';
   const commercialLoading = funnelQ.status !== 'ready';
@@ -888,8 +972,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <label className="block text-xs text-gray-500 mb-1">Período</label>
                 <select
                   className="w-full h-9 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                  value={filters.datePreset}
-                  onChange={(e) => setFilters((s) => ({ ...s, datePreset: e.target.value as DatePreset }))}
+                  value={filtersDraft.datePreset}
+                  onChange={(e) => {
+                    const next = e.target.value as DatePreset;
+                    setFiltersDraft((s) => ({ ...s, datePreset: next }));
+                    setFilters((s) => ({ ...s, datePreset: next }));
+                  }}
                 >
                   <option value="7d">Últimos 7 dias</option>
                   <option value="30d">Últimos 30 dias</option>
@@ -901,8 +989,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Buscar</label>
                 <Input
-                  value={filters.query}
-                  onChange={(e) => setFilters((s) => ({ ...s, query: e.target.value }))}
+                  value={filtersDraft.query}
+                  onChange={(e) => setFiltersDraft((s) => ({ ...s, query: e.target.value }))}
                   placeholder="cliente, campanha, proposta..."
                   className="h-9"
                 />
@@ -911,8 +999,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Cidade/Região</label>
                 <Input
-                  value={filters.city}
-                  onChange={(e) => setFilters((s) => ({ ...s, city: e.target.value }))}
+                  value={filtersDraft.city}
+                  onChange={(e) => setFiltersDraft((s) => ({ ...s, city: e.target.value }))}
                   placeholder="ex: Brasília"
                   className="h-9"
                 />
@@ -922,8 +1010,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <label className="block text-xs text-gray-500 mb-1">Tipo</label>
                 <select
                   className="w-full h-9 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                  value={filters.mediaType}
-                  onChange={(e) => setFilters((s) => ({ ...s, mediaType: e.target.value as MediaTypeFilter }))}
+                  value={filtersDraft.mediaType}
+                  onChange={(e) => {
+                    const next = e.target.value as MediaTypeFilter;
+                    setFiltersDraft((s) => ({ ...s, mediaType: next }));
+                    setFilters((s) => ({ ...s, mediaType: next }));
+                  }}
                 >
                   <option value="ALL">OOH + DOOH</option>
                   <option value="OOH">OOH</option>
@@ -933,11 +1025,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             {/* Active filter pills (informativo) */}
+            {isApplyingFilters ? (
+              <div className="mt-2 text-xs text-gray-500">Aplicando filtros…</div>
+            ) : null}
+
             <div className="mt-4 flex items-center gap-2 flex-wrap">
-              <Pill label="Período" value={filters.datePreset.toUpperCase()} />
-              {filters.query ? <Pill label="Busca" value={filters.query} /> : null}
-              {filters.city ? <Pill label="Cidade" value={filters.city} /> : null}
-              <Pill label="Tipo" value={filters.mediaType} />
+              <Pill label="Período" value={filtersDraft.datePreset.toUpperCase()} />
+              {filtersDraft.query ? <Pill label="Busca" value={filtersDraft.query} /> : null}
+              {filtersDraft.city ? <Pill label="Cidade" value={filtersDraft.city} /> : null}
+              <Pill label="Tipo" value={filtersDraft.mediaType} />
             </div>
           </CardContent>
         </Card>
@@ -1032,8 +1128,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             id="dash-widget-alerts"
             title="Atenção hoje"
             subtitle="Alertas inteligentes (mock) — filtrados pela busca"
-            loading={alertsQ.status === 'loading' && !alertsQ.data}
-            error={alertsQ.status === 'error' ? { title: 'Falha ao carregar alertas', description: alertsQ.errorMessage } : null}
+            loading={alertsQ.status === 'loading' && !alertsDto}
+            error={widgetError('Falha ao carregar alertas', alertsQ)}
             empty={alerts.length === 0 && alertsQ.status === 'ready'}
             emptyTitle="Sem alertas"
             emptyDescription={smartEmpty("Nada para destacar com os filtros atuais.")}
@@ -1079,12 +1175,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-revenue-trend"
               title="Tendência de Receita"
               subtitle={`Série (${revenueTsQ.source})`}
-              loading={revenueTsQ.status === 'loading' && !revenueTsQ.data}
-              error={
-                revenueTsQ.status === 'error'
-                  ? { title: 'Falha ao carregar série', description: revenueTsQ.errorMessage }
-                  : null
-              }
+              loading={revenueTsQ.status === 'loading' && !revenueTsDto}
+              error={widgetError('Falha ao carregar série', revenueTsQ)}
               empty={revenueTs.length === 0 && revenueTsQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty("Não há pontos para o período/filtros atuais.")}
@@ -1130,12 +1222,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-top-clients"
               title="Top Clientes"
               subtitle={`Ranking (${topClientsQ.source})`}
-              loading={topClientsQ.status === 'loading' && !topClientsQ.data}
-              error={
-                topClientsQ.status === 'error'
-                  ? { title: 'Falha ao carregar ranking', description: topClientsQ.errorMessage }
-                  : null
-              }
+              loading={topClientsQ.status === 'loading' && !topClientsDto}
+              error={widgetError('Falha ao carregar ranking', topClientsQ)}
               empty={topClientsRows.length === 0 && topClientsQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty("Nenhum cliente encontrado com os filtros atuais.")}
@@ -1242,7 +1330,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Funil comercial"
               subtitle={`Pipeline por etapa (${funnelQ.source})`}
               loading={commercialLoading}
-              error={funnelQ.status === 'error' ? { title: 'Falha ao carregar funil', description: funnelQ.errorMessage } : null}
+              error={widgetError('Falha ao carregar funil', funnelQ)}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => funnelQ.refetch()}>
@@ -1305,12 +1393,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 id="dash-widget-stalled-proposals"
                 title="Propostas paradas"
                 subtitle={`Ações rápidas (${stalledProposalsQ.source})`}
-                loading={stalledProposalsQ.status === 'loading' && !stalledProposalsQ.data}
-                error={
-                  stalledProposalsQ.status === 'error'
-                    ? { title: 'Falha ao carregar lista', description: stalledProposalsQ.errorMessage }
-                    : null
-                }
+                loading={stalledProposalsQ.status === 'loading' && !stalledProposalsDto}
+                error={widgetError('Falha ao carregar lista', stalledProposalsQ)}
                 empty={stalledProposalsRows.length === 0 && stalledProposalsQ.status === 'ready'}
                 emptyTitle="Nada aqui"
                 emptyDescription={smartEmpty("Nenhuma proposta parou com os filtros atuais.")}
@@ -1388,12 +1472,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 id="dash-widget-seller-ranking"
                 title="Ranking de vendedores"
                 subtitle={`Performance (${sellerRankingQ.source})`}
-                loading={sellerRankingQ.status === 'loading' && !sellerRankingQ.data}
-                error={
-                  sellerRankingQ.status === 'error'
-                    ? { title: 'Falha ao carregar ranking', description: sellerRankingQ.errorMessage }
-                    : null
-                }
+                loading={sellerRankingQ.status === 'loading' && !sellerRankingDto}
+                error={widgetError('Falha ao carregar ranking', sellerRankingQ)}
                 empty={sellerRankingRows.length === 0 && sellerRankingQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty("Nenhum vendedor encontrado com os filtros atuais.")}
@@ -1489,12 +1569,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-ooh-ops"
               title="Status operacional (OOH)"
               subtitle={`Checklist / SLA / pendências (${oohOpsQ.source})`}
-              loading={oohOpsQ.status === 'loading' && !oohOpsQ.data}
-              error={
-                oohOpsQ.status === 'error'
-                  ? { title: 'Falha ao carregar status operacional', description: oohOpsQ.errorMessage }
-                  : null
-              }
+              loading={oohOpsQ.status === 'loading' && !oohOpsDto}
+              error={widgetError('Falha ao carregar status operacional', oohOpsQ)}
               empty={oohOpsItems.length === 0 && oohOpsQ.status === 'ready'}
               emptyTitle="Sem pendências"
               emptyDescription={smartEmpty("Nada em aberto com os filtros atuais.")}
@@ -1566,12 +1642,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-pop"
               title="Proof-of-play (DOOH)"
               subtitle={`Relatório POP (${popQ.source})`}
-              loading={popQ.status === 'loading' && !popQ.data}
-              error={
-                popQ.status === 'error'
-                  ? { title: 'Falha ao carregar POP', description: popQ.errorMessage }
-                  : null
-              }
+              loading={popQ.status === 'loading' && !popDto}
+              error={widgetError('Falha ao carregar POP', popQ)}
               empty={popRows.length === 0 && popQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty("Nenhum registro POP com os filtros atuais.")}
@@ -1670,12 +1742,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-cashflow"
               title="Fluxo de caixa"
               subtitle={`Série (${cashflowTsQ.source})`}
-              loading={cashflowTsQ.status === 'loading' && !cashflowTsQ.data}
-              error={
-                cashflowTsQ.status === 'error'
-                  ? { title: 'Falha ao carregar série', description: cashflowTsQ.errorMessage }
-                  : null
-              }
+              loading={cashflowTsQ.status === 'loading' && !cashflowTsDto}
+              error={widgetError('Falha ao carregar série', cashflowTsQ)}
               empty={cashflowTs.length === 0 && cashflowTsQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty("Não há pontos para o período/filtros atuais.")}
@@ -1725,12 +1793,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-aging"
               title="Aging"
               subtitle={`Distribuição por faixa (${agingQ.source})`}
-              loading={agingQ.status === 'loading' && !agingQ.data}
-              error={
-                agingQ.status === 'error'
-                  ? { title: 'Falha ao carregar aging', description: agingQ.errorMessage }
-                  : null
-              }
+              loading={agingQ.status === 'loading' && !agingSummary}
+              error={widgetError('Falha ao carregar aging', agingQ)}
               empty={(agingSummary?.buckets?.length || 0) === 0 && agingQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty("Não há faixas de aging para o período/filtros atuais.")}
@@ -1824,12 +1888,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-inventory-map"
               title="Mapa e ocupação"
               subtitle={`Pins (${inventoryMapQ.source})`}
-              loading={inventoryMapQ.status === 'loading' && !inventoryMapQ.data}
-              error={
-                inventoryMapQ.status === 'error'
-                  ? { title: 'Falha ao carregar mapa', description: inventoryMapQ.errorMessage }
-                  : null
-              }
+              loading={inventoryMapQ.status === 'loading' && !inventoryMapDto}
+              error={widgetError('Falha ao carregar mapa', inventoryMapQ)}
               empty={inventoryPins.length === 0 && inventoryMapQ.status === 'ready'}
               emptyTitle="Sem pontos"
               emptyDescription={smartEmpty("Nenhum ponto encontrado para os filtros atuais.")}
@@ -1882,12 +1942,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               id="dash-widget-inventory-ranking"
               title="Ranking de pontos"
               subtitle={`Top 5 (${inventoryRankingQ.source})`}
-              loading={inventoryRankingQ.status === 'loading' && !inventoryRankingQ.data}
-              error={
-                inventoryRankingQ.status === 'error'
-                  ? { title: 'Falha ao carregar ranking', description: inventoryRankingQ.errorMessage }
-                  : null
-              }
+              loading={inventoryRankingQ.status === 'loading' && !inventoryRankingDto}
+              error={widgetError('Falha ao carregar ranking', inventoryRankingQ)}
               empty={inventoryRankingRows.length === 0 && inventoryRankingQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty("Nenhum ponto ranqueado para os filtros atuais.")}
@@ -2198,10 +2254,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
             <div className="flex flex-wrap gap-2">
               <Pill label="Aba" value={tabLabel(tab)} />
-              <Pill label="Período" value={filters.datePreset.toUpperCase()} />
-              {filters.city ? <Pill label="Cidade" value={filters.city} /> : null}
-              {filters.query ? <Pill label="Busca" value={filters.query} /> : null}
-              <Pill label="Tipo" value={filters.mediaType} />
+              <Pill label="Período" value={filtersDraft.datePreset.toUpperCase()} />
+              {filtersDraft.city ? <Pill label="Cidade" value={filtersDraft.city} /> : null}
+              {filtersDraft.query ? <Pill label="Busca" value={filtersDraft.query} /> : null}
+              <Pill label="Tipo" value={filtersDraft.mediaType} />
             </div>
 
             <div className="flex items-center justify-end gap-2">
