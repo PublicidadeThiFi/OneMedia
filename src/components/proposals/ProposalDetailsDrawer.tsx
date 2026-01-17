@@ -333,12 +333,17 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
               <p className="text-gray-900">{responsibleName}</p>
             </div>
 
-            {(p.startDate || p.endDate) && (
+            {p.startDate && (
               <div>
-                <p className="text-sm text-gray-500 mb-1">Período</p>
-                <p className="text-gray-900">
-                  {formatDateBR(p.startDate)} até {formatDateBR(p.endDate)}
-                </p>
+                <p className="text-sm text-gray-500 mb-1">Data de início</p>
+                <p className="text-gray-900">{formatDateBR(p.startDate)}</p>
+              </div>
+            )}
+
+            {typeof proposal.assemblyMaxDays === 'number' && (
+              <div>
+                <p className="text-sm text-gray-500 mb-1">Período máximo de montagem</p>
+                <p className="text-gray-900">{proposal.assemblyMaxDays} dias</p>
               </div>
             )}
 
@@ -388,14 +393,27 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                       })()}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                    {item.startDate && item.endDate && (
-                      <div>
-                        <p className="text-gray-500">Período</p>
-                        <p className="text-gray-700">
-                          {formatDateBR(item.startDate)} - {formatDateBR(item.endDate)}
-                        </p>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
+                    {item.mediaUnitId ? (
+                      <>
+                        <div>
+                          <p className="text-gray-500">Tempo de ocupação</p>
+                          <p className="text-gray-700">{item.occupationDays ? `${item.occupationDays} dias` : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Cliente fornece lona</p>
+                          <p className="text-gray-700">{item.clientProvidesBanner ? 'Sim' : 'Não'}</p>
+                        </div>
+                      </>
+                    ) : (
+                      item.startDate && item.endDate && (
+                        <div>
+                          <p className="text-gray-500">Período</p>
+                          <p className="text-gray-700">
+                            {formatDateBR(item.startDate)} - {formatDateBR(item.endDate)}
+                          </p>
+                        </div>
+                      )
                     )}
 
                     <div>

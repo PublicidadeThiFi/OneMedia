@@ -400,7 +400,11 @@ export interface Proposal {
   responsibleUser?: User;
   itemsCount?: number;
   startDate?: Date;
+  // Legacy: propostas antigas podem ter endDate; novo fluxo nao depende disso
   endDate?: Date;
+
+  // Novo fluxo: prazo maximo (dias) para realizar check-in apos aprovacao
+  assemblyMaxDays?: number;
 
   client?: Client;
   items?: ProposalItem[];
@@ -416,6 +420,18 @@ export interface ProposalItem {
   description: string;
   startDate?: Date;
   endDate?: Date;
+  // Novo fluxo (midia): tempo de ocupacao total (multiplo de 15)
+  occupationDays?: number;
+  // Novo fluxo (midia): se o cliente fornecera a lona
+  clientProvidesBanner?: boolean;
+
+  // Snapshots (para auditoria e consistencia)
+  priceMonthSnapshot?: number;
+  priceBiweeklySnapshot?: number;
+  productionCostSnapshot?: number;
+  installationCostSnapshot?: number;
+  rentTotalSnapshot?: number;
+  upfrontTotalSnapshot?: number;
   quantity: number;
   unitPrice: number;
   totalPrice: number;

@@ -26,6 +26,9 @@ export interface ProposalFormData {
   conditionsText?: string;
   discountPercent?: number;
   discountAmount?: number;
+
+  // Passo 2 (novo fluxo)
+  assemblyMaxDays?: number;
   
   // Passo 2
   items: ProposalItem[];
@@ -85,6 +88,7 @@ export function ProposalFormWizard({
     conditionsText: '',
     discountPercent: 0,
     discountAmount: 0,
+    assemblyMaxDays: undefined,
     items: [],
     subtotal: 0,
     totalAmount: 0,
@@ -101,6 +105,14 @@ export function ProposalFormWizard({
         quantity: toNumber(it.quantity, 1),
         unitPrice: toNumber(it.unitPrice, 0),
         totalPrice: toNumber(it.totalPrice, 0),
+        occupationDays: it.occupationDays ?? undefined,
+        clientProvidesBanner: it.clientProvidesBanner ?? undefined,
+        priceMonthSnapshot: it.priceMonthSnapshot ?? undefined,
+        priceBiweeklySnapshot: it.priceBiweeklySnapshot ?? undefined,
+        productionCostSnapshot: it.productionCostSnapshot ?? undefined,
+        installationCostSnapshot: it.installationCostSnapshot ?? undefined,
+        rentTotalSnapshot: it.rentTotalSnapshot ?? undefined,
+        upfrontTotalSnapshot: it.upfrontTotalSnapshot ?? undefined,
         startDate: parseApiDateToLocalMidnight(it.startDate),
         endDate: parseApiDateToLocalMidnight(it.endDate),
       }));
@@ -118,6 +130,7 @@ export function ProposalFormWizard({
         conditionsText: (proposal.conditionsText || '').replace(/\\n/g, '\n'),
         discountPercent,
         discountAmount,
+        assemblyMaxDays: (proposal as any).assemblyMaxDays ?? undefined,
         items,
         subtotal: totals.subtotal,
         totalAmount: totals.totalAmount,
@@ -132,6 +145,7 @@ export function ProposalFormWizard({
         conditionsText: '',
         discountPercent: 0,
         discountAmount: 0,
+        assemblyMaxDays: undefined,
         items: [],
         subtotal: 0,
         totalAmount: 0,
@@ -158,7 +172,7 @@ export function ProposalFormWizard({
     });
   };
 
-  const handleDiscountChange = (data: Partial<ProposalFormData>) => {
+  const handleStep2MetaChange = (data: Partial<ProposalFormData>) => {
     setFormData((prev) => {
       const nextDiscountPercent = data.discountPercent ?? prev.discountPercent;
       const nextDiscountAmount = data.discountAmount ?? prev.discountAmount;
@@ -197,6 +211,7 @@ const preparePayload = (status: ProposalStatus) => {
     // Convertemos para string para o JSON, o 'any' evita o erro de tipagem no onSave
     startDate: formData.campaignStartDate?.toISOString(),
     validUntil: formData.validUntil?.toISOString(),
+    assemblyMaxDays: formData.assemblyMaxDays ? Number(formData.assemblyMaxDays) : undefined,
     discountPercent: Number(formData.discountPercent || 0),
     discountAmount: Number(formData.discountAmount || 0),
     conditionsText: formData.conditionsText,
@@ -208,9 +223,24 @@ const preparePayload = (status: ProposalStatus) => {
       unitPrice: Number(item.unitPrice),
       discountPercent: Number((item as any).discountPercent || 0),
       discountAmount: Number((item as any).discountAmount || 0),
-      // Datas dos itens também devem ser strings ISO
-      startDate: item.startDate ? new Date(item.startDate).toISOString() : undefined,
-      endDate: item.endDate ? new Date(item.endDate).toISOString() : undefined,
+      // Novo fluxo (midia)
+      occupationDays: (item as any).occupationDays ?? undefined,
+      clientProvidesBanner: (item as any).clientProvidesBanner ?? undefined,
+      priceMonthSnapshot: (item as any).priceMonthSnapshot ?? undefined,
+      priceBiweeklySnapshot: (item as any).priceBiweeklySnapshot ?? undefined,
+      productionCostSnapshot: (item as any).productionCostSnapshot ?? undefined,
+      installationCostSnapshot: (item as any).installationCostSnapshot ?? undefined,
+      rentTotalSnapshot: (item as any).rentTotalSnapshot ?? undefined,
+      upfrontTotalSnapshot: (item as any).upfrontTotalSnapshot ?? undefined,
+      // Datas dos itens continuam apenas para produtos/servicos (ou modo legado)
+      startDate:
+        item.productId || !(item as any).occupationDays
+          ? (item.startDate ? new Date(item.startDate).toISOString() : undefined)
+          : undefined,
+      endDate:
+        item.productId || !(item as any).occupationDays
+          ? (item.endDate ? new Date(item.endDate).toISOString() : undefined)
+          : undefined,
     }))
   };
 };
@@ -263,7 +293,7 @@ const handleSaveAndSend = async () => {
             <ProposalStep2Items
               formData={formData}
               onItemsChange={handleStep2Change}
-              onDiscountChange={handleDiscountChange}
+              onMetaChange={handleStep2MetaChange}
             />
           )}
         </div>
