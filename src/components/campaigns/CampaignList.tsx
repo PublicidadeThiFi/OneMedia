@@ -5,7 +5,7 @@ interface CampaignListProps {
   campaigns: Campaign[];
   showAllActions?: boolean;
   onViewDetails: (campaign: Campaign) => void;
-  onGenerateBooking?: (campaign: Campaign) => void;
+  onCheckIn?: (campaign: Campaign) => void;
   onGenerateReport: (campaign: Campaign) => void;
   onViewBilling?: (campaign: Campaign) => void;
 }
@@ -14,7 +14,7 @@ export function CampaignList({
   campaigns,
   showAllActions = true,
   onViewDetails,
-  onGenerateBooking,
+  onCheckIn,
   onGenerateReport,
   onViewBilling,
 }: CampaignListProps) {
@@ -34,7 +34,7 @@ export function CampaignList({
           campaign={campaign}
           showAllActions={showAllActions}
           onViewDetails={onViewDetails}
-          onGenerateBooking={onGenerateBooking}
+          onCheckIn={onCheckIn}
           onGenerateReport={onGenerateReport}
           onViewBilling={onViewBilling}
         />

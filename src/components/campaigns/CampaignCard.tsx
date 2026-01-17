@@ -1,4 +1,4 @@
-import { Eye, FileText, DollarSign, FileDown } from 'lucide-react';
+import { Eye, FileText, DollarSign, Camera } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Campaign } from '../../types';
@@ -9,7 +9,7 @@ interface CampaignCardProps {
   campaign: Campaign;
   showAllActions?: boolean;
   onViewDetails: (campaign: Campaign) => void;
-  onGenerateBooking?: (campaign: Campaign) => void;
+  onCheckIn?: (campaign: Campaign) => void;
   onGenerateReport: (campaign: Campaign) => void;
   onViewBilling?: (campaign: Campaign) => void;
 }
@@ -18,7 +18,7 @@ export function CampaignCard({
   campaign,
   showAllActions = true,
   onViewDetails,
-  onGenerateBooking,
+  onCheckIn,
   onGenerateReport,
   onViewBilling,
 }: CampaignCardProps) {
@@ -28,6 +28,16 @@ export function CampaignCard({
     (typeof campaign.reservedUnitsCount === 'number' ? campaign.reservedUnitsCount : undefined) ??
     (campaign.items || []).filter((item) => item.mediaUnitId).length;
   const totalValor = toNumber(campaign.totalAmountCents, 0) / 100;
+  const hasCheckIn = !!campaign.checkInAt;
+  const deadline = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
+  const start = campaign.startDate ? new Date(campaign.startDate as any) : null;
+  const end = campaign.endDate ? new Date(campaign.endDate as any) : null;
+
+  const periodLabel = hasCheckIn
+    ? `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`
+    : deadline
+    ? `Check-in até ${deadline.toLocaleDateString('pt-BR')}`
+    : `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`;
 
   return (
     <Card>
@@ -44,10 +54,7 @@ export function CampaignCard({
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <span>Proposta ID: ...{campaign.proposalId.slice(-6)}</span>
               <span>•</span>
-              <span>
-                {new Date(campaign.startDate).toLocaleDateString('pt-BR')} -{' '}
-                {new Date(campaign.endDate).toLocaleDateString('pt-BR')}
-              </span>
+              <span>{periodLabel}</span>
               <span>•</span>
               <span>{unitsCount} {unitsCount === 1 ? 'unidade' : 'unidades'}</span>
             </div>
@@ -70,15 +77,15 @@ export function CampaignCard({
             Ver Detalhes
           </Button>
 
-          {showAllActions && onGenerateBooking && (
+          {showAllActions && onCheckIn && campaign.status === 'EM_INSTALACAO' && (
             <Button
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={() => onGenerateBooking(campaign)}
+              onClick={() => onCheckIn(campaign)}
             >
-              <FileDown className="w-4 h-4" />
-              Gerar Booking
+              <Camera className="w-4 h-4" />
+              Check-in
             </Button>
           )}
 

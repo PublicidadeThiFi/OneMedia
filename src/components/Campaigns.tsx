@@ -6,7 +6,7 @@ import { useCampaigns } from '../hooks/useCampaigns';
 import { CampaignList } from './campaigns/CampaignList';
 import { CampaignInstallationsView } from './campaigns/CampaignInstallationsView';
 import { CampaignDetailsDrawer } from './campaigns/CampaignDetailsDrawer';
-import { CampaignBookingDialog } from './campaigns/CampaignBookingDialog';
+import { CampaignCheckInDialog } from './campaigns/CampaignCheckInDialog';
 import { CampaignReportDialog } from './campaigns/CampaignReportDialog';
 import { CampaignBillingDrawer } from './campaigns/CampaignBillingDrawer';
 
@@ -22,7 +22,7 @@ export function Campaigns() {
   // Dialogs e Drawers
   const [detailsDrawerCampaign, setDetailsDrawerCampaign] = useState<Campaign | null>(null);
   const [detailsDrawerTab, setDetailsDrawerTab] = useState<string>('summary');
-  const [bookingDialogCampaign, setBookingDialogCampaign] = useState<Campaign | null>(null);
+  const [checkInDialogCampaign, setCheckInDialogCampaign] = useState<Campaign | null>(null);
   const [reportDialogCampaign, setReportDialogCampaign] = useState<Campaign | null>(null);
   const [billingDrawerCampaign, setBillingDrawerCampaign] = useState<Campaign | null>(null);
 
@@ -73,8 +73,8 @@ export function Campaigns() {
     setDetailsDrawerTab(tab);
   };
 
-  const handleGenerateBooking = (campaign: Campaign) => {
-    setBookingDialogCampaign(campaign);
+  const handleCheckIn = (campaign: Campaign) => {
+    setCheckInDialogCampaign(campaign);
   };
 
   const handleGenerateReport = (campaign: Campaign) => {
@@ -148,7 +148,7 @@ export function Campaigns() {
             campaigns={activeCampaigns}
             showAllActions={true}
             onViewDetails={handleViewDetails}
-            onGenerateBooking={handleGenerateBooking}
+            onCheckIn={handleCheckIn}
             onGenerateReport={handleGenerateReport}
             onViewBilling={handleViewBilling}
           />
@@ -169,6 +169,7 @@ export function Campaigns() {
           <CampaignInstallationsView
             campaigns={campaigns}
             onViewDetails={(campaign) => handleViewDetails(campaign, 'installations')}
+            onCheckIn={handleCheckIn}
           />
         </TabsContent>
       </Tabs>
@@ -189,12 +190,17 @@ export function Campaigns() {
         onOpenChange={(open) => !open && setDetailsDrawerCampaign(null)}
         campaign={detailsDrawerCampaign}
         defaultTab={detailsDrawerTab}
+        onRequestCheckIn={handleCheckIn}
       />
 
-      <CampaignBookingDialog
-        open={!!bookingDialogCampaign}
-        onOpenChange={(open) => !open && setBookingDialogCampaign(null)}
-        campaign={bookingDialogCampaign}
+      <CampaignCheckInDialog
+        open={!!checkInDialogCampaign}
+        onOpenChange={(open) => !open && setCheckInDialogCampaign(null)}
+        campaign={checkInDialogCampaign}
+        onCheckInComplete={() => {
+          // atualização suave: refetch da listagem e dos drawers
+          refetch();
+        }}
       />
 
       <CampaignReportDialog

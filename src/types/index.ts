@@ -452,6 +452,10 @@ export interface Campaign {
   status: CampaignStatus;
   totalAmountCents?: number;
   approvedAt?: Date;
+  /** Data/hora real do check-in (quando a instalação foi concluída) */
+  checkInAt?: Date | null;
+  /** Prazo limite para concluir check-in (approvedAt + assemblyMaxDays) */
+  checkInDeadlineAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   client?: Partial<Client> | null;
@@ -460,6 +464,17 @@ export interface Campaign {
   reservedUnitsCount?: number;
   proposal?: Partial<Proposal> | null;
   items?: CampaignItem[];
+}
+
+/** Foto obrigatória por unidade/face no check-in */
+export interface CampaignCheckInPhoto {
+  id: string;
+  companyId: string;
+  campaignId: string;
+  mediaUnitId: string;
+  photoUrl: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 export interface CampaignItem {
   id: string;
