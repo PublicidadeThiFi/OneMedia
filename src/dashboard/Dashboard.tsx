@@ -5,6 +5,7 @@ import {
   BarChart3,
   Building2,
   Check,
+  ClipboardCheck,
   ChevronDown,
   ChevronUp,
   Copy,
@@ -45,6 +46,15 @@ import { deleteSavedView, loadSavedViews, makeSavedViewId, upsertSavedView, type
 import { useCachedQueryData } from './cache';
 import { useWidgetMetrics } from './metrics';
 import { runDashboardQaChecksOnce } from './qa';
+import { DashboardErrorBoundary } from './DashboardErrorBoundary';
+import { getDashboardRolloutState, setForcedDashboardVariant, type DashboardUiVariant } from './rollout';
+import {
+  DASHBOARD_PARITY_CHECKLIST,
+  loadParityMarks,
+  parityChecklistToText,
+  resetParityMarks,
+  toggleParityMark,
+} from './parity';
 import type {
   DashboardAlertsDTO,
   DashboardCommercialSummaryDTO,
@@ -118,6 +128,62 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // Etapa 12: permissoes + saved views (MVP: localStorage)
   const perms = useMemo(() => getDashboardPermissions(user, company), [user, company]);
+
+  // Etapa 16: rollout seguro (feature-flag por empresa/usuario + overrides)
+  const rollout = useMemo(
+    () =>
+      getDashboardRolloutState({
+        companyId: company?.id,
+        userId: (user as any)?.id,
+        userEmail: (user as any)?.email,
+        canOverride: perms.canManageSavedViews,
+      }),
+    [company?.id, (user as any)?.id, (user as any)?.email, perms.canManageSavedViews],
+  );
+
+  // Data mode pode ser forçado via URL (?dashboardData=backend|mock). Em modo compact, mantemos mock para reduzir risco.
+  const [dataMode, setDataMode] = useState(() => {
+    const base = rollout.dataModeOverride ?? DASHBOARD_DATA_MODE;
+    return rollout.variant === 'compact' ? 'mock' : base;
+  });
+
+  useEffect(() => {
+    const base = rollout.dataModeOverride ?? DASHBOARD_DATA_MODE;
+    setDataMode(rollout.variant === 'compact' ? 'mock' : base);
+  }, [rollout.dataModeOverride, rollout.variant]);
+
+  // Rollback automatico: se o backend falhar (quando habilitado), cai para mock na sessao.
+  useEffect(() => {
+    if (dataMode !== 'backend') return;
+    try {
+      const raw = sessionStorage.getItem('oneMedia.dashboard.dataMode.session');
+      if (raw === 'mock') {
+        setDataMode('mock');
+      }
+    } catch {
+      // ignore
+    }
+  }, [dataMode]);
+
+  const applyVariantOverride = (variant: DashboardUiVariant) => {
+    if (!rollout.canOverride) return;
+    setForcedDashboardVariant({
+      companyId: company?.id,
+      userId: (user as any)?.id || (user as any)?.email,
+      variant,
+      ttlMs: 24 * 60 * 60 * 1000,
+      reason: 'Override manual (Etapa 16)',
+    });
+    window.location.reload();
+  };
+
+  // Etapa 16: checklist de paridade (MVP: localStorage)
+  const [parityOpen, setParityOpen] = useState(false);
+  const [parityMarks, setParityMarks] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setParityMarks(loadParityMarks(company?.id, (user as any)?.id || (user as any)?.email));
+  }, [company?.id, (user as any)?.id, (user as any)?.email]);
   const companyKey = useMemo(() => String((company as any)?.id ?? ''), [company]);
   const userKey = useMemo(() => {
     const u: any = user as any;
@@ -160,7 +226,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // BACKEND SWAP POINT (Etapa 4+): useDashboardOverview(company.id, backendQuery)
   const overviewQ = useDashboardQuery<DashboardOverviewDTO>({
     enabled: !!company,
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchOverviewKpis(company!.id, filters),
 
@@ -171,7 +237,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // BACKEND SWAP POINT (Etapa 4+): useDashboardFunnel(company.id, backendQuery)
   const funnelQ = useDashboardQuery<DashboardFunnelDTO>({
     enabled: !!company,
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchCommercialFunnel(company!.id, filters),
     fetcher: (signal) =>
@@ -181,7 +247,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // Comercial (Etapa 7): KPIs e listas dedicadas (mantendo a UI igual)
   const commercialSummaryQ = useDashboardQuery<DashboardCommercialSummaryDTO>({
     enabled: !!company && tab === 'comercial',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchCommercialSummary(company!.id, filters),
     fetcher: (signal) =>
@@ -190,7 +256,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const stalledProposalsQ = useDashboardQuery<DashboardStalledProposalsDTO>({
     enabled: !!company && tab === 'comercial',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchStalledProposals(company!.id, filters),
     fetcher: (signal) =>
@@ -199,7 +265,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const sellerRankingQ = useDashboardQuery<DashboardSellerRankingDTO>({
     enabled: !!company && tab === 'comercial',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchSellerRanking(company!.id, filters),
     fetcher: (signal) =>
@@ -209,7 +275,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
   const alertsQ = useDashboardQuery<DashboardAlertsDTO>({
     enabled: !!company,
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchAlerts(company!.id, filters),
     fetcher: (signal) =>
@@ -230,7 +296,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const drilldownQ = useDashboardQuery<DashboardDrilldownDTO>({
     enabled: !!company && drilldown.open && !!drilldown.key,
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, drilldown.key, drilldownQs],
     computeMock: () =>
       mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
@@ -303,7 +369,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const revenueTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
     enabled: !!company && tab === 'executivo',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchRevenueTimeseries(company!.id, filters),
     fetcher: (signal) =>
@@ -312,7 +378,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const cashflowTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
     enabled: !!company && tab === 'financeiro',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchCashflowTimeseries(company!.id, filters),
     fetcher: (signal) =>
@@ -321,7 +387,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const inventoryMapQ = useDashboardQuery<DashboardInventoryMapDTO>({
     enabled: !!company && tab === 'inventario',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchInventoryMap(company!.id, filters),
     fetcher: (signal) =>
@@ -330,7 +396,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const inventoryRankingQ = useDashboardQuery<DashboardInventoryRankingDTO>({
     enabled: !!company && tab === 'inventario',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchInventoryRanking(company!.id, filters),
     fetcher: (signal) =>
@@ -339,7 +405,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const topClientsQ = useDashboardQuery<DashboardTopClientsDTO>({
     enabled: !!company && tab === 'executivo',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchTopClients(company!.id, filters),
     fetcher: (signal) =>
@@ -348,7 +414,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const agingQ = useDashboardQuery<DashboardReceivablesAgingSummaryDTO>({
     enabled: !!company && tab === 'financeiro',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchReceivablesAgingSummary(company!.id, filters),
     fetcher: (signal) =>
@@ -357,7 +423,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const oohOpsQ = useDashboardQuery<DashboardOohOpsSummaryDTO>({
     enabled: !!company && tab === 'operacoes',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchOohOpsSummary(company!.id, filters),
     fetcher: (signal) =>
@@ -366,7 +432,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const popQ = useDashboardQuery<DashboardDoohProofOfPlaySummaryDTO>({
     enabled: !!company && tab === 'operacoes',
-    mode: DASHBOARD_DATA_MODE,
+    mode: dataMode,
     deps: [company?.id, backendQs],
     computeMock: () => mockApi.fetchDoohProofOfPlaySummary(company!.id, filters),
     fetcher: (signal) =>
@@ -441,6 +507,34 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   useEffect(() => {
     runDashboardQaChecksOnce();
   }, []);
+
+  // Etapa 16: em modo compact, forca apenas a aba Executivo (menos risco / menos complexidade).
+  useEffect(() => {
+    if (rollout.variant !== 'compact') return;
+    if (tab !== 'executivo') setTab('executivo');
+  }, [rollout.variant, tab]);
+
+  // Etapa 16: fallback/rollback de dados — se estivermos em backend e cair em erro/fallback,
+  // trocamos para mock na sessao (para nao travar o dashboard em producao).
+  useEffect(() => {
+    if (dataMode !== 'backend') return;
+    const critical = [overviewQ, alertsQ].some((q) => {
+      const src = String((q as any)?.source || '');
+      return q.status === 'error' || src.includes('fallback');
+    });
+    if (!critical) return;
+
+    setDataMode('mock');
+    try {
+      sessionStorage.setItem('oneMedia.dashboard.dataMode.session', 'mock');
+    } catch {
+      // ignore
+    }
+
+    toast.error('Dashboard: fallback para mock', {
+      description: 'O backend falhou para alguns widgets. Mantendo a UI estável enquanto investigamos.',
+    });
+  }, [dataMode, overviewQ.status, alertsQ.status, (overviewQ as any).source, (alertsQ as any).source]);
 
 
   // URL pública do mapa (mock)
@@ -540,6 +634,31 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       }
     } catch {
       toast.error('Não foi possível copiar. Por favor, copie manualmente.');
+    }
+  };
+
+  const handleCopyParityChecklist = async () => {
+    try {
+      const text = parityChecklistToText();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        toast.success('Checklist de paridade copiado!');
+        return;
+      }
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (ok) toast.success('Checklist de paridade copiado!');
+      else toast.error('Não foi possível copiar.');
+    } catch {
+      toast.error('Não foi possível copiar.');
     }
   };
 
@@ -834,8 +953,58 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const commercialLoading = funnelQ.status !== 'ready';
   const commercialKpisLoading = commercialSummaryQ.status !== 'ready';
 
-  return (
+  // Etapa 16: fallback/rollback global - se a tela quebrar por erro de runtime,
+  // mostramos um modo seguro (compact) e gravamos override temporario (localStorage).
+  const handleRuntimeError = () => {
+    try {
+      setForcedDashboardVariant({
+        companyId: company?.id,
+        userId: (user as any)?.id || (user as any)?.email,
+        variant: 'compact',
+        ttlMs: 60 * 60 * 1000,
+        reason: 'Rollback automático: erro de runtime',
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  const shouldShowRolloutBanner =
+    rollout.variant === 'compact' || rollout.source !== 'default' || dataMode !== DASHBOARD_DATA_MODE;
+
+  const runtimeFallback = (
     <div className="p-6 md:p-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard em modo seguro</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Ocorreu um erro ao renderizar o dashboard. Para evitar impacto em produção, mantivemos a tela em modo
+            compacto (menor risco).
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button className="h-9" onClick={() => window.location.reload()}>
+              Recarregar
+            </Button>
+            {rollout.canOverride ? (
+              <Button variant="outline" className="h-9" onClick={() => applyVariantOverride('v2')}>
+                Tentar v2
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-xs text-gray-500">
+            Rollout: <span className="font-medium">{rollout.variant}</span> ({rollout.source}) • dados:{' '}
+            <span className="font-medium">{dataMode}</span>
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  return (
+    <DashboardErrorBoundary fallback={runtimeFallback} onError={handleRuntimeError}>
+      <div className="p-6 md:p-8">
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -858,12 +1027,44 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <Globe className="w-4 h-4" />
               Mídia Kit
             </Button>
-            <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => setShareMapOpen(true)}>
-              <Share2 className="w-4 h-4" />
-              Compartilhar Mapa
-            </Button>
+            {rollout.canOverride ? (
+              <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => setParityOpen(true)}>
+                <ClipboardCheck className="w-4 h-4" />
+                Paridade
+              </Button>
+            ) : null}
+            {rollout.variant !== 'compact' ? (
+              <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => setShareMapOpen(true)}>
+                <Share2 className="w-4 h-4" />
+                Compartilhar Mapa
+              </Button>
+            ) : null}
           </div>
         </div>
+
+        {shouldShowRolloutBanner ? (
+          <Card>
+            <CardContent className="py-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-xs text-gray-600">
+                  <span className="font-medium">Rollout:</span> {rollout.variant} ({rollout.source}) — {rollout.reason}
+                  <span className="mx-2">•</span>
+                  <span className="font-medium">Dados:</span> {dataMode}
+                </div>
+                {rollout.canOverride ? (
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" className="h-8 text-xs" onClick={() => applyVariantOverride('v2')}>
+                      Forçar v2
+                    </Button>
+                    <Button variant="outline" className="h-8 text-xs" onClick={() => applyVariantOverride('compact')}>
+                      Rollback
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Global Filter Bar */}
         <Card>
@@ -1048,7 +1249,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('executivo')}
             />
           ) : null}
-          {perms.allowedTabs.includes('comercial') ? (
+          {rollout.variant !== 'compact' && perms.allowedTabs.includes('comercial') ? (
             <TabButton
               active={tab === 'comercial'}
               icon={<BarChart3 className="w-4 h-4" />}
@@ -1056,7 +1257,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('comercial')}
             />
           ) : null}
-          {perms.allowedTabs.includes('operacoes') ? (
+          {rollout.variant !== 'compact' && perms.allowedTabs.includes('operacoes') ? (
             <TabButton
               active={tab === 'operacoes'}
               icon={<PieChart className="w-4 h-4" />}
@@ -1064,7 +1265,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('operacoes')}
             />
           ) : null}
-          {perms.allowedTabs.includes('financeiro') ? (
+          {rollout.variant !== 'compact' && perms.allowedTabs.includes('financeiro') ? (
             <TabButton
               active={tab === 'financeiro'}
               icon={<Wallet className="w-4 h-4" />}
@@ -1072,7 +1273,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('financeiro')}
             />
           ) : null}
-          {perms.allowedTabs.includes('inventario') ? (
+          {rollout.variant !== 'compact' && perms.allowedTabs.includes('inventario') ? (
             <TabButton
               active={tab === 'inventario'}
               icon={<Building2 className="w-4 h-4" />}
@@ -2276,6 +2477,63 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Modal de Paridade (Etapa 16) */}
+      <Dialog open={parityOpen} onOpenChange={setParityOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Checklist de paridade com o backend</DialogTitle>
+            <DialogDescription>
+              Use esta lista para validar se os números do Dashboard batem com o backend antes do rollout completo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs text-gray-500">
+                Dica: execute por empresa e compare os KPIs com relatórios/queries oficiais. Marque os itens conforme
+                aprovar.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="h-8 text-xs" onClick={handleCopyParityChecklist}>
+                  Copiar checklist
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    resetParityMarks(companyKey, userKey);
+                    setParityMarks({});
+                    toast.success('Checklist resetado');
+                  }}
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-md divide-y">
+              {DASHBOARD_PARITY_CHECKLIST.map((it) => (
+                <div key={it.id} className="p-3 flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={!!parityMarks[it.id]}
+                    onChange={() => setParityMarks((m) => toggleParityMark(companyKey, userKey, m, it.id))}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900 font-medium">{it.title}</p>
+                    <p className="text-xs text-gray-500">{it.description}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Rota: <span className="font-medium">{it.route}</span> • Campos: {it.fields.join(', ')}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de Compartilhar Mapa */}
       <Dialog open={shareMapOpen} onOpenChange={setShareMapOpen}>
         <DialogContent className="sm:max-w-md">
@@ -2307,5 +2565,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardErrorBoundary>
   );
 }
