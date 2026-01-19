@@ -33,15 +33,6 @@ export function ProposalStep1General({
     }
   }, [user, formData.responsibleUserId, onChange]);
 
-  // Pré-preencher validade (7 dias a partir de hoje)
-  useEffect(() => {
-    if (!formData.validUntil) {
-      const defaultValidUntil = new Date();
-      defaultValidUntil.setDate(defaultValidUntil.getDate() + 7);
-      onChange({ validUntil: defaultValidUntil });
-    }
-  }, [formData.validUntil, onChange]);
-
   // Validar formulário
   useEffect(() => {
     const isValid = !!formData.clientId && !!formData.responsibleUserId;

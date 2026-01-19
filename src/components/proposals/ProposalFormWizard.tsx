@@ -49,6 +49,15 @@ function parseApiDateToLocalMidnight(value: any): Date | undefined {
   return Number.isNaN(local.getTime()) ? undefined : local;
 }
 
+function defaultValidUntil(days = 7): Date {
+  // Usa meia-noite LOCAL para o campo do input.
+  // Importante: isso é só UX (preenchimento inicial). O backend continua sendo a fonte de verdade.
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 function calculateTotals(
   items: ProposalItem[],
   discountAmountRaw: any,
@@ -141,7 +150,7 @@ export function ProposalFormWizard({
         clientId: '',
         responsibleUserId: '',
         title: '',
-        validUntil: undefined,
+        validUntil: defaultValidUntil(7),
         conditionsText: '',
         discountPercent: 0,
         discountAmount: 0,
