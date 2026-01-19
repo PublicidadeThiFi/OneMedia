@@ -217,6 +217,7 @@ const preparePayload = (status: ProposalStatus) => {
     conditionsText: formData.conditionsText,
     items: formData.items.map(item => ({
       mediaUnitId: item.mediaUnitId,
+      mediaPointOwnerId: item.mediaPointOwnerId ?? undefined,
       productId: item.productId,
       description: item.description,
       quantity: Number(item.quantity),
