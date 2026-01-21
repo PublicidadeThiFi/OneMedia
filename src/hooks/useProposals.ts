@@ -155,6 +155,7 @@ export function useProposals(params: UseProposalsParams = {}) {
   const sseRef = useRef<EventSource | null>(null);
   const sseRetryTimerRef = useRef<number | null>(null);
   const sseBackoffMsRef = useRef<number>(2000);
+  const streamTokenRef = useRef<{ token: string; expiresAt: number } | null>(null);
 
   const cleanedParams = useMemo(() => {
     const p: Record<string, unknown> = { ...params };
@@ -349,8 +350,24 @@ export function useProposals(params: UseProposalsParams = {}) {
       closeSse();
 
       try {
-        const resp = await apiClient.get<{ token: string; expiresInSeconds?: number }>('/proposals/stream-token');
-        const token = resp.data?.token;
+        const now = Date.now();
+
+        // Reaproveita token enquanto válido para evitar spam se o SSE cair por rede/proxy.
+        let token = streamTokenRef.current?.token;
+        const expiresAt = streamTokenRef.current?.expiresAt ?? 0;
+
+        // Renova com folga de 10s antes de expirar.
+        if (!token || expiresAt < now + 10_000) {
+          const resp = await apiClient.get<{ token: string; expiresInSeconds?: number }>('/proposals/stream-token');
+          token = resp.data?.token;
+
+          const ttlSec = resp.data?.expiresInSeconds ?? 600;
+          if (token) {
+            streamTokenRef.current = { token, expiresAt: now + ttlSec * 1000 };
+          } else {
+            streamTokenRef.current = null;
+          }
+        }
 
         if (!token || cancelled) {
           throw new Error('Token de stream não retornado.');
