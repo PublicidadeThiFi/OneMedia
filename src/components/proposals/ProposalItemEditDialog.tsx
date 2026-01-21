@@ -5,7 +5,8 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import { ProposalItem } from '../../types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 
 interface ProposalItemEditDialogProps {
   open: boolean;
@@ -35,6 +36,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
   const [unitPrice, setUnitPrice] = useState(0);
   const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountApplyTo, setDiscountApplyTo] = useState<ProposalItemDiscountApplyTo>(ProposalItemDiscountApplyTo.TOTAL);
 
   // Produto/serviço (legado)
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -52,6 +54,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
     setQuantity(Number(item.quantity) || 1);
     setDiscountPercent(Number(item.discountPercent) || 0);
     setDiscountAmount(Number(item.discountAmount) || 0);
+    setDiscountApplyTo((item as any).discountApplyTo ?? ProposalItemDiscountApplyTo.TOTAL);
 
     if (item.mediaUnitId) {
       const days = Number(item.occupationDays) || 30;
@@ -102,14 +105,39 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
     if (item?.mediaUnitId) setUnitPrice(pricing.perUnitTotal);
   }, [open, item?.mediaUnitId, pricing.perUnitTotal]);
 
-  const baseTotal = quantity * unitPrice;
-  let discountedTotal = baseTotal;
+  const qty = Math.max(1, Number(quantity) || 1);
+
   const pct = Number.isFinite(discountPercent) ? discountPercent : 0;
   const amt = Number.isFinite(discountAmount) ? discountAmount : 0;
-  if (pct > 0) discountedTotal = discountedTotal * (1 - pct / 100);
-  if (amt > 0) discountedTotal = discountedTotal - amt;
-  discountedTotal = Math.max(0, discountedTotal);
-  const computedDiscountValue = Math.max(0, baseTotal - discountedTotal);
+
+  const rentTotal = isMedia ? qty * pricing.rentPerUnit : 0;
+  const upfrontTotal = isMedia ? qty * pricing.upfrontPerUnit : 0;
+  const baseTotal = isMedia ? rentTotal + upfrontTotal : qty * unitPrice;
+
+  const effectiveApplyTo = isMedia ? discountApplyTo : ProposalItemDiscountApplyTo.TOTAL;
+  const discountBase =
+    effectiveApplyTo === ProposalItemDiscountApplyTo.RENT
+      ? rentTotal
+      : effectiveApplyTo === ProposalItemDiscountApplyTo.COSTS
+        ? upfrontTotal
+        : baseTotal;
+
+  const discountValue =
+    pct > 0
+      ? (discountBase * pct) / 100
+      : amt > 0
+        ? Math.min(amt, discountBase)
+        : 0;
+
+  const discountedTotal = Math.max(0, baseTotal - discountValue);
+  const computedDiscountValue = Math.max(0, discountValue);
+
+  const discountBaseLabel =
+    effectiveApplyTo === ProposalItemDiscountApplyTo.RENT
+      ? 'o aluguel'
+      : effectiveApplyTo === ProposalItemDiscountApplyTo.COSTS
+        ? 'os custos (produção/instalação)'
+        : 'o total do item';
 
   const isOccupationValid = !isMedia || (occupationDays >= 15 && occupationDays <= OCCUPATION_MAX_DAYS && occupationDays % 15 === 0);
 
@@ -123,6 +151,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
       unitPrice,
       discountPercent: pct > 0 ? pct : undefined,
       discountAmount: amt > 0 ? amt : undefined,
+      discountApplyTo: isMedia ? discountApplyTo : ProposalItemDiscountApplyTo.TOTAL,
       totalPrice: discountedTotal,
       updatedAt: new Date(),
     };
@@ -326,6 +355,25 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
             </div>
           </div>
 
+          {isMedia && (
+            <div>
+              <Label>Aplicar desconto em</Label>
+              <Select value={discountApplyTo} onValueChange={(v: string) => setDiscountApplyTo(v as ProposalItemDiscountApplyTo)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ProposalItemDiscountApplyTo.TOTAL}>Total (aluguel + custos)</SelectItem>
+                  <SelectItem value={ProposalItemDiscountApplyTo.RENT}>Aluguel</SelectItem>
+                  <SelectItem value={ProposalItemDiscountApplyTo.COSTS}>Custos (produção/instalação)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                Define sobre qual parte do item o desconto será aplicado.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Desconto em %</Label>
@@ -360,7 +408,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
           </div>
 
           <p className="text-xs text-gray-500">
-            💡 Preencha apenas um campo. O desconto será aplicado sobre o total do item.
+            💡 Preencha apenas um campo. O desconto será aplicado sobre {discountBaseLabel}.
           </p>
 
           <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
@@ -378,7 +426,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                   <span>{formatPrice(baseTotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''}:</span>
+                  <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''} ({discountBaseLabel}):</span>
                   <span>-{formatPrice(computedDiscountValue)}</span>
                 </div>
               </div>

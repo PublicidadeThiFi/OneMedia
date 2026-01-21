@@ -96,6 +96,13 @@ export enum BillingInvoiceType {
   UPFRONT = 'UPFRONT',
 }
 
+// Novo fluxo (propostas): onde aplicar o desconto do item
+export enum ProposalItemDiscountApplyTo {
+  RENT = 'RENT',
+  COSTS = 'COSTS',
+  TOTAL = 'TOTAL',
+}
+
 export enum PaymentMethod {
   PIX = 'PIX',
   BOLETO = 'BOLETO',
@@ -443,6 +450,8 @@ export interface ProposalItem {
   totalPrice: number;
   discountAmount?: number;
   discountPercent?: number;
+  /** Base do desconto do item (aluguel, custos ou total). Default: TOTAL */
+  discountApplyTo?: ProposalItemDiscountApplyTo;
   createdAt: Date;
   updatedAt: Date;
 }

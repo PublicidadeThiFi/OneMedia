@@ -6,7 +6,7 @@ import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import apiClient from '../../lib/apiClient';
-import { MediaPoint, MediaPointOwner, MediaType, MediaUnit, ProductionCosts, ProposalItem } from '../../types';
+import { MediaPoint, MediaPointOwner, MediaType, MediaUnit, ProductionCosts, ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
 
 interface MediaSelectionDrawerProps {
@@ -53,6 +53,7 @@ export function MediaSelectionDrawer({
   const [unitPrice, setUnitPrice] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [discountApplyTo, setDiscountApplyTo] = useState<ProposalItemDiscountApplyTo>(ProposalItemDiscountApplyTo.TOTAL);
 
   // Novo fluxo: tempo de ocupacao (multiplo de 15, max 360)
   const OCCUPATION_MAX_DAYS = 360;
@@ -60,12 +61,6 @@ export function MediaSelectionDrawer({
   const [occupationDays, setOccupationDays] = useState<number>(30);
   const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
 
-  const baseTotal = quantity * unitPrice;
-  let discountedTotal = baseTotal;
-  if (discountPercent > 0) discountedTotal = discountedTotal * (1 - discountPercent / 100);
-  if (discountAmount > 0) discountedTotal = discountedTotal - discountAmount;
-  const totalPrice = Math.max(0, discountedTotal);
-  const computedDiscountValue = Math.max(0, baseTotal - totalPrice);
 
   const getOccupationBreakdown = (days: number) => {
     const d = Math.max(0, Math.floor(days));
@@ -80,9 +75,18 @@ export function MediaSelectionDrawer({
     return Number.isFinite(n) ? n : 0;
   };
 
+  const mediaPointById = useMemo(() => {
+    const m = new Map<string, MediaPoint>();
+    for (const p of mediaPoints) {
+      m.set((p as any).id, p);
+    }
+    return m;
+  }, [mediaPoints]);
+
   const computedPricing = useMemo(() => {
-    const priceMonth = safeNumber(selectedMediaUnit?.priceMonth ?? 0);
-    const priceBiweekly = safeNumber((selectedMediaUnit as any)?.priceWeek ?? 0);
+    const point = selectedMediaUnit ? mediaPointById.get((selectedMediaUnit as any).mediaPointId) : undefined;
+    const priceMonth = safeNumber(selectedMediaUnit?.priceMonth ?? point?.basePriceMonth ?? 0);
+    const priceBiweekly = safeNumber((selectedMediaUnit as any)?.priceWeek ?? point?.basePriceWeek ?? 0);
     const prod = safeNumber(selectedMediaUnit?.productionCosts?.lona ?? 0);
     const inst = safeNumber(selectedMediaUnit?.productionCosts?.montagem ?? 0);
 
@@ -103,6 +107,38 @@ export function MediaSelectionDrawer({
       perUnitTotal,
     };
   }, [selectedMediaUnit, occupationDays, clientProvidesBanner]);
+
+  const discountCalc = useMemo(() => {
+    const qty = Math.max(1, Number(quantity) || 1);
+
+    const rentTotal = qty * computedPricing.rentPerUnit;
+    const upfrontTotal = qty * computedPricing.upfrontPerUnit;
+    const baseTotal = rentTotal + upfrontTotal;
+
+    const pct = safeNumber(discountPercent);
+    const amt = safeNumber(discountAmount);
+
+    const discountBase =
+      discountApplyTo === ProposalItemDiscountApplyTo.RENT
+        ? rentTotal
+        : discountApplyTo === ProposalItemDiscountApplyTo.COSTS
+          ? upfrontTotal
+          : baseTotal;
+
+    const discountValue =
+      pct > 0
+        ? (discountBase * pct) / 100
+        : amt > 0
+          ? Math.min(amt, discountBase)
+          : 0;
+
+    const totalPrice = Math.max(0, baseTotal - discountValue);
+    const computedDiscountValue = Math.max(0, discountValue);
+
+    return { qty, rentTotal, upfrontTotal, baseTotal, discountBase, discountValue, totalPrice, computedDiscountValue };
+  }, [quantity, computedPricing.rentPerUnit, computedPricing.upfrontPerUnit, discountPercent, discountAmount, discountApplyTo]);
+
+  const { baseTotal, totalPrice, computedDiscountValue } = discountCalc;
 
   useEffect(() => {
     if (!selectedMediaUnit) {
@@ -362,6 +398,7 @@ export function MediaSelectionDrawer({
       unitPrice,
       discountPercent: discountPercent > 0 ? discountPercent : undefined,
       discountAmount: discountAmount > 0 ? discountAmount : undefined,
+      discountApplyTo,
       totalPrice,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -402,6 +439,13 @@ export function MediaSelectionDrawer({
     !!selectedMediaPointOwnerId &&
     !ownersLoading &&
     !ownersError;
+
+  const discountBaseLabel =
+    discountApplyTo === ProposalItemDiscountApplyTo.RENT
+      ? 'o aluguel'
+      : discountApplyTo === ProposalItemDiscountApplyTo.COSTS
+        ? 'os custos (produção/instalação)'
+        : 'o total do item';
 
   const mediaTypes = useMemo(() => {
     const types = new Set(mediaPoints.map((p: any) => p.type));
@@ -469,11 +513,18 @@ export function MediaSelectionDrawer({
               <div className="space-y-3">
                 {filteredMediaPoints.map((point: any) => {
                   const units = unitsByPointId.get(point.id) ?? [];
-                  const minPrice = units.reduce((min, u) => {
+                  const basePointPrice = Number(point?.basePriceMonth ?? 0);
+                  const minUnitPrice = units.reduce((min, u) => {
                     const p = Number((u as any).priceMonth ?? 0);
-                    if (!Number.isFinite(p)) return min;
+                    if (!Number.isFinite(p) || p <= 0) return min;
                     return min === null || p < min ? p : min;
                   }, null as number | null);
+                  const minPrice =
+                    minUnitPrice !== null
+                      ? minUnitPrice
+                      : Number.isFinite(basePointPrice) && basePointPrice > 0
+                        ? basePointPrice
+                        : null;
                   const dims = units.length === 1 ? (units[0] as any).dimensions : undefined;
 
                   return (
@@ -502,7 +553,7 @@ export function MediaSelectionDrawer({
 
                           <div className="flex items-center gap-4 text-sm">
                             <span className="text-indigo-600 font-medium">
-                              {formatPrice(minPrice ?? 0)}{units.length ? '/mês' : ''}
+                              {minPrice !== null ? formatPrice(minPrice) + (units.length ? '/mês' : '') : '--'}
                             </span>
                             {dims && <span className="text-gray-500">{dims}</span>}
                           </div>
@@ -756,6 +807,23 @@ export function MediaSelectionDrawer({
 
                             
 
+                            <div>
+                              <label className="text-sm text-gray-600 mb-1 block">Aplicar desconto em</label>
+                              <Select value={discountApplyTo} onValueChange={(v: string) => setDiscountApplyTo(v as ProposalItemDiscountApplyTo)}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={ProposalItemDiscountApplyTo.TOTAL}>Total (aluguel + custos)</SelectItem>
+                                  <SelectItem value={ProposalItemDiscountApplyTo.RENT}>Aluguel</SelectItem>
+                                  <SelectItem value={ProposalItemDiscountApplyTo.COSTS}>Custos (produção/instalação)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-gray-500 mt-1">
+                                Define sobre qual parte do item o desconto será aplicado.
+                              </p>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="text-sm text-gray-600 mb-1 block">Desconto em %</label>
@@ -790,7 +858,7 @@ export function MediaSelectionDrawer({
                               </div>
                             </div>
                             <p className="text-xs text-gray-500">
-                              💡 Preencha apenas um campo. O desconto será aplicado sobre o total do item.
+                              💡 Preencha apenas um campo. O desconto será aplicado sobre {discountBaseLabel}.
                             </p>
                             <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
                               <div className="flex justify-between items-center">
@@ -807,7 +875,7 @@ export function MediaSelectionDrawer({
                                     <span>{formatPrice(baseTotal)}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''}:</span>
+                                    <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''} ({discountBaseLabel}):</span>
                                     <span>-{formatPrice(computedDiscountValue)}</span>
                                   </div>
                                 </div>

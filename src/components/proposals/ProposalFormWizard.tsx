@@ -233,6 +233,7 @@ const preparePayload = (status: ProposalStatus) => {
       unitPrice: Number(item.unitPrice),
       discountPercent: Number((item as any).discountPercent || 0),
       discountAmount: Number((item as any).discountAmount || 0),
+      discountApplyTo: (item as any).discountApplyTo ?? "TOTAL",
       // Novo fluxo (midia)
       occupationDays: (item as any).occupationDays ?? undefined,
       clientProvidesBanner: (item as any).clientProvidesBanner ?? undefined,

@@ -4,7 +4,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Image as ImageIcon, Package, Trash2, Edit } from 'lucide-react';
 import { ProposalFormData } from './ProposalFormWizard';
-import { ProposalItem } from '../../types';
+import { ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 import { MediaSelectionDrawer } from './MediaSelectionDrawer';
 import { ProductSelectionDialog } from './ProductSelectionDialog';
 import { ProposalItemEditDialog } from './ProposalItemEditDialog';
@@ -55,16 +55,32 @@ export function ProposalStep2Items({
     onItemsChange(newItems);
   };
 
+
   const computeItemDiscount = (item: ProposalItem) => {
     const qty = Number.isFinite(item.quantity) ? item.quantity : 1;
     const unit = Number.isFinite(item.unitPrice) ? item.unitPrice : 0;
+
+    // unitPrice no fluxo de mídia já é o total por unidade (aluguel + custos)
     const baseTotal = qty * unit;
     const finalTotal = Number.isFinite(item.totalPrice) ? item.totalPrice : baseTotal;
     const discountValue = Math.max(0, baseTotal - finalTotal);
+
     const discountPercent = (item as any).discountPercent ?? 0;
     const discountAmount = (item as any).discountAmount ?? 0;
-    const label = discountPercent > 0 ? `${discountPercent}%` : discountAmount > 0 ? `R$ ${discountAmount}` : null;
-    return { baseTotal, finalTotal, discountValue, label, discountPercent, discountAmount };
+
+    const applyTo: ProposalItemDiscountApplyTo = (item as any).discountApplyTo ?? ProposalItemDiscountApplyTo.TOTAL;
+    const applyToLabel = item.mediaUnitId
+      ? applyTo === ProposalItemDiscountApplyTo.RENT
+        ? 'no aluguel'
+        : applyTo === ProposalItemDiscountApplyTo.COSTS
+          ? 'nos custos'
+          : 'no total'
+      : null;
+
+    const rawLabel = discountPercent > 0 ? `${discountPercent}%` : discountAmount > 0 ? `R$ ${discountAmount}` : null;
+    const label = rawLabel ? (applyToLabel ? `${rawLabel} ${applyToLabel}` : rawLabel) : null;
+
+    return { baseTotal, finalTotal, discountValue, label, discountPercent, discountAmount, applyTo, applyToLabel };
   };
 
   const formatCurrency = (value: number) => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
-import { Proposal, ProposalStatus } from '../types';
+import { Proposal, ProposalItemDiscountApplyTo, ProposalStatus } from '../types';
 
 export interface UseProposalsParams {
   search?: string;
@@ -52,6 +52,8 @@ function normalizeProposal(p: any): Proposal {
     items: Array.isArray(p.items)
       ? p.items.map((i: any) => ({
           ...i,
+          // Garante compatibilidade com itens antigos e evita perder o campo ao carregar
+          discountApplyTo: i.discountApplyTo ?? ProposalItemDiscountApplyTo.TOTAL,
           unitPrice: typeof i.unitPrice === 'string' ? Number(i.unitPrice) : i.unitPrice,
           totalPrice: typeof i.totalPrice === 'string' ? Number(i.totalPrice) : i.totalPrice,
           discountAmount: typeof i.discountAmount === 'string' ? Number(i.discountAmount) : i.discountAmount,
