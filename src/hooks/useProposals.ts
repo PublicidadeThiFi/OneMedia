@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from './useAuth';
 import apiClient from '../lib/apiClient';
 import { Proposal, ProposalItemDiscountApplyTo, ProposalStatus } from '../types';
 
@@ -128,8 +127,6 @@ function serializeProposalForApi(data: Partial<Proposal>) {
 }
 
 export function useProposals(params: UseProposalsParams = {}) {
-  const { authReady, isAuthenticated } = useAuth();
-
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [page, setPage] = useState<number>(params.page ?? 1);
@@ -142,21 +139,6 @@ export function useProposals(params: UseProposalsParams = {}) {
   // Mantém a última função de fetch para uso em listeners (evita closure stale)
   const fetchRef = useRef<(() => void) | null>(null);
 
-  // Evita tempestade de requests (dedupe) + garante que uma mudança de filtro não "perca" o fetch.
-  const inFlightRef = useRef(false);
-  const pendingRef = useRef(false);
-
-  // Throttle para refetch disparado por eventos (SSE / focus / visibility).
-  const lastRefetchAtRef = useRef(0);
-  const throttleTimerRef = useRef<number | null>(null);
-  const pendingWhenHiddenRef = useRef(false);
-
-  // SSE refs
-  const sseRef = useRef<EventSource | null>(null);
-  const sseRetryTimerRef = useRef<number | null>(null);
-  const sseBackoffMsRef = useRef<number>(2000);
-  const streamTokenRef = useRef<{ token: string; expiresAt: number } | null>(null);
-
   const cleanedParams = useMemo(() => {
     const p: Record<string, unknown> = { ...params };
 
@@ -168,13 +150,6 @@ export function useProposals(params: UseProposalsParams = {}) {
   }, [params]);
 
   const fetchProposals = async () => {
-    if (inFlightRef.current) {
-      pendingRef.current = true;
-      return;
-    }
-
-    inFlightRef.current = true;
-
     try {
       setLoading(true);
       setError(null);
@@ -185,9 +160,12 @@ export function useProposals(params: UseProposalsParams = {}) {
 
       const responseData = response.data as ProposalsResponse;
 
-      const data: Proposal[] = Array.isArray(responseData) ? responseData : responseData.data;
+      const data: Proposal[] = Array.isArray(responseData)
+        ? responseData
+        : responseData.data;
 
-      const computedTotal = Array.isArray(responseData) ? data.length : responseData.total ?? data.length;
+      const computedTotal =
+        Array.isArray(responseData) ? data.length : responseData.total ?? data.length;
 
       setProposals(data.map(normalizeProposal));
       setTotal(computedTotal);
@@ -209,46 +187,12 @@ export function useProposals(params: UseProposalsParams = {}) {
       setError(err as Error);
     } finally {
       setLoading(false);
-      inFlightRef.current = false;
-
-      if (pendingRef.current) {
-        pendingRef.current = false;
-        // dispara novamente com os params mais atuais
-        void fetchProposals();
-      }
     }
   };
 
-  const scheduleRefetch = () => {
-    // Se a aba estiver oculta, evita gastar rede — mas marca para sincronizar quando voltar.
-    if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') {
-      pendingWhenHiddenRef.current = true;
-      return;
-    }
-
-    const now = Date.now();
-    const minInterval = 1000; // 1 request por segundo no máximo (rajadas de eventos)
-
-    const run = () => {
-      lastRefetchAtRef.current = Date.now();
-      fetchRef.current?.();
-    };
-
-    const elapsed = now - lastRefetchAtRef.current;
-    if (elapsed >= minInterval) {
-      run();
-      return;
-    }
-
-    if (throttleTimerRef.current !== null) return;
-
-    throttleTimerRef.current = window.setTimeout(() => {
-      throttleTimerRef.current = null;
-      run();
-    }, Math.max(0, minInterval - elapsed));
-  };
-
-  // Mantém a função atual de fetch disponível para listeners e SSE.
+  // Mantém a listagem sincronizada quando o usuário volta para a aba/janela.
+  // Isso resolve o caso: aprovação via link público e, ao retornar ao sistema,
+  // o status ainda aparece como "Enviada" até dar refresh.
   useEffect(() => {
     fetchRef.current = () => {
       void fetchProposals();
@@ -266,22 +210,16 @@ export function useProposals(params: UseProposalsParams = {}) {
     cleanedParams.pageSize,
   ]);
 
-  // Revalida quando o usuário volta para a aba/janela (fallback e também para aplicar pendências quando ficou oculto).
   useEffect(() => {
     let lastRun = 0;
     const trigger = () => {
+      if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+
       const now = Date.now();
-      if (now - lastRun < 250) return;
+      if (now - lastRun < 800) return;
       lastRun = now;
 
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && pendingWhenHiddenRef.current) {
-        pendingWhenHiddenRef.current = false;
-        scheduleRefetch();
-        return;
-      }
-
-      // Em foco/visível: faz um refetch throttled (ajuda quando SSE caiu ou quando o usuário ficou um tempo fora).
-      scheduleRefetch();
+      fetchRef.current?.();
     };
 
     window.addEventListener('focus', trigger);
@@ -291,131 +229,18 @@ export function useProposals(params: UseProposalsParams = {}) {
       window.removeEventListener('focus', trigger);
       document.removeEventListener('visibilitychange', trigger);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const buildStreamUrl = (token: string) => {
-    const base = String(apiClient.defaults.baseURL ?? '').replace(/\/$/, '');
-    const path = `/proposals/stream?token=${encodeURIComponent(token)}`;
 
-    // Se baseURL é relativo ("/api"), retornamos uma URL relativa (same-origin).
-    if (!base) return path;
-    if (base.startsWith('http://') || base.startsWith('https://')) {
-      return `${base}${path}`;
-    }
-    // base relativo ("/api")
-    return `${base}${path}`;
-  };
-
-  const closeSse = () => {
-    if (sseRetryTimerRef.current !== null) {
-      window.clearTimeout(sseRetryTimerRef.current);
-      sseRetryTimerRef.current = null;
-    }
-    if (sseRef.current) {
-      try {
-        sseRef.current.close();
-      } catch {
-        // ignore
-      }
-      sseRef.current = null;
-    }
-  };
-
-  const scheduleSseReconnect = (startFn: () => void) => {
-    if (sseRetryTimerRef.current !== null) return;
-
-    const delay = sseBackoffMsRef.current;
-    sseBackoffMsRef.current = Math.min(30000, Math.round(sseBackoffMsRef.current * 1.5));
-
-    sseRetryTimerRef.current = window.setTimeout(() => {
-      sseRetryTimerRef.current = null;
-      startFn();
-    }, delay);
-  };
-
-  // Real-time sync (SSE) para evitar polling pesado.
+  // Polling leve para manter o status atualizado mesmo sem mudança de foco (ex.: aprovação em outra aba/dispositivo).
   useEffect(() => {
-    if (!authReady || !isAuthenticated) {
-      closeSse();
-      return;
-    }
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return;
+      fetchRef.current?.();
+    }, 15000);
 
-    let cancelled = false;
-
-    const start = async () => {
-      if (cancelled) return;
-
-      // Sempre fecha antes de reabrir (evita múltiplas conexões).
-      closeSse();
-
-      try {
-        const now = Date.now();
-
-        // Reaproveita token enquanto válido para evitar spam se o SSE cair por rede/proxy.
-        let token = streamTokenRef.current?.token;
-        const expiresAt = streamTokenRef.current?.expiresAt ?? 0;
-
-        // Renova com folga de 10s antes de expirar.
-        if (!token || expiresAt < now + 10_000) {
-          const resp = await apiClient.get<{ token: string; expiresInSeconds?: number }>('/proposals/stream-token');
-          token = resp.data?.token;
-
-          const ttlSec = resp.data?.expiresInSeconds ?? 600;
-          if (token) {
-            streamTokenRef.current = { token, expiresAt: now + ttlSec * 1000 };
-          } else {
-            streamTokenRef.current = null;
-          }
-        }
-
-        if (!token || cancelled) {
-          throw new Error('Token de stream não retornado.');
-        }
-
-        const url = buildStreamUrl(token);
-
-        const es = new EventSource(url);
-        sseRef.current = es;
-
-        const onReady = () => {
-          // Conexão ok, reseta backoff.
-          sseBackoffMsRef.current = 2000;
-        };
-
-        const onProposal = () => {
-          // Evita spam: throttle centralizado.
-          scheduleRefetch();
-        };
-
-        es.addEventListener('ready', onReady as any);
-        es.addEventListener('proposal', onProposal as any);
-
-        es.onerror = () => {
-          // Se cair (token expirou, rede, backend reiniciou), reabre com um token novo.
-          try {
-            es.close();
-          } catch {
-            // ignore
-          }
-          if (sseRef.current === es) sseRef.current = null;
-          if (cancelled) return;
-          scheduleSseReconnect(() => void start());
-        };
-      } catch (err) {
-        if (cancelled) return;
-        scheduleSseReconnect(() => void start());
-      }
-    };
-
-    void start();
-
-    return () => {
-      cancelled = true;
-      closeSse();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authReady, isAuthenticated]);
+    return () => window.clearInterval(id);
+  }, []);
 
   const getProposalById = async (id: string) => {
     const response = await apiClient.get<Proposal>(`/proposals/${id}`);
@@ -424,41 +249,42 @@ export function useProposals(params: UseProposalsParams = {}) {
 
   // src/hooks/useProposals.ts
 
-  const createProposal = async (dto: any) => {
-    try {
-      const response = await apiClient.post<Proposal>('/proposals', dto);
-
-      // Verificação de segurança: se não for objeto, a API falhou no proxy
-      if (!response.data || typeof response.data !== 'object') {
-        throw new Error('Resposta inválida do servidor (Proxy Error)');
-      }
-
-      const normalized = normalizeProposal(response.data);
-      setProposals((prev) => [normalized, ...prev]);
-      return normalized;
-    } catch (error) {
-      console.error('Erro ao criar proposta:', error);
-      // Lançamos o erro para que o componente (Proposals.tsx) mostre o Toast de erro
-      throw error;
+const createProposal = async (dto: any) => {
+  try {
+    const response = await apiClient.post<Proposal>('/proposals', dto);
+    
+    // Verificação de segurança: se não for objeto, a API falhou no proxy
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error("Resposta inválida do servidor (Proxy Error)");
     }
-  };
 
-  const updateProposal = async (id: string, dto: any) => {
-    try {
-      const response = await apiClient.put<Proposal>(`/proposals/${id}`, dto);
+    const normalized = normalizeProposal(response.data);
+    setProposals((prev) => [normalized, ...prev]);
+    return normalized;
+  } catch (error) {
+    console.error("Erro ao criar proposta:", error);
+    // Lançamos o erro para que o componente (Proposals.tsx) mostre o Toast de erro
+    throw error; 
+  }
+};
 
-      if (!response.data || typeof response.data !== 'object') {
-        throw new Error('Resposta inválida do servidor');
-      }
-
-      const normalized = normalizeProposal(response.data);
-      setProposals((prev) => prev.map((p) => (p.id === id ? normalized : p)));
-      return normalized;
-    } catch (error) {
-      console.error('Erro ao atualizar proposta:', error);
-      throw error;
+const updateProposal = async (id: string, dto: any) => {
+  try {
+    const response = await apiClient.put<Proposal>(`/proposals/${id}`, dto);
+    
+    if (!response.data || typeof response.data !== 'object') {
+      throw new Error("Resposta inválida do servidor");
     }
-  };
+
+    const normalized = normalizeProposal(response.data);
+    setProposals((prev) => prev.map((p) => (p.id === id ? normalized : p)));
+    return normalized;
+  } catch (error) {
+    console.error("Erro ao atualizar proposta:", error);
+    throw error;
+  }
+};
+
 
   const updateProposalStatus = async (id: string, status: ProposalStatus) => {
     const response = await apiClient.patch<Proposal>(`/proposals/${id}/status`, { status });
