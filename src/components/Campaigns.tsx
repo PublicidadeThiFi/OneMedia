@@ -57,13 +57,21 @@ export function Campaigns() {
   const activeCampaigns = useMemo(
     () =>
       campaigns.filter(
-        (c) => c.status === CampaignStatus.EM_INSTALACAO || c.status === CampaignStatus.EM_VEICULACAO
+        (c) =>
+          c.status === CampaignStatus.EM_INSTALACAO ||
+          c.status === CampaignStatus.EM_VEICULACAO ||
+          c.status === CampaignStatus.ATIVA
       ),
     [campaigns]
   );
 
   const finishedCampaigns = useMemo(
     () => campaigns.filter((c) => c.status === CampaignStatus.FINALIZADA),
+    [campaigns]
+  );
+  
+  const cancelledCampaigns = useMemo(
+    () => campaigns.filter((c) => c.status === CampaignStatus.CANCELADA),
     [campaigns]
   );
 
@@ -139,6 +147,7 @@ export function Campaigns() {
         <TabsList>
           <TabsTrigger value="active">Em Andamento</TabsTrigger>
           <TabsTrigger value="finished">Finalizadas</TabsTrigger>
+          <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
           <TabsTrigger value="installations">Instalações OOH</TabsTrigger>
         </TabsList>
 
@@ -164,6 +173,16 @@ export function Campaigns() {
           />
         </TabsContent>
 
+        {/* Tab: Canceladas */}
+        <TabsContent value="cancelled">
+          <CampaignList
+            campaigns={cancelledCampaigns}
+            showAllActions={false}
+            onViewDetails={handleViewDetails}
+            onGenerateReport={handleGenerateReport}
+          />
+        </TabsContent>
+
         {/* Tab: Instalações OOH */}
         <TabsContent value="installations">
           <CampaignInstallationsView
@@ -180,7 +199,7 @@ export function Campaigns() {
         <p className="text-sm text-blue-700">
           Campanha é criada automaticamente quando Proposta é aprovada. Status:{' '}
           <strong>EM_INSTALACAO</strong> (OOH sendo instalado) → <strong>EM_VEICULACAO</strong> (no
-          ar) → <strong>FINALIZADA</strong>
+          ar) → <strong>FINALIZADA</strong> (ou <strong>CANCELADA</strong> por inadimplência)
         </p>
       </div>
 
