@@ -374,23 +374,61 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <p className="text-gray-900 flex-1">{item.description || 'Item'}</p>
                     {(() => {
-                        const qty = Number(item.quantity ?? 1);
-                        const unit = Number(item.unitPrice ?? 0);
-                        const baseTotal = qty * unit;
-                        const finalTotal = Number(item.totalPrice ?? item.total ?? baseTotal);
-                        const discountValue = Math.max(0, baseTotal - finalTotal);
-                        const dPct = (item as any).discountPercent;
-                        const dAmt = (item as any).discountAmount;
-                        const label = dPct ? `${dPct}%` : dAmt ? `R$ ${currency(dAmt)}` : null;
-                        return (
-                          <div className="text-right">
-                            <p className="text-gray-900 whitespace-nowrap">R$ {currency(finalTotal)}</p>
-                            {discountValue > 0 ? (
-                              <p className="text-[11px] text-red-600 whitespace-nowrap">-R$ {currency(discountValue)}{label ? ` (${label})` : ''}</p>
-                            ) : null}
-                          </div>
-                        );
-                      })()}
+                      const qty = Math.max(1, toNumber(item.quantity, 1));
+                      const dp = toNumber((item as any).discountPercent, 0);
+                      const da = toNumber((item as any).discountAmount, 0);
+                      const applyTo = ((item as any).discountApplyTo ?? 'TOTAL') as string;
+
+                      const applyToLabel =
+                        applyTo === 'RENT' ? 'no aluguel' : applyTo === 'COSTS' ? 'nos custos' : 'no total';
+
+                      const rawUnitPrice = toNumber(item.unitPrice, 0);
+                      let rawTotal = qty * rawUnitPrice;
+
+                      let rawRentTotal = 0;
+                      let rawUpfrontTotal = 0;
+
+                      const finalTotal = toNumber((item as any).totalPrice ?? (item as any).total ?? rawTotal, 0);
+
+                      // Media items: recompute "orig" usando snapshots (aluguel + custos).
+                      if ((item as any).mediaUnitId) {
+                        const occDays = toNumber((item as any).occupationDays, 0);
+                        const blocks30 = Math.floor(occDays / 30);
+                        const blocks15 = Math.round((occDays % 30) / 15);
+
+                        const priceMonth = toNumber((item as any).priceMonthSnapshot, 0);
+                        const priceBiweekly = toNumber((item as any).priceBiweeklySnapshot, 0);
+
+                        const prod = toNumber((item as any).productionCostSnapshot, 0);
+                        const inst = toNumber((item as any).installationCostSnapshot, 0);
+                        const clientProvidesBanner = !!(item as any).clientProvidesBanner;
+
+                        const rentPerUnit = blocks30 * priceMonth + blocks15 * priceBiweekly;
+                        const upfrontPerUnit = inst + (clientProvidesBanner ? 0 : prod);
+
+                        rawRentTotal = rentPerUnit * qty;
+                        rawUpfrontTotal = upfrontPerUnit * qty;
+                        rawTotal = rawRentTotal + rawUpfrontTotal;
+                      }
+
+                      const discountValue = Math.max(0, rawTotal - finalTotal);
+
+                      const discountLabel = dp > 0 ? `${dp}%` : da > 0 ? `R$ ${currency(da)}` : null;
+
+                      return (
+                        <div className="text-right">
+                          <p className="text-gray-900 whitespace-nowrap">R$ {currency(finalTotal)}</p>
+                          {discountValue > 0 && rawTotal > 0 ? (
+                            <div className="mt-0.5 space-y-0.5">
+                              <p className="text-[11px] text-gray-500 whitespace-nowrap">Orig: R$ {currency(rawTotal)}</p>
+                              <p className="text-[11px] text-red-600 whitespace-nowrap">
+                                Desc{discountLabel ? ` (${discountLabel} ${applyToLabel})` : ` (${applyToLabel})`}: - R$ {currency(discountValue)}
+                              </p>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
@@ -426,6 +464,80 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                       <p className="text-gray-700">R$ {currency(item.unitPrice)}</p>
                     </div>
                   </div>
+
+                  {item.mediaUnitId ? (() => {
+                    const qty = Math.max(1, toNumber(item.quantity, 1));
+                    const occDays = toNumber(item.occupationDays, 0);
+                    const blocks30 = Math.floor(occDays / 30);
+                    const blocks15 = Math.round((occDays % 30) / 15);
+
+                    const priceMonth = toNumber((item as any).priceMonthSnapshot, 0);
+                    const priceBiweekly = toNumber((item as any).priceBiweeklySnapshot, 0);
+
+                    const prod = toNumber((item as any).productionCostSnapshot, 0);
+                    const inst = toNumber((item as any).installationCostSnapshot, 0);
+                    const clientProvidesBanner = !!(item as any).clientProvidesBanner;
+
+                    const rawRentTotal = (blocks30 * priceMonth + blocks15 * priceBiweekly) * qty;
+                    const rawUpfrontTotal = (inst + (clientProvidesBanner ? 0 : prod)) * qty;
+
+                    const dp = toNumber((item as any).discountPercent, 0);
+                    const da = toNumber((item as any).discountAmount, 0);
+                    const applyTo = ((item as any).discountApplyTo ?? 'TOTAL') as string;
+
+                    const applyDiscount = (base: number) => {
+                      let v = base;
+                      if (dp > 0) v = v * (1 - dp / 100);
+                      if (da > 0) v = v - da;
+                      if (!Number.isFinite(v)) v = 0;
+                      return Math.max(0, v);
+                    };
+
+                    let rentAfter = (item as any).rentTotalSnapshot != null ? toNumber((item as any).rentTotalSnapshot, 0) : null;
+                    let upfrontAfter = (item as any).upfrontTotalSnapshot != null ? toNumber((item as any).upfrontTotalSnapshot, 0) : null;
+
+                    if (rentAfter == null || upfrontAfter == null) {
+                      if (applyTo === 'TOTAL') {
+                        const rawTotal = rawRentTotal + rawUpfrontTotal;
+                        const totalAfter = applyDiscount(rawTotal);
+                        const factor = rawTotal > 0 ? totalAfter / rawTotal : 0;
+                        rentAfter = rawRentTotal * factor;
+                        upfrontAfter = rawUpfrontTotal * factor;
+                      } else if (applyTo === 'RENT') {
+                        rentAfter = applyDiscount(rawRentTotal);
+                        upfrontAfter = rawUpfrontTotal;
+                      } else if (applyTo === 'COSTS') {
+                        upfrontAfter = applyDiscount(rawUpfrontTotal);
+                        rentAfter = rawRentTotal;
+                      }
+                    }
+
+                    const showArrowRent = Math.abs(rawRentTotal - (rentAfter ?? 0)) > 0.009;
+                    const showArrowUpfront = Math.abs(rawUpfrontTotal - (upfrontAfter ?? 0)) > 0.009;
+
+                    if (rawRentTotal <= 0 && rawUpfrontTotal <= 0) return null;
+
+                    return (
+                      <div className="mt-3 rounded-md bg-gray-50 p-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-gray-500">Aluguel</p>
+                            <p className="text-gray-700 whitespace-nowrap">
+                              R$ {currency(rawRentTotal)}
+                              {showArrowRent ? ` → R$ ${currency(rentAfter)}` : ''}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Custos (produção/instalação)</p>
+                            <p className="text-gray-700 whitespace-nowrap">
+                              R$ {currency(rawUpfrontTotal)}
+                              {showArrowUpfront ? ` → R$ ${currency(upfrontAfter)}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })() : null}
                 </div>
               ))}
 
