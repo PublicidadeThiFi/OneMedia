@@ -477,6 +477,8 @@ export interface Campaign {
   clientName?: string | null;
   proposalTitle?: string | null;
   reservedUnitsCount?: number;
+  campaignItemsCount?: number;
+  reservationsCount?: number;
   proposal?: Partial<Proposal> | null;
   items?: CampaignItem[];
 }

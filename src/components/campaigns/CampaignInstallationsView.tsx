@@ -1,4 +1,5 @@
-import { MapPin, Wrench } from 'lucide-react';
+import { MapPin, Wrench, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '../ui/button';
 import { Campaign, CampaignStatus } from '../../types';
@@ -45,10 +46,20 @@ export function CampaignInstallationsView({ campaigns, onViewDetails, onCheckIn 
             const start = campaign.startDate ? new Date(campaign.startDate as any) : null;
             const end = campaign.endDate ? new Date(campaign.endDate as any) : null;
             const unitsCount =
-              typeof campaign.reservedUnitsCount === 'number'
-                ? campaign.reservedUnitsCount
-                : campaign.items?.length ?? 0;
+              (typeof campaign.reservedUnitsCount === 'number' ? campaign.reservedUnitsCount : undefined) ??
+              (typeof campaign.campaignItemsCount === 'number' ? campaign.campaignItemsCount : undefined) ??
+              (typeof campaign.reservationsCount === 'number' ? campaign.reservationsCount : undefined) ??
+              (campaign.items?.length ?? 0);
             const clientName = campaign.client?.contactName || campaign.client?.companyName || campaign.clientName || '—';
+
+            const handleCopyProposalId = async () => {
+              try {
+                await navigator.clipboard.writeText(campaign.proposalId);
+                toast.success('ID da proposta copiado');
+              } catch {
+                toast.error('Não foi possível copiar o ID');
+              }
+            };
 
             return (
               <div key={campaign.id} className="bg-white rounded-lg border border-gray-200 p-6">
@@ -62,7 +73,25 @@ export function CampaignInstallationsView({ campaigns, onViewDetails, onCheckIn 
                       <span>{unitsCount} unidades</span>
                     </div>
                     {campaign.proposalId && (
-                      <div className="text-xs text-gray-500 mt-1">Proposta ID: ...{campaign.proposalId.slice(-6)}</div>
+                      <div className="text-xs text-gray-500 mt-1 inline-flex items-center gap-1">
+                        <span>Proposta ID:</span>
+                        <button
+                          type="button"
+                          className="font-mono text-gray-600 hover:text-gray-900"
+                          title={campaign.proposalId}
+                          onClick={handleCopyProposalId}
+                        >
+                          ...{campaign.proposalId.slice(-6)}
+                        </button>
+                        <button
+                          type="button"
+                          className="p-1 rounded hover:bg-gray-100"
+                          title="Copiar ID"
+                          onClick={handleCopyProposalId}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
                     )}
                   </div>
 
