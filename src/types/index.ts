@@ -581,6 +581,18 @@ export interface BillingInvoice {
   client?: Client;
 }
 
+export interface BillingInvoiceForecastItem {
+  id: string;
+  isForecast: true;
+  type?: BillingInvoiceType | null;
+  sequence?: number | null;
+  dueDate: Date | string;
+  amount: number;
+  periodStart?: Date | string | null;
+  periodEnd?: Date | string | null;
+  requiresConfirmation?: boolean;
+}
+
 export interface CashTransaction {
   id: string;
   /** Para transações recorrentes geradas no backend (instâncias virtuais), aponta para o ID da série/base */
