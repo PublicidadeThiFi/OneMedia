@@ -1,4 +1,5 @@
-import { Eye, FileText, DollarSign, Camera } from 'lucide-react';
+import { Eye, FileText, DollarSign, Camera, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Campaign } from '../../types';
@@ -23,10 +24,21 @@ export function CampaignCard({
   onViewBilling,
 }: CampaignCardProps) {
   const client = campaign.client;
-  // campanha usa reservas para controlar veiculações (campaign_items ainda não existe no backend)
+
   const unitsCount =
     (typeof campaign.reservedUnitsCount === 'number' ? campaign.reservedUnitsCount : undefined) ??
+    (typeof campaign.campaignItemsCount === 'number' ? campaign.campaignItemsCount : undefined) ??
+    (typeof campaign.reservationsCount === 'number' ? campaign.reservationsCount : undefined) ??
     (campaign.items || []).filter((item) => item.mediaUnitId).length;
+
+  const handleCopyProposalId = async () => {
+    try {
+      await navigator.clipboard.writeText(campaign.proposalId);
+      toast.success('ID da proposta copiado');
+    } catch {
+      toast.error('Não foi possível copiar o ID');
+    }
+  };
   const totalValor = toNumber(campaign.totalAmountCents, 0) / 100;
   const hasCheckIn = !!campaign.checkInAt;
   const deadline = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
@@ -52,7 +64,26 @@ export function CampaignCard({
               {client?.companyName || client?.contactName || 'Cliente não encontrado'}
             </p>
             <div className="flex items-center gap-4 text-sm text-gray-600">
-              <span>Proposta ID: ...{campaign.proposalId.slice(-6)}</span>
+              <span className="inline-flex items-center gap-1">
+                <span>Proposta ID:</span>
+                <button
+                  type="button"
+                  className="font-mono text-gray-700 hover:text-gray-900"
+                  title={campaign.proposalId}
+                  onClick={handleCopyProposalId}
+                >
+                  ...{campaign.proposalId.slice(-6)}
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  title="Copiar ID"
+                  onClick={handleCopyProposalId}
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </span>
               <span>•</span>
               <span>{periodLabel}</span>
               <span>•</span>
