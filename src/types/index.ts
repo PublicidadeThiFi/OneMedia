@@ -527,6 +527,16 @@ export interface Reservation {
   proposalTitle?: string | null;
   reservedUnitsCount?: number;
 
+  /** Dados de origem (novo fluxo / auditoria) */
+  proposalItemId?: string | null;
+  mediaPointOwnerId?: string | null;
+  responsibleCompanyName?: string | null;
+  responsibleOwnerName?: string | null;
+  rentAmount?: number | null;
+  occupationDays?: number | null;
+  rentTotalSnapshot?: number | null;
+  upfrontTotalSnapshot?: number | null;
+
   // Datas (a API retorna string ISO, mas vários lugares usam Date)
   startDate: string | Date;
   endDate: string | Date;
