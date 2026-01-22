@@ -16,6 +16,14 @@ import { CampaignStatusBadge } from './CampaignStatusBadge';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
 import { useNavigation } from '../../App';
+import {
+  formatBRL,
+  formatBRLFromCents,
+  formatDateBR,
+  formatDateTimeBR,
+  resolveUploadsUrl,
+  safeDate,
+} from '../../lib/format';
 
 interface CampaignDetailsDrawerProps {
   open: boolean;
@@ -76,18 +84,6 @@ export function CampaignDetailsDrawer({
   const [forecastInvoices, setForecastInvoices] = useState<BillingInvoiceForecastItem[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [checkInInfo, setCheckInInfo] = useState<CampaignCheckInInfoResponse | null>(null);
-
-  const resolveFileUrl = useMemo(() => {
-    const base = String((apiClient.defaults as any)?.baseURL ?? '');
-    const origin = base.startsWith('/') ? '' : base.replace(/\/?api\/?$/, '');
-    return (url?: string | null) => {
-      if (!url) return null;
-      if (url.startsWith('http://') || url.startsWith('https://')) return url;
-      // Se base for relativa (/api), o /uploads já resolve no mesmo host
-      if (!origin) return url;
-      return `${origin}${url}`;
-    };
-  }, []);
 
   const loadExtras = async () => {
     if (!campaign) return;
@@ -156,19 +152,19 @@ export function CampaignDetailsDrawer({
   const clientLabel = c?.client?.companyName || c?.client?.contactName || (c as any)?.clientName || '-';
 
   const hasCheckIn = !!c?.checkInAt;
-  const checkInDeadlineAt = c?.checkInDeadlineAt ? new Date(c.checkInDeadlineAt as any) : null;
+  const checkInDeadlineAt = safeDate((c as any)?.checkInDeadlineAt as any);
 
   const periodLabel = useMemo(() => {
     if (!c) return '-';
-    const start = c.startDate ? new Date(c.startDate as any) : null;
-    const end = c.endDate ? new Date(c.endDate as any) : null;
+    const start = safeDate((c as any).startDate as any);
+    const end = safeDate((c as any).endDate as any);
     if (hasCheckIn) {
-      return `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`;
+      return `${formatDateBR(start)} - ${formatDateBR(end)}`;
     }
     if (checkInDeadlineAt) {
-      return `Check-in até ${checkInDeadlineAt.toLocaleDateString('pt-BR')}`;
+      return `Check-in até ${formatDateBR(checkInDeadlineAt)}`;
     }
-    return `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`;
+    return `${formatDateBR(start)} - ${formatDateBR(end)}`;
   }, [c, hasCheckIn, checkInDeadlineAt]);
 
   const totals = useMemo(() => {
@@ -277,11 +273,7 @@ export function CampaignDetailsDrawer({
                   <>
                     <span>•</span>
                     <span>
-                      R${' '}
-                      {(((c as any).totalAmountCents as number) / 100).toLocaleString('pt-BR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {formatBRLFromCents((c as any).totalAmountCents)}
                     </span>
                   </>
                 )}
@@ -324,14 +316,14 @@ export function CampaignDetailsDrawer({
                 <div className="bg-green-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-500 mb-1">Valor Pago</p>
                   <p className="text-2xl font-semibold text-green-900">
-                    R$ {totals.paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {formatBRL(totals.paid)}
                   </p>
                 </div>
 
                 <div className="bg-yellow-50 p-4 rounded-lg">
                   <p className="text-sm text-gray-500 mb-1">Em Aberto</p>
                   <p className="text-2xl font-semibold text-yellow-900">
-                    R$ {totals.openAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {formatBRL(totals.openAmount)}
                   </p>
                 </div>
               </div>
@@ -399,12 +391,11 @@ export function CampaignDetailsDrawer({
                             {(r as any).occupationDays ? `${(r as any).occupationDays} dias` : '-'}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">
-                            {new Date(r.startDate).toLocaleDateString('pt-BR')} -{' '}
-                            {new Date(r.endDate).toLocaleDateString('pt-BR')}
+                            {formatDateBR(r.startDate)} - {formatDateBR(r.endDate)}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">
                             {typeof (r as any).rentAmount === 'number'
-                              ? `R$ ${(r as any).rentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                              ? formatBRL(Number((r as any).rentAmount || 0))
                               : '-'}
                           </td>
                           <td className="px-4 py-3">{getReservationStatusBadge(r.status)}</td>
@@ -426,13 +417,13 @@ export function CampaignDetailsDrawer({
 
                 {!hasCheckIn && checkInDeadlineAt && (
                   <p className="text-sm text-blue-800">
-                    Prazo limite: <b>{checkInDeadlineAt.toLocaleDateString('pt-BR')}</b>
+                    Prazo limite: <b>{formatDateBR(checkInDeadlineAt)}</b>
                   </p>
                 )}
 
                 {hasCheckIn && c.checkInAt && (
                   <p className="text-sm text-blue-800">
-                    Check-in realizado em: <b>{new Date(c.checkInAt as any).toLocaleString('pt-BR')}</b>
+                    Check-in realizado em: <b>{formatDateTimeBR(c.checkInAt as any)}</b>
                   </p>
                 )}
 
@@ -464,7 +455,7 @@ export function CampaignDetailsDrawer({
                               : inv.type === BillingInvoiceType.RENT
                               ? 'Aluguel (primeiro ciclo)'
                               : 'Fatura inicial'}{' '}
-                            — venc. {new Date(inv.dueDate as any).toLocaleDateString('pt-BR')}
+                            — venc. {formatDateBR(inv.dueDate as any)}
                           </li>
                         ))}
                       </ul>
@@ -498,7 +489,7 @@ export function CampaignDetailsDrawer({
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {faces.map((f) => {
-                        const photoUrl = resolveFileUrl(f?.photo?.photoUrl ?? null);
+                        const photoUrl = resolveUploadsUrl(f?.photo?.photoUrl ?? null);
                         const ok = !!photoUrl;
                         return (
                           <tr key={f.mediaUnitId} className="hover:bg-gray-50">
@@ -561,7 +552,7 @@ export function CampaignDetailsDrawer({
                 </div>
                 {nextDue ? (
                   <div className="mt-1 text-xs text-blue-800">
-                    Próximo vencimento: <b>{new Date(nextDue.dueDate as any).toLocaleDateString('pt-BR')}</b>
+                    Próximo vencimento: <b>{formatDateBR(nextDue.dueDate as any)}</b>
                   </div>
                 ) : null}
                 {hasConfirmationAlert ? (
@@ -597,13 +588,11 @@ export function CampaignDetailsDrawer({
                               : 'Fatura') + (invoice.sequence ? ` • ciclo ${invoice.sequence}` : '')}
                           </p>
                           <p className="text-sm text-gray-500">
-                            Venc.: {new Date(invoice.dueDate).toLocaleDateString('pt-BR')} • Valor: R${' '}
-                            {Number(invoice.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            Venc.: {formatDateBR(invoice.dueDate)} • Valor: {formatBRL(Number(invoice.amount || 0))}
                           </p>
                           {invoice.periodStart && invoice.periodEnd ? (
                             <p className="text-xs text-gray-500">
-                              Período: {new Date(invoice.periodStart as any).toLocaleDateString('pt-BR')} -{' '}
-                              {new Date(invoice.periodEnd as any).toLocaleDateString('pt-BR')}
+                              Período: {formatDateBR(invoice.periodStart as any)} - {formatDateBR(invoice.periodEnd as any)}
                             </p>
                           ) : null}
                           {invoice.requiresConfirmation ? (
@@ -627,7 +616,7 @@ export function CampaignDetailsDrawer({
 
                       {invoice.paidAt && (
                         <p className="text-xs text-gray-500">
-                          Pago em {new Date(invoice.paidAt).toLocaleDateString('pt-BR')}
+                          Pago em {formatDateBR(invoice.paidAt)}
                         </p>
                       )}
                     </div>
@@ -647,9 +636,9 @@ export function CampaignDetailsDrawer({
                   ) : (
                     <div className="space-y-3">
                       {forecastInvoices.map((inv) => {
-                        const due = new Date(inv.dueDate as any);
-                        const ps = inv.periodStart ? new Date(inv.periodStart as any) : null;
-                        const pe = inv.periodEnd ? new Date(inv.periodEnd as any) : null;
+                        const due = safeDate(inv.dueDate as any);
+                        const ps = safeDate(inv.periodStart as any);
+                        const pe = safeDate(inv.periodEnd as any);
                         return (
                           <div key={inv.id} className="border border-gray-200 rounded-lg p-4">
                             <div className="flex items-start justify-between gap-3">
@@ -658,12 +647,11 @@ export function CampaignDetailsDrawer({
                                   Aluguel{inv.sequence ? ` • ciclo ${inv.sequence}` : ''}
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                  Venc.: {due.toLocaleDateString('pt-BR')} • Valor: R${' '}
-                                  {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                  Venc.: {formatDateBR(due)} • Valor: {formatBRL(Number(inv.amount || 0))}
                                 </p>
                                 {ps && pe ? (
                                   <p className="text-xs text-gray-500">
-                                    Período: {ps.toLocaleDateString('pt-BR')} - {pe.toLocaleDateString('pt-BR')}
+                                    Período: {formatDateBR(ps)} - {formatDateBR(pe)}
                                   </p>
                                 ) : null}
                                 {inv.requiresConfirmation ? (

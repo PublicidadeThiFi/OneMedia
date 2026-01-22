@@ -5,6 +5,7 @@ import { Card, CardContent } from '../ui/card';
 import { Campaign } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import { toNumber } from '../../lib/number';
+import { formatBRLFromCents, formatDateBR, safeDate } from '../../lib/format';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -39,17 +40,18 @@ export function CampaignCard({
       toast.error('Não foi possível copiar o ID');
     }
   };
-  const totalValor = toNumber(campaign.totalAmountCents, 0) / 100;
+  const totalAmountCents = toNumber(campaign.totalAmountCents, 0);
+  const totalLabel = formatBRLFromCents(totalAmountCents);
   const hasCheckIn = !!campaign.checkInAt;
-  const deadline = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
-  const start = campaign.startDate ? new Date(campaign.startDate as any) : null;
-  const end = campaign.endDate ? new Date(campaign.endDate as any) : null;
+  const deadline = safeDate(campaign.checkInDeadlineAt as any);
+  const start = safeDate(campaign.startDate as any);
+  const end = safeDate(campaign.endDate as any);
 
   const periodLabel = hasCheckIn
-    ? `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`
+    ? `${formatDateBR(start)} - ${formatDateBR(end)}`
     : deadline
-    ? `Check-in até ${deadline.toLocaleDateString('pt-BR')}`
-    : `${start ? start.toLocaleDateString('pt-BR') : '-'} - ${end ? end.toLocaleDateString('pt-BR') : '-'}`;
+    ? `Check-in até ${formatDateBR(deadline)}`
+    : `${formatDateBR(start)} - ${formatDateBR(end)}`;
 
   return (
     <Card>
@@ -92,7 +94,7 @@ export function CampaignCard({
           </div>
           <div className="text-right">
               <p className="text-gray-900">
-                R$ {totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {totalLabel}
               </p>
           </div>
         </div>

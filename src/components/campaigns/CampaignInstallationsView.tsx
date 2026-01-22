@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 
 import { Button } from '../ui/button';
 import { Campaign, CampaignStatus } from '../../types';
+import { formatDateBR, safeDate } from '../../lib/format';
 
 interface CampaignInstallationsViewProps {
   campaigns: Campaign[];
@@ -42,9 +43,9 @@ export function CampaignInstallationsView({ campaigns, onViewDetails, onCheckIn 
       ) : (
         <div className="space-y-4">
           {installationCampaigns.map((campaign) => {
-            const deadline = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
-            const start = campaign.startDate ? new Date(campaign.startDate as any) : null;
-            const end = campaign.endDate ? new Date(campaign.endDate as any) : null;
+            const deadline = safeDate(campaign.checkInDeadlineAt as any);
+            const start = safeDate(campaign.startDate as any);
+            const end = safeDate(campaign.endDate as any);
             const unitsCount =
               (typeof campaign.reservedUnitsCount === 'number' ? campaign.reservedUnitsCount : undefined) ??
               (typeof campaign.campaignItemsCount === 'number' ? campaign.campaignItemsCount : undefined) ??
@@ -68,7 +69,13 @@ export function CampaignInstallationsView({ campaigns, onViewDetails, onCheckIn 
                     <h3 className="text-lg font-semibold text-gray-900">{campaign.name}</h3>
                     <p className="text-sm text-gray-500 mt-1">{clientName}</p>
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                      <span>{deadline ? `Check-in at\u00e9 ${deadline.toLocaleDateString('pt-BR')}` : start && end ? `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}` : '-'}</span>
+                      <span>
+                        {deadline
+                          ? `Check-in até ${formatDateBR(deadline)}`
+                          : start && end
+                          ? `${formatDateBR(start)} - ${formatDateBR(end)}`
+                          : '-'}
+                      </span>
                       <span>•</span>
                       <span>{unitsCount} unidades</span>
                     </div>
