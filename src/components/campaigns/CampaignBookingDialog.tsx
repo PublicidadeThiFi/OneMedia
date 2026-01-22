@@ -6,6 +6,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Campaign, Proposal, Reservation } from '../../types';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
+import { formatDateBR, safeDate } from '../../lib/format';
 
 interface CampaignBookingDialogProps {
   open: boolean;
@@ -38,7 +39,7 @@ export function CampaignBookingDialog({ open, onOpenChange, campaign }: Campaign
     '-';
 
   const campaignPeriodLabel = campaign
-    ? `${new Date(campaign.startDate).toLocaleDateString('pt-BR')} - ${new Date(campaign.endDate).toLocaleDateString('pt-BR')}`
+    ? `${formatDateBR(safeDate((campaign as any).startDate))} - ${formatDateBR(safeDate((campaign as any).endDate))}`
     : '-';
 
   const reservedUnitIds = useMemo(() => new Set(reservations.map((r) => r.mediaUnitId)), [reservations]);

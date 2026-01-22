@@ -7,8 +7,9 @@ import { CampaignList } from './campaigns/CampaignList';
 import { CampaignInstallationsView } from './campaigns/CampaignInstallationsView';
 import { CampaignDetailsDrawer } from './campaigns/CampaignDetailsDrawer';
 import { CampaignCheckInDialog } from './campaigns/CampaignCheckInDialog';
-import { CampaignReportDialog } from './campaigns/CampaignReportDialog';
+import CampaignReportDialog from './campaigns/CampaignReportDialog';
 import { CampaignBillingDrawer } from './campaigns/CampaignBillingDrawer';
+import { formatBRL, safeDate } from '../lib/format';
 
 export function Campaigns() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,12 +37,14 @@ export function Campaigns() {
     
     const finalizadasMes = campaigns.filter((c) => {
       if (c.status !== CampaignStatus.FINALIZADA) return false;
-      const endDate = new Date(c.endDate);
+      const endDate = safeDate((c as any).endDate);
+      if (!endDate) return false;
       return endDate.getMonth() === currentMonth && endDate.getFullYear() === currentYear;
     });
 
     const valorEmVeiculacao = emVeiculacao.reduce((sum, c) => {
-      const valor = c.totalAmountCents ? c.totalAmountCents / 100 : 0;
+      const cents = Number((c as any).totalAmountCents || 0);
+      const valor = cents > 0 ? cents / 100 : 0;
       return sum + valor;
     }, 0);
 
@@ -132,11 +135,7 @@ export function Campaigns() {
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Valor em Veiculação</p>
             <p className="text-gray-900">
-              R${' '}
-              {stats.valorEmVeiculacao.toLocaleString('pt-BR', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formatBRL(stats.valorEmVeiculacao)}
             </p>
           </CardContent>
         </Card>
@@ -206,7 +205,7 @@ export function Campaigns() {
       {/* Dialogs e Drawers */}
       <CampaignDetailsDrawer
         open={!!detailsDrawerCampaign}
-        onOpenChange={(open) => !open && setDetailsDrawerCampaign(null)}
+        onOpenChange={(open: boolean) => !open && setDetailsDrawerCampaign(null)}
         campaign={detailsDrawerCampaign}
         defaultTab={detailsDrawerTab}
         onRequestCheckIn={handleCheckIn}
@@ -214,7 +213,7 @@ export function Campaigns() {
 
       <CampaignCheckInDialog
         open={!!checkInDialogCampaign}
-        onOpenChange={(open) => !open && setCheckInDialogCampaign(null)}
+        onOpenChange={(open: boolean) => !open && setCheckInDialogCampaign(null)}
         campaign={checkInDialogCampaign}
         onCheckInComplete={() => {
           // atualização suave: refetch da listagem e dos drawers
@@ -224,13 +223,13 @@ export function Campaigns() {
 
       <CampaignReportDialog
         open={!!reportDialogCampaign}
-        onOpenChange={(open) => !open && setReportDialogCampaign(null)}
+        onOpenChange={(open: boolean) => !open && setReportDialogCampaign(null)}
         campaign={reportDialogCampaign}
       />
 
       <CampaignBillingDrawer
         open={!!billingDrawerCampaign}
-        onOpenChange={(open) => !open && setBillingDrawerCampaign(null)}
+        onOpenChange={(open: boolean) => !open && setBillingDrawerCampaign(null)}
         campaign={billingDrawerCampaign}
       />
     </div>

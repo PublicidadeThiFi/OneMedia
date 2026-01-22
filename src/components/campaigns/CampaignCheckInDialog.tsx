@@ -6,6 +6,7 @@ import { Label } from '../ui/label';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
 import { BillingInvoice, BillingInvoiceType, BillingStatus, Campaign } from '../../types';
+import { formatBRL, formatDateBR, safeDate } from '../../lib/format';
 
 type UnitRow = {
   mediaUnitId: string;
@@ -67,12 +68,8 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
 
   const deadlineAt = useMemo(() => {
     if (!campaign) return null;
-    const fromStatus = status?.checkInDeadlineAt
-      ? new Date(status.checkInDeadlineAt)
-      : status?.deadlineAt
-      ? new Date(status.deadlineAt)
-      : null;
-    const fromCampaign = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
+    const fromStatus = safeDate((status?.checkInDeadlineAt ?? status?.deadlineAt) as any);
+    const fromCampaign = safeDate((campaign.checkInDeadlineAt as any) ?? null);
     return fromStatus || fromCampaign;
   }, [campaign, status?.checkInDeadlineAt, status?.deadlineAt]);
 
@@ -319,7 +316,7 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
             </p>
             {deadlineAt && (
               <p className="text-xs text-blue-800">
-                Prazo limite: <b>{deadlineAt.toLocaleDateString('pt-BR')}</b>
+                Prazo limite: <b>{formatDateBR(deadlineAt)}</b>
                 {isDeadlineExpired ? <span className="ml-2 text-red-700">(expirado)</span> : null}
               </p>
             )}
@@ -351,7 +348,7 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
                 </p>
                 {paymentGate.nextDue ? (
                   <Badge className="bg-gray-100 text-gray-800">
-                    Próximo venc.: {new Date(paymentGate.nextDue.dueDate as any).toLocaleDateString('pt-BR')}
+                    Próximo venc.: {formatDateBR(paymentGate.nextDue.dueDate as any)}
                   </Badge>
                 ) : null}
               </div>
@@ -365,7 +362,7 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
                         : inv.type === BillingInvoiceType.RENT
                         ? 'Aluguel (primeiro ciclo)'
                         : 'Fatura inicial'}{' '}
-                      — venc. {new Date(inv.dueDate as any).toLocaleDateString('pt-BR')} — R$ {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      — venc. {formatDateBR(inv.dueDate as any)} — {formatBRL(Number(inv.amount || 0))}
                     </li>
                   ))}
                 </ul>

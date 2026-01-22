@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Campaign } from '../../types';
-import { toast } from 'sonner';
 import apiClient from '../../lib/apiClient';
+import { toast } from 'sonner';
+import { Campaign } from '../../types';
+import { formatDateBR, resolveUploadsUrl, safeDate } from '../../lib/format';
+
+type CampaignReportType = 'usage' | 'checkin' | 'media' | 'billing';
+
+type CampaignReportApiResponse = {
+  downloadUrl?: string | null;
+  preview?: any;
+  details?: any;
+};
 
 interface CampaignReportDialogProps {
   open: boolean;
@@ -13,352 +22,224 @@ interface CampaignReportDialogProps {
   campaign: Campaign | null;
 }
 
-export function CampaignReportDialog({
-  open,
-  onOpenChange,
-  campaign,
-}: CampaignReportDialogProps) {
-  const [reportType, setReportType] = useState<string>('usage');
+/**
+ * Mantido como Dialog (não Drawer) conforme solicitado.
+ * Gera relatórios da campanha. O backend decide o conteúdo e o link/stream de download.
+ */
+export default function CampaignReportDialog({ open, onOpenChange, campaign }: CampaignReportDialogProps) {
+  const [reportType, setReportType] = useState<CampaignReportType>('usage');
   const [loading, setLoading] = useState(false);
-  const [details, setDetails] = useState<any | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [details, setDetails] = useState<any>(null);
 
-  if (!campaign) return null;
+  const campaignId = campaign?.id ?? null;
 
-  const resolveFileUrl = useMemo(() => {
-    const base = String((apiClient.defaults as any)?.baseURL ?? '');
-    const origin = base.startsWith('/') ? '' : base.replace(/\/?api\/?$/, '');
-    return (url?: string | null) => {
-      if (!url) return null;
-      if (url.startsWith('http://') || url.startsWith('https://')) return url;
-      if (!origin) return url;
-      return `${origin}${url}`;
-    };
-  }, []);
+  const title = useMemo(() => {
+    const base = campaign?.name || (campaign as any)?.proposalTitle || 'Campanha';
+    return `Relatório — ${base}`;
+  }, [campaign?.name, campaignId]);
 
-  useEffect(() => {
-    const load = async () => {
-      if (!open || !campaign?.id) return;
-      try {
-        setLoading(true);
-        const res = await apiClient.get(`/campaigns/${campaign.id}/details`);
-        setDetails(res.data ?? null);
-      } catch (err) {
-        console.error(err);
-        setDetails(null);
-        toast.error('Não foi possível carregar os dados do relatório.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [open, campaign?.id]);
-
-  const viewCampaign: any = details?.campaign ?? campaign;
-  const client = viewCampaign?.client ?? campaign?.client;
-  const checkInFaces: any[] = Array.isArray(details?.checkIn?.faces) ? details.checkIn.faces : [];
-  const reservations: any[] = Array.isArray(details?.reservations) ? details.reservations : [];
-  const invoices: any[] = Array.isArray(details?.invoices) ? details.invoices : [];
-  const forecastInvoices: any[] = Array.isArray(details?.forecastInvoices) ? details.forecastInvoices : [];
-
-  const getFilenameFromDisposition = (cd?: string) => {
-    if (!cd) return null;
-    const match = /filename\*=UTF-8''([^;]+)|filename="?([^;"]+)"?/i.exec(cd);
-    const raw = decodeURIComponent(match?.[1] ?? match?.[2] ?? '');
-    return raw || null;
-  };
-
-  const downloadReport = async (format: 'pdf' | 'csv') => {
-    if (!campaign?.id) return;
+  const loadReport = async () => {
+    if (!campaignId) return;
     try {
-      const res = await apiClient.get(`/campaigns/${campaign.id}/report`, {
-        params: { type: reportType, format },
-        responseType: 'blob',
+      setLoading(true);
+      setDetails(null);
+      setDownloadUrl(null);
+
+      const res = await apiClient.get<CampaignReportApiResponse>(`/campaigns/${campaignId}/report`, {
+        params: { type: reportType },
       });
 
-      const cd = (res.headers as any)?.['content-disposition'] as string | undefined;
-      const filename = getFilenameFromDisposition(cd) || `relatorio-${campaign.id}.${format}`;
-
-      const blob = new Blob([res.data as BlobPart], { type: (res.headers as any)?.['content-type'] ?? undefined });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success(`Relatório baixado (${format.toUpperCase()}).`);
-    } catch (err) {
-      console.error(err);
-      toast.error('Falha ao baixar relatório.');
+      const data = res.data;
+      setDownloadUrl(data?.downloadUrl ?? null);
+      setDetails(data?.preview ?? data?.details ?? null);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Falha ao gerar relatório');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const periodLabel = (() => {
+  useEffect(() => {
+    if (!open) return;
+
+    if (!campaignId) {
+      setDetails(null);
+      setDownloadUrl(null);
+      return;
+    }
+
+    loadReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, campaignId, reportType]);
+
+  const handleDownload = async (format: 'pdf' | 'csv') => {
+    if (!campaignId) return;
     try {
-      if (!viewCampaign?.startDate || !viewCampaign?.endDate) return '-';
-      return `${new Date(viewCampaign.startDate).toLocaleDateString('pt-BR')} - ${new Date(viewCampaign.endDate).toLocaleDateString('pt-BR')}`;
-    } catch {
-      return '-';
+      setDownloading(true);
+
+      // Se o backend já retornou um link (modo "download"), reutiliza.
+      if (downloadUrl) {
+        window.open(downloadUrl, '_blank');
+        return;
+      }
+
+      const res = await apiClient.get<CampaignReportApiResponse>(`/campaigns/${campaignId}/report`, {
+        params: { type: reportType, format, mode: 'download' },
+      });
+
+      const nextUrl = res.data?.downloadUrl;
+      if (nextUrl) {
+        setDownloadUrl(nextUrl);
+        window.open(nextUrl, '_blank');
+      } else {
+        toast.error('O backend não retornou um link de download.');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Falha ao baixar relatório');
+    } finally {
+      setDownloading(false);
     }
-  })();
+  };
 
-  const totalAmount = ((viewCampaign?.totalAmountCents ?? 0) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-  const unitsCount = viewCampaign?.reservedUnitsCount ?? viewCampaign?.campaignItemsCount ?? checkInFaces.length ?? 0;
-
-  const usageRows = (() => {
-    if (reservations.length > 0) {
-      return reservations.map((r: any) => ({
-        point: r.mediaPointName ?? '-',
-        unit: r.mediaUnitLabel ?? r.mediaUnitId ?? '-',
-        start: r.startDate ? new Date(r.startDate).toLocaleDateString('pt-BR') : '-',
-        end: r.endDate ? new Date(r.endDate).toLocaleDateString('pt-BR') : '-',
-        status: r.status ?? '-',
-        photoUrl: null as string | null,
-      }));
-    }
-    return checkInFaces.map((f: any) => ({
-      point: f.mediaPointName ?? '-',
-      unit: f.label ?? f.mediaUnitId ?? '-',
-      start: viewCampaign?.startDate ? new Date(viewCampaign.startDate).toLocaleDateString('pt-BR') : '-',
-      end: viewCampaign?.endDate ? new Date(viewCampaign.endDate).toLocaleDateString('pt-BR') : '-',
-      status: viewCampaign?.status ?? '-',
-      photoUrl: f?.photo?.photoUrl ?? null,
-    }));
-  })();
-
-  const financialRows = (() => {
-    const rows = [
-      ...invoices.map((i: any) => ({ ...i, __forecast: false })),
-      ...forecastInvoices.map((i: any) => ({ ...i, __forecast: true })),
-    ];
-    return rows.sort((a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  })();
-
-  const performance = (() => {
-    const faces = checkInFaces;
-    const total = faces.length || unitsCount || 0;
-    const sent = faces.filter((f: any) => !!f?.photo?.photoUrl).length;
-    const missing = Math.max(0, total - sent);
-    return { total, sent, missing };
-  })();
+  const cover = details?.cover || null;
+  const photos: Array<any> = Array.isArray(details?.photos) ? details.photos : [];
+  const summary = details?.summary || null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Relatório - {campaign.name}</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl p-0">
+        <div className="p-6 border-b border-gray-200">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Seletor de tipo de relatório */}
-          <div className="space-y-2">
-            <Label htmlFor="reportType">Tipo de Relatório</Label>
-            <Select value={reportType} onValueChange={(value: string) => setReportType(value)}>
-              <SelectTrigger id="reportType">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="usage">Uso de Painéis por Período</SelectItem>
-                <SelectItem value="client">Relatório por Cliente</SelectItem>
-                <SelectItem value="financial">Relatório Financeiro</SelectItem>
-                <SelectItem value="performance">Performance de Campanha</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tipo de relatório</Label>
+              <Select value={reportType} onValueChange={(v: string) => setReportType(v as CampaignReportType)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha o relatório" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="usage">Veiculação (geral)</SelectItem>
+                  <SelectItem value="checkin">Check-in (fotos)</SelectItem>
+                  <SelectItem value="media">Mídias / Unidades</SelectItem>
+                  <SelectItem value="billing">Faturamento</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Preview do Relatório */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <h4 className="text-sm text-gray-900 mb-3">Preview do Relatório</h4>
-
-            {loading ? (
-              <div className="text-sm text-gray-600">Carregando dados…</div>
-            ) : (
-              <div className="space-y-4">
-                {/* Informações Gerais */}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Cliente</p>
-                    <p className="text-gray-900">{client?.companyName || client?.contactName || viewCampaign?.clientName || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Período</p>
-                    <p className="text-gray-900">{periodLabel}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Status</p>
-                    <p className="text-gray-900">{String(viewCampaign?.status ?? '-')}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Unidades</p>
-                    <p className="text-gray-900">{unitsCount}</p>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 p-4 rounded">
-                  <p className="text-sm text-gray-700">Valor Total da Campanha</p>
-                  <p className="text-gray-900">R$ {totalAmount}</p>
-                </div>
-
-                {/* Conteúdo por tipo */}
-                {reportType === 'usage' && (
-                  <div>
-                    <p className="text-sm text-gray-700 mb-2">Uso / Veiculações</p>
-                    <div className="bg-gray-50 rounded overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-gray-600">Ponto</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Unidade</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Início</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Fim</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Status</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Foto</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {usageRows.map((r: any, idx: number) => (
-                            <tr key={`${r.unit}-${idx}`} className="border-t border-gray-200">
-                              <td className="px-3 py-2 text-gray-900">{r.point}</td>
-                              <td className="px-3 py-2 text-gray-700">{r.unit}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.start}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.end}</td>
-                              <td className="px-3 py-2 text-gray-600">{r.status}</td>
-                              <td className="px-3 py-2 text-gray-600">
-                                {r.photoUrl ? (
-                                  <a
-                                    href={resolveFileUrl(r.photoUrl) ?? '#'}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-blue-700 hover:underline"
-                                  >
-                                    Ver
-                                  </a>
-                                ) : (
-                                  '-'
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {reportType === 'client' && (
-                  <div className="text-sm text-gray-700 space-y-2">
-                    <p className="text-sm text-gray-700 mb-2">Relatório por Cliente</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-gray-500">Cliente</p>
-                        <p className="text-gray-900">{client?.companyName || client?.contactName || viewCampaign?.clientName || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Campanha</p>
-                        <p className="text-gray-900">{viewCampaign?.name || viewCampaign?.id}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Unidades</p>
-                        <p className="text-gray-900">{unitsCount}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Valor total</p>
-                        <p className="text-gray-900">R$ {totalAmount}</p>
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      *Este relatório é gerado a partir da campanha selecionada.
-                    </div>
-                  </div>
-                )}
-
-                {reportType === 'financial' && (
-                  <div>
-                    <p className="text-sm text-gray-700 mb-2">Financeiro (faturas)</p>
-                    <div className="bg-gray-50 rounded overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-100">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-gray-600">Tipo</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Seq</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Venc.</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Período</th>
-                            <th className="px-3 py-2 text-left text-gray-600">Status</th>
-                            <th className="px-3 py-2 text-right text-gray-600">Valor</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {financialRows.map((i: any, idx: number) => {
-                            const amount = (Number(i.amountCents ?? i.amount ?? 0) / (i.amountCents != null ? 100 : 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-                            const status = i.__forecast ? 'PREVISTA' : String(i.status ?? '-');
-                            const period = i.periodStart && i.periodEnd ? `${new Date(i.periodStart).toLocaleDateString('pt-BR')} - ${new Date(i.periodEnd).toLocaleDateString('pt-BR')}` : '-';
-                            return (
-                              <tr key={`${i.id ?? i.dueDate ?? idx}`} className="border-t border-gray-200">
-                                <td className="px-3 py-2 text-gray-900">{String(i.type ?? 'RENT')}</td>
-                                <td className="px-3 py-2 text-gray-700">{i.sequence ?? '-'}</td>
-                                <td className="px-3 py-2 text-gray-600">{i.dueDate ? new Date(i.dueDate).toLocaleDateString('pt-BR') : '-'}</td>
-                                <td className="px-3 py-2 text-gray-600">{period}</td>
-                                <td className="px-3 py-2 text-gray-600">{status}</td>
-                                <td className="px-3 py-2 text-gray-900 text-right">R$ {amount}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                      *Faturas “PREVISTA” vêm do forecast (ainda não persistidas).
-                    </div>
-                  </div>
-                )}
-
-                {reportType === 'performance' && (
-                  <div>
-                    <p className="text-sm text-gray-700 mb-2">Performance</p>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div className="bg-gray-50 p-3 rounded">
-                        <p className="text-gray-500">Unidades</p>
-                        <p className="text-gray-900">{performance.total}</p>
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded">
-                        <p className="text-gray-500">Fotos enviadas</p>
-                        <p className="text-gray-900">{performance.sent}</p>
-                      </div>
-                      <div className="bg-gray-50 p-3 rounded">
-                        <p className="text-gray-500">Fotos pendentes</p>
-                        <p className="text-gray-900">{performance.missing}</p>
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">
-                      *A performance usa os dados de check-in (fotos por face/unidade).
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Nota */}
-          <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-            <p>💡 Você pode baixar o relatório em PDF ou CSV, conforme o tipo selecionado.</p>
+            <div className="flex md:justify-end items-end gap-2">
+              <Button variant="outline" onClick={loadReport} disabled={!campaignId || loading}>
+                {loading ? 'Gerando...' : 'Atualizar'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleDownload('csv')}
+                disabled={!campaignId || loading || downloading}
+              >
+                {downloading ? 'Baixando...' : 'Baixar CSV'}
+              </Button>
+              <Button onClick={() => handleDownload('pdf')} disabled={!campaignId || loading || downloading}>
+                {downloading ? 'Baixando...' : 'Baixar PDF'}
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Botões */}
-        <div className="flex flex-col sm:flex-row sm:justify-between gap-3 pt-4 border-t">
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => downloadReport('csv')} disabled={loading}>
-              Baixar CSV
-            </Button>
-            <Button onClick={() => downloadReport('pdf')} disabled={loading}>
-              Baixar PDF
-            </Button>
-          </div>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          {!campaignId ? (
+            <div className="text-sm text-gray-600">Selecione uma campanha para gerar o relatório.</div>
+          ) : loading ? (
+            <div className="text-sm text-gray-600">Gerando prévia...</div>
+          ) : !details ? (
+            <div className="text-sm text-gray-600">Nenhuma prévia disponível.</div>
+          ) : (
+            <>
+              {cover ? (
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Capa</div>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-gray-500">Campanha</div>
+                      <div className="text-sm text-gray-900 font-medium">
+                        {cover.title || campaign?.name || '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Cliente</div>
+                      <div className="text-sm text-gray-900">{cover.clientName || (campaign as any)?.clientName || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Período</div>
+                      <div className="text-sm text-gray-900">
+                        {cover.startDate || cover.endDate
+                          ? `${formatDateBR(cover.startDate)} – ${formatDateBR(cover.endDate)}`
+                          : (campaign as any)?.startDate || (campaign as any)?.endDate
+                          ? `${formatDateBR((campaign as any)?.startDate)} – ${formatDateBR((campaign as any)?.endDate)}`
+                          : '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Gerado em</div>
+                      <div className="text-sm text-gray-900">
+                        {formatDateBR(safeDate(cover.generatedAt) || new Date())}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {summary ? (
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Resumo</div>
+                  <div className="mt-2 text-sm text-gray-900 whitespace-pre-wrap">{summary.text || summary}</div>
+                </div>
+              ) : null}
+
+              {photos.length > 0 ? (
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Fotos</div>
+                  <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {photos.slice(0, 24).map((p, idx) => {
+                      const raw = p.photoUrl || p.url || null;
+                      const url = resolveUploadsUrl(raw);
+
+                      return (
+                        <a
+                          key={`${p.mediaUnitId || idx}-${idx}`}
+                          href={url || undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block"
+                        >
+                          <div className="border rounded-lg overflow-hidden">
+                            {url ? (
+                              <img src={url} alt="Foto" className="w-full h-28 object-cover" />
+                            ) : (
+                              <div className="w-full h-28 bg-gray-50 flex items-center justify-center text-xs text-gray-500">
+                                sem foto
+                              </div>
+                            )}
+                            <div className="p-2">
+                              <div className="text-xs text-gray-600 truncate">
+                                {p.label || p.mediaUnitLabel || p.mediaUnitId || '-'}
+                              </div>
+                            </div>
+                          </div>
+                        </a>
+                      );
+                    })}
+                  </div>
+                  {photos.length > 24 ? (
+                    <div className="mt-2 text-xs text-gray-500">Mostrando 24 de {photos.length} fotos.</div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>

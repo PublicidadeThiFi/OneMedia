@@ -13,6 +13,7 @@ import {
 } from '../../types';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
+import { formatBRL, formatDateBR, safeDate } from '../../lib/format';
 
 interface CampaignBillingDrawerProps {
   open: boolean;
@@ -194,7 +195,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                 </div>
                 {nextDue ? (
                   <div className="mt-1 text-xs text-blue-800">
-                    Próximo vencimento: <b>{new Date(nextDue.dueDate as any).toLocaleDateString('pt-BR')}</b>
+                    Próximo vencimento: <b>{formatDateBR(nextDue.dueDate as any)}</b>
                   </div>
                 ) : null}
                 {hasConfirmationAlert ? (
@@ -219,8 +220,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                             : inv.type === BillingInvoiceType.RENT
                             ? 'Aluguel (primeiro ciclo)'
                             : 'Fatura inicial'}{' '}
-                          — venc. {new Date(inv.dueDate as any).toLocaleDateString('pt-BR')} — R${' '}
-                          {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          — venc. {formatDateBR(inv.dueDate as any)} — {formatBRL(Number(inv.amount || 0))}
                         </li>
                       ))}
                     </ul>
@@ -233,21 +233,15 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-green-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Valor Pago</p>
-                <p className="text-gray-900">
-                  R$ {totals.paid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-gray-900">{formatBRL(totals.paid)}</p>
               </div>
               <div className="bg-yellow-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Valor em Aberto</p>
-                <p className="text-gray-900">
-                  R$ {totals.openAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-gray-900">{formatBRL(totals.openAmount)}</p>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Faturas Futuras (previsto)</p>
-                <p className="text-gray-900">
-                  R$ {totals.forecastAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </p>
+                <p className="text-gray-900">{formatBRL(totals.forecastAmount)}</p>
               </div>
             </div>
 
@@ -275,10 +269,10 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                       {invoices.map((invoice) => (
                         <tr key={invoice.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-700">
-                            {new Date(invoice.dueDate).toLocaleDateString('pt-BR')}
+                            {formatDateBR(invoice.dueDate)}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">
-                            R$ {Number(invoice.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            {formatBRL(Number(invoice.amount || 0))}
                           </td>
                           <td className="px-4 py-3">
                             <Badge
@@ -299,7 +293,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                             {getPaymentMethodLabel(invoice.paymentMethod)}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">
-                            {invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString('pt-BR') : '-'}
+                            {invoice.paidAt ? formatDateBR(invoice.paidAt) : '-'}
                           </td>
                         </tr>
                       ))}
@@ -333,18 +327,18 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {forecastInvoices.map((inv) => {
-                          const due = new Date(inv.dueDate as any);
-                          const ps = inv.periodStart ? new Date(inv.periodStart as any) : null;
-                          const pe = inv.periodEnd ? new Date(inv.periodEnd as any) : null;
+                          const due = safeDate(inv.dueDate as any);
+                          const ps = safeDate(inv.periodStart as any);
+                          const pe = safeDate(inv.periodEnd as any);
                           return (
                             <tr key={inv.id} className="hover:bg-gray-50">
                               <td className="px-4 py-3 text-sm text-gray-700">{inv.sequence ?? '-'}</td>
-                              <td className="px-4 py-3 text-sm text-gray-700">{due.toLocaleDateString('pt-BR')}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700">{formatDateBR(due)}</td>
                               <td className="px-4 py-3 text-sm text-gray-700">
-                                {ps ? ps.toLocaleDateString('pt-BR') : '-'} → {pe ? pe.toLocaleDateString('pt-BR') : '-'}
+                                {formatDateBR(ps)} → {formatDateBR(pe)}
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-700">
-                                R$ {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                {formatBRL(Number(inv.amount || 0))}
                               </td>
                               <td className="px-4 py-3">
                                 {inv.requiresConfirmation ? (
