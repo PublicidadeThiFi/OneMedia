@@ -115,8 +115,14 @@ export function ProposalStep2Items({
   };
 
   const handleAssemblyMaxDaysChange = (value: string) => {
-    const v = value === '' ? undefined : Math.max(0, Math.floor(Number(value)));
-    onMetaChange({ assemblyMaxDays: Number.isFinite(Number(v)) ? v : undefined } as any);
+    if (value === '') {
+      onMetaChange({ assemblyMaxDays: undefined } as any);
+      return;
+    }
+
+    const parsed = Math.floor(Number(value));
+    const v = Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+    onMetaChange({ assemblyMaxDays: v } as any);
   };
 
   return (
@@ -129,7 +135,7 @@ export function ProposalStep2Items({
             <Input
               id="assemblyMaxDays"
               type="number"
-              min="0"
+              min="1"
               step="1"
               placeholder="Ex.: 7"
               value={formData.assemblyMaxDays ?? ''}
