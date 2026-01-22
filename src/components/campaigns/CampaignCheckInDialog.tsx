@@ -13,10 +13,21 @@ type UnitRow = {
 };
 
 type CheckInStatusResponse = {
-  deadlineAt?: string;
-  expectedUnits?: Array<{ mediaUnitId: string; label?: string; photoUrl?: string | null }>;
-  photos?: Array<{ mediaUnitId: string; photoUrl: string }>;
+  /** Novo contrato (backend atual) */
+  checkInDeadlineAt?: string | null;
+  faces?: Array<{
+    mediaUnitId: string;
+    label?: string | null;
+    photo?: { mediaUnitId: string; photoUrl: string } | null;
+  }>;
+  missingPhotos?: string[];
+  blockers?: string[];
   canConfirm?: boolean;
+
+  /** Compat: alguns ambientes antigos esperam estas chaves */
+  deadlineAt?: string | null;
+  expectedUnits?: Array<{ mediaUnitId: string; label?: string | null; photoUrl?: string | null }>;
+  photos?: Array<{ mediaUnitId: string; photoUrl: string }>;
   blockingReasons?: string[];
 };
 
@@ -39,22 +50,31 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
   const units: UnitRow[] = useMemo(() => {
     if (!campaign) return [];
 
-    // Preferir resposta do backend (quando existir)
+    // Preferir resposta do backend (novo contrato)
+    if (status?.faces?.length) {
+      return status.faces.map((u) => ({ mediaUnitId: u.mediaUnitId, label: u.label ?? undefined }));
+    }
+
+    // Compat: contrato antigo
     if (status?.expectedUnits?.length) {
-      return status.expectedUnits.map((u) => ({ mediaUnitId: u.mediaUnitId, label: u.label }));
+      return status.expectedUnits.map((u) => ({ mediaUnitId: u.mediaUnitId, label: u.label ?? undefined }));
     }
 
     return (campaign.items || [])
       .filter((i) => !!i.mediaUnitId)
       .map((i) => ({ mediaUnitId: i.mediaUnitId, label: undefined }));
-  }, [campaign, status?.expectedUnits]);
+  }, [campaign, status?.faces, status?.expectedUnits]);
 
   const deadlineAt = useMemo(() => {
     if (!campaign) return null;
-    const fromStatus = status?.deadlineAt ? new Date(status.deadlineAt) : null;
+    const fromStatus = status?.checkInDeadlineAt
+      ? new Date(status.checkInDeadlineAt)
+      : status?.deadlineAt
+      ? new Date(status.deadlineAt)
+      : null;
     const fromCampaign = campaign.checkInDeadlineAt ? new Date(campaign.checkInDeadlineAt as any) : null;
     return fromStatus || fromCampaign;
-  }, [campaign, status?.deadlineAt]);
+  }, [campaign, status?.checkInDeadlineAt, status?.deadlineAt]);
 
   const isDeadlineExpired = useMemo(() => {
     if (!deadlineAt) return false;
@@ -70,13 +90,18 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
 
       // Fotos já enviadas
       const next: Record<string, string> = {};
-      for (const p of res.data?.photos || []) {
-        next[p.mediaUnitId] = p.photoUrl;
+
+      // Novo contrato: faces[].photo
+      for (const f of res.data?.faces || []) {
+        if (f.photo?.photoUrl) next[f.mediaUnitId] = f.photo.photoUrl;
       }
-      // alguns backends podem devolver a foto embutida em expectedUnits
+
+      // Compat: photos[] / expectedUnits[].photoUrl
+      for (const p of res.data?.photos || []) next[p.mediaUnitId] = p.photoUrl;
       for (const u of res.data?.expectedUnits || []) {
         if (u.photoUrl) next[u.mediaUnitId] = u.photoUrl;
       }
+
       setPhotosByUnit(next);
     } catch (err) {
       // Endpoint pode não existir em ambientes antigos; seguimos com fallback.
@@ -418,13 +443,18 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
             </div>
           )}
 
-          {status?.blockingReasons?.length ? (
+          {(status?.blockers?.length || status?.blockingReasons?.length || status?.missingPhotos?.length) ? (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-sm text-yellow-900 mb-2">Pendências</p>
               <ul className="list-disc pl-5 text-sm text-yellow-800 space-y-1">
-                {status.blockingReasons.map((r) => (
+                {(status?.blockers || status?.blockingReasons || []).map((r) => (
                   <li key={r}>{r}</li>
                 ))}
+                {status?.missingPhotos?.length ? (
+                  <li key="missing-photos">
+                    Faltam fotos para {status.missingPhotos.length} unidade(s).
+                  </li>
+                ) : null}
               </ul>
             </div>
           ) : null}
@@ -438,7 +468,8 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
               disabled={
                 loading ||
                 isDeadlineExpired ||
-                (status?.canConfirm === false) ||
+                (units.length === 0) ||
+                ((status?.blockers?.length || status?.blockingReasons?.length) ? true : false) ||
                 (invoices.length > 0 && !paymentGate.ok)
               }
             >
