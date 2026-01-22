@@ -4,7 +4,14 @@ import { Button } from '../ui/button';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
-import { Campaign, BillingInvoice, BillingStatus, BillingInvoiceType, Reservation } from '../../types';
+import {
+  Campaign,
+  BillingInvoice,
+  BillingInvoiceForecastItem,
+  BillingStatus,
+  BillingInvoiceType,
+  Reservation,
+} from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
@@ -21,6 +28,7 @@ interface CampaignDetailsDrawerProps {
 type CampaignDetailsResponse = {
   campaign: Campaign;
   invoices: BillingInvoice[];
+  forecastInvoices?: BillingInvoiceForecastItem[];
   reservations: Reservation[];
   checkIn?: any;
 };
@@ -65,6 +73,7 @@ export function CampaignDetailsDrawer({
   const [loading, setLoading] = useState(false);
   const [localCampaign, setLocalCampaign] = useState<Campaign | null>(null);
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
+  const [forecastInvoices, setForecastInvoices] = useState<BillingInvoiceForecastItem[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [checkInInfo, setCheckInInfo] = useState<CampaignCheckInInfoResponse | null>(null);
 
@@ -92,6 +101,7 @@ export function CampaignDetailsDrawer({
         if (data && typeof data === 'object' && data.campaign) {
           setLocalCampaign(data.campaign as Campaign);
           setInvoices(Array.isArray(data.invoices) ? data.invoices : []);
+          setForecastInvoices(Array.isArray(data.forecastInvoices) ? data.forecastInvoices : []);
           setReservations(Array.isArray(data.reservations) ? data.reservations : []);
           setCheckInInfo((data.checkIn ?? null) as any);
           return;
@@ -100,9 +110,12 @@ export function CampaignDetailsDrawer({
         // Fallback abaixo
       }
 
-      const [invRes, resRes, checkRes] = await Promise.allSettled([
+      const [invRes, forecastRes, resRes, checkRes] = await Promise.allSettled([
         apiClient.get<BillingInvoice[]>('/billing-invoices', {
           params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
+        }),
+        apiClient.get<BillingInvoiceForecastItem[]>('/billing-invoices/forecast', {
+          params: { campaignId: campaign.id },
         }),
         apiClient.get<Reservation[]>('/reservations', { params: { campaignId: campaign.id, orderBy: 'startDate' } }),
         apiClient.get<CampaignCheckInInfoResponse>(`/campaigns/${campaign.id}/checkin`),
@@ -110,6 +123,9 @@ export function CampaignDetailsDrawer({
 
       setLocalCampaign(null);
       setInvoices(invRes.status === 'fulfilled' && Array.isArray(invRes.value.data) ? invRes.value.data : []);
+      setForecastInvoices(
+        forecastRes.status === 'fulfilled' && Array.isArray(forecastRes.value.data) ? forecastRes.value.data : []
+      );
       setReservations(resRes.status === 'fulfilled' && Array.isArray(resRes.value.data) ? resRes.value.data : []);
       setCheckInInfo(checkRes.status === 'fulfilled' ? (checkRes.value.data as any) : null);
     } catch (err) {
@@ -117,6 +133,7 @@ export function CampaignDetailsDrawer({
       toast.error('Erro ao carregar dados da campanha.');
       setLocalCampaign(null);
       setInvoices([]);
+      setForecastInvoices([]);
       setReservations([]);
       setCheckInInfo(null);
     } finally {
@@ -213,10 +230,12 @@ export function CampaignDetailsDrawer({
   }, [invoices]);
 
   const hasConfirmationAlert = useMemo(() => {
-    return invoices.some(
+    const fromInvoices = invoices.some(
       (i) => !!i.requiresConfirmation && i.status !== BillingStatus.PAGA && i.status !== BillingStatus.CANCELADA
     );
-  }, [invoices]);
+    const fromForecast = forecastInvoices.some((i) => !!i.requiresConfirmation);
+    return fromInvoices || fromForecast;
+  }, [invoices, forecastInvoices]);
 
   const faces = (checkInInfo?.faces ?? []) as Array<any>;
   const photosDone = faces.filter((f) => !!f?.photo?.photoUrl).length;
@@ -615,6 +634,53 @@ export function CampaignDetailsDrawer({
                   ))}
                 </div>
               )}
+
+              {/* Forecast de faturas futuras (não existem no banco até entrarem na janela de 30 dias) */}
+              {!loading ? (
+                <div className="mt-6 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-gray-900">Faturas futuras (previsto)</h4>
+                    <Badge className="bg-gray-100 text-gray-800">Forecast</Badge>
+                  </div>
+                  {forecastInvoices.length === 0 ? (
+                    <div className="text-sm text-gray-500">Não há faturas futuras previstas para esta campanha.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {forecastInvoices.map((inv) => {
+                        const due = new Date(inv.dueDate as any);
+                        const ps = inv.periodStart ? new Date(inv.periodStart as any) : null;
+                        const pe = inv.periodEnd ? new Date(inv.periodEnd as any) : null;
+                        return (
+                          <div key={inv.id} className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  Aluguel{inv.sequence ? ` • ciclo ${inv.sequence}` : ''}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  Venc.: {due.toLocaleDateString('pt-BR')} • Valor: R${' '}
+                                  {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                                {ps && pe ? (
+                                  <p className="text-xs text-gray-500">
+                                    Período: {ps.toLocaleDateString('pt-BR')} - {pe.toLocaleDateString('pt-BR')}
+                                  </p>
+                                ) : null}
+                                {inv.requiresConfirmation ? (
+                                  <p className="text-xs text-blue-700">
+                                    Requer confirmação (regra de 30 dias antes do vencimento)
+                                  </p>
+                                ) : null}
+                              </div>
+                              <Badge className="bg-gray-100 text-gray-800">Prevista</Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </TabsContent>
 
             {/* Aba: Mensagens */}

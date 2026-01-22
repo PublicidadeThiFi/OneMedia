@@ -3,7 +3,14 @@ import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
-import { Campaign, BillingStatus, PaymentMethod, BillingInvoice, BillingInvoiceType } from '../../types';
+import {
+  Campaign,
+  BillingStatus,
+  PaymentMethod,
+  BillingInvoice,
+  BillingInvoiceType,
+  BillingInvoiceForecastItem,
+} from '../../types';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
 
@@ -16,19 +23,27 @@ interface CampaignBillingDrawerProps {
 export function CampaignBillingDrawer({ open, onOpenChange, campaign }: CampaignBillingDrawerProps) {
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
+  const [forecastInvoices, setForecastInvoices] = useState<BillingInvoiceForecastItem[]>([]);
 
-  const loadInvoices = async () => {
+  const loadData = async () => {
     if (!campaign) return;
     try {
       setLoading(true);
-      const res = await apiClient.get<BillingInvoice[]>('/billing-invoices', {
-        params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
-      });
-      setInvoices(Array.isArray(res.data) ? res.data : []);
+      const [resInvoices, resForecast] = await Promise.all([
+        apiClient.get<BillingInvoice[]>('/billing-invoices', {
+          params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
+        }),
+        apiClient.get<BillingInvoiceForecastItem[]>('/billing-invoices/forecast', {
+          params: { campaignId: campaign.id },
+        }),
+      ]);
+      setInvoices(Array.isArray(resInvoices.data) ? resInvoices.data : []);
+      setForecastInvoices(Array.isArray(resForecast.data) ? resForecast.data : []);
     } catch (err) {
       console.error(err);
       toast.error('Erro ao carregar faturas da campanha.');
       setInvoices([]);
+      setForecastInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -36,7 +51,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
 
   useEffect(() => {
     if (!open) return;
-    loadInvoices();
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, campaign?.id]);
 
@@ -49,8 +64,11 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
       .filter((inv) => inv.status === BillingStatus.ABERTA || inv.status === BillingStatus.VENCIDA)
       .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
 
-    return { paid, openAmount };
-  }, [invoices]);
+    const forecastAmount = forecastInvoices
+      .reduce((sum, inv) => sum + Number(inv.amount || 0), 0);
+
+    return { paid, openAmount, forecastAmount };
+  }, [invoices, forecastInvoices]);
 
   const paymentGate = useMemo(() => {
     const isPaid = (inv: BillingInvoice) => inv.status === BillingStatus.PAGA;
@@ -99,10 +117,12 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
   }, [invoices]);
 
   const hasConfirmationAlert = useMemo(() => {
-    return invoices.some(
+    const fromInvoices = invoices.some(
       (i) => !!i.requiresConfirmation && i.status !== BillingStatus.PAGA && i.status !== BillingStatus.CANCELADA
     );
-  }, [invoices]);
+    const fromForecast = forecastInvoices.some((i) => !!i.requiresConfirmation);
+    return fromInvoices || fromForecast;
+  }, [invoices, forecastInvoices]);
 
   if (!campaign) return null;
 
@@ -210,7 +230,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
             </div>
 
             {/* Cards */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-green-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Valor Pago</p>
                 <p className="text-gray-900">
@@ -221,6 +241,12 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                 <p className="text-sm text-gray-500 mb-1">Valor em Aberto</p>
                 <p className="text-gray-900">
                   R$ {totals.openAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500 mb-1">Faturas Futuras (previsto)</p>
+                <p className="text-gray-900">
+                  R$ {totals.forecastAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
@@ -281,6 +307,60 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                   </table>
                 </div>
               )}
+
+              {/* Forecast */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-gray-900">Faturas futuras (previsto)</h3>
+                  <Badge className="bg-gray-100 text-gray-800">Forecast</Badge>
+                </div>
+
+                {loading ? (
+                  <div className="text-sm text-gray-500">Carregando previsão...</div>
+                ) : forecastInvoices.length === 0 ? (
+                  <div className="text-sm text-gray-500">Não há faturas futuras previstas para esta campanha.</div>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm text-gray-600">Seq.</th>
+                          <th className="px-4 py-3 text-left text-sm text-gray-600">Vencimento</th>
+                          <th className="px-4 py-3 text-left text-sm text-gray-600">Período</th>
+                          <th className="px-4 py-3 text-left text-sm text-gray-600">Valor</th>
+                          <th className="px-4 py-3 text-left text-sm text-gray-600">Atenção</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {forecastInvoices.map((inv) => {
+                          const due = new Date(inv.dueDate as any);
+                          const ps = inv.periodStart ? new Date(inv.periodStart as any) : null;
+                          const pe = inv.periodEnd ? new Date(inv.periodEnd as any) : null;
+                          return (
+                            <tr key={inv.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm text-gray-700">{inv.sequence ?? '-'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700">{due.toLocaleDateString('pt-BR')}</td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {ps ? ps.toLocaleDateString('pt-BR') : '-'} → {pe ? pe.toLocaleDateString('pt-BR') : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                R$ {Number(inv.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </td>
+                              <td className="px-4 py-3">
+                                {inv.requiresConfirmation ? (
+                                  <Badge className="bg-blue-100 text-blue-800">Requer confirmação</Badge>
+                                ) : (
+                                  <span className="text-sm text-gray-500">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
