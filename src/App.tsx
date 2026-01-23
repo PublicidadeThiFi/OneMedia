@@ -6,6 +6,7 @@ import { CompanyProvider } from './contexts/CompanyContext';
 import Home from './pages/index';
 import Cadastro from './pages/cadastro';
 import Login from './pages/login';
+import VerifyEmail from './pages/verify-email';
 import Dashboard from './pages/dashboard';
 import Contato from './pages/contato';
 import Termos from './pages/termos';
@@ -93,6 +94,8 @@ export default function App() {
         return <Planos />;
       case '/login':
         return <Login />;
+      case '/verify-email':
+        return <VerifyEmail />;
       case '/dashboard':
         return <Dashboard />;
       case '/contato':
