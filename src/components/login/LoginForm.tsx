@@ -7,9 +7,10 @@ type LoginFormProps = {
   onSubmit: (credentials: LoginCredentials) => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  errorAction?: React.ReactNode;
 };
 
-export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
+export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginFormProps) {
   const navigate = useNavigation();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -62,6 +63,7 @@ export function LoginForm({ onSubmit, isLoading, error }: LoginFormProps) {
       {error && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm text-red-700">{error}</p>
+          {errorAction ? <div className="mt-3">{errorAction}</div> : null}
         </div>
       )}
 
