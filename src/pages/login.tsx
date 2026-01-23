@@ -1,24 +1,85 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '../App';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginForm } from '../components/login/LoginForm';
 import { TwoFactorStep } from '../components/login/TwoFactorStep';
 import { LoginCredentials, TwoFactorPayload } from '../types/auth';
-import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
+import { publicApiClient } from '../lib/apiClient';
+import { getApiError } from '../lib/getApiError';
+
+type ResendVerificationResponse = {
+  message?: string;
+  retryAfterSeconds?: number;
+};
 
 export default function Login() {
   const navigate = useNavigation();
   const { login, verifyTwoFactor, requiresTwoFactor, pendingEmail } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastEmailAttempt, setLastEmailAttempt] = useState<string>('');
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendInfo, setResendInfo] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  // Em 2FA, o e-mail fica no pendingEmail; usamos como fallback.
+  const currentEmail = useMemo(() => {
+    return lastEmailAttempt || pendingEmail || '';
+  }, [lastEmailAttempt, pendingEmail]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = window.setInterval(() => {
+      setResendCooldown((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [resendCooldown]);
+
+  const handleResendVerification = async () => {
+    if (!currentEmail) return;
+    try {
+      setResendInfo(null);
+      setResendLoading(true);
+      const response = await publicApiClient.post<ResendVerificationResponse>('/auth/resend-verification', {
+        email: currentEmail,
+      });
+
+      const msg =
+        typeof response.data?.message === 'string' && response.data.message.trim()
+          ? response.data.message
+          : 'Se a conta existir e o e-mail ainda não estiver verificado, enviamos uma nova confirmação.';
+
+      setResendInfo(msg);
+
+      const retry =
+        typeof response.data?.retryAfterSeconds === 'number'
+          ? response.data.retryAfterSeconds
+          : 60;
+      setResendCooldown(Math.max(1, Math.min(600, retry)));
+    } catch (err) {
+      const apiErr = getApiError(err, 'Não foi possível reenviar o e-mail. Tente novamente.');
+      setResendInfo(apiErr.message);
+      if (apiErr.retryAfterSeconds) {
+        setResendCooldown(Math.max(1, Math.min(600, apiErr.retryAfterSeconds)));
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handleLogin = async (credentials: LoginCredentials) => {
     try {
       setError(null);
+      setResendInfo(null);
+      setLastEmailAttempt(credentials.email);
+      setEmailNotVerified(false);
       setIsLoading(true);
       await login(credentials);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login');
+      const apiErr = getApiError(err, 'Erro ao fazer login');
+      setError(apiErr.message);
+      setEmailNotVerified(apiErr.code === 'EMAIL_NOT_VERIFIED');
     } finally {
       setIsLoading(false);
     }
@@ -27,10 +88,14 @@ export default function Login() {
   const handleVerifyTwoFactor = async (payload: TwoFactorPayload) => {
     try {
       setError(null);
+      setResendInfo(null);
+      setEmailNotVerified(false);
       setIsLoading(true);
       await verifyTwoFactor(payload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao verificar código');
+      const apiErr = getApiError(err, 'Erro ao verificar código');
+      setError(apiErr.message);
+      setEmailNotVerified(apiErr.code === 'EMAIL_NOT_VERIFIED');
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +112,10 @@ export default function Login() {
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow-sm" />
+              <span className="text-xl font-semibold text-gray-900">OneMedia</span>
+            </div>
           </div>
           <button
             onClick={() => navigate('/')}
@@ -74,6 +142,30 @@ export default function Login() {
               onSubmit={handleLogin}
               isLoading={isLoading}
               error={error}
+              errorAction={
+                emailNotVerified && currentEmail ? (
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={handleResendVerification}
+                      disabled={resendLoading || resendCooldown > 0}
+                      className="inline-flex w-full items-center justify-center rounded-lg bg-white px-4 py-2.5 text-sm font-medium text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {resendLoading
+                        ? 'Enviando...'
+                        : resendCooldown > 0
+                          ? `Reenviar em ${resendCooldown}s`
+                          : 'Reenviar e-mail de confirmação'}
+                    </button>
+                    <p className="text-xs text-red-700/80">
+                      Confirme o e-mail para liberar o acesso. Verifique também a caixa de spam.
+                    </p>
+                    {resendInfo ? (
+                      <p className="text-xs text-gray-600">{resendInfo}</p>
+                    ) : null}
+                  </div>
+                ) : null
+              }
             />
           )}
         </div>

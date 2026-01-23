@@ -1,13 +1,65 @@
-import { CheckCircle, Home, LogIn } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle, Home, LogIn, Send } from 'lucide-react';
 import { useNavigation } from '../../App';
+import { publicApiClient } from '../../lib/apiClient';
+import { getApiError } from '../../lib/getApiError';
 
 type SuccessScreenProps = {
   companyName: string;
   userEmail: string;
 };
 
+type ResendVerificationResponse = {
+  message?: string;
+  retryAfterSeconds?: number;
+};
+
 export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
   const navigate = useNavigation();
+
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendInfo, setResendInfo] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = window.setInterval(() => {
+      setResendCooldown((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [resendCooldown]);
+
+  const handleResendVerification = async () => {
+    if (!userEmail) return;
+    try {
+      setResendInfo(null);
+      setResendLoading(true);
+      const response = await publicApiClient.post<ResendVerificationResponse>('/auth/resend-verification', {
+        email: userEmail,
+      });
+
+      const msg =
+        typeof response.data?.message === 'string' && response.data.message.trim()
+          ? response.data.message
+          : 'Se a conta existir e o e-mail ainda não estiver verificado, enviamos uma nova confirmação.';
+
+      setResendInfo(msg);
+
+      const retry =
+        typeof response.data?.retryAfterSeconds === 'number'
+          ? response.data.retryAfterSeconds
+          : 60;
+      setResendCooldown(Math.max(1, Math.min(600, retry)));
+    } catch (err) {
+      const apiErr = getApiError(err, 'Não foi possível reenviar o e-mail. Tente novamente.');
+      setResendInfo(apiErr.message);
+      if (apiErr.retryAfterSeconds) {
+        setResendCooldown(Math.max(1, Math.min(600, apiErr.retryAfterSeconds)));
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   return (
     <div className="text-center py-12">
@@ -30,14 +82,37 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
         <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5">
           <p className="text-sm text-blue-800">
             📧 Enviamos um e-mail de confirmação para <span className="font-semibold">{userEmail}</span> com 
-            as instruções de acesso e próximos passos.
+            um link para ativar sua conta.
           </p>
         </div>
 
         <p className="text-gray-600">
-          Você pode ir direto para a tela de login e começar a usar a plataforma agora, 
-          ou voltar para o site para conhecer melhor as funcionalidades.
+          Para acessar a plataforma, confirme seu e-mail primeiro. Depois disso, volte aqui e faça login.
         </p>
+
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={handleResendVerification}
+            disabled={resendLoading || resendCooldown > 0}
+            className="inline-flex items-center justify-center gap-2 bg-white border-2 border-blue-200 text-blue-700 px-6 py-3 rounded-xl hover:bg-blue-50 transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <Send className="w-4 h-4" />
+            {resendLoading
+              ? 'Enviando...'
+              : resendCooldown > 0
+                ? `Reenviar em ${resendCooldown}s`
+                : 'Reenviar e-mail de confirmação'}
+          </button>
+
+          {resendInfo ? (
+            <p className="mt-3 text-sm text-gray-600">{resendInfo}</p>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">
+              Não recebeu? Verifique a caixa de spam e promoções.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Action Buttons */}
