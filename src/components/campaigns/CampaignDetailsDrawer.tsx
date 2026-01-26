@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
 import {
@@ -255,38 +254,33 @@ export function CampaignDetailsDrawer({
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="h-[92vh] max-w-5xl mx-auto">
-        <DrawerHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <DrawerTitle>{c.name}</DrawerTitle>
-                <CampaignStatusBadge status={c.status} />
-              </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[96vw] max-w-7xl h-[90vh] max-h-[90vh] p-0 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="p-6 border-b">
+            <DialogHeader>
+              <DialogTitle>
+                <div className="flex items-center gap-3">
+                  <span>{c.name}</span>
+                  <CampaignStatusBadge status={c.status} />
+                </div>
+              </DialogTitle>
+            </DialogHeader>
 
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>{clientLabel}</span>
-                <span>•</span>
-                <span>{periodLabel}</span>
-                {!!(c as any).totalAmountCents && (
-                  <>
-                    <span>•</span>
-                    <span>
-                      {formatBRLFromCents((c as any).totalAmountCents)}
-                    </span>
-                  </>
-                )}
-              </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+              <span>{clientLabel}</span>
+              <span>•</span>
+              <span>{periodLabel}</span>
+              {!!(c as any).totalAmountCents && (
+                <>
+                  <span>•</span>
+                  <span>{formatBRLFromCents((c as any).totalAmountCents)}</span>
+                </>
+              )}
             </div>
-
-            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
-              <X className="w-4 h-4" />
-            </Button>
           </div>
-        </DrawerHeader>
 
-        <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden">
           <Tabs defaultValue={defaultTab} className="h-full flex flex-col">
             <TabsList className="w-full justify-start px-6 py-0 h-12 border-b rounded-none bg-transparent">
               <TabsTrigger value="summary">Resumo</TabsTrigger>
@@ -691,8 +685,9 @@ export function CampaignDetailsDrawer({
               </div>
             </TabsContent>
           </Tabs>
+          </div>
         </div>
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }

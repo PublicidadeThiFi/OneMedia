@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   Campaign,
   BillingStatus,
@@ -26,11 +25,33 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
   const [forecastInvoices, setForecastInvoices] = useState<BillingInvoiceForecastItem[]>([]);
 
+  type CampaignDetailsResponse = {
+    campaign?: any;
+    invoices?: BillingInvoice[];
+    forecastInvoices?: BillingInvoiceForecastItem[];
+  };
+
   const loadData = async () => {
     if (!campaign) return;
     try {
       setLoading(true);
-      const [resInvoices, resForecast] = await Promise.all([
+      // Preferencial: endpoint agregador (mesmo usado em "Ver Detalhes")
+      try {
+        const detailsRes = await apiClient.get<CampaignDetailsResponse>(`/campaigns/${campaign.id}/details`);
+        const data: any = detailsRes?.data;
+        if (data && typeof data === 'object') {
+          if (Array.isArray(data.invoices)) setInvoices(data.invoices);
+          else setInvoices([]);
+
+          if (Array.isArray(data.forecastInvoices)) setForecastInvoices(data.forecastInvoices);
+          else setForecastInvoices([]);
+          return;
+        }
+      } catch {
+        // fallback abaixo
+      }
+
+      const [resInvoices, resForecast] = await Promise.allSettled([
         apiClient.get<BillingInvoice[]>('/billing-invoices', {
           params: { campaignId: campaign.id, orderBy: 'dueDate', orderDirection: 'asc' },
         }),
@@ -38,8 +59,11 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
           params: { campaignId: campaign.id },
         }),
       ]);
-      setInvoices(Array.isArray(resInvoices.data) ? resInvoices.data : []);
-      setForecastInvoices(Array.isArray(resForecast.data) ? resForecast.data : []);
+
+      setInvoices(resInvoices.status === 'fulfilled' && Array.isArray(resInvoices.value.data) ? resInvoices.value.data : []);
+      setForecastInvoices(
+        resForecast.status === 'fulfilled' && Array.isArray(resForecast.value.data) ? resForecast.value.data : []
+      );
     } catch (err) {
       console.error(err);
       toast.error('Erro ao carregar faturas da campanha.');
@@ -161,22 +185,17 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh]">
-        <div className="mx-auto w-full max-w-4xl">
-          <DrawerHeader className="border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <DrawerTitle>Faturamento - {campaign.name}</DrawerTitle>
-                <p className="text-sm text-gray-500 mt-1">Faturas vinculadas a esta campanha</p>
-              </div>
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="Fechar">
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </DrawerHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[96vw] max-w-7xl h-[90vh] max-h-[90vh] p-0 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="p-6 border-b">
+            <DialogHeader>
+              <DialogTitle>Faturamento — {campaign.name}</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-gray-500 mt-1">Faturas vinculadas a esta campanha</p>
+          </div>
 
-          <div className="p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-gray-900">Resumo Financeiro</h2>
               <Button variant="outline" onClick={handleViewFinancial}>
@@ -254,7 +273,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
               ) : invoices.length === 0 ? (
                 <div className="text-sm text-gray-500">Nenhuma fatura encontrada para esta campanha.</div>
               ) : (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
@@ -314,7 +333,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
                 ) : forecastInvoices.length === 0 ? (
                   <div className="text-sm text-gray-500">Não há faturas futuras previstas para esta campanha.</div>
                 ) : (
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
@@ -358,7 +377,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
             </div>
           </div>
         </div>
-      </DrawerContent>
-    </Drawer>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -109,17 +109,18 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0">
-        <div className="p-6 border-b border-gray-200">
+      <DialogContent className="w-[96vw] max-w-4xl h-[90vh] max-h-[90vh] p-0 overflow-hidden">
+        <div className="h-full flex flex-col">
+          <div className="p-6 border-b border-gray-200">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-2 md:max-w-sm">
               <Label>Tipo de relatório</Label>
               <Select value={reportType} onValueChange={(v: string) => setReportType(v as CampaignReportType)}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Escolha o relatório" />
                 </SelectTrigger>
                 <SelectContent>
@@ -131,7 +132,7 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
               </Select>
             </div>
 
-            <div className="flex md:justify-end items-end gap-2">
+            <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
               <Button variant="outline" onClick={loadReport} disabled={!campaignId || loading}>
                 {loading ? 'Gerando...' : 'Atualizar'}
               </Button>
@@ -147,9 +148,9 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
               </Button>
             </div>
           </div>
-        </div>
+          </div>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {!campaignId ? (
             <div className="text-sm text-gray-600">Selecione uma campanha para gerar o relatório.</div>
           ) : loading ? (
@@ -240,6 +241,7 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
               ) : null}
             </>
           )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
