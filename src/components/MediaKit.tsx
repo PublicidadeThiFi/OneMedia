@@ -11,10 +11,12 @@ import { toast } from 'sonner';
 import apiClient, { publicApiClient } from '../lib/apiClient';
 import { MediaPoint, MediaType } from '../types';
 
-type Availability = 'Disponível' | 'Ocupado';
+type Availability = 'Disponível' | 'Parcial' | 'Ocupado';
 
 type MediaKitPoint = MediaPoint & {
   unitsCount?: number;
+  occupiedUnitsCount?: number;
+  availableUnitsCount?: number;
   availability?: Availability;
 };
 
@@ -128,7 +130,12 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
     // Filtro de status (disponibilidade)
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((p) => (p.availability ?? 'Disponível') === statusFilter);
+      filtered = filtered.filter((p) => {
+        const av = (p.availability ?? 'Disponível') as Availability;
+        // "Disponível" inclui os pontos parcialmente ocupados (ainda há faces livres)
+        if (statusFilter === 'Disponível') return av === 'Disponível' || av === 'Parcial';
+        return av === statusFilter;
+      });
     }
 
     // Filtro de busca (texto livre)
@@ -399,6 +406,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="Disponível">Disponível</SelectItem>
+                      <SelectItem value="Parcial">Parcial</SelectItem>
                       <SelectItem value="Ocupado">Ocupado</SelectItem>
                     </SelectContent>
                   </Select>
@@ -417,7 +425,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {filteredPoints.map((point) => {
                   const unitsCount = point.unitsCount ?? point.units?.length ?? 0;
-                  const availability = (point.availability ?? 'Disponível') as Availability;
+                  const occupiedUnitsCount = point.occupiedUnitsCount ?? 0;
+                  const availableUnitsCount =
+                    point.availableUnitsCount ?? Math.max(unitsCount - occupiedUnitsCount, 0);
+                  const availability = (point.availability ?? (availableUnitsCount > 0 ? 'Disponível' : 'Ocupado')) as Availability;
+                  const occupiedRatio = unitsCount > 0 ? occupiedUnitsCount / unitsCount : 0;
 
                   return (
                     <Card key={point.id} className="overflow-hidden hover:shadow-xl transition-shadow">
@@ -432,10 +444,16 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                         />
                         <Badge
                           className={`absolute top-3 right-3 ${
-                            availability === 'Disponível' ? 'bg-green-500' : 'bg-orange-500'
+                            availability === 'Disponível'
+                              ? 'bg-green-500'
+                              : availability === 'Parcial'
+                                ? 'bg-amber-500'
+                                : 'bg-orange-500'
                           }`}
                         >
-                          {availability}
+                          {availability === 'Parcial' && unitsCount > 0
+                            ? `Parcial (${occupiedUnitsCount}/${unitsCount})`
+                            : availability}
                         </Badge>
                         <Badge className="absolute top-3 left-3 bg-indigo-500">{point.type}</Badge>
                       </div>
@@ -457,6 +475,26 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                           </div>
 
                           <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">Disponíveis</span>
+                            <span className="text-gray-900">{availableUnitsCount}</span>
+                          </div>
+
+                          {unitsCount > 0 && (
+                            <div className="pt-2">
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-orange-500"
+                                  style={{ width: Math.min(occupiedRatio * 100, 100).toFixed(0) + '%' }}
+                                />
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
+                                <span>{occupiedUnitsCount} ocupadas</span>
+                                <span>{availableUnitsCount} livres</span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">Impacto/Dia</span>
                             <span className="text-gray-900">
                               {point.dailyImpressions ? `${Math.floor(point.dailyImpressions / 1000)}k` : '—'}
@@ -470,25 +508,31 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                           )}
                         </div>
 
-                        {/* Preços */}
+                                                {/* Preços */}
                         <div className="border-t border-gray-100 pt-4 mb-4">
-                          <div className="grid grid-cols-3 gap-2 text-center">
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Diária</p>
-                              <p className="text-gray-900 text-sm">
-                                {point.basePriceDay != null ? `R$ ${point.basePriceDay}` : '—'}
-                              </p>
-                            </div>
+                          <div className="grid grid-cols-2 gap-2 text-center">
                             <div>
                               <p className="text-gray-600 text-xs mb-1">Semanal</p>
                               <p className="text-gray-900 text-sm">
-                                {point.basePriceWeek != null ? `R$ ${(point.basePriceWeek / 1000).toFixed(1)}k` : '—'}
+                                {point.basePriceWeek != null
+                                  ? new Intl.NumberFormat('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                      maximumFractionDigits: 0,
+                                    }).format(point.basePriceWeek)
+                                  : '—'}
                               </p>
                             </div>
                             <div>
                               <p className="text-gray-600 text-xs mb-1">Mensal</p>
                               <p className="text-gray-900 text-sm">
-                                {point.basePriceMonth != null ? `R$ ${(point.basePriceMonth / 1000).toFixed(1)}k` : '—'}
+                                {point.basePriceMonth != null
+                                  ? new Intl.NumberFormat('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                      maximumFractionDigits: 0,
+                                    }).format(point.basePriceMonth)
+                                  : '—'}
                               </p>
                             </div>
                           </div>
