@@ -186,8 +186,8 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] max-w-7xl h-[90vh] max-h-[90vh] p-0 overflow-hidden">
-        <div className="h-full flex flex-col">
+      <DialogContent className="w-[96vw] max-w-[1600px] h-[90vh] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
+        <div className="h-full flex flex-col min-h-0">
           <div className="p-6 border-b">
             <DialogHeader>
               <DialogTitle>Faturamento — {campaign.name}</DialogTitle>
@@ -195,7 +195,7 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
             <p className="text-sm text-gray-500 mt-1">Faturas vinculadas a esta campanha</p>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
             <div className="flex items-center justify-between">
               <h2 className="text-gray-900">Resumo Financeiro</h2>
               <Button variant="outline" onClick={handleViewFinancial}>

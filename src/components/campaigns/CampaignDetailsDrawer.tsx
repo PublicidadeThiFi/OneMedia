@@ -255,8 +255,8 @@ export function CampaignDetailsDrawer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] max-w-7xl h-[90vh] max-h-[90vh] p-0 overflow-hidden">
-        <div className="h-full flex flex-col">
+      <DialogContent className="w-[96vw] max-w-[1600px] h-[90vh] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
+        <div className="h-full flex flex-col min-h-0">
           <div className="p-6 border-b">
             <DialogHeader>
               <DialogTitle>
@@ -280,18 +280,18 @@ export function CampaignDetailsDrawer({
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden">
-          <Tabs defaultValue={defaultTab} className="h-full flex flex-col">
-            <TabsList className="w-full justify-start px-6 py-0 h-12 border-b rounded-none bg-transparent">
-              <TabsTrigger value="summary">Resumo</TabsTrigger>
-              <TabsTrigger value="media">Veiculações</TabsTrigger>
-              <TabsTrigger value="installations">Instalações OOH</TabsTrigger>
-              <TabsTrigger value="billing">Financeiro</TabsTrigger>
-              <TabsTrigger value="messages">Mensagens</TabsTrigger>
+          <div className="flex-1 overflow-hidden min-h-0">
+          <Tabs defaultValue={defaultTab} className="h-full flex flex-col min-h-0">
+            <TabsList className="w-full justify-start px-6 py-0 h-12 border-b rounded-none bg-transparent overflow-x-auto flex-nowrap">
+              <TabsTrigger value="summary" className="flex-none">Resumo</TabsTrigger>
+              <TabsTrigger value="media" className="flex-none">Veiculações</TabsTrigger>
+              <TabsTrigger value="installations" className="flex-none">Instalações OOH</TabsTrigger>
+              <TabsTrigger value="billing" className="flex-none">Financeiro</TabsTrigger>
+              <TabsTrigger value="messages" className="flex-none">Mensagens</TabsTrigger>
             </TabsList>
 
             {/* Aba: Resumo */}
-            <TabsContent value="summary" className="flex-1 overflow-y-auto p-6 space-y-6">
+            <TabsContent value="summary" className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
               {loading && <div className="text-sm text-gray-500">Carregando dados...</div>}
 
               <div className="grid grid-cols-4 gap-4">
@@ -344,7 +344,7 @@ export function CampaignDetailsDrawer({
             </TabsContent>
 
             {/* Aba: Veiculações */}
-            <TabsContent value="media" className="flex-1 overflow-y-auto p-6 space-y-4">
+            <TabsContent value="media" className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-gray-900">Reservas da campanha</h3>
                 <Button variant="outline" size="sm" onClick={loadExtras} disabled={loading}>
@@ -402,7 +402,7 @@ export function CampaignDetailsDrawer({
             </TabsContent>
 
             {/* Aba: Instalações OOH */}
-            <TabsContent value="installations" className="flex-1 overflow-y-auto p-6 space-y-4">
+            <TabsContent value="installations" className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg space-y-2">
                 <p className="text-sm text-blue-900">📸 Check-in de Instalação</p>
                 <p className="text-sm text-blue-800">
@@ -528,7 +528,7 @@ export function CampaignDetailsDrawer({
             </TabsContent>
 
             {/* Aba: Financeiro */}
-            <TabsContent value="billing" className="flex-1 overflow-y-auto p-6 space-y-4">
+            <TabsContent value="billing" className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
               <div className="flex items-center justify-between">
                 <h3 className="text-gray-900">Faturas da campanha</h3>
                 <Button variant="outline" size="sm" onClick={loadExtras} disabled={loading}>
@@ -666,7 +666,7 @@ export function CampaignDetailsDrawer({
             </TabsContent>
 
             {/* Aba: Mensagens */}
-            <TabsContent value="messages" className="flex-1 overflow-y-auto p-6 space-y-4">
+            <TabsContent value="messages" className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
               <div className="space-y-3">
                 <div className="text-sm text-gray-600">
                   Abra o módulo <span className="font-medium">Mensagens</span> para conversar no contexto desta campanha.

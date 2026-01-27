@@ -30,7 +30,6 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
   const [reportType, setReportType] = useState<CampaignReportType>('usage');
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [details, setDetails] = useState<any>(null);
 
   const campaignId = campaign?.id ?? null;
@@ -45,14 +44,12 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
     try {
       setLoading(true);
       setDetails(null);
-      setDownloadUrl(null);
 
       const res = await apiClient.get<CampaignReportApiResponse>(`/campaigns/${campaignId}/report`, {
-        params: { type: reportType },
+        params: { type: reportType, mode: 'preview' },
       });
 
       const data = res.data;
-      setDownloadUrl(data?.downloadUrl ?? null);
       setDetails(data?.preview ?? data?.details ?? null);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Falha ao gerar relatório');
@@ -66,7 +63,6 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
 
     if (!campaignId) {
       setDetails(null);
-      setDownloadUrl(null);
       return;
     }
 
@@ -74,28 +70,42 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, campaignId, reportType]);
 
+  const parseFilename = (contentDisposition?: string): string | null => {
+    if (!contentDisposition) return null;
+    // attachment; filename="..."
+    const m = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+    const raw = (m?.[1] || m?.[2])?.trim();
+    if (!raw) return null;
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  };
+
   const handleDownload = async (format: 'pdf' | 'csv') => {
     if (!campaignId) return;
     try {
       setDownloading(true);
 
-      // Se o backend já retornou um link (modo "download"), reutiliza.
-      if (downloadUrl) {
-        window.open(downloadUrl, '_blank');
-        return;
-      }
-
-      const res = await apiClient.get<CampaignReportApiResponse>(`/campaigns/${campaignId}/report`, {
+      const res = await apiClient.get<Blob>(`/campaigns/${campaignId}/report`, {
         params: { type: reportType, format, mode: 'download' },
+        responseType: 'blob',
       });
 
-      const nextUrl = res.data?.downloadUrl;
-      if (nextUrl) {
-        setDownloadUrl(nextUrl);
-        window.open(nextUrl, '_blank');
-      } else {
-        toast.error('O backend não retornou um link de download.');
-      }
+      const contentType = (res.headers as any)?.['content-type'] || (format === 'pdf' ? 'application/pdf' : 'text/csv');
+      const contentDisposition = (res.headers as any)?.['content-disposition'];
+      const filename = parseFilename(contentDisposition) || `relatorio-${campaignId}.${format}`;
+
+      const blob = new Blob([res.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Falha ao baixar relatório');
     } finally {
@@ -109,8 +119,8 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] max-w-4xl h-[90vh] max-h-[90vh] p-0 overflow-hidden">
-        <div className="h-full flex flex-col">
+      <DialogContent className="w-[96vw] max-w-[1600px] h-[90vh] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
+        <div className="h-full flex flex-col min-h-0">
           <div className="p-6 border-b border-gray-200">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -150,7 +160,7 @@ export default function CampaignReportDialog({ open, onOpenChange, campaign }: C
           </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
           {!campaignId ? (
             <div className="text-sm text-gray-600">Selecione uma campanha para gerar o relatório.</div>
           ) : loading ? (
