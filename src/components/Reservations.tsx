@@ -22,10 +22,39 @@ function daysBetweenInclusive(start: Date, end: Date) {
 }
 
 function estimateReservationAmount(r: Reservation): number | undefined {
+  const rentTotalSnapshot = (r as any).rentTotalSnapshot as number | null | undefined;
+  if (typeof rentTotalSnapshot === 'number' && Number.isFinite(rentTotalSnapshot) && rentTotalSnapshot > 0) {
+    return rentTotalSnapshot;
+  }
+
+  const rentAmount = (r as any).rentAmount as number | null | undefined;
+  const occupationDays = (r as any).occupationDays as number | null | undefined;
+
+  // Se a reserva já vem com valor de aluguel (por dia) + quantidade de dias ocupados, use isso.
+  if (typeof rentAmount === 'number' && Number.isFinite(rentAmount) && rentAmount > 0) {
+    const occ = typeof occupationDays === 'number' && occupationDays > 0 ? occupationDays : undefined;
+    const start = new Date(r.startDate);
+    const end = new Date(r.endDate);
+    const fallbackDays = daysBetweenInclusive(start, end);
+
+    const days = occ ?? (fallbackDays || undefined);
+    if (days) return rentAmount * days;
+
+    // Se não temos dias, ainda retornamos o rentAmount como melhor esforço.
+    return rentAmount;
+  }
+
+  // Fallback: preço/dia vindo do inventário.
   const unitDay = (r as any).mediaUnitPriceDay as number | null | undefined;
   const pointDay = (r as any).mediaPointBasePriceDay as number | null | undefined;
-  const dayRate = typeof unitDay === 'number' ? unitDay : typeof pointDay === 'number' ? pointDay : undefined;
-  if (typeof dayRate !== 'number' || Number.isNaN(dayRate) || dayRate <= 0) return undefined;
+  const dayRate =
+    typeof unitDay === 'number' && Number.isFinite(unitDay) && unitDay > 0
+      ? unitDay
+      : typeof pointDay === 'number' && Number.isFinite(pointDay) && pointDay > 0
+        ? pointDay
+        : undefined;
+
+  if (typeof dayRate !== 'number') return undefined;
 
   const start = new Date(r.startDate);
   const end = new Date(r.endDate);
@@ -237,7 +266,7 @@ export function Reservations() {
                 maximumFractionDigits: 0,
               })}
             </p>
-            <p className="text-gray-500 text-xs">Baseado em preço/dia do inventário</p>
+            <p className="text-gray-500 text-xs">Baseado no valor estimado das reservas</p>
           </CardContent>
         </Card>
       </div>
