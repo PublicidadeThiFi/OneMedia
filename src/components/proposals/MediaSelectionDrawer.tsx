@@ -13,7 +13,14 @@ interface MediaSelectionDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddItem: (item: ProposalItem) => void;
+  /**
+   * Data de início de referência da campanha (passo 1). Usada para checar ocupação (reservas) do período.
+   * Se não for informada, usamos a data atual apenas para não permitir seleção sem verificação.
+   */
+  referenceStartDate?: Date | null;
 }
+
+type AvailabilityStatus = 'checking' | 'available' | 'occupied' | 'unknown';
 
 type MediaUnitWithPoint = MediaUnit & {
   pointId?: string;
@@ -28,6 +35,7 @@ export function MediaSelectionDrawer({
   open,
   onOpenChange,
   onAddItem,
+  referenceStartDate,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
   // companyId é usado apenas para preencher o item local. A API usa o companyId do token.
@@ -61,6 +69,28 @@ export function MediaSelectionDrawer({
   const [occupationDays, setOccupationDays] = useState<number>(30);
   const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
 
+  // Disponibilidade (ocupação por reservas existentes)
+  const [availabilityByUnitId, setAvailabilityByUnitId] = useState<Record<string, AvailabilityStatus>>({});
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
+  const normalizeLocalDay = (d: Date) => {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  };
+
+  const addDays = (d: Date, days: number) => {
+    const x = new Date(d);
+    x.setDate(x.getDate() + Math.max(0, Math.floor(days)));
+    return x;
+  };
+
+  const availabilityWindow = useMemo(() => {
+    // Se não vier a data de início, usamos hoje — e bloqueamos seleção até checar
+    const start = normalizeLocalDay(referenceStartDate ?? new Date());
+    const end = addDays(start, occupationDays);
+    return { start, end };
+  }, [referenceStartDate, occupationDays]);
 
   const getOccupationBreakdown = (days: number) => {
     const d = Math.max(0, Math.floor(days));
@@ -176,6 +206,12 @@ export function MediaSelectionDrawer({
     return undefined;
   };
 
+  const formatShortDate = (d: Date) => {
+    const iso = new Date(d).toISOString().slice(0, 10); // YYYY-MM-DD
+    const [y, m, day] = iso.split('-');
+    return `${day}/${m}/${y}`;
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -252,6 +288,8 @@ export function MediaSelectionDrawer({
       // reset selecao
       setSelectedMediaPointId(null);
       setSelectedMediaUnit(null);
+      setAvailabilityByUnitId({});
+      setAvailabilityError(null);
       setSelectedMediaPointOwnerId('');
       setDescription('');
       setQuantity(1);
@@ -312,6 +350,107 @@ export function MediaSelectionDrawer({
     if (!selectedMediaPointId) return [];
     return unitsByPointId.get(selectedMediaPointId) ?? [];
   }, [unitsByPointId, selectedMediaPointId]);
+
+  // Checa ocupação das faces (unidades) do ponto selecionado no período considerado.
+  useEffect(() => {
+    if (!open) return;
+    if (!selectedMediaPointId) {
+      setAvailabilityByUnitId({});
+      setAvailabilityError(null);
+      return;
+    }
+
+    const units = selectedPointUnits;
+    if (!units.length) {
+      setAvailabilityByUnitId({});
+      setAvailabilityError(null);
+      return;
+    }
+
+    let cancelled = false;
+    const startDate = availabilityWindow.start.toISOString();
+    const endDate = availabilityWindow.end.toISOString();
+
+    // Marca todas como "verificando" antes do request.
+    setAvailabilityByUnitId((prev) => {
+      const next: Record<string, AvailabilityStatus> = { ...prev };
+      for (const u of units) next[u.id] = 'checking';
+      return next;
+    });
+    setAvailabilityError(null);
+
+    (async () => {
+      const results = await Promise.allSettled(
+        units.map((u) =>
+          apiClient.get<any>('/reservations/availability', {
+            params: {
+              mediaUnitId: u.id,
+              startDate,
+              endDate,
+            },
+          })
+        )
+      );
+
+      if (cancelled) return;
+
+      const next: Record<string, AvailabilityStatus> = {};
+      let hadError = false;
+
+      results.forEach((r, idx) => {
+        const unitId = units[idx]?.id;
+        if (!unitId) return;
+        if (r.status === 'fulfilled') {
+          const available = Boolean((r.value as any)?.data?.available);
+          next[unitId] = available ? 'available' : 'occupied';
+        } else {
+          next[unitId] = 'unknown';
+          hadError = true;
+        }
+      });
+
+      setAvailabilityByUnitId(next);
+      if (hadError) {
+        setAvailabilityError('Não foi possível verificar a disponibilidade de uma ou mais faces.');
+      }
+    })().catch(() => {
+      if (cancelled) return;
+      const next: Record<string, AvailabilityStatus> = {};
+      for (const u of units) next[u.id] = 'unknown';
+      setAvailabilityByUnitId(next);
+      setAvailabilityError('Não foi possível verificar a disponibilidade das faces.');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedMediaPointId, selectedPointUnits, availabilityWindow.start, availabilityWindow.end]);
+
+  // Se a unidade selecionada ficar ocupada/indisponível, troca automaticamente para a primeira disponível.
+  useEffect(() => {
+    if (!open) return;
+    if (!selectedMediaPointId) return;
+    if (!selectedPointUnits.length) return;
+
+    // ainda não verificou nada
+    if (!Object.keys(availabilityByUnitId).length) return;
+
+    const pickFirstAvailable = () => {
+      const nextUnit = selectedPointUnits.find((u) => availabilityByUnitId[u.id] === 'available');
+      if (nextUnit) handleSelectMediaUnit(nextUnit);
+      else setSelectedMediaUnit(null);
+    };
+
+    if (!selectedMediaUnit) {
+      pickFirstAvailable();
+      return;
+    }
+
+    const st = availabilityByUnitId[selectedMediaUnit.id];
+    if (st === 'occupied' || st === 'unknown') {
+      pickFirstAvailable();
+    }
+  }, [open, selectedMediaPointId, selectedPointUnits, availabilityByUnitId, selectedMediaUnit]);
 
   const handleSelectMediaUnit = (media: MediaUnitWithPoint) => {
     setSelectedMediaUnit(media);
@@ -413,6 +552,8 @@ export function MediaSelectionDrawer({
     setTypeFilter('all');
     setSelectedMediaPointId(null);
     setSelectedMediaUnit(null);
+    setAvailabilityByUnitId({});
+    setAvailabilityError(null);
     setMediaPointOwners([]);
     setOwnersError(null);
     setSelectedMediaPointOwnerId('');
@@ -429,12 +570,15 @@ export function MediaSelectionDrawer({
 
   const hasOwners = mediaPointOwners.length > 0;
   const isOccupationValid = occupationDays >= 15 && occupationDays % 15 === 0 && occupationDays <= OCCUPATION_MAX_DAYS;
+  const selectedAvailability = selectedMediaUnit ? availabilityByUnitId[selectedMediaUnit.id] : undefined;
+  const isSelectedUnitAvailable = selectedAvailability === 'available';
   const isValid =
     !!selectedMediaUnit &&
     !!description &&
     quantity > 0 &&
     unitPrice >= 0 &&
     isOccupationValid &&
+    isSelectedUnitAvailable &&
     hasOwners &&
     !!selectedMediaPointOwnerId &&
     !ownersLoading &&
@@ -605,13 +749,54 @@ export function MediaSelectionDrawer({
                                 <SelectValue placeholder="Selecione uma unidade" />
                               </SelectTrigger>
                               <SelectContent>
-                                {selectedPointUnits.map((u) => (
-                                  <SelectItem key={u.id} value={u.id}>
-                                    {u.label}
-                                  </SelectItem>
-                                ))}
+                                {selectedPointUnits.map((u) => {
+                                  const st = availabilityByUnitId[u.id];
+                                  const disabled = st !== 'available';
+                                  const suffix =
+                                    st === 'occupied'
+                                      ? ' (Ocupado)'
+                                      : st === 'unknown'
+                                        ? ' (Indisponível)'
+                                        : st === 'checking'
+                                          ? ' (Verificando...)'
+                                          : '';
+
+                                  return (
+                                    <SelectItem key={u.id} value={u.id} disabled={disabled}>
+                                      {u.label}
+                                      {suffix}
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
+
+                            <div className="mt-1 text-xs text-gray-500">
+                              Período considerado: {formatShortDate(availabilityWindow.start)} – {formatShortDate(availabilityWindow.end)}
+                            </div>
+                            {!referenceStartDate && (
+                              <div className="mt-1 text-xs text-amber-700">
+                                Defina a <b>Data de Início</b> no passo 1 para checar com precisão.
+                              </div>
+                            )}
+                            {availabilityError && <div className="mt-1 text-xs text-red-600">{availabilityError}</div>}
+                          </div>
+                        )}
+
+                        {selectedMediaUnit && (
+                          <div className="text-xs">
+                            {selectedPointUnits.length <= 1 && (
+                              <div className="text-gray-500">
+                                Período considerado: {formatShortDate(availabilityWindow.start)} – {formatShortDate(availabilityWindow.end)}
+                              </div>
+                            )}
+                            {selectedAvailability === 'checking' && <div className="text-gray-500 mt-1">Verificando ocupação...</div>}
+                            {selectedAvailability === 'occupied' && (
+                              <div className="text-red-600 mt-1">Esta face está ocupada no período selecionado.</div>
+                            )}
+                            {selectedAvailability === 'unknown' && (
+                              <div className="text-red-600 mt-1">Não foi possível verificar a ocupação desta face.</div>
+                            )}
                           </div>
                         )}
 

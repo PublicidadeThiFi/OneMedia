@@ -376,6 +376,7 @@ export function ProposalStep2Items({
         open={showMediaDrawer}
         onOpenChange={setShowMediaDrawer}
         onAddItem={handleAddMediaItem}
+        referenceStartDate={formData.campaignStartDate ?? null}
       />
 
 
