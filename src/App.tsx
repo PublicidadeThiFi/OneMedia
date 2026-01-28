@@ -1,4 +1,5 @@
 import { useState, useEffect, createContext, useContext } from 'react';
+import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
 
@@ -116,6 +117,7 @@ export default function App() {
       <AuthProvider>
         <CompanyProvider>
           {renderRoute()}
+          <Toaster richColors position="top-right" />
         </CompanyProvider>
       </AuthProvider>
     </NavigationContext.Provider>
