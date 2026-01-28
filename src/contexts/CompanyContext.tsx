@@ -35,6 +35,18 @@ import {
   subscribeAccessState,
 } from '../lib/accessControl';
 
+// Trial exemptions (do not expire free trial)
+const TRIAL_EXEMPT_EMAILS = new Set([
+  'thifi.contato.oficial2@gmail.com',
+  'eduardo@publicitymidia.com.br',
+  'zhiendtg@gmail.com',
+]);
+
+function isTrialExemptEmail(email?: string | null): boolean {
+  const e = String(email || '').trim().toLowerCase();
+  return !!e && TRIAL_EXEMPT_EMAILS.has(e);
+}
+
 interface CompanyContextValue {
   // Current data
   company: Company | null;
@@ -76,10 +88,16 @@ function toDate(value: any): Date | null {
 
 function computeBlock(
   company: Company | null,
-  subscription: PlatformSubscription | null
+  subscription: PlatformSubscription | null,
+  userEmail?: string | null
 ): { isBlocked: boolean; reason: AccessBlockReason | null } {
   const now = Date.now();
   const trialEndsAt = toDate(company?.trialEndsAt)?.getTime() ?? null;
+
+  const trialExempt =
+    isTrialExemptEmail(userEmail) ||
+    // backend may persist this flag in notificationPrefs
+    ((company as any)?.notificationPrefs?.trialExempt === true);
 
   const hasActiveSubscription =
     subscription?.status === PlatformSubscriptionStatus.ATIVA ||
@@ -103,7 +121,8 @@ function computeBlock(
   }
 
   // Trial expired and no active subscription
-  if (trialEndsAt !== null && now > trialEndsAt) {
+  // Exempt accounts should never be blocked by trial expiration.
+  if (!trialExempt && trialEndsAt !== null && now > trialEndsAt) {
     return { isBlocked: true, reason: 'TRIAL_EXPIRED' };
   }
 
@@ -204,7 +223,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       await fetchPointsUsed();
 
       // Access control sync (read-only mode)
-      const block = computeBlock(companyData, subscriptionData);
+      const block = computeBlock(companyData, subscriptionData, user?.email ?? null);
       if (block.isBlocked) {
         const msg = defaultBlockMessage(block.reason ?? undefined);
         persistAccessState({ isBlocked: true, reason: block.reason ?? undefined, message: msg });
@@ -226,14 +245,19 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     loadCompanyData();
   }, [loadCompanyData]);
 
+  const isTrialExempt = useMemo(() => {
+    return isTrialExemptEmail(user?.email ?? null) || ((company as any)?.notificationPrefs?.trialExempt === true);
+  }, [user?.email, company]);
+
   const isTrialActive = useMemo(() => {
+    if (isTrialExempt) return false;
     const trialEnd = toDate(company?.trialEndsAt);
     if (!trialEnd) return false;
     const inTrial =
       subscription?.status === PlatformSubscriptionStatus.TESTE ||
       company?.subscriptionStatus === CompanySubscriptionStatus.TRIAL;
     return inTrial && trialEnd.getTime() > Date.now();
-  }, [company?.trialEndsAt, company?.subscriptionStatus, subscription?.status]);
+  }, [company?.trialEndsAt, company?.subscriptionStatus, subscription?.status, isTrialExempt]);
 
   const daysRemainingInTrial = useMemo(() => {
     if (!isTrialActive) return null;
@@ -260,7 +284,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setCompany(resp.data);
 
     // Re-evaluate access state in case plan/trial/status changed
-    const block = computeBlock(resp.data, subscription);
+    const block = computeBlock(resp.data, subscription, user?.email ?? null);
     if (block.isBlocked) {
       persistAccessState({ isBlocked: true, reason: block.reason ?? undefined, message: defaultBlockMessage(block.reason ?? undefined) });
     } else {
