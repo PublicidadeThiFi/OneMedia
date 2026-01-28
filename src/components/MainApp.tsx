@@ -4,7 +4,7 @@
  * This is the authenticated user's main interface after login
  */
 
-import { useEffect, useState, Component, type ReactNode } from 'react';
+import { useEffect, useState, useMemo, Component, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
@@ -21,6 +21,7 @@ import { Activities } from './Activities';
 import { Settings } from './Settings';
 import { SuperAdmin } from './SuperAdmin';
 import { useAuth } from '../contexts/AuthContext';
+import { useCompany } from '../contexts/CompanyContext';
 import { useNavigation } from '../App';
 
 // Define all possible pages in the application
@@ -84,9 +85,21 @@ class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => 
 
 export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
   const [currentPage, setCurrentPage] = useState<Page>(initialPage);
+
+  // Sync with URL-based navigation (e.g. /app/settings?tab=subscription)
+  useEffect(() => {
+    setCurrentPage(initialPage);
+  }, [initialPage]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Sync URL-based initial page changes (e.g., navigate('/app/settings?...'))
+  useEffect(() => {
+    setCurrentPage(initialPage);
+  }, [initialPage]);
   const { user, logout, authReady } = useAuth();
   const navigate = useNavigation();
+
+  const { isBlocked, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
 
   // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
   // to bootstrap /auth/me using tokens from localStorage.
@@ -123,6 +136,26 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
       </div>
     );
   }
+
+  const pastDueGraceDaysLeft = useMemo(() => {
+    if (isBlocked) return null;
+    if (!subscription) return null;
+    if (String(subscription.status) !== 'EM_ATRASO') return null;
+    if (!subscription.currentPeriodEnd) return null;
+    const due = new Date(subscription.currentPeriodEnd as any);
+    if (Number.isNaN(due.getTime())) return null;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const graceEnd = due.getTime() + 3 * dayMs;
+    const leftMs = graceEnd - Date.now();
+    if (leftMs <= 0) return 0;
+    return Math.ceil(leftMs / dayMs);
+  }, [isBlocked, subscription?.status, subscription?.currentPeriodEnd]);
+
+  const goToSubscriptionSettings = () => {
+    setCurrentPage('settings');
+    setIsMobileMenuOpen(false);
+    navigate('/app/settings?tab=subscription');
+  };
 
   // Close mobile menu when navigating
   const handleNavigate = (page: Page) => {
@@ -263,6 +296,48 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
             </div>
           </div>
         </header>
+
+        {(isBlocked || isTrialEndingSoon || (pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0)) && (
+          <div
+            className={
+              'px-4 md:px-8 py-3 border-b ' +
+              (isBlocked
+                ? 'bg-red-50 border-red-200'
+                : 'bg-amber-50 border-amber-200')
+            }
+          >
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div className="text-sm">
+                {isBlocked ? (
+                  <span className="text-red-700">{blockMessage ?? 'Sua conta está com acesso restrito.'}</span>
+                ) : pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0 ? (
+                  <span className="text-amber-800">
+                    Não identificamos o pagamento da renovação. Você tem {pastDueGraceDaysLeft} dia(s) para regularizar antes do bloqueio total.
+                  </span>
+                ) : (
+                  <span className="text-amber-800">
+                    Seu período de teste termina em {daysRemainingInTrial ?? 0} dia(s). Assine um plano para não ser bloqueado.
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={goToSubscriptionSettings}
+                  className={
+                    'px-3 py-2 rounded-lg text-sm font-medium transition-colors ' +
+                    (isBlocked
+                      ? 'bg-red-600 text-white hover:opacity-95'
+                      : 'bg-amber-600 text-white hover:opacity-95')
+                  }
+                >
+                  {isBlocked ? 'Regularizar assinatura' : 'Ver planos'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">

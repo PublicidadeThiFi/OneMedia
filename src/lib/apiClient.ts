@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { toast } from 'sonner';
+import { getAccessState, setAccessState, defaultBlockMessage, subscribeAccessState } from './accessControl';
 
 // ⚠️ AQUI é a base da API. Em dev/produção SEMPRE configure VITE_API_URL.
 // Exemplo em .env.local (dev):
@@ -79,6 +81,19 @@ export const publicApiClient = axios.create({
 // Attach access token to all requests
 apiClient.interceptors.request.use(
   (config) => {
+    const access = getAccessState();
+    if (access.isBlocked) {
+      const method = String(config.method ?? 'get').toLowerCase();
+      const url = String(config.url ?? '');
+      const isWrite = !['get', 'head', 'options'].includes(method);
+      const isDownload = (config as any).responseType === 'blob' || /(\/export|\/download|\/report|\/pdf|\/csv)/i.test(url);
+      if (isWrite || isDownload) {
+        const msg = access.message ?? defaultBlockMessage(access.reason);
+        toast.error(msg);
+        throw new (axios as any).CanceledError('ACCOUNT_BLOCKED');
+      }
+    }
+
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers = config.headers ?? {};
@@ -88,6 +103,15 @@ apiClient.interceptors.request.use(
   },
   (error: any) => Promise.reject(error)
 );
+
+let blockToastShown = false;
+
+// When unblocked, allow showing toast again on a future block
+if (typeof window !== 'undefined') {
+  subscribeAccessState((st) => {
+    if (!st.isBlocked) blockToastShown = false;
+  });
+}
 
 let isRefreshing = false;
 let pendingRequests: Array<(token: string | null) => void> = [];
@@ -116,6 +140,18 @@ apiClient.interceptors.response.use(
       console.error(
         '[apiClient] /signup retornou 404. Verifique se VITE_API_URL aponta para a mesma URL em que o Insomnia está dando 201.'
       );
+    }
+
+    if (error.response?.status === 402) {
+      const data = (error.response?.data ?? {}) as any;
+      const reason = (data.reason ?? data.blockReason ?? data.code ?? 'UNKNOWN') as any;
+      const msg = String(data.message ?? defaultBlockMessage(reason));
+      setAccessState({ isBlocked: true, reason, message: msg });
+      if (!blockToastShown) {
+        blockToastShown = true;
+        toast.error(msg);
+      }
+      return Promise.reject(error);
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {

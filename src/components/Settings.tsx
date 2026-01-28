@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { useCompany } from '../contexts/CompanyContext';
@@ -7,10 +7,25 @@ import { SubscriptionSettings } from './settings/SubscriptionSettings';
 import { UserProfileSettings } from './settings/UserProfileSettings';
 import { usePlatformPlans } from '../hooks/usePlatformPlans';
 
+const getInitialTab = () => {
+  if (typeof window === 'undefined') return 'company';
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  if (tab === 'subscription' || tab === 'company' || tab === 'profile') return tab;
+  return 'company';
+};
+
 export function Settings() {
   const { company, subscription, pointsUsed, updateCompanyData, updateSubscriptionData, isLoading } = useCompany();
   const { plans, loading: plansLoading, error: plansError } = usePlatformPlans();
-  const [activeTab, setActiveTab] = useState('company');
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  const currentSearch = typeof window === 'undefined' ? '' : window.location.search;
+
+  useEffect(() => {
+    const tab = new URLSearchParams(currentSearch).get('tab');
+    if (tab === 'subscription' || tab === 'company' || tab === 'profile') {
+      setActiveTab(tab);
+    }
+  }, [currentSearch]);
 
   if (isLoading) {
     return (
