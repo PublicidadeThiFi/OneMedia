@@ -19,6 +19,8 @@ import {
   isValidPhone, 
   isValidCNPJ,
   isValidEmail,
+  getEmailErrorMessage,
+  normalizeEmailInput,
   validatePasswordRequirements 
 } from '../lib/validators';
 
@@ -122,7 +124,7 @@ export default function Cadastro() {
     if (!step3Data.email.trim()) {
       errors.email = 'E-mail é obrigatório';
     } else if (!isValidEmail(step3Data.email)) {
-      errors.email = 'E-mail inválido';
+      errors.email = getEmailErrorMessage(step3Data.email) ?? 'E-mail inválido';
     }
 
     if (!step3Data.phone.trim()) {
@@ -207,7 +209,7 @@ export default function Cadastro() {
             : undefined,
 
         adminName: step3Data.name,
-        adminEmail: step3Data.email,
+        adminEmail: normalizeEmailInput(step3Data.email),
         adminPhone: step3Data.phone ? onlyDigits(step3Data.phone) : undefined,
         adminPassword: step3Data.password,
         adminPasswordConfirmation: step3Data.confirmPassword,
