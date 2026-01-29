@@ -12,7 +12,7 @@ import {
   useEffect,
 } from 'react';
 import { useNavigation } from '../App';
-import apiClient from '../lib/apiClient';
+import apiClient, { publicApiClient } from '../lib/apiClient';
 import { clearAccessState } from '../lib/accessControl';
 import {
   AuthUser,
@@ -149,7 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Avoid getting stuck due to a stale local blocked state (e.g. after trial ended, then got exempt/unblocked).
       clearAccessState();
-      const response = await apiClient.post<AuthResponse>(
+      // Use public client so we never send a stale Authorization header during login.
+      const response = await publicApiClient.post<AuthResponse>(
         '/auth/login',
         credentials
       );
@@ -193,7 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       clearAccessState();
-      const response = await apiClient.post<AuthResponse>(
+      // Use public client so we never send a stale Authorization header during 2FA verification.
+      const response = await publicApiClient.post<AuthResponse>(
         '/auth/verify-2fa',
         payload
       );

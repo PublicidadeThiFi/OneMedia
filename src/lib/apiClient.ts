@@ -11,7 +11,7 @@ import {
 function isSafeWhenBlocked(url: string): boolean {
   const u = String(url || '');
   // allow authentication allow-list even when blocked (otherwise user can get stuck on login)
-  if (/^\/auth\/(login|refresh|logout)\b/i.test(u)) return true;
+  if (/^\/auth\/(login|refresh|logout|verify-2fa)\b/i.test(u)) return true;
   // allow signup
   if (/^\/signup\b/i.test(u)) return true;
   // allow subscription/renew flows
@@ -116,9 +116,17 @@ apiClient.interceptors.request.use(
     }
 
     const token = localStorage.getItem('access_token');
-    if (token) {
+    const url = String(config.url ?? '');
+    // Important: do NOT attach an existing Authorization header to public auth endpoints
+    // (login / verify-2fa), otherwise a stale token can make the backend treat the request
+    // as authenticated and trigger account-block checks.
+    const isPublicAuth = /^\/auth\/(login|verify-2fa)\b/i.test(url);
+    if (token && !isPublicAuth) {
       config.headers = config.headers ?? {};
       (config.headers as any).Authorization = `Bearer ${token}`;
+    } else if (isPublicAuth && config.headers) {
+      // defensive: ensure no Authorization header leaks into login
+      delete (config.headers as any).Authorization;
     }
     return config;
   },
