@@ -38,6 +38,7 @@ import {
 // Trial exemptions (do not expire free trial)
 const TRIAL_EXEMPT_EMAILS = new Set([
   'thifi.contato.oficial2@gmail.com',
+  'Eduardo@publicitymidia.com.br',
   'eduardo@publicitymidia.com.br',
   'zhiendtg@gmail.com',
 ]);
