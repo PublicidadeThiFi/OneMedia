@@ -133,11 +133,49 @@ export function getPasswordErrorMessage(password: string): string | null {
 // ========================================
 
 /**
- * Simple email validation
+ * Normalize email input:
+ * - trims and removes spaces
+ * - forces lowercase (we store e-mails in lowercase to avoid mismatches)
+ */
+export function normalizeEmailInput(value: string): string {
+  return (value || '').trim().replace(/\s+/g, '').toLowerCase();
+}
+
+/**
+ * Returns a human-friendly error message for invalid e-mails.
+ *
+ * We intentionally add a few guardrails for common typos in BR domains
+ * like ".con.br" or ".com.bre".
+ */
+export function getEmailErrorMessage(email: string): string | null {
+  const normalized = normalizeEmailInput(email);
+  if (!normalized) return null;
+
+  // Basic format (accepts + and common special chars in the local part)
+  const basic = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
+  if (!basic.test(normalized)) return 'E-mail inválido.';
+  if (normalized.includes('..')) return 'E-mail inválido (não pode conter ".." ).';
+
+  const domain = normalized.split('@')[1] || '';
+
+  // Common BR typos: ".con.br" instead of ".com.br"
+  if (domain.endsWith('.con.br')) {
+    return 'E-mail inválido. Você quis dizer ".com.br"?';
+  }
+
+  // Blocks endings like: .com.bre, .com.bra, .com.br1, etc.
+  if (/\.com\.br[a-z0-9]+$/i.test(domain)) {
+    return 'E-mail inválido. Verifique o final do domínio (use ".com.br", sem letras extras).';
+  }
+
+  return null;
+}
+
+/**
+ * Boolean helper for email validity.
  */
 export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  return getEmailErrorMessage(email) === null;
 }
 
 // ========================================

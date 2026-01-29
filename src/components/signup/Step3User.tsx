@@ -6,6 +6,7 @@ import {
   formatPhoneDisplay,
   handlePhoneInput,
   validatePasswordRequirements,
+  normalizeEmailInput,
 } from '../../lib/validators';
 
 type Step3UserProps = {
@@ -80,7 +81,7 @@ export function Step3User({ data, onChange, onSubmit, onBack, errors, isLoading 
           <input
             type="email"
             value={data.email}
-            onChange={(e) => handleChange('email', e.target.value)}
+            onChange={(e) => handleChange('email', normalizeEmailInput(e.target.value))}
             placeholder="seu.email@empresa.com.br"
             className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
               errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
