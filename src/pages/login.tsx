@@ -6,6 +6,7 @@ import { TwoFactorStep } from '../components/login/TwoFactorStep';
 import { LoginCredentials, TwoFactorPayload } from '../types/auth';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
+import { clearAccessState } from '../lib/accessControl';
 
 type ResendVerificationResponse = {
   message?: string;
@@ -22,6 +23,45 @@ export default function Login() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendInfo, setResendInfo] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
+
+  // Safety: some users can arrive here with a stale persisted "blocked" state.
+  // That stale state can prevent /auth/login from being sent (request interceptor), leaving the user stuck.
+  useEffect(() => {
+    clearAccessState();
+  }, []);
+
+  // If the user sees ACCOUNT_BLOCKED on the login page, it can be a real block,
+  // but it can also happen when an old cached build/pwa still has stale access
+  // state. In that case, we attempt a one-time cache rescue and reload.
+  useEffect(() => {
+    if (error !== 'ACCOUNT_BLOCKED') return;
+    const key = '__one_media_cache_rescue_login__';
+    if (sessionStorage.getItem(key) === '1') return;
+    sessionStorage.setItem(key, '1');
+
+    (async () => {
+      try {
+        // Drop any stale local state.
+        clearAccessState();
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+
+        // Best-effort: unregister SW and clear Cache Storage.
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch {
+        // ignore
+      } finally {
+        window.location.replace('/login');
+      }
+    })();
+  }, [error]);
 
   // Em 2FA, o e-mail fica no pendingEmail; usamos como fallback.
   const currentEmail = useMemo(() => {

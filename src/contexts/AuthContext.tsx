@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { useNavigation } from '../App';
 import apiClient from '../lib/apiClient';
+import { clearAccessState } from '../lib/accessControl';
 import {
   AuthUser,
   AuthTokens,
@@ -146,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     setLoading(true);
     try {
+      // Avoid getting stuck due to a stale local blocked state (e.g. after trial ended, then got exempt/unblocked).
+      clearAccessState();
       const response = await apiClient.post<AuthResponse>(
         '/auth/login',
         credentials
@@ -189,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyTwoFactor = async (payload: TwoFactorPayload) => {
     setLoading(true);
     try {
+      clearAccessState();
       const response = await apiClient.post<AuthResponse>(
         '/auth/verify-2fa',
         payload
@@ -224,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignora erro de logout
     }
+    clearAccessState();
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     setUser(null);

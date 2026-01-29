@@ -1,6 +1,23 @@
 import axios from 'axios';
 import { toast } from 'sonner';
-import { getAccessState, setAccessState, defaultBlockMessage, subscribeAccessState } from './accessControl';
+import {
+  clearAccessState,
+  defaultBlockMessage,
+  getAccessState,
+  setAccessState,
+  subscribeAccessState,
+} from './accessControl';
+
+function isSafeWhenBlocked(url: string): boolean {
+  const u = String(url || '');
+  // allow authentication allow-list even when blocked (otherwise user can get stuck on login)
+  if (/^\/auth\/(login|refresh|logout)\b/i.test(u)) return true;
+  // allow signup
+  if (/^\/signup\b/i.test(u)) return true;
+  // allow subscription/renew flows
+  if (/^\/platform-subscription\b/i.test(u)) return true;
+  return false;
+}
 
 // ⚠️ AQUI é a base da API. Em dev/produção SEMPRE configure VITE_API_URL.
 // Exemplo em .env.local (dev):
@@ -87,7 +104,11 @@ apiClient.interceptors.request.use(
       const url = String(config.url ?? '');
       const isWrite = !['get', 'head', 'options'].includes(method);
       const isDownload = (config as any).responseType === 'blob' || /(\/export|\/download|\/report|\/pdf|\/csv)/i.test(url);
-      if (isWrite || isDownload) {
+      // Important: never block auth/subscription endpoints, otherwise users can get stuck
+      // on the login screen due to a stale local "blocked" state.
+      const safe = isSafeWhenBlocked(url);
+
+      if ((isWrite || isDownload) && !safe) {
         const msg = access.message ?? defaultBlockMessage(access.reason);
         toast.error(msg);
         throw new (axios as any).CanceledError('ACCOUNT_BLOCKED');
@@ -159,6 +180,8 @@ apiClient.interceptors.response.use(
 
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
+        // If token expired, ensure we don't keep a stale blocked state after redirecting.
+        clearAccessState();
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/login';
@@ -215,6 +238,7 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         isRefreshing = false;
         onRefreshed(null);
+        clearAccessState();
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/login';
