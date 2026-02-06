@@ -37,19 +37,30 @@ function CarouselImage({
   return (
     <div className="relative w-full h-full">
       {!loaded && (
-        <div className="absolute inset-0 w-full h-full rounded-none overflow-hidden">
-          {/* shimmer bem visível (melhor que só cinza estático) */}
+        <div className="absolute inset-0 w-full h-full rounded-none overflow-hidden pointer-events-none">
+          {/* Base skeleton */}
+          <Skeleton className="absolute inset-0 w-full h-full rounded-none" />
+
+          {/* Shimmer sweep (bem visível) */}
           <div
-            className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200"
+            className="absolute top-0 bottom-0 left-0 motion-reduce:animate-none"
             style={{
-              backgroundSize: '200% 100%',
-              animation: 'ooh_shimmer 1.2s linear infinite',
+              background:
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)',
+              width: '60%',
+              height: '100%',
+              transform: 'translateX(-120%)',
+              animation: 'ooh_sweep 1.1s ease-in-out infinite',
             }}
           />
-          {/* fallback: pulse */}
-          <Skeleton className="absolute inset-0 w-full h-full rounded-none opacity-30" />
+
+          {/* Spinner leve no centro (ajuda o usuário a perceber carregamento) */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="h-7 w-7 rounded-full border-2 border-black/20 border-t-black/60 animate-spin motion-reduce:animate-none" />
+          </div>
+
           <style>
-            {`@keyframes ooh_shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}
+            {`@keyframes ooh_sweep{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}
           </style>
         </div>
       )}
@@ -174,8 +185,8 @@ export function MediaPointImageCarousel({
                 alt={s.alt}
                 fallbackSrc={fallbackSrc}
                 // Primeiro slide de cada card deve carregar o quanto antes (evita sensação de lentidão)
-                loading={i === 0 ? 'eager' : 'lazy'}
-                fetchPriority={i === 0 ? 'high' : 'auto'}
+                loading={'lazy'}
+                fetchPriority={'auto'}
               />
             </div>
           ))}
