@@ -286,6 +286,52 @@ export interface MediaUnit {
   updatedAt: Date;
 }
 
+// =====================
+// Mídia Map (MVP)
+// =====================
+
+export type MediaUnitAvailabilityStatus = 'LIVRE' | 'EM_NEGOCIACAO' | 'OCUPADA';
+
+export interface MediaMapPoint {
+  id: string;
+  name: string;
+  type: MediaType;
+  latitude: number;
+  longitude: number;
+
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressZipcode?: string;
+
+  facesTotal: number;
+  facesFreeCount: number;
+  facesNegotiationCount: number;
+  facesOccupiedCount: number;
+  updatedAt: Date;
+}
+
+export interface MediaMapFace {
+  id: string;
+  label: string;
+  unitType: UnitType;
+  imageUrl?: string | null;
+  isActive: boolean;
+  status: MediaUnitAvailabilityStatus;
+}
+
+export interface MediaMapDetails {
+  point: MediaPoint;
+  faces: MediaMapFace[];
+  facesTotal: number;
+  facesFreeCount: number;
+  facesNegotiationCount: number;
+  facesOccupiedCount: number;
+  statusAsOf: Date;
+}
+
 
 export interface OwnerCompany {
   id: string;

@@ -9,6 +9,7 @@ import { Menu, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Dashboard } from './Dashboard';
 import { Inventory } from './Inventory';
+import { MediaMap } from './MediaMap';
 import { Clients } from './Clients';
 import { Products } from './Products';
 import { Proposals } from './Proposals';
@@ -28,6 +29,7 @@ import { useNavigation } from '../App';
 export type Page =
   | 'dashboard'
   | 'inventory'
+  | 'mediamap'
   | 'clients'
   | 'products'
   | 'proposals'
@@ -172,6 +174,9 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
 
       case 'inventory':
         return <Inventory />;
+
+      case 'mediamap':
+        return <MediaMap />;
 
       case 'clients':
         return <Clients />;
