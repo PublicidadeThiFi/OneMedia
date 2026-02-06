@@ -313,6 +313,23 @@ export interface MediaMapPoint {
   updatedAt: Date;
 }
 
+// Leve (autocomplete / ir até ponto)
+export interface MediaMapSuggestion {
+  id: string;
+  name: string;
+  type: MediaType;
+  latitude?: number | null;
+  longitude?: number | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressDistrict?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressZipcode?: string | null;
+  showInMediaKit?: boolean;
+  updatedAt?: Date;
+}
+
 export interface MediaMapFace {
   id: string;
   label: string;
