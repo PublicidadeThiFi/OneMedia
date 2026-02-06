@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
+import { Badge } from '../ui/badge';
 import { MediaPoint, UnitType } from '../../types';
 
 type Slide = {
@@ -13,10 +14,14 @@ function CarouselImage({
   src,
   alt,
   fallbackSrc,
+  loading,
+  fetchPriority,
 }: {
   src: string;
   alt: string;
   fallbackSrc: string;
+  loading: 'eager' | 'lazy';
+  fetchPriority?: 'high' | 'low' | 'auto';
 }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -32,7 +37,21 @@ function CarouselImage({
   return (
     <div className="relative w-full h-full">
       {!loaded && (
-        <Skeleton className="absolute inset-0 w-full h-full rounded-none" />
+        <div className="absolute inset-0 w-full h-full rounded-none overflow-hidden">
+          {/* shimmer bem visível (melhor que só cinza estático) */}
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200"
+            style={{
+              backgroundSize: '200% 100%',
+              animation: 'ooh_shimmer 1.2s linear infinite',
+            }}
+          />
+          {/* fallback: pulse */}
+          <Skeleton className="absolute inset-0 w-full h-full rounded-none opacity-30" />
+          <style>
+            {`@keyframes ooh_shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}
+          </style>
+        </div>
       )}
 
       {/*
@@ -43,7 +62,9 @@ function CarouselImage({
         src={finalSrc}
         alt={alt}
         draggable={false}
-        loading="lazy"
+        loading={loading}
+        fetchPriority={fetchPriority}
+        decoding="async"
         className={`w-full h-full object-cover transition-opacity duration-300 ${
           loaded ? 'opacity-100' : 'opacity-0'
         }`}
@@ -148,7 +169,14 @@ export function MediaPointImageCarousel({
               // Força cada slide a ocupar 100% do viewport do carrossel e NÃO encolher.
               style={{ flex: '0 0 100%', width: '100%' }}
             >
-              <CarouselImage src={s.src} alt={s.alt} fallbackSrc={fallbackSrc} />
+              <CarouselImage
+                src={s.src}
+                alt={s.alt}
+                fallbackSrc={fallbackSrc}
+                // Primeiro slide de cada card deve carregar o quanto antes (evita sensação de lentidão)
+                loading={i === 0 ? 'eager' : 'lazy'}
+                fetchPriority={i === 0 ? 'high' : 'auto'}
+              />
             </div>
           ))}
         </div>
@@ -156,9 +184,12 @@ export function MediaPointImageCarousel({
 
       {/* Label */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <span className="text-[11px] leading-none text-white bg-black/45 px-2 py-1 rounded-md max-w-[60%] sm:max-w-[55%] truncate inline-block">
+        <Badge
+          variant="outline"
+          className="bg-white/85 backdrop-blur-sm text-gray-900 border-white/70 shadow-sm text-[11px] leading-none max-w-[70%] sm:max-w-[60%] truncate"
+        >
           {slides[index]?.label}
-        </span>
+        </Badge>
       </div>
 
       {/* Arrows */}
