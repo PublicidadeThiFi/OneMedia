@@ -208,7 +208,8 @@ export function MediaPointImageCarousel({
               className={
                 // Fundo/estilo semelhante aos chips existentes
                 // e box maior para acomodar textos longos.
-                'bg-white/90 backdrop-blur-sm text-gray-900 border-white/70 shadow-sm ' +
+                // Removemos blur (atrapalha leitura) e usamos fundo preto com texto branco.
+                'bg-black/80 text-white border-white/10 shadow-sm ' +
                 'px-3 py-1.5 rounded-md ' +
                 // Largura/altura e comportamento do texto
                 // Mantém o label "entre" os chips dos cantos (reserva espaço lateral)
