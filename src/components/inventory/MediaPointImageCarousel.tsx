@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
-import { Badge } from '../ui/badge';
 import { MediaPoint, UnitType } from '../../types';
 
 type Slide = {
@@ -203,24 +202,25 @@ export function MediaPointImageCarousel({
           const fontSizePx = label.length > 70 ? 9 : label.length > 50 ? 10 : 11;
 
           return (
-            <Badge
-              variant="outline"
+            <div
               className={
-                // Fundo/estilo semelhante aos chips existentes
-                // e box maior para acomodar textos longos.
-                // Removemos blur (atrapalha leitura) e usamos fundo preto com texto branco.
-                'bg-black/80 text-white border-white/10 shadow-sm ' +
+                // Box maior para acomodar textos longos.
+                // Fundo preto estático e texto branco (sem blur).
+                'inline-flex items-center justify-center border border-white/10 shadow-sm ' +
                 'px-3 py-1.5 rounded-md ' +
-                // Largura/altura e comportamento do texto
                 // Mantém o label "entre" os chips dos cantos (reserva espaço lateral)
                 'min-w-[140px] max-w-[calc(100%-180px)] ' +
                 'whitespace-normal break-words hyphens-auto text-center leading-tight'
               }
-              style={{ fontSize: `${fontSizePx}px` }}
+              style={{
+                fontSize: `${fontSizePx}px`,
+                backgroundColor: '#000',
+                color: '#fff',
+              }}
               title={label}
             >
               {label}
-            </Badge>
+            </div>
           );
         })()}
       </div>
