@@ -82,10 +82,18 @@ export function MediaPointImageCarousel({
       <div className="w-full h-full overflow-hidden">
         <div
           className="h-full flex transition-transform duration-300 ease-out"
-          style={{ transform: `translateX(-${index * 100}%)` }}
+          // IMPORTANT: em alguns setups o Tailwind pode não aplicar corretamente classes como
+          // `flex-none`, fazendo os slides encolherem e aparecerem "divididos".
+          // Para garantir 1 slide por vez, mantemos o track em flex e impedimos shrink no item.
+          style={{ transform: `translate3d(-${index * 100}%, 0, 0)` }}
         >
           {slides.map((s, i) => (
-            <div key={`${s.src}-${i}`} className="w-full h-full flex-none">
+            <div
+              key={`${s.src}-${i}`}
+              className="w-full h-full"
+              // Força cada slide a ocupar 100% do viewport do carrossel e NÃO encolher.
+              style={{ flex: '0 0 100%', width: '100%' }}
+            >
               <ImageWithFallback
                 src={s.src}
                 alt={s.alt}
