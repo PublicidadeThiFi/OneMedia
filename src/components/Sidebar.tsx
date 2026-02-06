@@ -1,5 +1,6 @@
 import { 
   LayoutDashboard, 
+  Map,
   MapPin, 
   Users, 
   Package,
@@ -27,6 +28,7 @@ interface SidebarProps {
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'inventory', label: 'Inventário', icon: MapPin },
+  { id: 'mediamap', label: 'Mídia Map', icon: Map },
   { id: 'clients', label: 'Clientes', icon: Users },
   { id: 'products', label: 'Produtos/Serviços', icon: Package },
   { id: 'proposals', label: 'Propostas', icon: FileText },
