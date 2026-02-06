@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { Skeleton } from '../ui/skeleton';
 import { MediaPoint, UnitType } from '../../types';
 
 type Slide = {
@@ -8,6 +8,60 @@ type Slide = {
   label: string;
   alt: string;
 };
+
+function CarouselImage({
+  src,
+  alt,
+  fallbackSrc,
+}: {
+  src: string;
+  alt: string;
+  fallbackSrc: string;
+}) {
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+
+  // Quando o src muda (troca de slide / refetch), reseta o estado.
+  useEffect(() => {
+    setLoaded(false);
+    setErrored(false);
+  }, [src]);
+
+  const finalSrc = errored ? fallbackSrc : src;
+
+  return (
+    <div className="relative w-full h-full">
+      {!loaded && (
+        <Skeleton className="absolute inset-0 w-full h-full rounded-none" />
+      )}
+
+      {/*
+        Usamos <img> direto para conseguir controlar o loading (onLoad/onError)
+        e exibir o skeleton animado enquanto carrega.
+      */}
+      <img
+        src={finalSrc}
+        alt={alt}
+        draggable={false}
+        loading="lazy"
+        className={`w-full h-full object-cover transition-opacity duration-300 ${
+          loaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          // Primeiro erro: troca para fallback.
+          if (!errored) {
+            setErrored(true);
+            setLoaded(false);
+            return;
+          }
+          // Se até o fallback falhar, remove o skeleton para não ficar preso.
+          setLoaded(true);
+        }}
+      />
+    </div>
+  );
+}
 
 export function MediaPointImageCarousel({
   point,
@@ -94,19 +148,15 @@ export function MediaPointImageCarousel({
               // Força cada slide a ocupar 100% do viewport do carrossel e NÃO encolher.
               style={{ flex: '0 0 100%', width: '100%' }}
             >
-              <ImageWithFallback
-                src={s.src}
-                alt={s.alt}
-                className="w-full h-full object-cover"
-              />
+              <CarouselImage src={s.src} alt={s.alt} fallbackSrc={fallbackSrc} />
             </div>
           ))}
         </div>
       </div>
 
       {/* Label */}
-      <div className="absolute left-3 bottom-3">
-        <span className="text-xs text-white bg-black/50 px-2 py-1 rounded-md">
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <span className="text-[11px] leading-none text-white bg-black/45 px-2 py-1 rounded-md max-w-[60%] sm:max-w-[55%] truncate inline-block">
           {slides[index]?.label}
         </span>
       </div>
