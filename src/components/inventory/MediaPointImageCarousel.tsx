@@ -195,12 +195,33 @@ export function MediaPointImageCarousel({
 
       {/* Label */}
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <Badge
-          variant="outline"
-          className="bg-white/85 backdrop-blur-sm text-gray-900 border-white/70 shadow-sm text-[11px] leading-none max-w-[70%] sm:max-w-[60%] truncate"
-        >
-          {slides[index]?.label}
-        </Badge>
+        {(() => {
+          const label = slides[index]?.label ?? '';
+          // Ajusta o tamanho da fonte conforme o comprimento do texto para evitar cortes.
+          // Observação: o componente Badge aplica `whitespace-nowrap` por padrão;
+          // aqui nós sobrescrevemos para permitir quebra de linha e manter tudo visível.
+          const fontSizePx = label.length > 70 ? 9 : label.length > 50 ? 10 : 11;
+
+          return (
+            <Badge
+              variant="outline"
+              className={
+                // Fundo/estilo semelhante aos chips existentes
+                // e box maior para acomodar textos longos.
+                'bg-white/90 backdrop-blur-sm text-gray-900 border-white/70 shadow-sm ' +
+                'px-3 py-1.5 rounded-md ' +
+                // Largura/altura e comportamento do texto
+                // Mantém o label "entre" os chips dos cantos (reserva espaço lateral)
+                'min-w-[140px] max-w-[calc(100%-180px)] ' +
+                'whitespace-normal break-words hyphens-auto text-center leading-tight'
+              }
+              style={{ fontSize: `${fontSizePx}px` }}
+              title={label}
+            >
+              {label}
+            </Badge>
+          );
+        })()}
       </div>
 
       {/* Arrows */}
