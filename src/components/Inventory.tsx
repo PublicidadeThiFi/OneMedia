@@ -8,7 +8,6 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Switch } from './ui/switch';
-import { ImageWithFallback } from './figma/ImageWithFallback';
 import { MediaPoint, MediaType } from '../types';
 import { useMediaPoints } from '../hooks/useMediaPoints';
 import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
@@ -20,6 +19,7 @@ import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
 import { MediaPointContractsDialog } from './inventory/MediaPointContractsDialog';
 import { MediaUnitsDialog } from './inventory/MediaUnitsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
 
 export function Inventory() {
   const { refreshPointsUsed } = useCompany();
@@ -346,13 +346,10 @@ export function Inventory() {
           return (
             <Card key={point.id} className="hover:shadow-lg transition-shadow">
               <div className="aspect-video bg-gray-100 relative overflow-hidden rounded-t-xl">
-                <ImageWithFallback
-                  src={
-                    normalizeUploadsUrl(point.mainImageUrl) ||
-                    'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
-                  }
-                  alt={point.name}
-                  className="w-full h-full object-cover"
+                <MediaPointImageCarousel
+                  point={point}
+                  normalizeUploadsUrl={normalizeUploadsUrl}
+                  fallbackSrc="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800"
                 />
                 <Badge className="absolute top-3 left-3 bg-indigo-500">
                   {point.type}

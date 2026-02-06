@@ -382,7 +382,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
             )}
           </div>
           <p className="text-xs text-gray-500">
-            JPG, PNG ou GIF (máx. 4MB). Upload real está stubado no backend, mas a URL será salva.
+            JPG, PNG ou GIF (máx. 4MB).
           </p>
         </div>
 
