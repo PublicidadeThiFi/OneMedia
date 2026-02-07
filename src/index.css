@@ -570,7 +570,7 @@
   }
 
   .top-1\/2 {
-    top: 50%;
+    top: 56%;
   }
 
   .top-3 {
@@ -586,7 +586,7 @@
   }
 
   .top-\[50\%\] {
-    top: 50%;
+    top: 56%;
   }
 
   .-right-8 {
@@ -4650,6 +4650,71 @@ html {
    criamos helpers específicos para o Hero da landing.
 */
 
+
+/* Shell do Hero (contorno azul) */
+.hero-shell {
+  position: relative;
+  padding: 72px 32px 240px; /* +altura para o card não colidir com o texto */
+}
+
+@media (min-width: 640px) {
+  .hero-shell {
+    padding: 84px 48px 280px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-shell {
+    padding: 96px 64px 340px;
+  }
+}
+
+/* Tipografia do título/subtítulo do Hero */
+.hero-title {
+  font-weight: 200; /* extralight */
+  letter-spacing: -0.02em;
+  line-height: 1.06;
+  font-size: 2.75rem; /* ~44px */
+}
+
+@media (min-width: 640px) {
+  .hero-title {
+    font-size: 3.5rem; /* ~56px */
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-title {
+    font-size: 4.5rem; /* ~72px (Figma) */
+  }
+}
+
+.hero-subtitle {
+  font-weight: 200;
+  line-height: 1.35;
+  font-size: 1.25rem; /* 20px */
+}
+
+@media (min-width: 640px) {
+  .hero-subtitle {
+    font-size: 1.5rem; /* 24px */
+  }
+}
+
+/* Área das imagens (define altura real do viewport) */
+.hero-stage {
+  position: relative;
+  margin-top: 24px;
+  margin-bottom: 24px;
+  min-height: 430px;
+}
+
+@media (min-width: 1024px) {
+  .hero-stage {
+    min-height: 460px;
+  }
+}
+
 .hero-preview-viewport {
   position: absolute;
   inset: 0;
@@ -4704,7 +4769,7 @@ html {
 .hero-module-card {
   position: absolute;
   right: 2rem; /* 32px (equivalente a right-8) */
-  top: 50%;
+  top: 56%;
   transform: translateY(-50%);
   z-index: 30;
   width: 24rem; /* 384px (equivalente a w-96) */
