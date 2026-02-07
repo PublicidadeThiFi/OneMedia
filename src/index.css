@@ -4640,3 +4640,87 @@ html {
 .mm-indigo:hover {
   opacity: 0.95;
 }
+
+
+/* ==========================
+   Landing Hero helpers
+   ==========================
+   Esta codebase usa um CSS gerado/exportado (sem pipeline Tailwind completo).
+   Para evitar regressões quando classes utilitárias não existem no CSS atual,
+   criamos helpers específicos para o Hero da landing.
+*/
+
+.hero-preview-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 1.5rem; /* similar ao rounded-3xl */
+  z-index: 0;
+}
+
+.hero-img-back {
+  position: absolute;
+  left: 8%;
+  top: 5%;
+  width: 45%;
+}
+
+.hero-img-front {
+  position: absolute;
+  right: 8%;
+  top: 0;
+  width: 52%;
+  z-index: 2;
+}
+
+.hero-img {
+  width: 100%;
+  height: 350px;
+  display: block;
+  border-radius: 1.5rem; /* similar ao rounded-2xl */
+  object-fit: contain;
+  background: rgba(249, 250, 251, 0.8);
+  border: 1px solid rgba(243, 244, 246, 1);
+  box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.hero-img--front {
+  height: 380px;
+  background: rgba(255, 255, 255, 1);
+  border: 2px solid rgba(243, 244, 246, 1);
+  box-shadow: 0 25px 70px -12px rgba(0, 0, 0, 0.25);
+}
+
+@media (hover: hover) {
+  .hero-img:hover {
+    box-shadow: 0 25px 70px -12px rgba(59, 130, 246, 0.30);
+  }
+  .hero-img--front:hover {
+    box-shadow: 0 30px 80px -12px rgba(59, 130, 246, 0.40);
+  }
+}
+
+.hero-module-card {
+  position: absolute;
+  right: 2rem; /* 32px (equivalente a right-8) */
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  width: 24rem; /* 384px (equivalente a w-96) */
+  max-width: calc(100% - 2rem);
+  background: #fff;
+  border-radius: 1.5rem;
+  padding: 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+@keyframes float-primary {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes float-secondary {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}

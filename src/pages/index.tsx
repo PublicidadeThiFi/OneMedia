@@ -301,8 +301,12 @@ export default function Home() {
 
             {/* Hero Images - Overlapped with Depth + Clip Container */}
             <div className="relative max-w-5xl mx-auto mt-6 mb-6" style={{ minHeight: '380px' }}>
-              {/* PreviewViewport - Clipped container aligned with the blue border */}
-              <div className="absolute inset-0 overflow-hidden rounded-3xl">
+              {/*
+                PreviewViewport: usamos uma classe dedicada para evitar depender
+                de utilitários do Tailwind que podem não estar presentes no CSS
+                gerado/exportado.
+              */}
+              <div className="hero-preview-viewport">
                 
                 {/* DEDICATED MODULE SETS - Each module has its own permanent pair of images */}
                 {Object.keys(moduleImages).map((moduleKey) => {
@@ -359,8 +363,8 @@ export default function Home() {
                       }}
                     >
                       {/* Background Image - Module Dedicated */}
-                      <div 
-                        className="absolute left-[8%] top-[5%] w-[45%]"
+                      <div
+                        className="hero-img-back"
                         style={{
                           animation: isActive ? 'float-secondary 3.2s ease-in-out infinite' : 'none',
                           animationDelay: '0.5s'
@@ -370,7 +374,7 @@ export default function Home() {
                           src={moduleImages[module].image2} 
                           alt={`${module} - Vista 2`} 
                           onClick={() => isActive && setExpandedImage(moduleImages[module].image2)}
-                          className="rounded-2xl shadow-[0_20px_60px_-12px_rgba(0,0,0,0.15)] cursor-pointer hover:shadow-[0_25px_70px_-12px_rgba(59,130,246,0.3)] transition-shadow duration-300 w-full h-[350px] object-contain bg-gray-50/80 backdrop-blur-sm border border-gray-100"
+                          className="hero-img"
                           style={{
                             transform: 'rotate(-1.5deg) scale(0.88)',
                             transformOrigin: 'center center'
@@ -379,8 +383,8 @@ export default function Home() {
                       </div>
 
                       {/* Foreground Image - Module Dedicated */}
-                      <div 
-                        className="absolute right-[8%] top-0 w-[52%]"
+                      <div
+                        className="hero-img-front"
                         style={{
                           animation: isActive ? 'float-primary 2.8s ease-in-out infinite' : 'none',
                           zIndex: 10
@@ -390,7 +394,7 @@ export default function Home() {
                           src={moduleImages[module].image1} 
                           alt={`${module} - Vista 1`} 
                           onClick={() => isActive && setExpandedImage(moduleImages[module].image1)}
-                          className="rounded-2xl shadow-[0_25px_70px_-12px_rgba(0,0,0,0.25)] cursor-pointer hover:shadow-[0_30px_80px_-12px_rgba(59,130,246,0.4)] transition-shadow duration-300 w-full h-[380px] object-contain bg-white border-2 border-gray-100"
+                          className="hero-img hero-img--front"
                           style={{
                             transform: 'rotate(1.2deg)',
                             transformOrigin: 'center center'
@@ -409,7 +413,7 @@ export default function Home() {
               Antes ele tinha right negativo, o que gerava corte/overflow e fazia o
               posicionamento parecer "acima" quando a seção é acessada via hash.
             */}
-            <div className="absolute right-8 top-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-8 w-96 hidden lg:block z-30">
+            <div className="hero-module-card hidden lg:block">
               <p className="text-center text-gray-900 mb-6">O que você gostaria de gerenciar hoje?</p>
               
               <div className="grid grid-cols-3 gap-4 mb-6">
