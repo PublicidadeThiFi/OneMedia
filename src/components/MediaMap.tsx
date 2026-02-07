@@ -664,10 +664,13 @@ export function MediaMap() {
       className="relative h-full w-full"
       // Garante que o mapa tenha altura “definida” mesmo quando o container pai
       // resolve height:100% de forma imprevisível (flex + overflow-y-auto).
-      style={{ minHeight: 'calc(100vh - 64px)' }}
+      // Também criamos um stacking context (zIndex + isolation) para evitar que
+      // os panes/controles do Leaflet (que usam z-index altos) fiquem acima de
+      // overlays (barra superior, drawer, dialogs, etc.).
+      style={{ minHeight: 'calc(100vh - 64px)', zIndex: 0, isolation: 'isolate' }}
     >
       {/* Barra superior */}
-      <div className="absolute z-[900] top-4 left-4 right-4 flex flex-col gap-3 max-w-[720px]">
+      <div className="absolute z-20 top-4 left-4 right-4 flex flex-col gap-3 max-w-2xl">
         <div className="bg-white border rounded-xl shadow-sm p-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1" ref={searchBoxRef}>
@@ -698,7 +701,7 @@ export function MediaMap() {
 
               {suggestOpen && (suggestLoading || suggestions.length > 0 || suggestError) && (
                 <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg overflow-hidden">
-                  <div className="max-h-[280px] overflow-auto">
+                  <div className="max-h-72 overflow-auto">
                     {suggestLoading ? (
                       <div className="px-3 py-2 text-sm text-gray-600">Buscando...</div>
                     ) : null}
@@ -739,7 +742,7 @@ export function MediaMap() {
               type="button"
               variant={layers.length === 0 ? 'default' : 'outline'}
               size="sm"
-              className={cn('h-8', layers.length === 0 ? 'bg-[#4F46E5] hover:opacity-95' : '')}
+              className={cn('h-8', layers.length === 0 ? 'bg-indigo-600 hover:bg-indigo-700' : '')}
               onClick={() => setLayers([])}
             >
               Todos
@@ -776,7 +779,7 @@ export function MediaMap() {
               type="button"
               variant={drawMode === 'polygon' ? 'default' : 'outline'}
               size="sm"
-              className={cn('h-8', drawMode === 'polygon' ? 'bg-[#4F46E5] hover:opacity-95' : '')}
+              className={cn('h-8', drawMode === 'polygon' ? 'bg-indigo-600 hover:bg-indigo-700' : '')}
               onClick={() => startDrawing('polygon')}
             >
               <Pencil className="w-4 h-4 mr-2" /> Polígono
@@ -786,7 +789,7 @@ export function MediaMap() {
               type="button"
               variant={drawMode === 'rectangle' ? 'default' : 'outline'}
               size="sm"
-              className={cn('h-8', drawMode === 'rectangle' ? 'bg-[#4F46E5] hover:opacity-95' : '')}
+              className={cn('h-8', drawMode === 'rectangle' ? 'bg-indigo-600 hover:bg-indigo-700' : '')}
               onClick={() => startDrawing('rectangle')}
             >
               <Square className="w-4 h-4 mr-2" /> Retângulo
@@ -796,7 +799,7 @@ export function MediaMap() {
               <Button
                 type="button"
                 size="sm"
-                className="h-8 gap-2 bg-[#4F46E5] hover:opacity-95"
+                className="h-8 gap-2 bg-indigo-600 hover:bg-indigo-700"
                 disabled={drawVertices.length < 3}
                 onClick={finishPolygon}
               >
@@ -1004,7 +1007,7 @@ export function MediaMap() {
 
       {/* Barra de seleção (Etapa 4) */}
       {selectionPolygon ? (
-        <div className="absolute z-[900] bottom-4 left-4 right-4 sm:right-auto sm:w-[520px] bg-white border rounded-xl shadow-sm p-3">
+        <div className="absolute z-20 bottom-4 left-4 right-4 sm:right-auto sm:w-full sm:max-w-lg bg-white border rounded-xl shadow-sm p-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="text-sm text-gray-800">
               <span className="font-medium">{selectedPoints.length}</span> ponto(s) selecionado(s) na área
@@ -1025,7 +1028,7 @@ export function MediaMap() {
               <Button
                 type="button"
                 size="sm"
-                className="gap-2 bg-[#4F46E5] hover:opacity-95"
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
                 disabled={selectedPoints.length === 0}
                 onClick={handleCreateProposalFromSelection}
               >
@@ -1040,7 +1043,7 @@ export function MediaMap() {
       ) : null}
       {/* Painel lateral */}
       <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent side="right" className="w-[420px] sm:w-[460px]">
+        <SheetContent side="right" className="w-96 sm:max-w-md">
           <SheetHeader>
             <SheetTitle>{panelMode === 'details' ? 'Detalhes do ponto' : panelMode === 'cluster' ? 'Pontos do cluster' : 'Selecionados'}</SheetTitle>
             <SheetDescription>
@@ -1054,7 +1057,7 @@ export function MediaMap() {
 
           <div className="mt-4">
             {panelMode === 'cluster' ? (
-              <ScrollArea className="h-[calc(100vh-160px)] pr-3">
+              <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 160px)' }}>
                 <div className="space-y-2">
                   {clusterPoints.map((p) => (
                     <button
@@ -1083,12 +1086,12 @@ export function MediaMap() {
                 </div>
               </ScrollArea>
             ) : panelMode === 'selected' ? (
-              <ScrollArea className="h-[calc(100vh-200px)] pr-3">
+              <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 200px)' }}>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <Button
                     type="button"
                     size="sm"
-                    className="gap-2 bg-[#4F46E5] hover:opacity-95"
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
                     disabled={selectedPoints.length === 0}
                     onClick={handleCreateProposalFromSelection}
                   >
@@ -1173,7 +1176,7 @@ export function MediaMap() {
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <Button type="button" size="sm" className="gap-2 bg-[#4F46E5] hover:opacity-95" onClick={handleCreateProposal}>
+                        <Button type="button" size="sm" className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={handleCreateProposal}>
                           <Plus className="w-4 h-4" /> Criar proposta
                         </Button>
                         <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleOpenInventory}>
@@ -1193,7 +1196,7 @@ export function MediaMap() {
 
                     <div className="mt-4">
                       <div className="text-sm text-gray-900 font-medium mb-2">Faces</div>
-                      <ScrollArea className="h-[calc(100vh-420px)] pr-3">
+                      <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 420px)' }}>
                         <div className="grid grid-cols-2 gap-2">
                           {details.faces.map((f) => {
                             const st = f.status;
