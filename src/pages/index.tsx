@@ -263,7 +263,7 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="produtos" className="pt-24 pb-8 px-6">
+      <section id="home" className="pt-32 pb-8 scroll-mt-28">
         <div className="max-w-7xl mx-auto">
           <div className="bg-blue-500/5 rounded-[55px] px-8 md:px-16 py-10 relative overflow-hidden">
             {/* Hero Content */}
