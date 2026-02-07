@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polygon, Polyline, Rectangle, useMapEvents } from 'react-leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import Supercluster from 'supercluster';
 
 import 'leaflet/dist/leaflet.css';
 
-import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus } from 'lucide-react';
+import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus, Pencil, Square, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from './ui/badge';
@@ -34,6 +34,44 @@ import {
 import { useNavigation } from '../App';
 
 type BboxArr = [number, number, number, number];
+
+
+type LatLng = { lat: number; lng: number };
+
+// Usado para passar seleção do Mídia Map -> Propostas (Etapa 4)
+const MEDIA_MAP_SELECTION_STORAGE_KEY = 'ONE_MEDIA_MEDIAMAP_PRESELECT_POINT_IDS';
+
+function pointInPolygon(pt: LatLng, polygon: LatLng[]) {
+  // Ray casting (lng=x, lat=y)
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng;
+    const yi = polygon[i].lat;
+    const xj = polygon[j].lng;
+    const yj = polygon[j].lat;
+
+    const intersect = yi > pt.lat !== yj > pt.lat && pt.lng < ((xj - xi) * (pt.lat - yi)) / (yj - yi + 0.0) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function rectToPolygon(a: LatLng, b: LatLng): LatLng[] {
+  const south = Math.min(a.lat, b.lat);
+  const north = Math.max(a.lat, b.lat);
+  const west = Math.min(a.lng, b.lng);
+  const east = Math.max(a.lng, b.lng);
+  return [
+    { lat: south, lng: west },
+    { lat: south, lng: east },
+    { lat: north, lng: east },
+    { lat: north, lng: west },
+  ];
+}
+
+function boundsFromPolygon(poly: LatLng[]) {
+  return L.latLngBounds(poly.map((p) => [p.lat, p.lng] as [number, number]));
+}
 
 function formatCoord(n: number) {
   // 6 casas é suficiente para bbox e reduz ruído em updates
@@ -160,6 +198,61 @@ function MapEvents({ mapRef, onViewportChange }: { mapRef: MutableRefObject<Leaf
   return null;
 }
 
+function DrawEvents({
+  drawMode,
+  rectStart,
+  onAddVertex,
+  onRectStart,
+  onRectEnd,
+  onCompleteRectangle,
+}: {
+  drawMode: 'none' | 'polygon' | 'rectangle';
+  rectStart: LatLng | null;
+  onAddVertex: (p: LatLng) => void;
+  onRectStart: (p: LatLng | null) => void;
+  onRectEnd: (p: LatLng | null) => void;
+  onCompleteRectangle: (a: LatLng, b: LatLng) => void;
+}) {
+  const map = useMapEvents({
+    click(e) {
+      if (drawMode === 'polygon') {
+        onAddVertex({ lat: e.latlng.lat, lng: e.latlng.lng });
+      }
+
+      if (drawMode === 'rectangle') {
+        const p = { lat: e.latlng.lat, lng: e.latlng.lng };
+        if (!rectStart) {
+          onRectStart(p);
+          onRectEnd(p);
+          return;
+        }
+        onCompleteRectangle(rectStart, p);
+      }
+    },
+    mousemove(e) {
+      if (drawMode === 'rectangle' && rectStart) {
+        onRectEnd({ lat: e.latlng.lat, lng: e.latlng.lng });
+      }
+    },
+  });
+
+  useEffect(() => {
+    // evita concluir desenho com double click zoom
+    if (drawMode !== 'none') {
+      map.doubleClickZoom.disable();
+    } else {
+      map.doubleClickZoom.enable();
+    }
+
+    return () => {
+      map.doubleClickZoom.enable();
+    };
+  }, [map, drawMode]);
+
+  return null;
+}
+
+
 export function MediaMap() {
   const navigate = useNavigation();
 
@@ -187,6 +280,17 @@ export function MediaMap() {
   // =====================
   const [layers, setLayers] = useState<MediaMapLayer[]>([]); // vazio => TODOS (default)
 
+
+  // =====================
+  // Seleção por área (Etapa 4)
+  // =====================
+  const [drawMode, setDrawMode] = useState<'none' | 'polygon' | 'rectangle'>('none');
+  const [drawVertices, setDrawVertices] = useState<LatLng[]>([]);
+  const [rectStart, setRectStart] = useState<LatLng | null>(null);
+  const [rectEnd, setRectEnd] = useState<LatLng | null>(null);
+  const [selectionPolygon, setSelectionPolygon] = useState<LatLng[] | null>(null);
+  const [selectedPoints, setSelectedPoints] = useState<MediaMapPoint[]>([]);
+
   // Busca (autocomplete)
   const [search, setSearch] = useState('');
   const [suggestions, setSuggestions] = useState<MediaMapSuggestion[]>([]);
@@ -195,7 +299,7 @@ export function MediaMap() {
   const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const [panelOpen, setPanelOpen] = useState(false);
-  const [panelMode, setPanelMode] = useState<'details' | 'cluster'>('details');
+  const [panelMode, setPanelMode] = useState<'details' | 'cluster' | 'selected'>('details');
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [clusterPoints, setClusterPoints] = useState<MediaMapPoint[]>([]);
 
@@ -217,8 +321,10 @@ export function MediaMap() {
     layers: effectiveLayers,
   });
 
+  const pointsForMap = selectionPolygon ? selectedPoints : points;
+
   const features = useMemo(() => {
-    return points
+    return pointsForMap
       .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude))
       .map((p) => ({
         type: 'Feature' as const,
@@ -232,7 +338,7 @@ export function MediaMap() {
           coordinates: [p.longitude, p.latitude] as [number, number],
         },
       }));
-  }, [points]);
+  }, [pointsForMap]);
 
   const clusterIndex = useMemo(() => {
     const idx = new Supercluster<any>({
@@ -247,6 +353,23 @@ export function MediaMap() {
     if (!bboxArr) return [] as any[];
     return clusterIndex.getClusters(bboxArr as any, Math.round(zoom)) as any[];
   }, [clusterIndex, bboxArr, zoom]);
+
+
+  // Recalcula seleção quando polygon/retângulo existe e os pontos mudam
+  useEffect(() => {
+    if (!selectionPolygon || selectionPolygon.length < 3) {
+      setSelectedPoints([]);
+      return;
+    }
+
+    const poly = selectionPolygon;
+    const sel = (points ?? []).filter((p) => {
+      if (!Number.isFinite(p.latitude) || !Number.isFinite(p.longitude)) return false;
+      return pointInPolygon({ lat: p.latitude, lng: p.longitude }, poly);
+    });
+
+    setSelectedPoints(sel);
+  }, [selectionPolygon, points]);
 
   // =====================
   // Autocomplete (Etapa 2/3)
@@ -322,6 +445,90 @@ export function MediaMap() {
     setZoom(z);
     setMapReady(true);
   };
+
+  const startDrawing = (mode: 'polygon' | 'rectangle') => {
+    setDrawMode(mode);
+    setDrawVertices([]);
+    setRectStart(null);
+    setRectEnd(null);
+    setSelectionPolygon(null);
+    setSelectedPoints([]);
+    toast.message(mode === 'polygon' ? 'Modo desenho: polígono' : 'Modo desenho: retângulo');
+  };
+
+  const cancelDrawing = () => {
+    setDrawMode('none');
+    setDrawVertices([]);
+    setRectStart(null);
+    setRectEnd(null);
+  };
+
+  const clearSelection = () => {
+    cancelDrawing();
+    setSelectionPolygon(null);
+    setSelectedPoints([]);
+  };
+
+  const finishPolygon = () => {
+    if (drawVertices.length < 3) {
+      toast.error('Adicione pelo menos 3 pontos para formar um polígono');
+      return;
+    }
+
+    const poly = [...drawVertices];
+    setSelectionPolygon(poly);
+    setDrawMode('none');
+    setDrawVertices([]);
+
+    const bounds = boundsFromPolygon(poly).pad(0.05);
+    mapRef.current?.fitBounds(bounds as any, { animate: true } as any);
+
+    // abre lista automaticamente se tiver muitos pontos
+    setPanelMode('selected');
+    setPanelOpen(true);
+  };
+
+  const completeRectangle = (a: LatLng, b: LatLng) => {
+    const poly = rectToPolygon(a, b);
+    setSelectionPolygon(poly);
+    setDrawMode('none');
+    setRectStart(null);
+    setRectEnd(null);
+
+    const bounds = boundsFromPolygon(poly).pad(0.05);
+    mapRef.current?.fitBounds(bounds as any, { animate: true } as any);
+
+    setPanelMode('selected');
+    setPanelOpen(true);
+  };
+
+  const handleCreateProposalFromSelection = () => {
+    const ids = (selectedPoints ?? []).map((p) => p.id).filter(Boolean);
+    if (!ids.length) {
+      toast.error('Nenhum ponto selecionado');
+      return;
+    }
+
+    try {
+      sessionStorage.setItem(MEDIA_MAP_SELECTION_STORAGE_KEY, JSON.stringify(ids));
+    } catch {
+      // ignore
+    }
+
+    navigate('/app/proposals?new=1');
+    setPanelOpen(false);
+  };
+
+  // ESC cancela desenho
+  useEffect(() => {
+    if (drawMode === 'none') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelDrawing();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawMode]);
 
   // =====================
   // Ações
@@ -544,6 +751,68 @@ export function MediaMap() {
             </ToggleGroup>
           </div>
 
+
+
+          {/* Seleção por área (Etapa 4) */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={drawMode === 'polygon' ? 'default' : 'outline'}
+              size="sm"
+              className={cn('h-8', drawMode === 'polygon' ? 'bg-[#4F46E5] hover:opacity-95' : '')}
+              onClick={() => startDrawing('polygon')}
+            >
+              <Pencil className="w-4 h-4 mr-2" /> Polígono
+            </Button>
+
+            <Button
+              type="button"
+              variant={drawMode === 'rectangle' ? 'default' : 'outline'}
+              size="sm"
+              className={cn('h-8', drawMode === 'rectangle' ? 'bg-[#4F46E5] hover:opacity-95' : '')}
+              onClick={() => startDrawing('rectangle')}
+            >
+              <Square className="w-4 h-4 mr-2" /> Retângulo
+            </Button>
+
+            {drawMode === 'polygon' ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 gap-2 bg-[#4F46E5] hover:opacity-95"
+                disabled={drawVertices.length < 3}
+                onClick={finishPolygon}
+              >
+                <Check className="w-4 h-4" /> Concluir
+              </Button>
+            ) : null}
+
+            {drawMode !== 'none' ? (
+              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={cancelDrawing}>
+                <X className="w-4 h-4 mr-2" /> Cancelar
+              </Button>
+            ) : selectionPolygon ? (
+              <Button type="button" variant="ghost" size="sm" className="h-8" onClick={clearSelection}>
+                <Trash2 className="w-4 h-4 mr-2" /> Limpar seleção
+              </Button>
+            ) : null}
+
+            {selectionPolygon ? (
+              <Badge className="bg-indigo-100 text-indigo-800 border border-indigo-200">
+                {selectedPoints.length} selecionado(s)
+              </Badge>
+            ) : null}
+
+            {drawMode !== 'none' ? (
+              <span className="text-xs text-gray-600">
+                {drawMode === 'polygon'
+                  ? 'Clique no mapa para adicionar pontos. Conclua para finalizar.'
+                  : rectStart
+                    ? 'Clique novamente para finalizar o retângulo.'
+                    : 'Clique para marcar o 1º canto do retângulo.'}
+              </span>
+            ) : null}
+          </div>
           {/* Filtros compactos */}
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <select
@@ -620,6 +889,49 @@ export function MediaMap() {
 
         <MapEvents mapRef={mapRef} onViewportChange={handleViewportChange} />
 
+
+        <DrawEvents
+          drawMode={drawMode}
+          rectStart={rectStart}
+          onAddVertex={(p) => setDrawVertices((prev) => [...prev, p])}
+          onRectStart={setRectStart}
+          onRectEnd={setRectEnd}
+          onCompleteRectangle={completeRectangle}
+        />
+
+        {/* Overlays de desenho/seleção */}
+        {selectionPolygon && selectionPolygon.length >= 3 ? (
+          <Polygon
+            positions={selectionPolygon.map((p) => [p.lat, p.lng] as [number, number])}
+            pathOptions={{ color: '#4F46E5', weight: 2, fillOpacity: 0.12 }}
+          />
+        ) : null}
+
+        {drawMode === 'polygon' && drawVertices.length ? (
+          <>
+            <Polyline
+              positions={drawVertices.map((p) => [p.lat, p.lng] as [number, number])}
+              pathOptions={{ color: '#4F46E5', weight: 2, dashArray: '4 6' }}
+            />
+            {drawVertices.length >= 3 ? (
+              <Polygon
+                positions={drawVertices.map((p) => [p.lat, p.lng] as [number, number])}
+                pathOptions={{ color: '#4F46E5', weight: 2, fillOpacity: 0.08, dashArray: '4 6' }}
+              />
+            ) : null}
+          </>
+        ) : null}
+
+        {drawMode === 'rectangle' && rectStart && rectEnd ? (
+          <Rectangle
+            bounds={[
+              [Math.min(rectStart.lat, rectEnd.lat), Math.min(rectStart.lng, rectEnd.lng)],
+              [Math.max(rectStart.lat, rectEnd.lat), Math.max(rectStart.lng, rectEnd.lng)],
+            ]}
+            pathOptions={{ color: '#4F46E5', weight: 2, fillOpacity: 0.08, dashArray: '4 6' }}
+          />
+        ) : null}
+
         {clusters.map((c: any) => {
           const [lng, lat] = c.geometry.coordinates;
           const isCluster = c.properties.cluster;
@@ -670,15 +982,55 @@ export function MediaMap() {
         </div>
       ) : null}
 
+
+
+      {/* Barra de seleção (Etapa 4) */}
+      {selectionPolygon ? (
+        <div className="absolute z-[900] bottom-4 left-4 right-4 sm:right-auto sm:w-[520px] bg-white border rounded-xl shadow-sm p-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="text-sm text-gray-800">
+              <span className="font-medium">{selectedPoints.length}</span> ponto(s) selecionado(s) na área
+            </div>
+            <div className="flex flex-wrap gap-2 sm:ml-auto">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => {
+                  setPanelMode('selected');
+                  setPanelOpen(true);
+                }}
+              >
+                <List className="w-4 h-4" /> Ver lista
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="gap-2 bg-[#4F46E5] hover:opacity-95"
+                disabled={selectedPoints.length === 0}
+                onClick={handleCreateProposalFromSelection}
+              >
+                <Plus className="w-4 h-4" /> Criar proposta
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={clearSelection}>
+                <Trash2 className="w-4 h-4 mr-2" /> Limpar
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Painel lateral */}
       <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
         <SheetContent side="right" className="w-[420px] sm:w-[460px]">
           <SheetHeader>
-            <SheetTitle>{panelMode === 'details' ? 'Detalhes do ponto' : 'Pontos do cluster'}</SheetTitle>
+            <SheetTitle>{panelMode === 'details' ? 'Detalhes do ponto' : panelMode === 'cluster' ? 'Pontos do cluster' : 'Selecionados'}</SheetTitle>
             <SheetDescription>
               {panelMode === 'details'
                 ? 'Disponibilidade por face e ações rápidas.'
-                : `${clusterPoints.length} ponto(s) neste agrupamento.`}
+                : panelMode === 'cluster'
+                  ? `${clusterPoints.length} ponto(s) neste agrupamento.`
+                  : `${selectedPoints.length} ponto(s) selecionado(s) na área.`}
             </SheetDescription>
           </SheetHeader>
 
@@ -694,6 +1046,51 @@ export function MediaMap() {
                         'w-full text-left border rounded-lg p-3 hover:bg-gray-50',
                         selectedPointId === p.id && 'border-indigo-300'
                       )}
+                      onClick={() => void openPointDetails(p.id)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-gray-900 truncate">{p.name}</div>
+                          <div className="text-xs text-gray-600 truncate">
+                            {[p.addressDistrict, p.addressCity, p.addressState].filter(Boolean).join(' • ')}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {humanStatus(p)} • {p.facesFreeCount}/{p.facesTotal} livres
+                          </div>
+                        </div>
+                        {p.isFavorite ? <Star className="w-4 h-4 text-amber-500 mt-0.5" /> : null}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : panelMode === 'selected' ? (
+              <ScrollArea className="h-[calc(100vh-200px)] pr-3">
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-2 bg-[#4F46E5] hover:opacity-95"
+                    disabled={selectedPoints.length === 0}
+                    onClick={handleCreateProposalFromSelection}
+                  >
+                    <Plus className="w-4 h-4" /> Criar proposta
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={clearSelection} className="gap-2">
+                    <Trash2 className="w-4 h-4" /> Limpar seleção
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  {selectedPoints.length === 0 ? (
+                    <div className="text-sm text-gray-600">Nenhum ponto dentro da área desenhada.</div>
+                  ) : null}
+
+                  {selectedPoints.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={cn('w-full text-left border rounded-lg p-3 hover:bg-gray-50')}
                       onClick={() => void openPointDetails(p.id)}
                     >
                       <div className="flex items-start gap-2">
@@ -801,6 +1198,7 @@ export function MediaMap() {
                   </>
                 ) : null}
               </>
+
             )}
           </div>
         </SheetContent>

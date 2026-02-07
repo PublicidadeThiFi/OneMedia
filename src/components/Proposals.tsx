@@ -16,6 +16,8 @@ interface ProposalsProps {
   onNavigate: (page: Page) => void;
 }
 
+const MEDIA_MAP_SELECTION_STORAGE_KEY = 'ONE_MEDIA_MEDIAMAP_PRESELECT_POINT_IDS';
+
 class ProposalDetailsErrorBoundary extends Component<
   { children: ReactNode; onBack: () => void },
   { hasError: boolean; error?: unknown }
@@ -115,31 +117,72 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const [isFormWizardOpen, setIsFormWizardOpen] = useState(false);
   const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
   const [initialMediaPointId, setInitialMediaPointId] = useState<string | null>(null);
+  const [initialMediaPointIds, setInitialMediaPointIds] = useState<string[] | null>(null);
   const [detailsDrawerProposal, setDetailsDrawerProposal] = useState<Proposal | null>(null);
   const [loadingSingle, setLoadingSingle] = useState(false);
 
-  // Deep-link: /app/proposals?new=1&mediaPointId=...
+  // Deep-link: /app/proposals?new=1&mediaPointId=... ou seleção do Mídia Map (Etapa 4)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const shouldOpenNew = params.get('new');
     const mp = params.get('mediaPointId');
+    const mpIdsParam = params.get('mediaPointIds');
 
-    if (mp) {
-      setInitialMediaPointId(mp);
+    let ids: string[] = [];
+
+    if (mpIdsParam) {
+      ids = mpIdsParam
+        .split(',')
+        .map((s) => String(s || '').trim())
+        .filter(Boolean);
     }
 
-    if (shouldOpenNew === '1' || shouldOpenNew === 'true' || !!mp) {
+    if (!ids.length) {
+      try {
+        const raw = sessionStorage.getItem(MEDIA_MAP_SELECTION_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            ids = parsed.map((x) => String(x || '').trim()).filter(Boolean);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!ids.length && mp) {
+      ids = [mp];
+    }
+
+    if (ids.length) {
+      setInitialMediaPointIds(ids);
+      setInitialMediaPointId(ids[0]);
+    } else {
+      setInitialMediaPointIds(null);
+      setInitialMediaPointId(null);
+    }
+
+    if (shouldOpenNew === '1' || shouldOpenNew === 'true' || ids.length) {
       setEditingProposal(null);
       setIsFormWizardOpen(true);
     }
 
     // limpa query params para não reabrir ao voltar/fechar
-    if (shouldOpenNew || mp) {
+    if (shouldOpenNew || mp || mpIdsParam) {
       if (shouldOpenNew) params.delete('new');
       if (mp) params.delete('mediaPointId');
+      if (mpIdsParam) params.delete('mediaPointIds');
       const next = params.toString();
       const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
       window.history.replaceState({}, '', url);
+    }
+
+    // evita reabrir caso o usuário volte
+    try {
+      sessionStorage.removeItem(MEDIA_MAP_SELECTION_STORAGE_KEY);
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -193,6 +236,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   const handleNewProposal = () => {
     setEditingProposal(null);
     setInitialMediaPointId(null);
+    setInitialMediaPointIds(null);
     setIsFormWizardOpen(true);
   };
 
@@ -432,10 +476,12 @@ const handleViewDetails = async (proposal: Proposal) => {
           if (!open) {
             setEditingProposal(null);
             setInitialMediaPointId(null);
+            setInitialMediaPointIds(null);
           }
         }}
         proposal={editingProposal}
         initialMediaPointId={initialMediaPointId}
+        initialMediaPointIds={initialMediaPointIds}
         onSave={handleSaveProposal}
         onNavigate={onNavigate}
       />

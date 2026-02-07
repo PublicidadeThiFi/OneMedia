@@ -14,6 +14,7 @@ interface ProposalStep2ItemsProps {
   onItemsChange: (items: ProposalItem[]) => void;
   onMetaChange: (data: Partial<ProposalFormData>) => void;
   initialMediaPointId?: string | null;
+  initialMediaPointIds?: string[] | null;
 }
 
 export function ProposalStep2Items({
@@ -21,12 +22,15 @@ export function ProposalStep2Items({
   onItemsChange,
   onMetaChange,
   initialMediaPointId,
+  initialMediaPointIds,
 }: ProposalStep2ItemsProps) {
   const [showMediaDrawer, setShowMediaDrawer] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<ProposalItem | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  const firstId = initialMediaPointId ?? (initialMediaPointIds?.[0] ?? null);
 
   const handleAddMediaItem = (newItem: ProposalItem) => {
     onItemsChange([...formData.items, newItem]);
@@ -36,7 +40,8 @@ export function ProposalStep2Items({
   // Se o wizard foi aberto a partir do Mídia Map (Etapa 3),
   // abrimos automaticamente o drawer de mídia já apontando para o ponto.
   useEffect(() => {
-    if (!initialMediaPointId) return;
+    const firstId = initialMediaPointId ?? (initialMediaPointIds?.[0] ?? null);
+    if (!firstId) return;
     if (autoOpened) return;
     // Não reabrir se já existirem itens (ex: usuário já adicionou algo)
     if ((formData.items ?? []).length > 0) {
@@ -46,7 +51,7 @@ export function ProposalStep2Items({
     setAutoOpened(true);
     setShowMediaDrawer(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMediaPointId]);
+  }, [initialMediaPointId, initialMediaPointIds]);
 
   const handleAddProductItem = (newItem: ProposalItem) => {
     onItemsChange([...formData.items, newItem]);
@@ -395,7 +400,8 @@ export function ProposalStep2Items({
         onOpenChange={setShowMediaDrawer}
         onAddItem={handleAddMediaItem}
         referenceStartDate={formData.campaignStartDate ?? null}
-        initialMediaPointId={initialMediaPointId ?? undefined}
+        initialMediaPointId={firstId ?? undefined}
+        allowedMediaPointIds={initialMediaPointIds ?? undefined}
       />
 
 
