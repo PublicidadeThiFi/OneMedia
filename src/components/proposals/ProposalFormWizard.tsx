@@ -12,6 +12,7 @@ interface ProposalFormWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   proposal: Proposal | null;
+  initialMediaPointId?: string | null;
   onSave: (proposalData: Partial<Proposal>) => Promise<boolean>;
   onNavigate: (page: Page) => void;
 }
@@ -85,10 +86,12 @@ export function ProposalFormWizard({
   open,
   onOpenChange,
   proposal,
+  initialMediaPointId,
   onSave,
   onNavigate,
 }: ProposalFormWizardProps) {
   const [step, setStep] = useState<1 | 2>(1);
+  const [prefillMediaPointId, setPrefillMediaPointId] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProposalFormData>({
     clientId: '',
     responsibleUserId: '',
@@ -146,6 +149,7 @@ export function ProposalFormWizard({
       });
     } else if (!proposal && open) {
       // Reset para nova proposta
+      setPrefillMediaPointId(initialMediaPointId ?? null);
       setFormData({
         clientId: '',
         responsibleUserId: '',
@@ -161,7 +165,7 @@ export function ProposalFormWizard({
       });
       setStep(1);
     }
-  }, [proposal, open]);
+  }, [proposal, open, initialMediaPointId]);
 
   // Atualizar dados do Passo 1
   const handleStep1Change = (data: Partial<ProposalFormData>) => {
@@ -305,6 +309,7 @@ const handleSaveAndSend = async () => {
               formData={formData}
               onItemsChange={handleStep2Change}
               onMetaChange={handleStep2MetaChange}
+              initialMediaPointId={prefillMediaPointId}
             />
           )}
         </div>

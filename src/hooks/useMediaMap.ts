@@ -8,6 +8,12 @@ import type {
   MediaUnitAvailabilityStatus,
 } from '../types';
 
+// =====================
+// Mídia Map (Etapas 1-3)
+// =====================
+
+export type MediaMapLayer = 'mine' | 'favorites' | 'campaign' | 'proposal';
+
 export interface UseMediaMapPointsParams {
   bbox?: string; // "west,south,east,north"
   zoom?: number;
@@ -20,6 +26,9 @@ export interface UseMediaMapPointsParams {
   district?: string;
   showInMediaKit?: boolean;
   availability?: MediaUnitAvailabilityStatus | MediaUnitAvailabilityStatus[];
+
+  // camadas (Etapa 3)
+  layers?: MediaMapLayer[];
 }
 
 const POINTS_CACHE = new Map<string, { ts: number; data: MediaMapPoint[] }>();
@@ -43,8 +52,14 @@ function normAvailability(v?: UseMediaMapPointsParams['availability']) {
   return [...clean].sort();
 }
 
+function normLayers(layers?: MediaMapLayer[]) {
+  if (!layers || !layers.length) return undefined;
+  return [...layers].sort();
+}
+
 function buildPointsKey(params: UseMediaMapPointsParams) {
   const availability = normAvailability(params.availability)?.join(',') ?? '';
+  const layers = normLayers(params.layers)?.join(',') ?? '';
   return [
     params.bbox ?? '',
     String(params.zoom ?? ''),
@@ -55,6 +70,7 @@ function buildPointsKey(params: UseMediaMapPointsParams) {
     normStr(params.district) ?? '',
     typeof params.showInMediaKit === 'boolean' ? String(params.showInMediaKit) : '',
     availability,
+    layers,
   ].join('|');
 }
 
@@ -72,11 +88,17 @@ async function requestMapPoints(params: UseMediaMapPointsParams, signal?: AbortS
       district: normStr(params.district),
       showInMediaKit: params.showInMediaKit,
       availability: normAvailability(params.availability),
+      layers: normLayers(params.layers)?.join(',') ?? undefined,
     },
     signal,
   } as any);
 
   return (res.data ?? []) as any;
+}
+
+export function invalidateMediaMapCaches() {
+  POINTS_CACHE.clear();
+  SUGGEST_CACHE.clear();
 }
 
 export function useMediaMapPoints(params: UseMediaMapPointsParams = {}) {
@@ -96,9 +118,10 @@ export function useMediaMapPoints(params: UseMediaMapPointsParams = {}) {
     params.district,
     params.showInMediaKit,
     params.availability,
+    (params.layers ?? []).join('|'),
   ]);
 
-  const fetchPoints = async () => {
+  const fetchPoints = async (force = false) => {
     try {
       if (!params.bbox) {
         abortRef.current?.abort();
@@ -110,7 +133,7 @@ export function useMediaMapPoints(params: UseMediaMapPointsParams = {}) {
 
       const now = Date.now();
       const cached = POINTS_CACHE.get(key);
-      if (cached && now - cached.ts < POINTS_CACHE_TTL_MS) {
+      if (!force && cached && now - cached.ts < POINTS_CACHE_TTL_MS) {
         setPoints(cached.data);
         setLoading(false);
         setError(null);
@@ -150,7 +173,6 @@ export function useMediaMapPoints(params: UseMediaMapPointsParams = {}) {
       setPoints(data);
       return data;
     } catch (err: any) {
-      // Abort do Axios (v1) pode vir como DOMException ou AxiosError
       const msg = String(err?.message ?? '');
       if (msg.includes('canceled') || msg.includes('abort')) {
         return points;
@@ -175,7 +197,7 @@ export function useMediaMapPoints(params: UseMediaMapPointsParams = {}) {
 
     const t = window.setTimeout(() => {
       if (!mounted) return;
-      fetchPoints();
+      void fetchPoints(false);
     }, 250);
 
     return () => {
@@ -186,7 +208,7 @@ export function useMediaMapPoints(params: UseMediaMapPointsParams = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  return { points, loading, error, refetch: fetchPoints };
+  return { points, loading, error, refetch: (force = true) => fetchPoints(force) };
 }
 
 export async function fetchMediaMapDetails(mediaPointId: string, at?: string) {
@@ -205,10 +227,12 @@ export interface FetchMediaMapSuggestionsParams {
   district?: string;
   showInMediaKit?: boolean;
   bbox?: string;
+  layers?: MediaMapLayer[];
 }
 
 function buildSuggestKey(params: FetchMediaMapSuggestionsParams) {
   const q = String(params.q || '').trim().toLowerCase();
+  const layers = normLayers(params.layers)?.join(',') ?? '';
   return [
     q,
     String(params.limit ?? ''),
@@ -218,6 +242,7 @@ function buildSuggestKey(params: FetchMediaMapSuggestionsParams) {
     normStr(params.district) ?? '',
     typeof params.showInMediaKit === 'boolean' ? String(params.showInMediaKit) : '',
     params.bbox ?? '',
+    layers,
   ].join('|');
 }
 
@@ -237,20 +262,23 @@ export async function fetchMediaMapSuggestions(
   const inflight = SUGGEST_INFLIGHT.get(key);
   if (inflight) return inflight;
 
-  const promise = apiClient
-    .get<MediaMapSuggestion[]>('/media-points/suggestions', {
-      params: {
-        q,
-        limit: params.limit,
-        type: params.type,
-        city: normStr(params.city),
-        state: normStr(params.state),
-        district: normStr(params.district),
-        showInMediaKit: params.showInMediaKit,
-        bbox: params.bbox,
-      },
-      signal,
-    } as any)
+  const promise = Promise.resolve(
+    apiClient
+      .get<MediaMapSuggestion[]>('/media-points/suggestions', {
+        params: {
+          q,
+          limit: params.limit,
+          type: params.type,
+          city: normStr(params.city),
+          state: normStr(params.state),
+          district: normStr(params.district),
+          showInMediaKit: params.showInMediaKit,
+          bbox: params.bbox,
+          layers: normLayers(params.layers)?.join(',') ?? undefined,
+        },
+        signal,
+      } as any)
+  )
     .then((res) => {
       const data = (res.data ?? []) as any;
       SUGGEST_CACHE.set(key, { ts: Date.now(), data });
@@ -262,4 +290,17 @@ export async function fetchMediaMapSuggestions(
 
   SUGGEST_INFLIGHT.set(key, promise);
   return promise;
+}
+
+// =====================
+// Favoritos (Etapa 3)
+// =====================
+
+export async function setMediaPointFavorite(mediaPointId: string, favorite: boolean): Promise<{ favorite: boolean }> {
+  if (favorite) {
+    const res = await apiClient.put<{ favorite: boolean }>(`/media-points/${mediaPointId}/favorite`);
+    return res.data;
+  }
+  const res = await apiClient.delete<{ favorite: boolean }>(`/media-points/${mediaPointId}/favorite`);
+  return res.data;
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -13,14 +13,17 @@ interface ProposalStep2ItemsProps {
   formData: ProposalFormData;
   onItemsChange: (items: ProposalItem[]) => void;
   onMetaChange: (data: Partial<ProposalFormData>) => void;
+  initialMediaPointId?: string | null;
 }
 
 export function ProposalStep2Items({
   formData,
   onItemsChange,
   onMetaChange,
+  initialMediaPointId,
 }: ProposalStep2ItemsProps) {
   const [showMediaDrawer, setShowMediaDrawer] = useState(false);
+  const [autoOpened, setAutoOpened] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<ProposalItem | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -29,6 +32,21 @@ export function ProposalStep2Items({
     onItemsChange([...formData.items, newItem]);
     setShowMediaDrawer(false);
   };
+
+  // Se o wizard foi aberto a partir do Mídia Map (Etapa 3),
+  // abrimos automaticamente o drawer de mídia já apontando para o ponto.
+  useEffect(() => {
+    if (!initialMediaPointId) return;
+    if (autoOpened) return;
+    // Não reabrir se já existirem itens (ex: usuário já adicionou algo)
+    if ((formData.items ?? []).length > 0) {
+      setAutoOpened(true);
+      return;
+    }
+    setAutoOpened(true);
+    setShowMediaDrawer(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialMediaPointId]);
 
   const handleAddProductItem = (newItem: ProposalItem) => {
     onItemsChange([...formData.items, newItem]);
@@ -377,6 +395,7 @@ export function ProposalStep2Items({
         onOpenChange={setShowMediaDrawer}
         onAddItem={handleAddMediaItem}
         referenceStartDate={formData.campaignStartDate ?? null}
+        initialMediaPointId={initialMediaPointId ?? undefined}
       />
 
 

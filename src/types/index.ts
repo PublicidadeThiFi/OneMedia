@@ -292,34 +292,12 @@ export interface MediaUnit {
 
 export type MediaUnitAvailabilityStatus = 'LIVRE' | 'EM_NEGOCIACAO' | 'OCUPADA';
 
-export interface MediaMapPoint {
-  id: string;
-  name: string;
-  type: MediaType;
-  latitude: number;
-  longitude: number;
-
-  addressStreet?: string;
-  addressNumber?: string;
-  addressDistrict?: string;
-  addressCity?: string;
-  addressState?: string;
-  addressZipcode?: string;
-
-  facesTotal: number;
-  facesFreeCount: number;
-  facesNegotiationCount: number;
-  facesOccupiedCount: number;
-  updatedAt: Date;
-}
-
-// Leve (autocomplete / ir até ponto)
 export interface MediaMapSuggestion {
   id: string;
   name: string;
-  type: MediaType;
-  latitude?: number | null;
-  longitude?: number | null;
+  type?: 'OOH' | 'DOOH';
+  latitude: number;
+  longitude: number;
   addressStreet?: string | null;
   addressNumber?: string | null;
   addressDistrict?: string | null;
@@ -327,7 +305,35 @@ export interface MediaMapSuggestion {
   addressState?: string | null;
   addressZipcode?: string | null;
   showInMediaKit?: boolean;
-  updatedAt?: Date;
+  updatedAt?: string;
+  // flags (quando o backend devolver)
+  isMine?: boolean;
+  isFavorite?: boolean;
+  isInCampaign?: boolean;
+  isInProposal?: boolean;
+}
+
+export interface MediaMapPoint {
+  id: string;
+  name: string;
+  type: 'OOH' | 'DOOH';
+  latitude: number;
+  longitude: number;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressDistrict?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  facesTotal: number;
+  facesFreeCount: number;
+  facesNegotiationCount: number;
+  facesOccupiedCount: number;
+  // flags (Etapa 3)
+  isMine?: boolean;
+  isFavorite?: boolean;
+  isInCampaign?: boolean;
+  isInProposal?: boolean;
+  updatedAt: string;
 }
 
 export interface MediaMapFace {
@@ -340,7 +346,12 @@ export interface MediaMapFace {
 }
 
 export interface MediaMapDetails {
-  point: MediaPoint;
+  point: MediaPoint & {
+    isMine?: boolean;
+    isFavorite?: boolean;
+    isInCampaign?: boolean;
+    isInProposal?: boolean;
+  };
   faces: MediaMapFace[];
   facesTotal: number;
   facesFreeCount: number;

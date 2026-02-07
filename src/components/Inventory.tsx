@@ -135,6 +135,29 @@ export function Inventory() {
     setIsFormDialogOpen(true);
   };
 
+  // Deep-link: /app/inventory?pointId=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pointId = params.get('pointId');
+    if (!pointId) return;
+
+    (async () => {
+      try {
+        const res = await apiClient.get<MediaPoint>(`/media-points/${pointId}`);
+        handleEditPoint(res.data);
+      } catch (err: any) {
+        toast.error('Não foi possível abrir este ponto no inventário.');
+      }
+    })();
+
+    // limpa a query para não reabrir ao fechar
+    params.delete('pointId');
+    const next = params.toString();
+    const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
+    window.history.replaceState({}, '', url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleDuplicatePoint = async (point: MediaPoint) => {
     const payload: Partial<MediaPoint> = { ...point };
     delete (payload as any).id;

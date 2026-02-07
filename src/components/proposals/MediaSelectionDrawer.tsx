@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, MapPin, Search } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -13,6 +13,11 @@ interface MediaSelectionDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddItem: (item: ProposalItem) => void;
+  /**
+   * Se informado, o drawer já abre com este ponto selecionado.
+   * Usado quando o usuário veio do Mídia Map.
+   */
+  initialMediaPointId?: string;
   /**
    * Data de início de referência da campanha (passo 1). Usada para checar ocupação (reservas) do período.
    * Se não for informada, usamos a data atual apenas para não permitir seleção sem verificação.
@@ -35,6 +40,7 @@ export function MediaSelectionDrawer({
   open,
   onOpenChange,
   onAddItem,
+  initialMediaPointId,
   referenceStartDate,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
@@ -51,6 +57,9 @@ export function MediaSelectionDrawer({
   // Seleção
   const [selectedMediaPointId, setSelectedMediaPointId] = useState<string | null>(null);
   const [selectedMediaUnit, setSelectedMediaUnit] = useState<MediaUnitWithPoint | null>(null);
+
+  // Preseleção quando vindo do Mídia Map
+  const prefillDoneRef = useRef(false);
 
   const [mediaPointOwners, setMediaPointOwners] = useState<MediaPointOwner[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
@@ -285,6 +294,7 @@ export function MediaSelectionDrawer({
     };
 
     if (open) {
+      prefillDoneRef.current = false;
       // reset selecao
       setSelectedMediaPointId(null);
       setSelectedMediaUnit(null);
@@ -299,6 +309,8 @@ export function MediaSelectionDrawer({
       setOccupationDays(30);
       setClientProvidesBanner(false);
       load();
+    } else {
+      prefillDoneRef.current = false;
     }
   }, [open]);
 
@@ -475,7 +487,12 @@ export function MediaSelectionDrawer({
       const owners: MediaPointOwner[] = Array.isArray(data) ? data : [];
 
       setMediaPointOwners(owners);
-      if (owners.length === 1) {
+
+      // Preferir OwnerCompany primário quando existir
+      const primary = owners.find((o: any) => o?.ownerCompany?.isPrimary);
+      if (primary) {
+        setSelectedMediaPointOwnerId(primary.id);
+      } else if (owners.length === 1) {
         setSelectedMediaPointOwnerId(owners[0].id);
       }
     } catch (e) {
@@ -509,6 +526,25 @@ export function MediaSelectionDrawer({
     setOccupationDays(30);
     setClientProvidesBanner(false);
   };
+
+  // Se veio do Mídia Map, seleciona automaticamente o ponto.
+  useEffect(() => {
+    if (!open) return;
+    if (!initialMediaPointId) return;
+    // aguarda carregar
+    if (!mediaPoints.length) return;
+
+    if (prefillDoneRef.current) return;
+    prefillDoneRef.current = true;
+
+    if (selectedMediaPointId === initialMediaPointId) return;
+
+    const p = mediaPoints.find((x: any) => x.id === initialMediaPointId);
+    if (!p) return;
+
+    handleSelectPoint(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialMediaPointId, mediaPoints.length, selectedMediaPointId]);
 
   const handleConfirm = () => {
     if (!selectedMediaUnit) return;
