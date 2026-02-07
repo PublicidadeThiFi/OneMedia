@@ -263,7 +263,15 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="produtos" className="pt-[120px] pb-20 px-6 bg-gradient-to-b from-gray-50 to-white overflow-hidden">
+      {/*
+        O header é fixed. Quando o usuário navega pelos links (hash) do menu,
+        o browser pode alinhar a seção por baixo do header e cortar o topo.
+        O scroll-mt adiciona o offset necessário para manter o conteúdo visível.
+      */}
+      <section
+        id="produtos"
+        className="pt-[120px] pb-20 px-6 bg-gradient-to-b from-gray-50 to-white overflow-hidden scroll-mt-[140px]"
+      >
         <div className="max-w-7xl mx-auto">
           <div className="bg-blue-500/5 rounded-[55px] px-8 md:px-16 py-14 md:py-16 relative">
             {/* Hero Content */}
@@ -396,7 +404,12 @@ export default function Home() {
             </div>
 
             {/* Floating Module Card - More Centered */}
-            <div className="absolute right-[-24px] top-[54%] -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-8 w-96 hidden lg:block z-20">
+            {/*
+              Mantém o card 100% dentro do container arredondado (sem ultrapassar).
+              Antes ele tinha right negativo, o que gerava corte/overflow e fazia o
+              posicionamento parecer "acima" quando a seção é acessada via hash.
+            */}
+            <div className="absolute right-8 top-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-8 w-96 hidden lg:block z-30">
               <p className="text-center text-gray-900 mb-6">O que você gostaria de gerenciar hoje?</p>
               
               <div className="grid grid-cols-3 gap-4 mb-6">
@@ -447,7 +460,7 @@ export default function Home() {
       </section>
 
       {/* Solutions Section */}
-      <section id="solucoes" className="py-20 px-6">
+      <section id="solucoes" className="py-20 px-6 scroll-mt-[140px]">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-5xl md:text-6xl font-medium text-gray-900 text-center mb-16">
             Soluções para todos os negócios.
@@ -530,7 +543,7 @@ export default function Home() {
       </section>
 
       {/* Efficiency Section - Black Background */}
-      <section id="recursos" className="bg-black py-12 px-6">
+      <section id="recursos" className="bg-black py-12 px-6 scroll-mt-[140px]">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10">
             <div className="inline-block mb-4">
@@ -680,7 +693,7 @@ export default function Home() {
       </section>
 
       {/* Pricing Comparison Section */}
-      <section id="precos" className="py-12 px-6 bg-blue-500/5">
+      <section id="precos" className="py-12 px-6 bg-blue-500/5 scroll-mt-[140px]">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-3 leading-tight">
             Quanto você gasta hoje

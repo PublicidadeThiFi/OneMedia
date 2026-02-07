@@ -4627,3 +4627,16 @@ html {
   max-width: none !important;
   max-height: none !important;
 }
+
+
+/* ==========================
+   MediaMap helpers (avoid Tailwind arbitrary classes)
+   ========================== */
+.mm-indigo {
+  background-color: #4F46E5 !important;
+  color: #ffffff !important;
+}
+
+.mm-indigo:hover {
+  opacity: 0.95;
+}
