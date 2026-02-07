@@ -19,6 +19,10 @@ interface MediaSelectionDrawerProps {
    */
   initialMediaPointId?: string;
   /**
+   * Se informado, restringe a lista de pontos disponíveis (ex: seleção por área do Mídia Map).
+   */
+  allowedMediaPointIds?: string[];
+  /**
    * Data de início de referência da campanha (passo 1). Usada para checar ocupação (reservas) do período.
    * Se não for informada, usamos a data atual apenas para não permitir seleção sem verificação.
    */
@@ -41,11 +45,14 @@ export function MediaSelectionDrawer({
   onOpenChange,
   onAddItem,
   initialMediaPointId,
+  allowedMediaPointIds,
   referenceStartDate,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
   // companyId é usado apenas para preencher o item local. A API usa o companyId do token.
 
+  const allowedKey = useMemo(() => (allowedMediaPointIds ?? []).join('|'), [allowedMediaPointIds]);
+  const allowedSet = useMemo(() => new Set((allowedMediaPointIds ?? []).filter(Boolean)), [allowedKey]);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
 
@@ -260,11 +267,12 @@ export function MediaSelectionDrawer({
           page += 1;
         }
 
-        setMediaPoints(all);
+        const filteredAll = allowedSet.size ? all.filter((p: any) => allowedSet.has((p as any).id)) : all;
+        setMediaPoints(filteredAll);
 
         // 2) Flatten das unidades.
         // Backend costuma retornar `units`, mas alguns endpoints antigos podem retornar `mediaUnits`.
-        const flattened: MediaUnitWithPoint[] = all.flatMap((p: any) => {
+        const flattened: MediaUnitWithPoint[] = filteredAll.flatMap((p: any) => {
           const rawUnits = Array.isArray(p?.units)
             ? p.units
             : Array.isArray(p?.mediaUnits)
@@ -312,7 +320,7 @@ export function MediaSelectionDrawer({
     } else {
       prefillDoneRef.current = false;
     }
-  }, [open]);
+  }, [open, allowedKey]);
 
   const unitsByPointId = useMemo(() => {
     const map = new Map<string, MediaUnitWithPoint[]>();
@@ -527,24 +535,32 @@ export function MediaSelectionDrawer({
     setClientProvidesBanner(false);
   };
 
-  // Se veio do Mídia Map, seleciona automaticamente o ponto.
+  // Se veio do Mídia Map, seleciona automaticamente o ponto (ou o 1º da lista restrita).
   useEffect(() => {
     if (!open) return;
-    if (!initialMediaPointId) return;
     // aguarda carregar
     if (!mediaPoints.length) return;
 
     if (prefillDoneRef.current) return;
+
+    let targetId: string | undefined = initialMediaPointId;
+    if (targetId && allowedSet.size && !allowedSet.has(targetId)) {
+      targetId = undefined;
+    }
+    if (!targetId && (allowedMediaPointIds ?? []).length) {
+      targetId = (allowedMediaPointIds ?? [])[0];
+    }
+    if (!targetId) return;
+
     prefillDoneRef.current = true;
+    if (selectedMediaPointId === targetId) return;
 
-    if (selectedMediaPointId === initialMediaPointId) return;
-
-    const p = mediaPoints.find((x: any) => x.id === initialMediaPointId);
+    const p = mediaPoints.find((x: any) => x.id === targetId);
     if (!p) return;
 
     handleSelectPoint(p);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialMediaPointId, mediaPoints.length, selectedMediaPointId]);
+  }, [open, initialMediaPointId, allowedKey, mediaPoints.length, selectedMediaPointId]);
 
   const handleConfirm = () => {
     if (!selectedMediaUnit) return;

@@ -13,6 +13,7 @@ interface ProposalFormWizardProps {
   onOpenChange: (open: boolean) => void;
   proposal: Proposal | null;
   initialMediaPointId?: string | null;
+  initialMediaPointIds?: string[] | null;
   onSave: (proposalData: Partial<Proposal>) => Promise<boolean>;
   onNavigate: (page: Page) => void;
 }
@@ -87,11 +88,13 @@ export function ProposalFormWizard({
   onOpenChange,
   proposal,
   initialMediaPointId,
+  initialMediaPointIds,
   onSave,
   onNavigate,
 }: ProposalFormWizardProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [prefillMediaPointId, setPrefillMediaPointId] = useState<string | null>(null);
+  const [prefillMediaPointIds, setPrefillMediaPointIds] = useState<string[] | null>(null);
   const [formData, setFormData] = useState<ProposalFormData>({
     clientId: '',
     responsibleUserId: '',
@@ -147,9 +150,12 @@ export function ProposalFormWizard({
         subtotal: totals.subtotal,
         totalAmount: totals.totalAmount,
       });
-    } else if (!proposal && open) {
-      // Reset para nova proposta
-      setPrefillMediaPointId(initialMediaPointId ?? null);
+    } else if (!proposal && open) {      // Reset para nova proposta
+      const ids = (initialMediaPointIds && initialMediaPointIds.length)
+        ? initialMediaPointIds
+        : (initialMediaPointId ? [initialMediaPointId] : []);
+      setPrefillMediaPointIds(ids.length ? ids : null);
+      setPrefillMediaPointId(ids[0] ?? null);
       setFormData({
         clientId: '',
         responsibleUserId: '',
@@ -165,7 +171,7 @@ export function ProposalFormWizard({
       });
       setStep(1);
     }
-  }, [proposal, open, initialMediaPointId]);
+  }, [proposal, open, initialMediaPointId, initialMediaPointIds]);
 
   // Atualizar dados do Passo 1
   const handleStep1Change = (data: Partial<ProposalFormData>) => {
@@ -310,6 +316,7 @@ const handleSaveAndSend = async () => {
               onItemsChange={handleStep2Change}
               onMetaChange={handleStep2MetaChange}
               initialMediaPointId={prefillMediaPointId}
+              initialMediaPointIds={prefillMediaPointIds}
             />
           )}
         </div>
