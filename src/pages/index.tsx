@@ -217,7 +217,7 @@ export default function Home() {
       description: 'Seu mídia kit digital se atualiza automaticamente com novos pontos, fotos, dados de audiência e localização. Clientes podem navegar pelo mapa interativo, filtrar por características e solicitar orçamentos sem sua intervenção.'
     },
     dashboard: {
-      title: 'Automaço de dashboard',
+      title: 'Automação de dashboard',
       description: 'Dashboards inteligentes que consolidam dados de todos os módulos automaticamente. KPIs atualizados em tempo real, gráficos interativos, comparativos de performance e alertas preditivos para antecipar problemas antes que aconteçam.'
     }
   };
