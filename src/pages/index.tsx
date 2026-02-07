@@ -1,11 +1,31 @@
 import { useNavigation } from '../App';
 import { ArrowRight, Check, AlertTriangle, CheckCircle2, Zap, Eye, Rocket, Link as LinkIcon } from 'lucide-react';
 import { useState } from 'react';
-import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
-import imgImage1 from '../assets/0622760ec539e74e0a9554dceb8a7a9549b2d826.png';
-import imgImage2 from '../assets/a650fd3251a7c56702fe8a07a33be4a6b676ce4a.png';
-import imgLogotipoOutdoorBr from '../assets/b772fcca664e51771498ee420b09d2bb7a1c5fed.png';
-import imgCeoOutdoor from '../assets/b410819dec3dab15947c18ed6baae2284d619ffd.png';
+import imgOnemediaLogo from "figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png";
+import imgImage1 from "figma:asset/0622760ec539e74e0a9554dceb8a7a9549b2d826.png";
+import imgImage2 from "figma:asset/a650fd3251a7c56702fe8a07a33be4a6b676ce4a.png";
+import imgLogotipoOutdoorBr from "figma:asset/b772fcca664e51771498ee420b09d2bb7a1c5fed.png";
+import imgCeoOutdoor from "figma:asset/b410819dec3dab15947c18ed6baae2284d619ffd.png";
+
+// Import real module screenshots from Figma
+import imgInventario from "figma:asset/6278c812688036c294627847a92c37d9fdd135d8.png";
+import imgInventario2 from "figma:asset/bdc94cbddf5660b338a9b0459df94874d600a7f6.png";
+import imgPropostas from "figma:asset/8c102002d56706280ee26142532d5a1c15f2e0da.png";
+import imgPropostas2 from "figma:asset/c111a3e573ecc1de8c1b8bded684b67ff2234cd6.png";
+import imgCampanhas from "figma:asset/15a28e63418d28c9ec12a06d0df66c23e5e7edac.png";
+import imgCampanhas2 from "figma:asset/18abb66ce6b22f670cd4116722de8d5e72ec0e1e.png";
+import imgFinanceiro from "figma:asset/ea092394ba26ae8e99aec4c2c652c109f797a8ef.png";
+import imgFinanceiro2 from "figma:asset/e4aae58e61f032bc98c383fa6c9fea846a8a8c06.png";
+import imgReservas from "figma:asset/02d010d4d626ef6df76355ef463372b4764a1d53.png";
+import imgReservas2 from "figma:asset/7d302fdd327d35135083ec1233df4d38236c20f7.png";
+import imgClientes from "figma:asset/ede0d250980b265fcc69c78bbcfc2cf1766ad469.png";
+import imgClientes2 from "figma:asset/cd83b92791eb35af88ec6625a90b444217be6c1b.png";
+import imgProprietarios from "figma:asset/bc4c41825d562aa00505148f9c2cf7776c1dda25.png";
+import imgProprietarios2 from "figma:asset/bbbe5dc0a7da7fae50e76241d183ed958b85d959.png";
+import imgRelatorios from "figma:asset/24be53fa98cb70de89bcd6b3013fd88d5eff019e.png";
+import imgRelatorios2 from "figma:asset/ea58b2fcd4a9774626acfd9e0441683b3d91eced.png";
+import imgOutros1 from "figma:asset/2e890f0b983e67f4196361f257d7f43fc5fe006a.png";
+import imgOutros2 from "figma:asset/1896d19035e48bc6bce4326ab159c9231b61df91.png";
 
 // Module type definition
 type ModuleKey = 'inventario' | 'propostas' | 'campanhas' | 'financeiro' | 'reservas' | 'clientes' | 'proprietarios' | 'relatorios' | 'outros';
@@ -14,40 +34,40 @@ type SolutionTab = 'inventario' | 'propostas' | 'campanhas' | 'financeiro' | 'mi
 // Real module screenshots from Figma
 const moduleImages = {
   inventario: {
-    image1: imgImage1, // Using original inventory image
-    image2: imgImage2
+    image1: imgInventario,
+    image2: imgInventario2
   },
   propostas: {
-    image1: 'https://images.unsplash.com/photo-1644329771977-0a8c6e3928ae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9wb3NhbCUyMGRvY3VtZW50fGVufDF8fHx8MTc2ODIyMjg4OXww&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHJlcG9ydHxlbnwxfHx8fDE3NjgyMjI4OTN8MA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgPropostas,
+    image2: imgPropostas2
   },
   campanhas: {
-    image1: 'https://images.unsplash.com/photo-1758592299816-435971bf5d44?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYW1wYWlnbiUyMG1hbmFnZW1lbnR8ZW58MXx8fHwxNzY4MjIyODg5fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXNoYm9hcmQlMjBhbmFseXRpY3N8ZW58MXx8fHwxNzY4MjA4MTQ0fDA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgCampanhas,
+    image2: imgCampanhas2
   },
   financeiro: {
-    image1: 'https://images.unsplash.com/photo-1535320903710-d993d3d77d29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaW5hbmNpYWwlMjBjaGFydHxlbnwxfHx8fDE3NjgxNjMwOTR8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXNoYm9hcmQlMjBhbmFseXRpY3N8ZW58MXx8fHwxNzY4MjA4MTQ0fDA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgFinanceiro,
+    image2: imgFinanceiro2
   },
   reservas: {
-    image1: 'https://images.unsplash.com/photo-1642489069222-3b8f36c0e89e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWxlbmRhciUyMHNjaGVkdWxlfGVufDF8fHx8MTc2ODE1MzIyOXww&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXNoYm9hcmQlMjBhbmFseXRpY3N8ZW58MXx8fHwxNzY4MjA4MTQ0fDA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgReservas,
+    image2: imgReservas2
   },
   clientes: {
-    image1: 'https://images.unsplash.com/photo-1676862916149-02bc4a021ab6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjbGllbnQlMjBtYW5hZ2VtZW50fGVufDF8fHx8MTc2ODIyMjg4OXww&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1644329771977-0a8c6e3928ae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9wb3NhbCUyMGRvY3VtZW50fGVufDF8fHx8MTc2ODIyMjg4OXww&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgClientes,
+    image2: imgClientes2
   },
   proprietarios: {
-    image1: 'https://images.unsplash.com/photo-1676862916149-02bc4a021ab6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjbGllbnQlMjBtYW5hZ2VtZW50fGVufDF8fHx8MTc2ODIyMjg4OXww&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHJlcG9ydHxlbnwxfHx8fDE3NjgyMjI4OTN8MA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgProprietarios,
+    image2: imgProprietarios2
   },
   relatorios: {
-    image1: 'https://images.unsplash.com/photo-1628348068343-c6a848d2b6dd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHJlcG9ydHxlbnwxfHx8fDE3NjgyMjI4OTN8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXNoYm9hcmQlMjBhbmFseXRpY3N8ZW58MXx8fHwxNzY4MjA4MTQ0fDA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgRelatorios,
+    image2: imgRelatorios2
   },
   outros: {
-    image1: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkYXNoYm9hcmQlMjBhbmFseXRpY3N8ZW58MXx8fHwxNzY4MjA4MTQ0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    image2: 'https://images.unsplash.com/photo-1535320903710-d993d3d77d29?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaW5hbmNpYWwlMjBjaGFydHxlbnwxfHx8fDE3NjgxNjMwOTR8MA&ixlib=rb-4.1.0&q=80&w=1080'
+    image1: imgOutros1,
+    image2: imgOutros2
   }
 };
 
@@ -197,7 +217,7 @@ export default function Home() {
       description: 'Seu mídia kit digital se atualiza automaticamente com novos pontos, fotos, dados de audiência e localização. Clientes podem navegar pelo mapa interativo, filtrar por características e solicitar orçamentos sem sua intervenção.'
     },
     dashboard: {
-      title: 'Automação de dashboard',
+      title: 'Automaço de dashboard',
       description: 'Dashboards inteligentes que consolidam dados de todos os módulos automaticamente. KPIs atualizados em tempo real, gráficos interativos, comparativos de performance e alertas preditivos para antecipar problemas antes que aconteçam.'
     }
   };
@@ -872,8 +892,8 @@ export default function Home() {
           <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-600">© 2026 OneMedia. Todos os direitos reservados.</p>
             <div className="flex gap-6 text-gray-600">
-              <button type="button" onClick={() => navigate('/privacidade')} className="hover:text-blue-600 transition-colors">Privacidade</button>
-              <button type="button" onClick={() => navigate('/termos')} className="hover:text-blue-600 transition-colors">Termos</button>
+              <a href="https://onemedia.com/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">Privacidade</a>
+              <a href="https://onemedia.com/termos" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">Termos</a>
             </div>
           </div>
         </div>
