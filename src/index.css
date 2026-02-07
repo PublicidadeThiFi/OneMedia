@@ -4715,6 +4715,33 @@ html {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
+/* ==========================
+   Landing anchor offsets (fixed header)
+   ==========================
+   O build atual não inclui utilitários como pt-[120px]/scroll-mt-[140px].
+   Para evitar que o topo das seções fique "cortado" pelo header fixo,
+   aplicamos estes helpers via CSS.
+*/
+
+.landing-anchor {
+  scroll-margin-top: 140px;
+}
+
+.landing-hero-section {
+  padding-top: 120px;
+}
+
+@media (min-width: 768px) {
+  .landing-hero-section {
+    padding-top: 140px;
+  }
+}
+
+.hero-content {
+  position: relative;
+  z-index: 20;
+}
+
 @keyframes float-primary {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }

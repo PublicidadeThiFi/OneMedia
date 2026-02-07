@@ -270,12 +270,12 @@ export default function Home() {
       */}
       <section
         id="produtos"
-        className="pt-[120px] pb-20 px-6 bg-gradient-to-b from-gray-50 to-white overflow-hidden scroll-mt-[140px]"
+        className="landing-hero-section landing-anchor pb-20 px-6 bg-gradient-to-b from-gray-50 to-white overflow-hidden"
       >
         <div className="max-w-7xl mx-auto">
           <div className="bg-blue-500/5 rounded-[55px] px-8 md:px-16 py-14 md:py-16 relative">
             {/* Hero Content */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-8 hero-content">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extralight text-gray-900 mb-5 leading-tight">
                 A plataforma completa para
                 <br />
@@ -464,7 +464,7 @@ export default function Home() {
       </section>
 
       {/* Solutions Section */}
-      <section id="solucoes" className="py-20 px-6 scroll-mt-[140px]">
+      <section id="solucoes" className="landing-anchor py-20 px-6">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-5xl md:text-6xl font-medium text-gray-900 text-center mb-16">
             Soluções para todos os negócios.
@@ -547,7 +547,7 @@ export default function Home() {
       </section>
 
       {/* Efficiency Section - Black Background */}
-      <section id="recursos" className="bg-black py-12 px-6 scroll-mt-[140px]">
+      <section id="recursos" className="landing-anchor bg-black py-12 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10">
             <div className="inline-block mb-4">
@@ -697,7 +697,7 @@ export default function Home() {
       </section>
 
       {/* Pricing Comparison Section */}
-      <section id="precos" className="py-12 px-6 bg-blue-500/5 scroll-mt-[140px]">
+      <section id="precos" className="landing-anchor py-12 px-6 bg-blue-500/5">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-3 leading-tight">
             Quanto você gasta hoje
