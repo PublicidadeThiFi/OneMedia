@@ -466,7 +466,8 @@ export default function Home() {
       {/* Solutions Section */}
       <section id="solucoes" className="landing-anchor py-20 px-6">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-5xl md:text-6xl font-medium text-gray-900 text-center mb-16">
+          {/* Keep typography consistent with the Hero (lighter weight, same scale) */}
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-extralight text-gray-900 text-center mb-16 leading-tight">
             Soluções para todos os negócios.
             <br />
             Uma única plataforma.
@@ -485,7 +486,7 @@ export default function Home() {
               <button
                 key={tab.key}
                 onClick={() => setSelectedSolution(tab.key as SolutionTab)}
-                className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${
+                className={`px-7 md:px-8 py-3 rounded-full text-base md:text-lg font-medium transition-all ${
                   selectedSolution === tab.key
                     ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
                     : 'text-gray-900 hover:bg-gray-100'
@@ -499,15 +500,15 @@ export default function Home() {
           {/* Content Card - Dynamic based on selected solution */}
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-[34px] p-12 text-white">
-              <h3 className="text-4xl font-semibold mb-6 leading-tight">
+              <h3 className="text-3xl md:text-4xl font-medium mb-6 leading-tight">
                 {solutionContent[selectedSolution].title}
               </h3>
-              <p className="text-xl mb-8 opacity-95 leading-relaxed">
+              <p className="text-lg md:text-xl font-extralight mb-8 opacity-95 leading-relaxed">
                 {solutionContent[selectedSolution].description}
               </p>
               <button
                 onClick={() => navigate('/cadastro')}
-                className="flex items-center gap-3 px-8 py-4 bg-white text-blue-700 text-xl rounded-full hover:shadow-xl transition-all"
+                className="flex items-center gap-3 px-8 py-4 bg-white text-blue-700 text-lg md:text-xl rounded-full hover:shadow-xl transition-all"
               >
                 Teste Grátis 30 dias
                 <ArrowRight className="w-6 h-6" />
@@ -519,13 +520,13 @@ export default function Home() {
                 <div className="flex justify-center mb-6">
                   <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="h-12" />
                 </div>
-                <p className="text-3xl">
+                <p className="text-2xl md:text-3xl font-extralight text-gray-900">
                   <span className="font-semibold">{solutionContent[selectedSolution].statText}</span> {solutionContent[selectedSolution].statSubtext}
                 </p>
               </div>
 
               <div className="bg-gray-100 rounded-3xl p-8">
-                <p className="text-xl text-gray-800 mb-6 italic">
+                <p className="text-lg md:text-xl font-extralight text-gray-800 mb-6 italic">
                   {solutionContent[selectedSolution].testimonial.quote}
                 </p>
                 <hr className="border-gray-400 mb-6" />
@@ -536,7 +537,7 @@ export default function Home() {
                     className="w-14 h-14 rounded-full object-cover" 
                   />
                   <div>
-                    <p className="font-bold text-gray-900">{solutionContent[selectedSolution].testimonial.name}</p>
+                    <p className="font-medium text-gray-900">{solutionContent[selectedSolution].testimonial.name}</p>
                     <p className="text-gray-600">{solutionContent[selectedSolution].testimonial.role}</p>
                   </div>
                 </div>
