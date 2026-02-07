@@ -4,8 +4,6 @@ import type { Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import Supercluster from 'supercluster';
 
-import 'leaflet/dist/leaflet.css';
-
 import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus, Pencil, Square, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -191,8 +189,19 @@ function MapEvents({ mapRef, onViewportChange }: { mapRef: MutableRefObject<Leaf
 
   useEffect(() => {
     mapRef.current = map;
+    // Leaflet pode inicializar com tamanho incorreto se o container ainda não
+    // está “definido” no layout (ex.: rota dentro de um scroll container).
+    // Forçamos um invalidateSize para garantir render do TileLayer.
+    const t = window.setTimeout(() => {
+      try {
+        map.invalidateSize();
+      } catch {
+        // ignore
+      }
+    }, 0);
     onViewportChange(map);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => window.clearTimeout(t);
   }, []);
 
   return null;
@@ -648,7 +657,15 @@ export function MediaMap() {
   // =====================
 
   return (
-    <div className="relative h-[calc(100vh-64px)] w-full">
+    // IMPORTANT: Evitar classes Tailwind com valores arbitrários aqui.
+    // Seu build de CSS atual não está gerando essas classes, o que faz o mapa
+    // ficar com altura 0 (e o Leaflet não renderiza).
+    <div
+      className="relative h-full w-full"
+      // Garante que o mapa tenha altura “definida” mesmo quando o container pai
+      // resolve height:100% de forma imprevisível (flex + overflow-y-auto).
+      style={{ minHeight: 'calc(100vh - 64px)' }}
+    >
       {/* Barra superior */}
       <div className="absolute z-[900] top-4 left-4 right-4 flex flex-col gap-3 max-w-[720px]">
         <div className="bg-white border rounded-xl shadow-sm p-3">
@@ -880,6 +897,7 @@ export function MediaMap() {
         center={[-23.55052, -46.633308]}
         zoom={12}
         className="h-full w-full"
+        style={{ height: '100%', width: '100%' }}
         zoomControl={true}
       >
         <TileLayer

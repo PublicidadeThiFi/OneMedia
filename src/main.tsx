@@ -1,6 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+// Leaflet base styles (map). Import global para garantir que carregue antes do componente.
+import "leaflet/dist/leaflet.css";
 import { manualCacheRescueIfRequested, ensureLatestBuild } from "./versionGuard";
 
 // Run cache guards ASAP (safe even without PWA/Service Worker)
