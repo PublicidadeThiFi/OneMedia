@@ -263,9 +263,9 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="home" className="pt-32 pb-8 scroll-mt-28">
+      <section id="produtos" className="pt-[120px] pb-20 px-6 bg-gradient-to-b from-gray-50 to-white overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-blue-500/5 rounded-[55px] px-8 md:px-16 py-10 relative overflow-hidden">
+          <div className="bg-blue-500/5 rounded-[55px] px-8 md:px-16 py-14 md:py-16 relative">
             {/* Hero Content */}
             <div className="text-center mb-8">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extralight text-gray-900 mb-5 leading-tight">
@@ -396,7 +396,7 @@ export default function Home() {
             </div>
 
             {/* Floating Module Card - More Centered */}
-            <div className="absolute -right-4 top-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-8 w-96 hidden lg:block z-20">
+            <div className="absolute right-[-24px] top-[54%] -translate-y-1/2 bg-white rounded-3xl shadow-2xl p-8 w-96 hidden lg:block z-20">
               <p className="text-center text-gray-900 mb-6">O que você gostaria de gerenciar hoje?</p>
               
               <div className="grid grid-cols-3 gap-4 mb-6">
