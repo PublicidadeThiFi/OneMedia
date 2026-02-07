@@ -114,8 +114,34 @@ export function Proposals({ onNavigate }: ProposalsProps) {
   // Dialogs e Drawers
   const [isFormWizardOpen, setIsFormWizardOpen] = useState(false);
   const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
+  const [initialMediaPointId, setInitialMediaPointId] = useState<string | null>(null);
   const [detailsDrawerProposal, setDetailsDrawerProposal] = useState<Proposal | null>(null);
   const [loadingSingle, setLoadingSingle] = useState(false);
+
+  // Deep-link: /app/proposals?new=1&mediaPointId=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shouldOpenNew = params.get('new');
+    const mp = params.get('mediaPointId');
+
+    if (mp) {
+      setInitialMediaPointId(mp);
+    }
+
+    if (shouldOpenNew === '1' || shouldOpenNew === 'true' || !!mp) {
+      setEditingProposal(null);
+      setIsFormWizardOpen(true);
+    }
+
+    // limpa query params para não reabrir ao voltar/fechar
+    if (shouldOpenNew || mp) {
+      if (shouldOpenNew) params.delete('new');
+      if (mp) params.delete('mediaPointId');
+      const next = params.toString();
+      const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
+      window.history.replaceState({}, '', url);
+    }
+  }, []);
 
   // Cards de estatísticas (baseado na lista carregada)
   const fallbackStats = useMemo(() => {
@@ -166,6 +192,7 @@ export function Proposals({ onNavigate }: ProposalsProps) {
 
   const handleNewProposal = () => {
     setEditingProposal(null);
+    setInitialMediaPointId(null);
     setIsFormWizardOpen(true);
   };
 
@@ -402,9 +429,13 @@ const handleViewDetails = async (proposal: Proposal) => {
         open={isFormWizardOpen}
         onOpenChange={(open) => {
           setIsFormWizardOpen(open);
-          if (!open) setEditingProposal(null);
+          if (!open) {
+            setEditingProposal(null);
+            setInitialMediaPointId(null);
+          }
         }}
         proposal={editingProposal}
+        initialMediaPointId={initialMediaPointId}
         onSave={handleSaveProposal}
         onNavigate={onNavigate}
       />

@@ -6,9 +6,14 @@ import Supercluster from 'supercluster';
 
 import 'leaflet/dist/leaflet.css';
 
+import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from './ui/sheet';
 import { ScrollArea } from './ui/scroll-area';
+import { ToggleGroup, ToggleGroupItem } from './ui/toggle-group';
 import { cn } from './ui/utils';
 
 import type {
@@ -18,7 +23,15 @@ import type {
   MediaType,
   MediaUnitAvailabilityStatus,
 } from '../types';
-import { fetchMediaMapDetails, fetchMediaMapSuggestions, useMediaMapPoints } from '../hooks/useMediaMap';
+import {
+  fetchMediaMapDetails,
+  fetchMediaMapSuggestions,
+  invalidateMediaMapCaches,
+  setMediaPointFavorite,
+  type MediaMapLayer,
+  useMediaMapPoints,
+} from '../hooks/useMediaMap';
+import { useNavigation } from '../App';
 
 type BboxArr = [number, number, number, number];
 
@@ -76,44 +89,66 @@ function pickPointColor(p: MediaMapPoint) {
 
 function buildPointIcon(p: MediaMapPoint) {
   const bg = pickPointColor(p);
+  const star = p.isFavorite
+    ? `<div style="position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:18px; background:rgba(17,24,39,0.9); border:2px solid rgba(255,255,255,0.9); display:flex; align-items:center; justify-content:center; font-size:11px;">★</div>`
+    : '';
+
   return L.divIcon({
     html: `
-      <div style="
-        width:14px;
-        height:14px;
-        border-radius:999px;
-        background:${bg};
-        border:2px solid rgba(255,255,255,0.95);
-        box-shadow:0 6px 18px rgba(0,0,0,0.18);
-      "></div>
+      <div style="position:relative;">
+        <div style="
+          width:22px;
+          height:22px;
+          border-radius:22px;
+          background:${bg};
+          border:2px solid rgba(255,255,255,0.95);
+          box-shadow:0 6px 18px rgba(0,0,0,0.18);
+        "></div>
+        ${star}
+      </div>
     `,
     className: 'one-media-point-icon',
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
   });
 }
 
-function statusBadgeVariant(status: MediaUnitAvailabilityStatus) {
-  if (status === 'OCUPADA') return { variant: 'destructive' as const, label: 'Ocupada' };
-  if (status === 'EM_NEGOCIACAO') return { variant: 'secondary' as const, label: 'Negociação' };
-  return { variant: 'outline' as const, label: 'Livre' };
+function humanStatus(p: Pick<MediaMapPoint, 'facesTotal' | 'facesFreeCount' | 'facesOccupiedCount' | 'facesNegotiationCount'>) {
+  if (p.facesTotal > 0 && p.facesOccupiedCount === p.facesTotal) return 'Totalmente ocupada';
+  if (p.facesOccupiedCount > 0) return 'Parcialmente ocupada';
+  if (p.facesNegotiationCount > 0) return 'Em negociação';
+  return 'Livre';
 }
 
-function LegendItem({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs text-gray-600">
-      <span
-        style={{ width: 10, height: 10, borderRadius: 999, background: color, border: '2px solid rgba(255,255,255,0.95)', boxShadow: '0 4px 14px rgba(0,0,0,0.16)' }}
-      />
-      <span className="whitespace-nowrap">{label}</span>
-    </div>
-  );
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 
-function MapEvents({ onViewportChange, mapRef }: { onViewportChange: (map: LeafletMap) => void; mapRef: MutableRefObject<LeafletMap | null> }) {
+function MapEvents({ mapRef, onViewportChange }: { mapRef: MutableRefObject<LeafletMap | null>; onViewportChange: (map: LeafletMap) => void }) {
   const map = useMapEvents({
-    moveend: () => onViewportChange(map),
-    zoomend: () => onViewportChange(map),
+    moveend() {
+      onViewportChange(map);
+    },
+    zoomend() {
+      onViewportChange(map);
+    },
   });
 
   useEffect(() => {
@@ -126,6 +161,8 @@ function MapEvents({ onViewportChange, mapRef }: { onViewportChange: (map: Leafl
 }
 
 export function MediaMap() {
+  const navigate = useNavigation();
+
   const mapRef = useRef<LeafletMap | null>(null);
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
   const suggestAbortRef = useRef<AbortController | null>(null);
@@ -133,6 +170,7 @@ export function MediaMap() {
   const [bboxStr, setBboxStr] = useState<string | undefined>(undefined);
   const [bboxArr, setBboxArr] = useState<BboxArr | null>(null);
   const [zoom, setZoom] = useState<number>(12);
+  const [mapReady, setMapReady] = useState(false);
 
   // =====================
   // Filtros + busca (Etapa 2)
@@ -143,6 +181,11 @@ export function MediaMap() {
   const [stateUf, setStateUf] = useState('');
   const [district, setDistrict] = useState('');
   const [onlyMediaKit, setOnlyMediaKit] = useState(false);
+
+  // =====================
+  // Camadas (Etapa 3)
+  // =====================
+  const [layers, setLayers] = useState<MediaMapLayer[]>([]); // vazio => TODOS (default)
 
   // Busca (autocomplete)
   const [search, setSearch] = useState('');
@@ -160,7 +203,9 @@ export function MediaMap() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
 
-  const { points, loading, error } = useMediaMapPoints({
+  const effectiveLayers = layers.length ? layers : undefined;
+
+  const { points, loading, error, refetch } = useMediaMapPoints({
     bbox: bboxStr,
     zoom,
     type: filterType === 'ALL' ? undefined : (filterType as MediaType),
@@ -169,6 +214,7 @@ export function MediaMap() {
     district,
     showInMediaKit: onlyMediaKit ? true : undefined,
     availability: availability || undefined,
+    layers: effectiveLayers,
   });
 
   const features = useMemo(() => {
@@ -203,7 +249,7 @@ export function MediaMap() {
   }, [clusterIndex, bboxArr, zoom]);
 
   // =====================
-  // Autocomplete (Etapa 2)
+  // Autocomplete (Etapa 2/3)
   // =====================
 
   useEffect(() => {
@@ -239,444 +285,524 @@ export function MediaMap() {
         const data = await fetchMediaMapSuggestions(
           {
             q,
-            limit: 8,
-            type: filterType === 'ALL' ? undefined : (filterType as MediaType),
+            limit: 10,
+            bbox: bboxStr,
+            type: filterType === 'ALL' ? undefined : (filterType as any),
+            city,
+            state: stateUf,
+            district,
             showInMediaKit: onlyMediaKit ? true : undefined,
+            layers: effectiveLayers,
           },
           controller.signal
         );
 
-        if (controller.signal.aborted) return;
-        setSuggestions(data);
+        setSuggestions(data || []);
         setSuggestOpen(true);
-      } catch (err: any) {
-        const msg = String(err?.message ?? '');
+      } catch (e: any) {
+        const msg = String(e?.message ?? '');
         if (msg.includes('canceled') || msg.includes('abort')) return;
-        setSuggestError('Falha ao buscar pontos');
-        setSuggestions([]);
+        setSuggestError('Erro ao buscar sugestões');
       } finally {
         setSuggestLoading(false);
       }
     }, 250);
 
     return () => window.clearTimeout(t);
-  }, [search, filterType, onlyMediaKit]);
+  }, [search, bboxStr, filterType, city, stateUf, district, onlyMediaKit, effectiveLayers]);
 
-  const onViewportChange = (map: LeafletMap) => {
-    const { bboxStr: nextStr, bboxArr: nextArr, zoom: nextZoom } = getBboxFromMap(map);
-    setBboxStr(nextStr);
-    setBboxArr(nextArr);
-    setZoom(nextZoom);
+  // =====================
+  // Viewport updates
+  // =====================
+
+  const handleViewportChange = (map: LeafletMap) => {
+    const { bboxStr: bb, bboxArr: arr, zoom: z } = getBboxFromMap(map);
+    setBboxStr(bb);
+    setBboxArr(arr);
+    setZoom(z);
+    setMapReady(true);
   };
 
-  const openPointDetails = async (id: string) => {
+  // =====================
+  // Ações
+  // =====================
+
+  const openPointDetails = async (pointId: string, opts?: { center?: boolean }) => {
+    setSelectedPointId(pointId);
+    setPanelMode('details');
+    setPanelOpen(true);
+    setDetails(null);
+    setDetailsError(null);
+    setDetailsLoading(true);
     try {
-      setPanelOpen(true);
-      setPanelMode('details');
-      setSelectedPointId(id);
-      setDetails(null);
-      setDetailsError(null);
-      setDetailsLoading(true);
-      const data = await fetchMediaMapDetails(id);
-      setDetails(data);
-    } catch (e: any) {
-      setDetailsError(e?.response?.data?.message ?? 'Não foi possível carregar os detalhes do ponto');
+      const d = await fetchMediaMapDetails(pointId);
+      setDetails(d);
+      if (opts?.center !== false && d?.point?.latitude && d?.point?.longitude) {
+        const lat = Number((d.point as any).latitude);
+        const lng = Number((d.point as any).longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          mapRef.current?.setView([lat, lng], Math.max(16, mapRef.current?.getZoom?.() ?? 16), { animate: true } as any);
+        }
+      }
+    } catch (e) {
+      setDetailsError('Erro ao carregar detalhes do ponto');
     } finally {
       setDetailsLoading(false);
     }
   };
 
-  const handleSuggestionSelect = (s: MediaMapSuggestion) => {
-    setSuggestOpen(false);
-    setSearch(s.name ?? '');
-
-    const lat = s.latitude;
-    const lng = s.longitude;
-    const map = mapRef.current;
-    if (map && typeof lat === 'number' && typeof lng === 'number') {
-      const nextZoom = Math.max(map.getZoom(), 17);
-      map.setView([lat, lng], nextZoom, { animate: true } as any);
-    }
-
-    // abre painel de detalhes
-    void openPointDetails(s.id);
-  };
-
-  const clearFilters = () => {
-    setFilterType('ALL');
-    setAvailability('');
-    setCity('');
-    setStateUf('');
-    setDistrict('');
-    setOnlyMediaKit(false);
-  };
-
-  const openClusterList = (clusterId: number) => {
-    const leaves = clusterIndex.getLeaves(clusterId, 1000) as any[];
-    const pts = (leaves ?? []).map((l) => l.properties as MediaMapPoint);
-    pts.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-
+  const openClusterList = (clusterId: number, clusterCount: number) => {
+    if (!bboxArr) return;
+    // supercluster usa "id" para pegar leaves
+    const leaves = clusterIndex.getLeaves(clusterId, clusterCount);
+    const pts: MediaMapPoint[] = leaves
+      .map((l: any) => l?.properties as MediaMapPoint)
+      .filter(Boolean);
     setClusterPoints(pts);
     setPanelMode('cluster');
     setPanelOpen(true);
-    setSelectedPointId(null);
-    setDetails(null);
-    setDetailsError(null);
+  };
 
-    // opcional: encaixa cluster na tela (melhora UX sem ser obrigatório)
-    const map = mapRef.current;
-    if (map && pts.length > 1) {
-      const latLngs = pts.map((p) => L.latLng(p.latitude, p.longitude));
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds.pad(0.2));
+  const handleSelectSuggestion = (s: MediaMapSuggestion) => {
+    setSearch(s.name);
+    setSuggestOpen(false);
+    if (mapRef.current) {
+      mapRef.current.setView([s.latitude, s.longitude], Math.max(16, mapRef.current.getZoom() || 16), { animate: true } as any);
+    }
+    void openPointDetails(s.id, { center: false });
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!details?.point?.id) return;
+    const pointId = details.point.id;
+    const next = !Boolean((details.point as any).isFavorite);
+
+    // otimista
+    setDetails((prev) => (prev ? { ...prev, point: { ...prev.point, isFavorite: next } as any } : prev));
+
+    try {
+      await setMediaPointFavorite(pointId, next);
+      invalidateMediaMapCaches();
+      void refetch(true);
+      toast.success(next ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+    } catch {
+      // rollback
+      setDetails((prev) => (prev ? { ...prev, point: { ...prev.point, isFavorite: !next } as any } : prev));
+      toast.error('Não foi possível atualizar favorito');
     }
   };
 
-  const initialCenter: [number, number] = useMemo(() => {
-    // São Paulo como fallback
-    return [-23.5505, -46.6333];
-  }, []);
+  const handleCopyLink = async () => {
+    if (!details?.point?.id) return;
+    const url = `${window.location.origin}/app/mediamap?pointId=${details.point.id}`;
+    const ok = await copyText(url);
+    toast[ok ? 'success' : 'error'](ok ? 'Link copiado!' : 'Não foi possível copiar o link');
+  };
+
+  const handleCopyCoords = async () => {
+    if (!details?.point) return;
+    const lat = (details.point as any).latitude;
+    const lng = (details.point as any).longitude;
+    const ok = await copyText(`${lat},${lng}`);
+    toast[ok ? 'success' : 'error'](ok ? 'Coordenadas copiadas!' : 'Não foi possível copiar');
+  };
+
+  const handleOpenInventory = () => {
+    if (!details?.point?.id) return;
+    navigate(`/app/inventory?pointId=${details.point.id}`);
+    setPanelOpen(false);
+  };
+
+  const handleCreateProposal = () => {
+    if (!details?.point?.id) return;
+    navigate(`/app/proposals?new=1&mediaPointId=${details.point.id}`);
+    setPanelOpen(false);
+  };
+
+  // Deep-link: /app/mediamap?pointId=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pointId = params.get('pointId');
+    if (!pointId) return;
+    if (!mapReady || !mapRef.current) return;
+
+    void openPointDetails(pointId, { center: true });
+
+    // limpa para não reabrir ao fechar (sem mexer na navegação do app)
+    params.delete('pointId');
+    const next = params.toString();
+    const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
+    window.history.replaceState({}, '', url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady]);
+
+  // =====================
+  // Render
+  // =====================
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="px-6 pt-6 pb-4 border-b border-gray-200 bg-white">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg text-gray-900">Mídia Map</h2>
-            <p className="text-sm text-gray-600">
-              Visualize todos os pontos do inventário no mapa. Aproximar/afastar agrupa automaticamente.
-            </p>
-          </div>
+    <div className="relative h-[calc(100vh-64px)] w-full">
+      {/* Barra superior */}
+      <div className="absolute z-[900] top-4 left-4 right-4 flex flex-col gap-3 max-w-[720px]">
+        <div className="bg-white border rounded-xl shadow-sm p-3">
           <div className="flex items-center gap-2">
-            {loading && <span className="text-xs text-gray-500">Carregando pontos…</span>}
-            {error && <span className="text-xs text-red-600">Erro ao carregar pontos</span>}
-          </div>
-        </div>
+            <div className="relative flex-1" ref={searchBoxRef}>
+              <div className="flex items-center gap-2 border rounded-lg px-3 py-2">
+                <Search className="w-4 h-4 text-gray-500" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => setSuggestOpen(true)}
+                  placeholder="Buscar ponto, endereço, cidade..."
+                  className="flex-1 outline-none text-sm"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setSuggestions([]);
+                      setSuggestOpen(false);
+                    }}
+                    className="p-1 rounded hover:bg-gray-100"
+                    aria-label="Limpar"
+                  >
+                    <X className="w-4 h-4 text-gray-600" />
+                  </button>
+                ) : null}
+              </div>
 
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row sm:items-end flex-wrap gap-2">
-            <div ref={searchBoxRef} className="relative w-full sm:w-[360px]">
-              <label className="block text-xs text-gray-600 mb-1">Buscar ponto</label>
-              <input
-                className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                placeholder="Nome, rua, cidade…"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setSuggestOpen(true);
-                }}
-                onFocus={() => {
-                  if (suggestions.length) setSuggestOpen(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && suggestions.length) {
-                    e.preventDefault();
-                    handleSuggestionSelect(suggestions[0]);
-                  }
-                }}
-              />
-
-              {suggestOpen && (suggestions.length > 0 || suggestLoading || suggestError) && (
-                <div className="absolute z-[1000] mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
-                  <div className="max-h-72 overflow-auto">
-                    {suggestLoading && <div className="px-3 py-2 text-xs text-gray-500">Buscando…</div>}
-                    {suggestError && <div className="px-3 py-2 text-xs text-red-600">{suggestError}</div>}
-                    {!suggestLoading && !suggestError && suggestions.length === 0 && (
-                      <div className="px-3 py-2 text-xs text-gray-500">Nenhum resultado</div>
-                    )}
-                    {suggestions.map((s) => {
-                      const addr = [
-                        s.addressStreet ? `${s.addressStreet}${s.addressNumber ? `, ${s.addressNumber}` : ''}` : '',
-                        s.addressDistrict || '',
-                        s.addressCity || '',
-                      ]
-                        .filter(Boolean)
-                        .join(' • ');
-
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          className="w-full px-3 py-2 text-left hover:bg-gray-50"
-                          onClick={() => handleSuggestionSelect(s)}
-                        >
-                          <div className="text-sm text-gray-900">{s.name}</div>
-                          <div className="text-xs text-gray-600">
-                            {addr}{s.addressState ? `/${s.addressState}` : ''}
+              {suggestOpen && (suggestLoading || suggestions.length > 0 || suggestError) && (
+                <div className="absolute mt-2 w-full bg-white border rounded-lg shadow-lg overflow-hidden">
+                  <div className="max-h-[280px] overflow-auto">
+                    {suggestLoading ? (
+                      <div className="px-3 py-2 text-sm text-gray-600">Buscando...</div>
+                    ) : null}
+                    {suggestError ? (
+                      <div className="px-3 py-2 text-sm text-red-600">{suggestError}</div>
+                    ) : null}
+                    {!suggestLoading && !suggestError && suggestions.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-gray-600">Nenhum resultado</div>
+                    ) : null}
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-start gap-2"
+                        onClick={() => handleSelectSuggestion(s)}
+                      >
+                        <MapPin className="w-4 h-4 text-indigo-600 mt-0.5" />
+                        <div className="min-w-0">
+                          <div className="text-sm text-gray-900 truncate">{s.name}</div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {[s.addressDistrict, s.addressCity, s.addressState].filter(Boolean).join(' • ')}
                           </div>
-                        </button>
-                      );
-                    })}
+                        </div>
+                        {s.isFavorite ? (
+                          <Star className="w-4 h-4 text-amber-500 ml-auto mt-0.5" />
+                        ) : null}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs text-gray-600 mb-1">Tipo</label>
-              <select
-                className="h-10 w-full sm:w-[140px] rounded-md border border-gray-300 px-3 text-sm"
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value as any)}
-              >
-                <option value="ALL">Todos</option>
-                <option value="OOH">OOH</option>
-                <option value="DOOH">DOOH</option>
-              </select>
-            </div>
+          {/* Camadas */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={layers.length === 0 ? 'default' : 'outline'}
+              size="sm"
+              className={cn('h-8', layers.length === 0 ? 'bg-[#4F46E5] hover:opacity-95' : '')}
+              onClick={() => setLayers([])}
+            >
+              Todos
+            </Button>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs text-gray-600 mb-1">Disponibilidade</label>
-              <select
-                className="h-10 w-full sm:w-[190px] rounded-md border border-gray-300 px-3 text-sm"
-                value={availability}
-                onChange={(e) => setAvailability(e.target.value as any)}
-              >
-                <option value="">Todos</option>
-                <option value="LIVRE">Com face livre</option>
-                <option value="EM_NEGOCIACAO">Em negociação</option>
-                <option value="OCUPADA">Somente ocupadas</option>
-              </select>
-            </div>
+            <ToggleGroup
+              type="multiple"
+              value={layers}
+              onValueChange={(v: any) => setLayers((v ?? []) as MediaMapLayer[])}
+              variant="outline"
+              size="sm"
+              className="h-8"
+            >
+              <ToggleGroupItem value="mine" aria-label="Meus">
+                Meus
+              </ToggleGroupItem>
+              <ToggleGroupItem value="favorites" aria-label="Favoritos">
+                Favoritos
+              </ToggleGroupItem>
+              <ToggleGroupItem value="campaign" aria-label="Em campanha">
+                Em campanha
+              </ToggleGroupItem>
+              <ToggleGroupItem value="proposal" aria-label="Em proposta">
+                Em proposta
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs text-gray-600 mb-1">Cidade</label>
-              <input
-                className="h-10 w-full sm:w-[180px] rounded-md border border-gray-300 px-3 text-sm"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-              />
-            </div>
+          {/* Filtros compactos */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <select
+              className="border rounded-lg px-3 py-2 text-sm"
+              value={filterType}
+              onChange={(e) => setFilterType((e.target.value as any) || 'ALL')}
+            >
+              <option value="ALL">Tipo: todos</option>
+              <option value="OOH">OOH</option>
+              <option value="DOOH">DOOH</option>
+            </select>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs text-gray-600 mb-1">UF</label>
-              <input
-                className="h-10 w-full sm:w-[72px] rounded-md border border-gray-300 px-3 text-sm uppercase"
-                value={stateUf}
-                onChange={(e) => setStateUf(e.target.value)}
-              />
-            </div>
+            <select
+              className="border rounded-lg px-3 py-2 text-sm"
+              value={availability}
+              onChange={(e) => setAvailability((e.target.value as any) || '')}
+            >
+              <option value="">Disponibilidade: todas</option>
+              <option value="LIVRE">Somente livres</option>
+              <option value="OCUPADA">Somente ocupadas</option>
+              <option value="EM_NEGOCIACAO">Somente em negociação</option>
+            </select>
 
-            <div className="w-full sm:w-auto">
-              <label className="block text-xs text-gray-600 mb-1">Bairro</label>
-              <input
-                className="h-10 w-full sm:w-[180px] rounded-md border border-gray-300 px-3 text-sm"
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-              />
-            </div>
+            <input
+              className="border rounded-lg px-3 py-2 text-sm"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Cidade"
+            />
+            <input
+              className="border rounded-lg px-3 py-2 text-sm"
+              value={stateUf}
+              onChange={(e) => setStateUf(e.target.value)}
+              placeholder="UF"
+            />
+            <input
+              className="border rounded-lg px-3 py-2 text-sm sm:col-span-2"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              placeholder="Bairro"
+            />
 
-            <div className="flex h-10 items-center gap-2 rounded-md border border-gray-300 px-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700 sm:col-span-2">
               <input
                 type="checkbox"
                 checked={onlyMediaKit}
                 onChange={(e) => setOnlyMediaKit(e.target.checked)}
               />
-              <span className="text-sm text-gray-700 whitespace-nowrap">Somente no Media Kit</span>
-            </div>
-
-            <button
-              type="button"
-              className="h-10 rounded-md border border-gray-300 px-3 text-sm hover:bg-gray-50"
-              onClick={clearFilters}
-            >
-              Limpar
-            </button>
+              Somente no Mídia Kit
+            </label>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <LegendItem color="#22c55e" label="Livre" />
-            <LegendItem color="#a855f7" label="Negociação" />
-            <LegendItem color="#f59e0b" label="Ocupação parcial" />
-            <LegendItem color="#ef4444" label="Ocupado" />
+          {/* Legenda */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge className="bg-green-100 text-green-700 border border-green-200">Livre</Badge>
+            <Badge className="bg-amber-100 text-amber-700 border border-amber-200">Misto</Badge>
+            <Badge className="bg-red-100 text-red-700 border border-red-200">Ocupado</Badge>
+            <Badge className="bg-purple-100 text-purple-700 border border-purple-200">Negociação</Badge>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-[520px]">
-        <MapContainer
-          center={initialCenter}
-          zoom={12}
-          style={{ height: '100%', width: '100%' }}
-          scrollWheelZoom
-        >
-          <TileLayer
-            attribution='&copy; OpenStreetMap contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+      {/* Mapa */}
+      <MapContainer
+        center={[-23.55052, -46.633308]}
+        zoom={12}
+        className="h-full w-full"
+        zoomControl={true}
+      >
+        <TileLayer
+          attribution='&copy; OpenStreetMap contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-          <MapEvents onViewportChange={onViewportChange} mapRef={mapRef} />
+        <MapEvents mapRef={mapRef} onViewportChange={handleViewportChange} />
 
-          {clusters.map((feature) => {
-            const [lng, lat] = feature.geometry.coordinates as [number, number];
+        {clusters.map((c: any) => {
+          const [lng, lat] = c.geometry.coordinates;
+          const isCluster = c.properties.cluster;
 
-            const isCluster = !!feature.properties.cluster;
-            if (isCluster) {
-              const clusterId = feature.properties.cluster_id as number;
-              const pointCount = feature.properties.point_count as number;
-
-              return (
-                <Marker
-                  key={`cluster-${clusterId}`}
-                  position={[lat, lng]}
-                  icon={buildClusterIcon(pointCount)}
-                  eventHandlers={{
-                    click: () => openClusterList(clusterId),
-                  }}
-                />
-              );
-            }
-
-            const pointId = feature.properties.pointId as string;
-            const p = feature.properties as MediaMapPoint;
-
+          if (isCluster) {
+            const count = c.properties.point_count as number;
+            const clusterId = c.id as number;
             return (
               <Marker
-                key={`point-${pointId}`}
+                key={`cluster-${clusterId}`}
                 position={[lat, lng]}
-                icon={buildPointIcon(p)}
+                icon={buildClusterIcon(count)}
                 eventHandlers={{
-                  click: () => openPointDetails(pointId),
+                  click: () => {
+                    openClusterList(clusterId, count);
+                    // opção UX: aproximar no cluster
+                    const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(clusterId), 20);
+                    mapRef.current?.setView([lat, lng], expansionZoom, { animate: true } as any);
+                  },
                 }}
               />
             );
-          })}
-        </MapContainer>
-      </div>
+          }
 
+          const p = c.properties as MediaMapPoint;
+          return (
+            <Marker
+              key={`p-${p.id}`}
+              position={[p.latitude, p.longitude]}
+              icon={buildPointIcon(p)}
+              eventHandlers={{
+                click: () => void openPointDetails(p.id, { center: false }),
+              }}
+            />
+          );
+        })}
+      </MapContainer>
+
+      {/* Loading/errors */}
+      {loading ? (
+        <div className="absolute bottom-4 left-4 bg-white border rounded-lg shadow px-3 py-2 text-sm text-gray-700">
+          Carregando pontos...
+        </div>
+      ) : null}
+      {!loading && error ? (
+        <div className="absolute bottom-4 left-4 bg-white border border-red-200 rounded-lg shadow px-3 py-2 text-sm text-red-700">
+          Erro ao carregar pontos.
+        </div>
+      ) : null}
+
+      {/* Painel lateral */}
       <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-        <SheetContent className="sm:max-w-lg">
-          {panelMode === 'details' ? (
-            <>
-              <SheetHeader>
-                <SheetTitle>{details?.point?.name ?? 'Detalhes do ponto'}</SheetTitle>
-                <SheetDescription>
-                  {details?.point?.addressCity ? (
-                    <span>
-                      {details.point.addressCity}
-                      {details.point.addressState ? `/${details.point.addressState}` : ''}
-                    </span>
-                  ) : (
-                    <span>Selecione um ponto no mapa</span>
-                  )}
-                </SheetDescription>
-              </SheetHeader>
+        <SheetContent side="right" className="w-[420px] sm:w-[460px]">
+          <SheetHeader>
+            <SheetTitle>{panelMode === 'details' ? 'Detalhes do ponto' : 'Pontos do cluster'}</SheetTitle>
+            <SheetDescription>
+              {panelMode === 'details'
+                ? 'Disponibilidade por face e ações rápidas.'
+                : `${clusterPoints.length} ponto(s) neste agrupamento.`}
+            </SheetDescription>
+          </SheetHeader>
 
-              <div className="px-4 pb-4">
-                {detailsLoading && <div className="text-sm text-gray-600">Carregando…</div>}
-                {detailsError && <div className="text-sm text-red-600">{detailsError}</div>}
-
-                {details && !detailsLoading && (
+          <div className="mt-4">
+            {panelMode === 'cluster' ? (
+              <ScrollArea className="h-[calc(100vh-160px)] pr-3">
+                <div className="space-y-2">
+                  {clusterPoints.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={cn(
+                        'w-full text-left border rounded-lg p-3 hover:bg-gray-50',
+                        selectedPointId === p.id && 'border-indigo-300'
+                      )}
+                      onClick={() => void openPointDetails(p.id)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-gray-900 truncate">{p.name}</div>
+                          <div className="text-xs text-gray-600 truncate">
+                            {[p.addressDistrict, p.addressCity, p.addressState].filter(Boolean).join(' • ')}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {humanStatus(p)} • {p.facesFreeCount}/{p.facesTotal} livres
+                          </div>
+                        </div>
+                        {p.isFavorite ? <Star className="w-4 h-4 text-amber-500 mt-0.5" /> : null}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <>
+                {detailsLoading ? (
+                  <div className="text-sm text-gray-600">Carregando detalhes...</div>
+                ) : null}
+                {detailsError ? (
+                  <div className="text-sm text-red-700">{detailsError}</div>
+                ) : null}
+                {!detailsLoading && !detailsError && details ? (
                   <>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Badge variant="outline" className="border-gray-200 text-gray-700">
-                        {details.facesTotal} face(s)
-                      </Badge>
-                      <Badge variant="outline" className="border-green-200 text-green-700">
-                        {details.facesFreeCount} livre(s)
-                      </Badge>
-                      <Badge variant="outline" className="border-purple-200 text-purple-700">
-                        {details.facesNegotiationCount} em negociação
-                      </Badge>
-                      <Badge variant="outline" className="border-red-200 text-red-700">
-                        {details.facesOccupiedCount} ocupada(s)
-                      </Badge>
+                    <div className="border rounded-lg p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="text-gray-900 font-medium truncate">{details.point.name}</div>
+                            {(details.point as any).isFavorite ? (
+                              <Badge className="bg-amber-100 text-amber-800 border border-amber-200">Favorito</Badge>
+                            ) : null}
+                            {(details.point as any).isMine ? (
+                              <Badge className="bg-indigo-100 text-indigo-800 border border-indigo-200">Meu</Badge>
+                            ) : null}
+                            {(details.point as any).isInCampaign ? (
+                              <Badge className="bg-red-100 text-red-800 border border-red-200">Em campanha</Badge>
+                            ) : null}
+                            {(details.point as any).isInProposal ? (
+                              <Badge className="bg-purple-100 text-purple-800 border border-purple-200">Em proposta</Badge>
+                            ) : null}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {[
+                              (details.point as any).addressStreet,
+                              (details.point as any).addressNumber,
+                              (details.point as any).addressDistrict,
+                              (details.point as any).addressCity,
+                              (details.point as any).addressState,
+                            ]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            {humanStatus(details)} • {details.facesFreeCount}/{details.facesTotal} livres • {details.facesNegotiationCount} em negociação • {details.facesOccupiedCount} ocupadas
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button type="button" size="sm" className="gap-2 bg-[#4F46E5] hover:opacity-95" onClick={handleCreateProposal}>
+                          <Plus className="w-4 h-4" /> Criar proposta
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleOpenInventory}>
+                          <ExternalLink className="w-4 h-4" /> Abrir no inventário
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleToggleFavorite}>
+                          <Star className="w-4 h-4" /> {(details.point as any).isFavorite ? 'Desfavoritar' : 'Favoritar'}
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleCopyLink}>
+                          <Copy className="w-4 h-4" /> Copiar link
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleCopyCoords}>
+                          <Copy className="w-4 h-4" /> Copiar coords
+                        </Button>
+                      </div>
                     </div>
 
-                    <div className="border rounded-lg overflow-hidden">
-                      <div className="px-3 py-2 bg-gray-50 border-b text-sm text-gray-700">
-                        Faces
-                      </div>
-                      <ScrollArea className="h-[50vh]">
-                        <div className="divide-y">
+                    <div className="mt-4">
+                      <div className="text-sm text-gray-900 font-medium mb-2">Faces</div>
+                      <ScrollArea className="h-[calc(100vh-420px)] pr-3">
+                        <div className="grid grid-cols-2 gap-2">
                           {details.faces.map((f) => {
-                            const badge = statusBadgeVariant(f.status);
+                            const st = f.status;
+                            const color =
+                              st === 'LIVRE'
+                                ? 'border-green-200 bg-green-50 text-green-700'
+                                : st === 'OCUPADA'
+                                  ? 'border-red-200 bg-red-50 text-red-700'
+                                  : 'border-purple-200 bg-purple-50 text-purple-700';
                             return (
-                              <div key={f.id} className="px-3 py-2 flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm text-gray-900 truncate">{f.label}</div>
-                                  <div className="text-xs text-gray-500">
-                                    {String(f.unitType) === 'FACE' ? 'Face' : 'Tela'}
-                                  </div>
-                                </div>
-                                <Badge
-                                  variant={badge.variant}
-                                  className={cn(
-                                    badge.variant === 'secondary' && 'bg-purple-100 text-purple-700 border-purple-200',
-                                    badge.variant === 'outline' && 'bg-green-50 text-green-700 border-green-200'
-                                  )}
-                                >
-                                  {badge.label}
-                                </Badge>
+                              <div key={f.id} className={cn('border rounded-lg p-2 text-xs', color)}>
+                                <div className="font-medium text-gray-900">{f.label}</div>
+                                <div className="mt-1">{st === 'LIVRE' ? 'Livre' : st === 'OCUPADA' ? 'Ocupada' : 'Em negociação'}</div>
                               </div>
                             );
                           })}
-
-                          {details.faces.length === 0 && (
-                            <div className="px-3 py-3 text-sm text-gray-600">Nenhuma face ativa encontrada.</div>
-                          )}
                         </div>
                       </ScrollArea>
                     </div>
                   </>
-                )}
-
-                {!details && !detailsLoading && !detailsError && (
-                  <div className="text-sm text-gray-600">Clique em um pin para ver os detalhes.</div>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <SheetHeader>
-                <SheetTitle>Pontos neste agrupamento</SheetTitle>
-                <SheetDescription>
-                  {clusterPoints.length} ponto(s). Clique em um item para abrir detalhes.
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="px-4 pb-4">
-                <div className="border rounded-lg overflow-hidden">
-                  <ScrollArea className="h-[70vh]">
-                    <div className="divide-y">
-                      {clusterPoints.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => openPointDetails(p.id)}
-                          className="w-full text-left px-3 py-3 hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm text-gray-900 truncate">{p.name}</div>
-                              <div className="text-xs text-gray-500">
-                                {p.addressCity ? `${p.addressCity}${p.addressState ? `/${p.addressState}` : ''}` : '—'}
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap gap-1 justify-end">
-                              <Badge variant="outline" className="border-green-200 text-green-700">
-                                {p.facesFreeCount} L
-                              </Badge>
-                              <Badge variant="outline" className="border-purple-200 text-purple-700">
-                                {p.facesNegotiationCount} N
-                              </Badge>
-                              <Badge variant="outline" className="border-red-200 text-red-700">
-                                {p.facesOccupiedCount} O
-                              </Badge>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-
-                      {clusterPoints.length === 0 && (
-                        <div className="px-3 py-3 text-sm text-gray-600">Nenhum ponto encontrado.</div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-              </div>
-            </>
-          )}
+                ) : null}
+              </>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
     </div>
