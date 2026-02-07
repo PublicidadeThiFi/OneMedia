@@ -4,7 +4,27 @@
   import path from 'path';
 
   export default defineConfig({
-    plugins: [react()],
+    plugins: [
+      // Resolve imports like `figma:asset/<file>.png` to `/figma-assets/<file>.png`
+      // Files should be placed in the `public/figma-assets` folder so Vite serves them.
+      {
+        name: 'figma-asset-resolver',
+        resolveId(source) {
+          if (typeof source === 'string' && source.startsWith('figma:asset/')) {
+            return '\0figma-asset:' + source.slice('figma:asset/'.length);
+          }
+          return null;
+        },
+        load(id) {
+          if (typeof id === 'string' && id.startsWith('\0figma-asset:')) {
+            const filename = id.slice('\0figma-asset:'.length);
+            return `export default "/figma-assets/${filename}";`;
+          }
+          return null;
+        },
+      },
+      react(),
+    ],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       alias: {
