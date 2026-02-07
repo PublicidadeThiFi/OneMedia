@@ -153,10 +153,7 @@ export default function Login() {
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3">
-              <img src={imgOnemediaLogo} alt="OneMedia Logo" className="w-10 h-10 rounded-xl shadow-sm" />
-              <span className="text-xl font-semibold text-gray-900">OneMedia</span>
-            </div>
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
           </div>
           <button
             onClick={() => navigate('/')}
