@@ -7,6 +7,7 @@ import { LoginCredentials, TwoFactorPayload } from '../types/auth';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
 import { clearAccessState } from '../lib/accessControl';
+import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 type ResendVerificationResponse = {
   message?: string;
@@ -153,7 +154,7 @@ export default function Login() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 shadow-sm" />
+              <img src={imgOnemediaLogo} alt="OneMedia Logo" className="w-10 h-10 rounded-xl shadow-sm" />
               <span className="text-xl font-semibold text-gray-900">OneMedia</span>
             </div>
           </div>
