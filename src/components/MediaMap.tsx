@@ -667,8 +667,12 @@ export function MediaMap() {
       style={{ minHeight: 'calc(100vh - 64px)', isolation: 'isolate' }}
     >
       {/* Barra superior */}
-      <div className="absolute top-4 left-4 right-4 flex flex-col gap-3" style={{ zIndex: 30, maxWidth: 720, pointerEvents: 'auto' }}>
-        <div className="bg-white border rounded-xl shadow-sm p-3">
+      <div
+        className="absolute top-4 left-4 right-4 flex flex-col gap-3"
+        // Mais largo (pra ocupar menos altura) e com z-index consistente acima do Leaflet.
+        style={{ zIndex: 30, maxWidth: 980, pointerEvents: 'auto' }}
+      >
+        <div className="bg-white border rounded-2xl shadow-sm p-4">
           <div className="flex items-center gap-2">
             <div className="relative flex-1" ref={searchBoxRef}>
               <div className="flex items-center gap-2 border rounded-lg px-3 py-2">
@@ -734,7 +738,7 @@ export function MediaMap() {
           </div>
 
           {/* Camadas */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant={layers.length === 0 ? 'default' : 'outline'}
@@ -751,18 +755,19 @@ export function MediaMap() {
               onValueChange={(v: any) => setLayers((v ?? []) as MediaMapLayer[])}
               variant="outline"
               size="sm"
-              className="h-8"
+              // Evita textos colados/sobrepostos e permite quebrar linha quando necessário.
+              className="flex flex-wrap gap-2"
             >
-              <ToggleGroupItem value="mine" aria-label="Meus">
+              <ToggleGroupItem value="mine" aria-label="Meus" className="h-8 px-3 whitespace-nowrap">
                 Meus
               </ToggleGroupItem>
-              <ToggleGroupItem value="favorites" aria-label="Favoritos">
+              <ToggleGroupItem value="favorites" aria-label="Favoritos" className="h-8 px-3 whitespace-nowrap">
                 Favoritos
               </ToggleGroupItem>
-              <ToggleGroupItem value="campaign" aria-label="Em campanha">
+              <ToggleGroupItem value="campaign" aria-label="Em campanha" className="h-8 px-3 whitespace-nowrap">
                 Em campanha
               </ToggleGroupItem>
-              <ToggleGroupItem value="proposal" aria-label="Em proposta">
+              <ToggleGroupItem value="proposal" aria-label="Em proposta" className="h-8 px-3 whitespace-nowrap">
                 Em proposta
               </ToggleGroupItem>
             </ToggleGroup>
@@ -771,7 +776,7 @@ export function MediaMap() {
 
 
           {/* Seleção por área (Etapa 4) */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button
               type="button"
               variant={drawMode === 'polygon' ? 'default' : 'outline'}
@@ -831,7 +836,7 @@ export function MediaMap() {
             ) : null}
           </div>
           {/* Filtros compactos */}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             <select
               className="border rounded-lg px-3 py-2 text-sm"
               value={filterType}
@@ -866,13 +871,13 @@ export function MediaMap() {
               placeholder="UF"
             />
             <input
-              className="border rounded-lg px-3 py-2 text-sm sm:col-span-2"
+              className="border rounded-lg px-3 py-2 text-sm sm:col-span-2 lg:col-span-2"
               value={district}
               onChange={(e) => setDistrict(e.target.value)}
               placeholder="Bairro"
             />
 
-            <label className="flex items-center gap-2 text-sm text-gray-700 sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm text-gray-700 sm:col-span-2 lg:col-span-1">
               <input
                 type="checkbox"
                 checked={onlyMediaKit}
@@ -1040,8 +1045,14 @@ export function MediaMap() {
       ) : null}
       {/* Painel lateral */}
       <Sheet open={panelOpen} onOpenChange={setPanelOpen} modal={false}>
-        <SheetContent hideOverlay side="right" className="" style={{ width: 460, maxWidth: '92vw' }}>
-          <SheetHeader>
+        <SheetContent
+          hideOverlay
+          side="right"
+          // Mantém o layout do Sheet e controla o espaçamento pelo header/corpo.
+          className="p-0"
+          style={{ width: 480, maxWidth: '92vw' }}
+        >
+          <SheetHeader className="space-y-1 p-5 pb-0">
             <SheetTitle>{panelMode === 'details' ? 'Detalhes do ponto' : panelMode === 'cluster' ? 'Pontos do cluster' : 'Selecionados'}</SheetTitle>
             <SheetDescription>
               {panelMode === 'details'
@@ -1052,16 +1063,16 @@ export function MediaMap() {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="mt-4">
+          <div className="px-5 pb-5 pt-4">
             {panelMode === 'cluster' ? (
-              <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 160px)' }}>
+              <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 180px)' }}>
                 <div className="space-y-2">
                   {clusterPoints.map((p) => (
                     <button
                       key={p.id}
                       type="button"
                       className={cn(
-                        'w-full text-left border rounded-lg p-3 hover:bg-gray-50',
+                        'w-full text-left border rounded-xl p-3 hover:bg-gray-50',
                         selectedPointId === p.id && 'border-indigo-300'
                       )}
                       onClick={() => void openPointDetails(p.id)}
@@ -1083,7 +1094,7 @@ export function MediaMap() {
                 </div>
               </ScrollArea>
             ) : panelMode === 'selected' ? (
-              <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 200px)' }}>
+              <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 220px)' }}>
                 <div className="flex flex-wrap gap-2 mb-3">
                   <Button
                     type="button"
@@ -1108,7 +1119,7 @@ export function MediaMap() {
                     <button
                       key={p.id}
                       type="button"
-                      className={cn('w-full text-left border rounded-lg p-3 hover:bg-gray-50')}
+                      className={cn('w-full text-left border rounded-xl p-3 hover:bg-gray-50')}
                       onClick={() => void openPointDetails(p.id)}
                     >
                       <div className="flex items-start gap-2">
@@ -1137,10 +1148,10 @@ export function MediaMap() {
                 ) : null}
                 {!detailsLoading && !detailsError && details ? (
                   <>
-                    <div className="border rounded-lg p-3">
+                    <div className="border rounded-2xl p-4">
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <div className="text-gray-900 font-medium truncate">{details.point.name}</div>
                             {(details.point as any).isFavorite ? (
                               <Badge className="bg-amber-100 text-amber-800 border border-amber-200">Favorito</Badge>
@@ -1155,7 +1166,7 @@ export function MediaMap() {
                               <Badge className="bg-purple-100 text-purple-800 border border-purple-200">Em proposta</Badge>
                             ) : null}
                           </div>
-                          <div className="text-xs text-gray-600 mt-1">
+                          <div className="text-xs text-gray-600 mt-1 leading-relaxed">
                             {[
                               (details.point as any).addressStreet,
                               (details.point as any).addressNumber,
@@ -1172,16 +1183,37 @@ export function MediaMap() {
                         </div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button type="button" size="sm" className="gap-2 mm-indigo" onClick={handleCreateProposal}>
+                      {/* Ações em grid deixam o painel mais organizado e evitam botões "grudados" */}
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="gap-2 mm-indigo col-span-2"
+                          onClick={handleCreateProposal}
+                        >
                           <Plus className="w-4 h-4" /> Criar proposta
                         </Button>
-                        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleOpenInventory}>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 col-span-2 sm:col-span-1"
+                          onClick={handleOpenInventory}
+                        >
                           <ExternalLink className="w-4 h-4" /> Abrir no inventário
                         </Button>
-                        <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleToggleFavorite}>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="gap-2 col-span-2 sm:col-span-1"
+                          onClick={handleToggleFavorite}
+                        >
                           <Star className="w-4 h-4" /> {(details.point as any).isFavorite ? 'Desfavoritar' : 'Favoritar'}
                         </Button>
+
                         <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleCopyLink}>
                           <Copy className="w-4 h-4" /> Copiar link
                         </Button>
@@ -1193,8 +1225,8 @@ export function MediaMap() {
 
                     <div className="mt-4">
                       <div className="text-sm text-gray-900 font-medium mb-2">Faces</div>
-                      <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 420px)' }}>
-                        <div className="grid grid-cols-2 gap-2">
+                      <ScrollArea className="pr-3" style={{ height: 'calc(100vh - 440px)' }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {details.faces.map((f) => {
                             const st = f.status;
                             const color =
@@ -1204,7 +1236,7 @@ export function MediaMap() {
                                   ? 'border-red-200 bg-red-50 text-red-700'
                                   : 'border-purple-200 bg-purple-50 text-purple-700';
                             return (
-                              <div key={f.id} className={cn('border rounded-lg p-2 text-xs', color)}>
+                              <div key={f.id} className={cn('border rounded-xl p-3 text-xs', color)}>
                                 <div className="font-medium text-gray-900">{f.label}</div>
                                 <div className="mt-1">{st === 'LIVRE' ? 'Livre' : st === 'OCUPADA' ? 'Ocupada' : 'Em negociação'}</div>
                               </div>
