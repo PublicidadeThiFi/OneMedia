@@ -54,16 +54,43 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | MediaType>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
+  const [stateFilter, setStateFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Availability>('all');
 
   // Estado para modal de compartilhamento (apenas no modo internal)
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [publicTokenUrl, setPublicTokenUrl] = useState('');
   const [shareUrl, setShareUrl] = useState('');
 
   // Data
   const [data, setData] = useState<MediaKitResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Inicializa filtros via query params (serve para link compartilhado com filtros)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const q = (params.get('q') || '').trim();
+    const type = (params.get('type') || '').trim();
+    const city = (params.get('city') || '').trim();
+    const uf = (params.get('state') || '').trim();
+    const status = (params.get('status') || '').trim();
+
+    if (q) setSearchQuery(q);
+
+    if (type === MediaType.OOH || type === MediaType.DOOH) {
+      setTypeFilter(type as MediaType);
+    }
+
+    if (city) setCityFilter(city);
+    if (uf) setStateFilter(uf);
+
+    if (status === 'Disponível' || status === 'Parcial' || status === 'Ocupado') {
+      setStatusFilter(status as Availability);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const allMediaKitPoints = useMemo(() => data?.points ?? [], [data?.points]);
 
@@ -114,6 +141,27 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     return Array.from(cities).sort();
   }, [allMediaKitPoints]);
 
+  // Gerar lista de UFs únicas
+  const availableStates = useMemo(() => {
+    const states = new Set(allMediaKitPoints.map((p) => p.addressState).filter(Boolean) as string[]);
+    return Array.from(states).sort();
+  }, [allMediaKitPoints]);
+
+  // Se o link vier com cidade/UF inválidos, reseta para não deixar o Select em branco
+  useEffect(() => {
+    if (cityFilter !== 'all' && availableCities.length > 0 && !availableCities.includes(cityFilter)) {
+      setCityFilter('all');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableCities]);
+
+  useEffect(() => {
+    if (stateFilter !== 'all' && availableStates.length > 0 && !availableStates.includes(stateFilter)) {
+      setStateFilter('all');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableStates]);
+
   // Aplicar filtros
   const filteredPoints = useMemo(() => {
     let filtered = [...allMediaKitPoints];
@@ -126,6 +174,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     // Filtro de cidade
     if (cityFilter !== 'all') {
       filtered = filtered.filter((p) => p.addressCity === cityFilter);
+    }
+
+    // Filtro de UF
+    if (stateFilter !== 'all') {
+      filtered = filtered.filter((p) => p.addressState === stateFilter);
     }
 
     // Filtro de status (disponibilidade)
@@ -145,6 +198,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
         return (
           p.name.toLowerCase().includes(query) ||
           p.addressCity?.toLowerCase().includes(query) ||
+          p.addressState?.toLowerCase().includes(query) ||
           p.addressStreet?.toLowerCase().includes(query) ||
           p.addressDistrict?.toLowerCase().includes(query)
         );
@@ -152,7 +206,20 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
 
     return filtered;
-  }, [allMediaKitPoints, typeFilter, cityFilter, statusFilter, searchQuery]);
+  }, [allMediaKitPoints, typeFilter, cityFilter, stateFilter, statusFilter, searchQuery]);
+
+  const buildStaticMapPreviewUrl = (point: MediaPoint): string | null => {
+    if (!point.latitude || !point.longitude) return null;
+    const lat = Number(point.latitude);
+    const lng = Number(point.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    // Serviço simples de static map (sem chave).
+    // Obs: é um preview, não é substituto do mapa interativo.
+    const zoom = 16;
+    const size = '600x260';
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=${size}&markers=${lat},${lng},red-pushpin`;
+  };
 
   // Calcular "Nossos Números"
   const stats = useMemo(() => {
@@ -190,6 +257,15 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
   };
 
+  const getStaticMapPreviewUrl = (point: MediaPoint): string | null => {
+    if (!point.latitude || !point.longitude) return null;
+    const lat = point.latitude;
+    const lng = point.longitude;
+    const zoom = 16;
+    // Serviço simples de mapa estático (sem chave). Se falhar, o componente ImageWithFallback exibe fallback.
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=600x300&markers=${lat},${lng},red-pushpin`;
+  };
+
   const copyToClipboardFallback = (text: string): boolean => {
     try {
       const textArea = document.createElement('textarea');
@@ -209,13 +285,40 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
   };
 
-  const ensureShareUrl = async () => {
-    if (shareUrl) return shareUrl;
+  const buildShareUrlWithFilters = (baseUrl: string) => {
+    try {
+      const u = new URL(baseUrl);
+      const sp = u.searchParams;
+
+      const q = searchQuery.trim();
+      if (q) sp.set('q', q);
+      else sp.delete('q');
+
+      if (typeFilter !== 'all') sp.set('type', String(typeFilter));
+      else sp.delete('type');
+
+      if (cityFilter !== 'all') sp.set('city', cityFilter);
+      else sp.delete('city');
+
+      if (stateFilter !== 'all') sp.set('state', stateFilter);
+      else sp.delete('state');
+
+      if (statusFilter !== 'all') sp.set('status', String(statusFilter));
+      else sp.delete('status');
+
+      return u.toString();
+    } catch {
+      return baseUrl;
+    }
+  };
+
+  const ensurePublicTokenUrl = async () => {
+    if (publicTokenUrl) return publicTokenUrl;
 
     try {
       const resp = await apiClient.get<{ token: string; expiresAt: string }>('/media-kit/share-link');
       const url = `${window.location.origin}/mk?token=${encodeURIComponent(resp.data.token)}`;
-      setShareUrl(url);
+      setPublicTokenUrl(url);
       return url;
     } catch {
       toast.error('Não foi possível gerar o link público do Mídia Kit.');
@@ -226,12 +329,18 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   // Handler: Compartilhar
   const handleShare = async () => {
     setShareDialogOpen(true);
-    await ensureShareUrl();
+    const base = await ensurePublicTokenUrl();
+    if (!base) return;
+    setShareUrl(buildShareUrlWithFilters(base));
   };
 
   // Handler: Copiar link
   const handleCopyLink = async () => {
-    const url = await ensureShareUrl();
+    const base = await ensurePublicTokenUrl();
+    if (!base) return;
+
+    const url = buildShareUrlWithFilters(base);
+    setShareUrl(url);
     if (!url) return;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -357,7 +466,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             {/* Filters */}
             <Card className="mb-8">
               <CardContent className="pt-6">
-                <div className="flex flex-col lg:flex-row gap-4">
+                <div className="flex flex-col lg:flex-row lg:flex-wrap gap-4">
                   <div className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
@@ -372,7 +481,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     value={typeFilter}
                     onValueChange={(value: string) => setTypeFilter(value as 'all' | MediaType)}
                   >
-                    <SelectTrigger className="w-full lg:w-40">
+                    <SelectTrigger className="w-full lg:w-44">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -383,7 +492,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   </Select>
 
                   <Select value={cityFilter} onValueChange={(value: string) => setCityFilter(value)}>
-                    <SelectTrigger className="w-full lg:w-40">
+                    <SelectTrigger className="w-full lg:w-44">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -391,6 +500,20 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                       {availableCities.map((city) => (
                         <SelectItem key={city} value={city}>
                           {city}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={stateFilter} onValueChange={(value: string) => setStateFilter(value)}>
+                    <SelectTrigger className="w-full lg:w-32">
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas UFs</SelectItem>
+                      {availableStates.map((uf) => (
+                        <SelectItem key={uf} value={uf}>
+                          {uf}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -433,7 +556,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
                   return (
                     <Card key={point.id} className="overflow-hidden hover:shadow-xl transition-shadow">
-                      <div className="aspect-video bg-gray-100 relative">
+                      <div className="h-24 sm:h-28 bg-gray-100 relative">
                         <ImageWithFallback
                           src={
                             point.mainImageUrl ||
@@ -542,6 +665,27 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                           <Eye className="w-4 h-4" />
                           Ver no Mapa
                         </Button>
+
+                        <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                          {getStaticMapPreviewUrl(point) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleViewOnMap(point)}
+                              className="block w-full"
+                              aria-label={`Abrir mapa de ${point.name}`}
+                            >
+                              <div className="h-24">
+                                <ImageWithFallback
+                                  src={getStaticMapPreviewUrl(point) as string}
+                                  alt={`Mapa de ${point.name}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="px-3 py-3 text-xs text-gray-500">Sem coordenadas para preview do mapa.</div>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -588,7 +732,10 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Compartilhar Mídia Kit</DialogTitle>
-              <DialogDescription>Compartilhe o link público do Mídia Kit com seus clientes.</DialogDescription>
+              <DialogDescription>
+                Compartilhe o link público do Mídia Kit com seus clientes. Se você tiver filtros ativos, o link já abre
+                com esses filtros aplicados (mas quem receber pode alterá-los).
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -601,7 +748,8 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               </div>
 
               <p className="text-sm text-gray-500">
-                Este link permite que qualquer pessoa visualize seu portfólio de pontos de mídia.
+                Qualquer pessoa com o link pode visualizar seu portfólio. Se o link incluir filtros, eles serão aplicados
+                inicialmente — e depois podem ser alterados normalmente.
               </p>
             </div>
           </DialogContent>
