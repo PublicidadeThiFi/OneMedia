@@ -208,17 +208,27 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     return filtered;
   }, [allMediaKitPoints, typeFilter, cityFilter, stateFilter, statusFilter, searchQuery]);
 
-  const buildStaticMapPreviewUrl = (point: MediaPoint): string | null => {
+  /**
+   * URL do preview do mapa.
+   *
+   * Importante: alguns usuários (ou extensões como adblock) podem bloquear domínios de static map.
+   * Por isso, no render do preview nós tentamos o <img> primeiro e, se falhar, caímos para um iframe embed.
+   */
+  const getStaticMapPreviewUrl = (point: MediaPoint): string | null => {
     if (!point.latitude || !point.longitude) return null;
+
     const lat = Number(point.latitude);
     const lng = Number(point.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-    // Serviço simples de static map (sem chave).
-    // Obs: é um preview, não é substituto do mapa interativo.
     const zoom = 16;
-    const size = '600x260';
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=${size}&markers=${lat},${lng},red-pushpin`;
+    // Mantém 600px de largura para ficar nítido (o container “corta” e escala com object-cover)
+    const size = '600x300';
+    const center = `${lat},${lng}`;
+    const marker = `${lat},${lng},red-pushpin`;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${encodeURIComponent(center)}&zoom=${zoom}&size=${size}&markers=${encodeURIComponent(
+      marker,
+    )}`;
   };
 
   // Calcular "Nossos Números"
@@ -257,14 +267,58 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
   };
 
-  const getStaticMapPreviewUrl = (point: MediaPoint): string | null => {
+  const getOsmEmbedUrl = (point: MediaPoint): string | null => {
     if (!point.latitude || !point.longitude) return null;
-    const lat = point.latitude;
-    const lng = point.longitude;
-    const zoom = 16;
-    // Serviço simples de mapa estático (sem chave). Se falhar, o componente ImageWithFallback exibe fallback.
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=600x300&markers=${lat},${lng},red-pushpin`;
+    const lat = Number(point.latitude);
+    const lng = Number(point.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    // bbox pequeno ao redor do ponto para dar um “zoom” bom no embed
+    const delta = 0.0045; // ~500m (aprox.)
+    const left = lng - delta;
+    const right = lng + delta;
+    const top = lat + delta;
+    const bottom = lat - delta;
+
+    const bbox = `${left},${bottom},${right},${top}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(
+      `${lat},${lng}`,
+    )}`;
   };
+
+  function MediaKitMapPreview({ point }: { point: MediaPoint }) {
+    const src = getStaticMapPreviewUrl(point);
+    const embed = getOsmEmbedUrl(point);
+    const [imgFailed, setImgFailed] = useState(false);
+
+    if (!src || !embed) {
+      return <div className="px-3 py-3 text-xs text-gray-500">Sem coordenadas para preview do mapa.</div>;
+    }
+
+    if (imgFailed) {
+      return (
+        <iframe
+          title={`Mapa de ${point.name}`}
+          src={embed}
+          className="w-full h-full"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          style={{ border: 0 }}
+        />
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={`Mapa de ${point.name}`}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
 
   const copyToClipboardFallback = (text: string): boolean => {
     try {
@@ -556,7 +610,8 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
                   return (
                     <Card key={point.id} className="overflow-hidden hover:shadow-xl transition-shadow">
-                      <div className="h-24 sm:h-28 bg-gray-100 relative">
+                      {/* Imagem principal do card (+20% em relação ao tamanho anterior) */}
+                      <div className="h-28 sm:h-32 bg-gray-100 relative">
                         <ImageWithFallback
                           src={
                             point.mainImageUrl ||
@@ -667,24 +722,16 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                         </Button>
 
                         <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                          {getStaticMapPreviewUrl(point) ? (
-                            <button
-                              type="button"
-                              onClick={() => handleViewOnMap(point)}
-                              className="block w-full"
-                              aria-label={`Abrir mapa de ${point.name}`}
-                            >
-                              <div className="h-24">
-                                <ImageWithFallback
-                                  src={getStaticMapPreviewUrl(point) as string}
-                                  alt={`Mapa de ${point.name}`}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            </button>
-                          ) : (
-                            <div className="px-3 py-3 text-xs text-gray-500">Sem coordenadas para preview do mapa.</div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleViewOnMap(point)}
+                            className="block w-full"
+                            aria-label={`Abrir mapa de ${point.name}`}
+                          >
+                            <div className="h-24">
+                              <MediaKitMapPreview point={point} />
+                            </div>
+                          </button>
                         </div>
                       </CardContent>
                     </Card>
