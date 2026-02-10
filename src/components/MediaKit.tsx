@@ -4,12 +4,46 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { MapPin, Search, Share2, Eye, Building, Copy } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import { Checkbox } from './ui/checkbox';
+import { ScrollArea } from './ui/scroll-area';
+import {
+  MapPin,
+  Search,
+  Share2,
+  Eye,
+  Building,
+  Copy,
+  MessageCircle,
+  Linkedin,
+  Instagram,
+  Facebook,
+  Twitter,
+} from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from 'sonner';
 import apiClient, { publicApiClient } from '../lib/apiClient';
 import { MediaPoint, MediaType } from '../types';
+
+// Map (Leaflet)
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+
+// Fix Leaflet default marker icons when bundling with Vite
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).href,
+  iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
+  shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href,
+});
 
 type Availability = 'Disponível' | 'Parcial' | 'Ocupado';
 
@@ -49,6 +83,93 @@ type MediaKitProps = {
   token?: string;
 };
 
+const ONE_MEDIA_LOGO_SRC = '/figma-assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
+const OUTDOOR_BG_SRC = '/figma-assets/outdoor.png';
+
+function getOneMediaUrl(): string {
+  // Vite only exposes VITE_* by default, but this project uses URL_ONE_MEDIA in .env
+  // so we attempt multiple fallbacks.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const env = (import.meta as any).env ?? {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const winEnv = typeof window !== 'undefined' ? (window as any).__ENV__ ?? {} : {};
+  const url = String(env.URL_ONE_MEDIA ?? env.VITE_URL_ONE_MEDIA ?? winEnv.URL_ONE_MEDIA ?? '').trim();
+  return url;
+}
+
+function normalizeWhatsAppPhone(phone?: string | null): string | null {
+  const digits = String(phone ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  // Expect E.164 digits only (55...)
+  // If user stored phone without country code, we still allow it.
+  return digits;
+}
+
+function formatCurrencyBRL(value?: number | null): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function buildPointText(point: MediaKitPoint): string {
+  const addr = [
+    [point.addressStreet, point.addressNumber].filter(Boolean).join(', '),
+    point.addressDistrict,
+    [point.addressCity, point.addressState].filter(Boolean).join(' - '),
+  ]
+    .filter(Boolean)
+    .join(' | ');
+
+  const prices = [
+    point.basePriceWeek != null ? `Semanal: ${formatCurrencyBRL(point.basePriceWeek)}` : null,
+    point.basePriceMonth != null ? `Mensal: ${formatCurrencyBRL(point.basePriceMonth)}` : null,
+    point.basePriceDay != null ? `Diária: ${formatCurrencyBRL(point.basePriceDay)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' | ');
+
+  const availability = point.availability ?? 'Disponível';
+  const units =
+    point.unitsCount != null
+      ? `Faces/Telas: ${point.unitsCount} (Livres: ${point.availableUnitsCount ?? 0})`
+      : null;
+
+  const impacts = point.dailyImpressions ? `Impacto/dia: ${point.dailyImpressions}` : null;
+
+  const map = point.latitude && point.longitude ? `Mapa: https://www.google.com/maps?q=${point.latitude},${point.longitude}` : null;
+
+  return [
+    `• ${point.name} (${point.type})`,
+    addr ? `  - Endereço: ${addr}` : null,
+    point.subcategory ? `  - Categoria: ${point.subcategory}` : null,
+    point.environment ? `  - Ambiente: ${point.environment}` : null,
+    `  - Status: ${availability}`,
+    units ? `  - ${units}` : null,
+    impacts ? `  - ${impacts}` : null,
+    prices ? `  - ${prices}` : null,
+    map ? `  - ${map}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function openWhatsApp(phoneDigits: string, message: string) {
+  const url = `https://wa.me/${encodeURIComponent(phoneDigits)}?text=${encodeURIComponent(message)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function FlyTo({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    map.setView([lat, lng], Math.max(map.getZoom(), 14), { animate: true });
+  }, [lat, lng, map]);
+  return null;
+}
+
 export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   // Estados para filtros
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,10 +178,18 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   const [stateFilter, setStateFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Availability>('all');
 
-  // Estado para modal de compartilhamento (apenas no modo internal)
+  // Compartilhamento (modo internal)
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [publicTokenUrl, setPublicTokenUrl] = useState('');
   const [shareUrl, setShareUrl] = useState('');
+
+  // Solicitar proposta (bulk)
+  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [selectedPointIds, setSelectedPointIds] = useState<string[]>([]);
+
+  // Detalhes do ponto
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsPoint, setDetailsPoint] = useState<MediaKitPoint | null>(null);
 
   // Data
   const [data, setData] = useState<MediaKitResponse | null>(null);
@@ -93,7 +222,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   }, []);
 
   const allMediaKitPoints = useMemo(() => data?.points ?? [], [data?.points]);
-
   const company = data?.company ?? null;
 
   const loadMediaKit = async () => {
@@ -135,13 +263,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, token]);
 
-  // Gerar lista de cidades únicas
   const availableCities = useMemo(() => {
     const cities = new Set(allMediaKitPoints.map((p) => p.addressCity).filter(Boolean) as string[]);
     return Array.from(cities).sort();
   }, [allMediaKitPoints]);
 
-  // Gerar lista de UFs únicas
   const availableStates = useMemo(() => {
     const states = new Set(allMediaKitPoints.map((p) => p.addressState).filter(Boolean) as string[]);
     return Array.from(states).sort();
@@ -166,32 +292,26 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   const filteredPoints = useMemo(() => {
     let filtered = [...allMediaKitPoints];
 
-    // Filtro de tipo
     if (typeFilter !== 'all') {
       filtered = filtered.filter((p) => p.type === typeFilter);
     }
 
-    // Filtro de cidade
     if (cityFilter !== 'all') {
       filtered = filtered.filter((p) => p.addressCity === cityFilter);
     }
 
-    // Filtro de UF
     if (stateFilter !== 'all') {
       filtered = filtered.filter((p) => p.addressState === stateFilter);
     }
 
-    // Filtro de status (disponibilidade)
     if (statusFilter !== 'all') {
       filtered = filtered.filter((p) => {
         const av = (p.availability ?? 'Disponível') as Availability;
-        // "Disponível" inclui os pontos parcialmente ocupados (ainda há faces livres)
         if (statusFilter === 'Disponível') return av === 'Disponível' || av === 'Parcial';
         return av === statusFilter;
       });
     }
 
-    // Filtro de busca (texto livre)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((p) => {
@@ -208,21 +328,14 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     return filtered;
   }, [allMediaKitPoints, typeFilter, cityFilter, stateFilter, statusFilter, searchQuery]);
 
-  /**
-   * URL do preview do mapa.
-   *
-   * Importante: alguns usuários (ou extensões como adblock) podem bloquear domínios de static map.
-   * Por isso, no render do preview nós tentamos o <img> primeiro e, se falhar, caímos para um iframe embed.
-   */
+  // ===== Mapa preview (no modal de detalhes) =====
   const getStaticMapPreviewUrl = (point: MediaPoint): string | null => {
     if (!point.latitude || !point.longitude) return null;
-
     const lat = Number(point.latitude);
     const lng = Number(point.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
     const zoom = 16;
-    // Mantém 600px de largura para ficar nítido (o container “corta” e escala com object-cover)
     const size = '600x300';
     const center = `${lat},${lng}`;
     const marker = `${lat},${lng},red-pushpin`;
@@ -231,50 +344,13 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     )}`;
   };
 
-  // Calcular "Nossos Números"
-  const stats = useMemo(() => {
-    if (data?.stats) return data.stats;
-
-    const pointsCount = allMediaKitPoints.length;
-    const totalUnits = allMediaKitPoints.reduce((sum, p) => sum + (p.unitsCount ?? 0), 0);
-    const totalImpressions = allMediaKitPoints.reduce((sum, p) => sum + (p.dailyImpressions || 0), 0);
-
-    const formatImpressions = (value: number): string => {
-      if (value >= 1000000) {
-        return `${(value / 1000000).toFixed(1)}M+`;
-      }
-      if (value >= 1000) {
-        return `${Math.floor(value / 1000)}k+`;
-      }
-      return value.toString();
-    };
-
-    return {
-      pointsCount,
-      totalUnits,
-      totalImpressions,
-      totalImpressionsFormatted: formatImpressions(totalImpressions),
-    };
-  }, [data?.stats, allMediaKitPoints]);
-
-  // Handler: Ver no Mapa
-  const handleViewOnMap = (point: MediaPoint) => {
-    if (point.latitude && point.longitude) {
-      const url = `https://www.google.com/maps?q=${point.latitude},${point.longitude}`;
-      window.open(url, '_blank');
-    } else {
-      toast.info('Coordenadas GPS não cadastradas para este ponto de mídia.');
-    }
-  };
-
   const getOsmEmbedUrl = (point: MediaPoint): string | null => {
     if (!point.latitude || !point.longitude) return null;
     const lat = Number(point.latitude);
     const lng = Number(point.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
-    // bbox pequeno ao redor do ponto para dar um “zoom” bom no embed
-    const delta = 0.0045; // ~500m (aprox.)
+    const delta = 0.0045;
     const left = lng - delta;
     const right = lng + delta;
     const top = lat + delta;
@@ -320,6 +396,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     );
   }
 
+  // ===== Compartilhar (internal) =====
   const copyToClipboardFallback = (text: string): boolean => {
     try {
       const textArea = document.createElement('textarea');
@@ -330,7 +407,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       document.body.appendChild(textArea);
       textArea.focus();
       textArea.select();
-
       const successful = document.execCommand('copy');
       document.body.removeChild(textArea);
       return successful;
@@ -380,7 +456,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
   };
 
-  // Handler: Compartilhar
   const handleShare = async () => {
     setShareDialogOpen(true);
     const base = await ensurePublicTokenUrl();
@@ -388,7 +463,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     setShareUrl(buildShareUrlWithFilters(base));
   };
 
-  // Handler: Copiar link
   const handleCopyLink = async () => {
     const base = await ensurePublicTokenUrl();
     if (!base) return;
@@ -424,60 +498,183 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
   };
 
-  const headerTitle = company?.name || 'Mídia Kit';
+  // ===== Ações: detalhes / whatsapp =====
+  const openDetails = (p: MediaKitPoint) => {
+    setDetailsPoint(p);
+    setDetailsOpen(true);
+  };
+
+  const handleRequestForPoints = (points: MediaKitPoint[]) => {
+    const phoneDigits = normalizeWhatsAppPhone(company?.phone);
+    if (!phoneDigits) {
+      toast.error('Número de WhatsApp da empresa não cadastrado.');
+      return;
+    }
+    if (!points.length) {
+      toast.info('Selecione pelo menos um ponto.');
+      return;
+    }
+
+    const companyName = company?.name ? ` (${company.name})` : '';
+    const msg = [
+      `Olá! Gostaria de solicitar uma proposta${companyName}.`,
+      '',
+      'Pontos selecionados:',
+      ...points.map((p) => buildPointText(p)),
+    ].join('\n');
+
+    openWhatsApp(phoneDigits, msg);
+  };
+
+  const openBulkRequestDialog = () => {
+    setSelectedPointIds([]);
+    setRequestDialogOpen(true);
+  };
+
+  const selectedPoints = useMemo(() => {
+    if (!selectedPointIds.length) return [] as MediaKitPoint[];
+    const map = new Map(allMediaKitPoints.map((p) => [p.id, p]));
+    return selectedPointIds.map((id) => map.get(id)).filter(Boolean) as MediaKitPoint[];
+  }, [selectedPointIds, allMediaKitPoints]);
+
+  const mapPointsWithCoords = useMemo(() => {
+    return filteredPoints.filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)));
+  }, [filteredPoints]);
+
+  const mapCenter = useMemo(() => {
+    const first = mapPointsWithCoords[0];
+    const lat = first?.latitude != null ? Number(first.latitude) : -23.5505;
+    const lng = first?.longitude != null ? Number(first.longitude) : -46.6333;
+    return { lat, lng };
+  }, [mapPointsWithCoords]);
+
+  const [selectedMapPointId, setSelectedMapPointId] = useState<string | null>(null);
+
   const headerSubtitle =
     company?.addressCity || company?.addressState
       ? `${company?.addressCity ?? ''}${company?.addressState ? `, ${company.addressState}` : ''}`
-      : '—';
+      : '';
 
-  const contactPhone = company?.phone || '(11) 3000-0000';
-  const contactEmail = company?.email || 'contato@oohmanager.com';
-  const contactSite = company?.site || '';
+  const oneMediaUrl = getOneMediaUrl();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-indigo-600 rounded-lg flex items-center justify-center overflow-hidden">
-                {company?.logoUrl ? (
-                  <ImageWithFallback
-                    src={company.logoUrl}
-                    alt={company.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Building className="w-8 h-8 text-white" />
-                )}
-              </div>
-              <div>
-                <h1 className="text-gray-900">{headerTitle}</h1>
-                <p className="text-gray-600">{headerSubtitle}</p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* HERO */}
+      <div
+        className="relative bg-center bg-cover"
+        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})` }}
+      >
+        <div className="absolute inset-0 bg-black/50" />
 
-            {mode === 'internal' && (
-              <Button className="gap-2" onClick={handleShare}>
-                <Share2 className="w-4 h-4" />
-                Compartilhar
-              </Button>
+        <div className="relative max-w-7xl mx-auto px-6 py-10">
+          <div className="flex items-center justify-between gap-4">
+            <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-8 md:h-10" />
+
+            <div className="flex items-center gap-2">
+              {mode === 'internal' && (
+                <Button variant="secondary" className="gap-2" onClick={handleShare}>
+                  <Share2 className="w-4 h-4" />
+                  Compartilhar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-10 max-w-2xl">
+            <h1 className="text-white text-3xl md:text-4xl font-semibold">Mídia Kit Digital</h1>
+            {company?.name && (
+              <p className="text-white/80 mt-2">
+                {company.name}{headerSubtitle ? ` — ${headerSubtitle}` : ''}
+              </p>
             )}
+
+            <Button className="mt-5 gap-2" onClick={openBulkRequestDialog}>
+              <MessageCircle className="w-4 h-4" />
+              Solicitar Proposta
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-12">
+      {/* FILTERS */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3">
+            <div className="flex-1 relative min-w-[220px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Buscar por nome, cidade ou endereço..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <Select value={typeFilter} onValueChange={(value: string) => setTypeFilter(value as 'all' | MediaType)}>
+              <SelectTrigger className="w-full lg:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value={MediaType.OOH}>OOH</SelectItem>
+                <SelectItem value={MediaType.DOOH}>DOOH</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={cityFilter} onValueChange={(value: string) => setCityFilter(value)}>
+              <SelectTrigger className="w-full lg:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as cidades</SelectItem>
+                {availableCities.map((city) => (
+                  <SelectItem key={city} value={city}>
+                    {city}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={stateFilter} onValueChange={(value: string) => setStateFilter(value)}>
+              <SelectTrigger className="w-full lg:w-32">
+                <SelectValue placeholder="UF" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas UFs</SelectItem>
+                {availableStates.map((uf) => (
+                  <SelectItem key={uf} value={uf}>
+                    {uf}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={(value: string) => setStatusFilter(value as 'all' | Availability)}>
+              <SelectTrigger className="w-full lg:w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="Disponível">Disponível</SelectItem>
+                <SelectItem value="Parcial">Parcial</SelectItem>
+                <SelectItem value="Ocupado">Ocupado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="max-w-7xl mx-auto px-6 py-6 w-full flex-1">
         {loading ? (
-          <Card className="mb-12">
-            <CardContent className="pt-12 pb-12 text-center">
+          <Card>
+            <CardContent className="py-12 text-center">
               <p className="text-gray-600">Carregando Mídia Kit…</p>
             </CardContent>
           </Card>
         ) : loadError ? (
-          <Card className="mb-12">
-            <CardContent className="pt-12 pb-12 text-center space-y-4">
+          <Card>
+            <CardContent className="py-12 text-center space-y-4">
               <p className="text-gray-600">{loadError}</p>
               <Button variant="outline" onClick={loadMediaKit}>
                 Tentar novamente
@@ -485,293 +682,474 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             </CardContent>
           </Card>
         ) : (
-          <>
-            {/* Stats - Nossos Números */}
-            <div className="mb-12">
-              <h2 className="text-gray-900 mb-6">Nossos Números</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* LIST */}
+            <div className="lg:col-span-2">
+              {filteredPoints.length === 0 ? (
                 <Card>
-                  <CardContent className="pt-6 text-center">
-                    <p className="text-gray-900 mb-1">{stats.pointsCount}</p>
-                    <p className="text-gray-600 text-sm">Pontos de Mídia</p>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-gray-500">Nenhum ponto de mídia encontrado com os filtros selecionados.</p>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardContent className="pt-6 text-center">
-                    <p className="text-gray-900 mb-1">{stats.totalUnits}</p>
-                    <p className="text-gray-600 text-sm">Faces/Telas</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6 text-center">
-                    <p className="text-gray-900 mb-1">{stats.totalImpressionsFormatted}</p>
-                    <p className="text-gray-600 text-sm">Impactos/Dia</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6 text-center">
-                    <p className="text-gray-900 mb-1">Desde 2015</p>
-                    <p className="text-gray-600 text-sm">No Mercado</p>
-                  </CardContent>
-                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {filteredPoints.map((point) => {
+                    const unitsCount = point.unitsCount ?? point.units?.length ?? 0;
+                    const occupiedUnitsCount = point.occupiedUnitsCount ?? 0;
+                    const availableUnitsCount = point.availableUnitsCount ?? Math.max(unitsCount - occupiedUnitsCount, 0);
+                    const availability = (point.availability ?? (availableUnitsCount > 0 ? 'Disponível' : 'Ocupado')) as Availability;
+
+                    const displayPrice =
+                      point.basePriceWeek != null
+                        ? `${formatCurrencyBRL(point.basePriceWeek)}/semana`
+                        : point.basePriceMonth != null
+                          ? `${formatCurrencyBRL(point.basePriceMonth)}/mês`
+                          : point.basePriceDay != null
+                            ? `${formatCurrencyBRL(point.basePriceDay)}/dia`
+                            : '—';
+
+                    return (
+                      <Card key={point.id} className="overflow-hidden">
+                        <div className="flex flex-col sm:flex-row">
+                          <div className="sm:w-56 h-40 sm:h-auto bg-gray-100 relative">
+                            <ImageWithFallback
+                              src={
+                                point.mainImageUrl ||
+                                'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
+                              }
+                              alt={point.name}
+                              className="w-full h-full object-cover"
+                            />
+                            <Badge className="absolute top-3 left-3 bg-indigo-500">{point.type}</Badge>
+                            <Badge
+                              className={`absolute top-3 right-3 ${
+                                availability === 'Disponível'
+                                  ? 'bg-green-500'
+                                  : availability === 'Parcial'
+                                    ? 'bg-amber-500'
+                                    : 'bg-orange-500'
+                              }`}
+                            >
+                              {availability}
+                            </Badge>
+                          </div>
+
+                          <CardContent className="flex-1 py-4">
+                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                              <div className="min-w-0">
+                                <h3 className="text-gray-900 font-semibold truncate">{point.name}</h3>
+                                <div className="mt-2 space-y-1 text-sm text-gray-600">
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="w-4 h-4" />
+                                    <span className="truncate">
+                                      {[point.addressStreet, point.addressNumber].filter(Boolean).join(', ')}
+                                      {point.addressCity || point.addressState
+                                        ? ` — ${[point.addressCity, point.addressState].filter(Boolean).join(' / ')}`
+                                        : ''}
+                                    </span>
+                                  </div>
+
+                                  {point.subcategory && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-block w-4" />
+                                      <span>{point.subcategory}</span>
+                                    </div>
+                                  )}
+
+                                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                    <span>Faces/Telas: {unitsCount}</span>
+                                    <span>Livres: {availableUnitsCount}</span>
+                                    <span>
+                                      Impacto/dia:{' '}
+                                      {point.dailyImpressions ? `${Math.floor(point.dailyImpressions / 1000)}k` : '—'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex md:flex-col md:items-end items-center justify-between gap-3">
+                                <div className="text-indigo-600 font-semibold whitespace-nowrap">{displayPrice}</div>
+                                <Button
+                                  className="gap-2"
+                                  onClick={() => {
+                                    setSelectedMapPointId(point.id);
+                                    openDetails(point);
+                                  }}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  Ver Detalhes
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* MAP */}
+            <div className="lg:col-span-1">
+              <Card className="overflow-hidden lg:sticky lg:top-6">
+                <CardContent className="p-0">
+                  <div className="h-[420px] sm:h-[520px]">
+                    <MapContainer
+                      center={[mapCenter.lat, mapCenter.lng]}
+                      zoom={12}
+                      scrollWheelZoom
+                      className="w-full h-full"
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+
+                      {selectedMapPointId && (() => {
+                        const p = mapPointsWithCoords.find((x) => x.id === selectedMapPointId);
+                        if (!p || p.latitude == null || p.longitude == null) return null;
+                        return <FlyTo lat={Number(p.latitude)} lng={Number(p.longitude)} />;
+                      })()}
+
+                      {mapPointsWithCoords.map((p) => {
+                        const lat = Number(p.latitude);
+                        const lng = Number(p.longitude);
+                        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                        return (
+                          <Marker
+                            key={p.id}
+                            position={[lat, lng]}
+                            eventHandlers={{
+                              click: () => {
+                                setSelectedMapPointId(p.id);
+                                openDetails(p);
+                              },
+                            }}
+                          >
+                            <Popup>
+                              <div className="space-y-2">
+                                <div className="font-semibold">{p.name}</div>
+                                <div className="text-xs text-gray-600">
+                                  {[p.addressCity, p.addressState].filter(Boolean).join(' / ') || '—'}
+                                </div>
+                                <Button size="sm" className="w-full" onClick={() => openDetails(p)}>
+                                  Ver Detalhes
+                                </Button>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+                    </MapContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* FOOTER */}
+      <footer className="bg-[#06162c] text-white mt-10">
+        <div className="max-w-7xl mx-auto px-6 py-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div className="space-y-3">
+              <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-8" />
+              <p className="text-sm text-white/80">Sua plataforma completa para gestão de mídia OOH/DOOH.</p>
+
+              <div className="pt-3">
+                <p className="text-xs text-white/60 mb-2">Empresa responsável</p>
+                {company?.logoUrl ? (
+                  <div className="inline-flex items-center rounded-md bg-white/10 p-2">
+                    <ImageWithFallback src={company.logoUrl} alt={company.name} className="h-8 w-auto" />
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/80">
+                    <Building className="w-4 h-4" />
+                    <span>{company?.name ?? '—'}</span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Filters */}
-            <Card className="mb-8">
-              <CardContent className="pt-6">
-                <div className="flex flex-col lg:flex-row lg:flex-wrap gap-4">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <Input
-                      placeholder="Buscar por nome, cidade ou endereço..."
-                      className="pl-10"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+            <div>
+              <h3 className="font-semibold mb-3">Contato &amp; Localização</h3>
+              <div className="space-y-2 text-sm text-white/80">
+                {(company?.addressCity || company?.addressState) && (
+                  <div>
+                    <div className="text-white/60 text-xs">Local</div>
+                    <div>{[company?.addressCity, company?.addressState].filter(Boolean).join(' - ')}</div>
+                  </div>
+                )}
+                {company?.email && (
+                  <div>
+                    <div className="text-white/60 text-xs">Email</div>
+                    <div>{company.email}</div>
+                  </div>
+                )}
+                {company?.phone && (
+                  <div>
+                    <div className="text-white/60 text-xs">Telefone</div>
+                    <div>{company.phone}</div>
+                  </div>
+                )}
+                {company?.site && (
+                  <div>
+                    <div className="text-white/60 text-xs">Site</div>
+                    <div>{company.site}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="md:text-right">
+              <h3 className="font-semibold mb-3">Redes Sociais</h3>
+              <div className="flex md:justify-end gap-3">
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
+                  <Linkedin className="w-4 h-4" />
+                </div>
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
+                  <Instagram className="w-4 h-4" />
+                </div>
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
+                  <Facebook className="w-4 h-4" />
+                </div>
+                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
+                  <Twitter className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-white/10 mt-8 pt-4 text-center text-xs text-white/60">
+            © 2026{' '}
+            <a
+              href={oneMediaUrl || '#'}
+              target={oneMediaUrl ? '_blank' : undefined}
+              rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
+              className="text-white/70 hover:text-white hover:underline"
+            >
+              OneMedia
+            </a>
+            . Todos os direitos reservados. |{' '}
+            <a href="/privacidade" className="hover:underline">Política de Privacidade</a> |{' '}
+            <a href="/termos" className="hover:underline">Termos de Uso</a>
+          </div>
+        </div>
+      </footer>
+
+      {/* Dialog: Solicitar Proposta (Seleção múltipla) */}
+      <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Solicitar Proposta</DialogTitle>
+            <DialogDescription>
+              Selecione um ou mais pontos e clique em <b>Solicitar</b> para enviar uma mensagem no WhatsApp da empresa.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm text-gray-600">
+                {selectedPointIds.length} selecionado(s) • {filteredPoints.length} ponto(s) na lista
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (selectedPointIds.length === filteredPoints.length) {
+                    setSelectedPointIds([]);
+                  } else {
+                    setSelectedPointIds(filteredPoints.map((p) => p.id));
+                  }
+                }}
+              >
+                {selectedPointIds.length === filteredPoints.length ? 'Desmarcar todos' : 'Selecionar todos'}
+              </Button>
+            </div>
+
+            <div className="rounded-md border border-gray-200">
+              <ScrollArea className="h-[360px]">
+                <div className="p-3 space-y-2">
+                  {filteredPoints.map((p) => {
+                    const checked = selectedPointIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPointIds((prev) =>
+                            prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+                          );
+                        }}
+                        className="w-full text-left rounded-md hover:bg-gray-50 px-2 py-2 flex items-start gap-3"
+                      >
+                        <Checkbox checked={checked} className="mt-1" />
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{p.name}</div>
+                          <div className="text-xs text-gray-600 truncate">
+                            {[p.addressCity, p.addressState].filter(Boolean).join(' / ') || '—'}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" onClick={() => setRequestDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="gap-2"
+                onClick={() => {
+                  handleRequestForPoints(selectedPoints);
+                  setRequestDialogOpen(false);
+                }}
+                disabled={selectedPointIds.length === 0}
+              >
+                <MessageCircle className="w-4 h-4" />
+                Solicitar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Detalhes do ponto */}
+      <Dialog
+        open={detailsOpen}
+        onOpenChange={(open: boolean) => {
+          setDetailsOpen(open);
+          if (!open) setDetailsPoint(null);
+        }}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do ponto</DialogTitle>
+            <DialogDescription>Informações completas do ponto e localização no mapa.</DialogDescription>
+          </DialogHeader>
+
+          {detailsPoint ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  <div className="h-48">
+                    <ImageWithFallback
+                      src={detailsPoint.mainImageUrl || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'}
+                      alt={detailsPoint.name}
+                      className="w-full h-full object-cover"
                     />
                   </div>
-
-                  <Select
-                    value={typeFilter}
-                    onValueChange={(value: string) => setTypeFilter(value as 'all' | MediaType)}
-                  >
-                    <SelectTrigger className="w-full lg:w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os tipos</SelectItem>
-                      <SelectItem value={MediaType.OOH}>OOH</SelectItem>
-                      <SelectItem value={MediaType.DOOH}>DOOH</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={cityFilter} onValueChange={(value: string) => setCityFilter(value)}>
-                    <SelectTrigger className="w-full lg:w-44">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as cidades</SelectItem>
-                      {availableCities.map((city) => (
-                        <SelectItem key={city} value={city}>
-                          {city}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select value={stateFilter} onValueChange={(value: string) => setStateFilter(value)}>
-                    <SelectTrigger className="w-full lg:w-32">
-                      <SelectValue placeholder="UF" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas UFs</SelectItem>
-                      {availableStates.map((uf) => (
-                        <SelectItem key={uf} value={uf}>
-                          {uf}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={statusFilter}
-                    onValueChange={(value: string) => setStatusFilter(value as 'all' | Availability)}
-                  >
-                    <SelectTrigger className="w-full lg:w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="Disponível">Disponível</SelectItem>
-                      <SelectItem value="Parcial">Parcial</SelectItem>
-                      <SelectItem value="Ocupado">Ocupado</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* Media Points Grid */}
-            {filteredPoints.length === 0 ? (
-              <Card className="mb-12">
-                <CardContent className="pt-12 pb-12 text-center">
-                  <p className="text-gray-500">Nenhum ponto de mídia encontrado com os filtros selecionados.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                {filteredPoints.map((point) => {
-                  const unitsCount = point.unitsCount ?? point.units?.length ?? 0;
-                  const occupiedUnitsCount = point.occupiedUnitsCount ?? 0;
-                  const availableUnitsCount =
-                    point.availableUnitsCount ?? Math.max(unitsCount - occupiedUnitsCount, 0);
-                  const availability = (point.availability ?? (availableUnitsCount > 0 ? 'Disponível' : 'Ocupado')) as Availability;
-                  const occupiedRatio = unitsCount > 0 ? occupiedUnitsCount / unitsCount : 0;
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-indigo-500">{detailsPoint.type}</Badge>
+                    <Badge
+                      className={`${
+                        (detailsPoint.availability ?? 'Disponível') === 'Disponível'
+                          ? 'bg-green-500'
+                          : (detailsPoint.availability ?? 'Disponível') === 'Parcial'
+                            ? 'bg-amber-500'
+                            : 'bg-orange-500'
+                      }`}
+                    >
+                      {detailsPoint.availability ?? 'Disponível'}
+                    </Badge>
+                  </div>
 
-                  return (
-                    <Card key={point.id} className="overflow-hidden hover:shadow-xl transition-shadow">
-                      {/* Imagem principal do card (+20% em relação ao tamanho anterior) */}
-                      <div className="h-28 sm:h-32 bg-gray-100 relative">
-                        <ImageWithFallback
-                          src={
-                            point.mainImageUrl ||
-                            'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
-                          }
-                          alt={point.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <Badge
-                          className={`absolute top-3 right-3 ${
-                            availability === 'Disponível'
-                              ? 'bg-green-500'
-                              : availability === 'Parcial'
-                                ? 'bg-amber-500'
-                                : 'bg-orange-500'
-                          }`}
-                        >
-                          {availability === 'Parcial' && unitsCount > 0
-                            ? `Parcial (${occupiedUnitsCount}/${unitsCount})`
-                            : availability}
-                        </Badge>
-                        <Badge className="absolute top-3 left-3 bg-indigo-500">{point.type}</Badge>
-                      </div>
+                  <h3 className="text-lg font-semibold text-gray-900">{detailsPoint.name}</h3>
 
-                      <CardContent className="pt-4">
-                        <h3 className="text-gray-900 mb-3">{point.name}</h3>
-
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <MapPin className="w-4 h-4" />
-                            <span>
-                              {point.addressCity}, {point.addressState}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Faces/Telas</span>
-                            <span className="text-gray-900">{unitsCount}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Disponíveis</span>
-                            <span className="text-gray-900">{availableUnitsCount}</span>
-                          </div>
-
-                          {unitsCount > 0 && (
-                            <div className="pt-2">
-                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-orange-500"
-                                  style={{ width: Math.min(occupiedRatio * 100, 100).toFixed(0) + '%' }}
-                                />
-                              </div>
-                              <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                                <span>{occupiedUnitsCount} ocupadas</span>
-                                <span>{availableUnitsCount} livres</span>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-600">Impacto/Dia</span>
-                            <span className="text-gray-900">
-                              {point.dailyImpressions ? `${Math.floor(point.dailyImpressions / 1000)}k` : '—'}
-                            </span>
-                          </div>
-
-                          {point.environment && (
-                            <Badge variant="outline" className="text-xs">
-                              {point.environment}
-                            </Badge>
-                          )}
-                        </div>
-
-                                                {/* Preços */}
-                        <div className="border-t border-gray-100 pt-4 mb-4">
-                          <div className="grid grid-cols-2 gap-2 text-center">
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Semanal</p>
-                              <p className="text-gray-900 text-sm">
-                                {point.basePriceWeek != null
-                                  ? new Intl.NumberFormat('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                      maximumFractionDigits: 0,
-                                    }).format(point.basePriceWeek)
-                                  : '—'}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-gray-600 text-xs mb-1">Mensal</p>
-                              <p className="text-gray-900 text-sm">
-                                {point.basePriceMonth != null
-                                  ? new Intl.NumberFormat('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                      maximumFractionDigits: 0,
-                                    }).format(point.basePriceMonth)
-                                  : '—'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <Button variant="outline" className="w-full gap-2" onClick={() => handleViewOnMap(point)}>
-                          <Eye className="w-4 h-4" />
-                          Ver no Mapa
-                        </Button>
-
-                        <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                          <button
-                            type="button"
-                            onClick={() => handleViewOnMap(point)}
-                            className="block w-full"
-                            aria-label={`Abrir mapa de ${point.name}`}
-                          >
-                            <div className="h-24">
-                              <MediaKitMapPreview point={point} />
-                            </div>
-                          </button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Contact Section */}
-            <Card className="bg-indigo-600 text-white">
-              <CardContent className="pt-6">
-                <div className="text-center py-8">
-                  <h2 className="text-white mb-4">Entre em Contato</h2>
-                  <p className="text-indigo-100 mb-6">Interessado em algum ponto de mídia? Fale conosco!</p>
-                  <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-                    {contactPhone && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-indigo-100">📞</span>
-                        <span>{contactPhone}</span>
-                      </div>
-                    )}
-                    {contactEmail && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-indigo-100">📧</span>
-                        <span>{contactEmail}</span>
-                      </div>
-                    )}
-                    {contactSite && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-indigo-100">🌐</span>
-                        <span>{contactSite}</span>
-                      </div>
+                  <div className="text-sm text-gray-700">
+                    {[detailsPoint.addressStreet, detailsPoint.addressNumber].filter(Boolean).join(', ')}
+                    {detailsPoint.addressDistrict ? ` — ${detailsPoint.addressDistrict}` : ''}
+                    {(detailsPoint.addressCity || detailsPoint.addressState) && (
+                      <> • {[detailsPoint.addressCity, detailsPoint.addressState].filter(Boolean).join(' / ')}</>
                     )}
                   </div>
+
+                  {detailsPoint.description && (
+                    <div className="text-sm text-gray-600 whitespace-pre-wrap">{detailsPoint.description}</div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500">Faces/Telas</div>
+                      <div className="text-gray-900">{detailsPoint.unitsCount ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Livres</div>
+                      <div className="text-gray-900">{detailsPoint.availableUnitsCount ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Impacto/dia</div>
+                      <div className="text-gray-900">{detailsPoint.dailyImpressions ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Categoria</div>
+                      <div className="text-gray-900">{detailsPoint.subcategory ?? '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500">Semanal</div>
+                      <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Mensal</div>
+                      <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Diária</div>
+                      <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceDay)}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <Button
+                      className="gap-2"
+                      onClick={() => {
+                        handleRequestForPoints([detailsPoint]);
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Solicitar proposta
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        if (detailsPoint.latitude && detailsPoint.longitude) {
+                          window.open(`https://www.google.com/maps?q=${detailsPoint.latitude},${detailsPoint.longitude}`, '_blank');
+                        } else {
+                          toast.info('Coordenadas GPS não cadastradas para este ponto de mídia.');
+                        }
+                      }}
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Abrir no mapa
+                    </Button>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
+              </div>
+
+              <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                <div className="h-[420px]">
+                  <MediaKitMapPreview point={detailsPoint} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-6 text-sm text-gray-600">Nenhum ponto selecionado.</div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de Compartilhamento (somente modo internal) */}
       {mode === 'internal' && (
