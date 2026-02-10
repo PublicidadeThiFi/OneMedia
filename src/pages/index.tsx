@@ -41,9 +41,9 @@ type SolutionBadgePos = 'topRight' | 'bottomLeft' | 'bottomRight';
 type SolutionBadge = { label: string; icon: JSX.Element; position: SolutionBadgePos };
 
 const badgePositionClass: Record<SolutionBadgePos, string> = {
-  topRight: 'top-4 right-4',
-  bottomLeft: 'bottom-4 left-4',
-  bottomRight: 'bottom-4 right-4',
+  topRight: 'top-6 right-6',
+  bottomLeft: 'bottom-6 left-6',
+  bottomRight: 'bottom-6 right-6',
 };
 
 function GifOrFallback({
@@ -555,16 +555,16 @@ export default function Home() {
       </section>
 
 {/* Solutions Section */}
-<section id="solucoes" className="landing-anchor py-20 px-6">
+<section id="solucoes" className="landing-anchor py-16 px-6">
   <div className="max-w-7xl mx-auto">
-    <h2 className="text-5xl md:text-6xl font-medium text-gray-900 text-center mb-16">
+    <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-10">
       Soluções para todos os negócios.
       <br />
       Uma única plataforma.
     </h2>
 
     {/* Tabs */}
-    <div className="flex flex-wrap justify-center gap-2 mb-16 p-2 border border-gray-900 rounded-full max-w-6xl mx-auto">
+    <div className="flex flex-wrap justify-center gap-2 mb-10 p-1.5 border border-gray-900 rounded-full max-w-5xl mx-auto">
       {[
         { label: 'Inventário', key: 'inventario' },
         { label: 'Propostas', key: 'propostas' },
@@ -576,7 +576,7 @@ export default function Home() {
         <button
           key={tab.key}
           onClick={() => setSelectedSolution(tab.key as SolutionTab)}
-          className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${
+          className={`px-5 md:px-6 py-2 rounded-full text-sm md:text-base font-medium transition-all ${
             selectedSolution === tab.key
               ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
               : 'text-gray-900 hover:bg-gray-100'
@@ -588,72 +588,77 @@ export default function Home() {
     </div>
 
     {/* Layout */}
-    <div className="grid lg:grid-cols-[1.25fr_0.75fr] gap-12 items-start">
+    <div className="grid grid-cols-1 md:grid-cols-[1.25fr_0.75fr] gap-8 md:gap-10 items-start">
       {/* Left big card */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-[34px] p-8 md:p-10 text-white relative overflow-hidden">
-        <div className="grid md:grid-cols-[340px_1fr] gap-8 items-center">
-          <div className="space-y-6">
-            <h3 className="text-4xl font-semibold leading-tight">
+      <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-[32px] p-7 md:p-8 text-white relative overflow-hidden">
+        {/* badges are positioned relative to the whole card (as in the mock) */}
+        {solutionContent[selectedSolution].badges?.map((b: SolutionBadge) => (
+          <div
+            key={b.label}
+            className={`absolute ${badgePositionClass[b.position]} bg-white/90 text-gray-900 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg backdrop-blur-sm`}
+          >
+            {b.icon}
+            <span className="text-xs md:text-sm font-medium leading-none">{b.label}</span>
+          </div>
+        ))}
+
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6 md:gap-8 items-center">
+          <div className="space-y-4 md:space-y-5">
+            <h3 className="text-3xl md:text-4xl font-semibold leading-tight">
               {solutionContent[selectedSolution].title}
             </h3>
-            <p className="text-xl opacity-95 leading-relaxed">
+            <p className="text-sm md:text-base opacity-95 leading-relaxed">
               {solutionContent[selectedSolution].description}
             </p>
             <button
               onClick={() => navigate('/cadastro')}
-              className="inline-flex items-center gap-3 px-8 py-4 bg-white text-blue-700 text-xl rounded-full hover:shadow-xl transition-all"
+              className="inline-flex items-center gap-3 px-6 py-3 bg-white text-blue-700 text-sm md:text-base rounded-full hover:shadow-xl transition-all"
             >
               Teste Grátis 30 dias
-              <ArrowRight className="w-6 h-6" />
+              <ArrowRight className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="relative">
-            <div className="bg-white/10 rounded-2xl p-3 md:p-4">
-              <img
-                src={solutionContent[selectedSolution].screenshot}
-                alt="Preview do módulo"
-                className="w-full rounded-xl shadow-2xl"
-              />
-            </div>
-
-            {solutionContent[selectedSolution].badges?.map((b: SolutionBadge) => (
-              <div
-                key={b.label}
-                className={`absolute ${badgePositionClass[b.position]} bg-white/90 text-gray-900 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg backdrop-blur-sm`}
-              >
-                {b.icon}
-                <span className="text-xs md:text-sm font-medium leading-none">{b.label}</span>
+          <div className="w-full max-w-[560px] md:ml-auto">
+            <div className="bg-white/10 rounded-2xl p-3">
+              <div className="relative w-full aspect-[16/10] overflow-hidden rounded-xl">
+                <img
+                  src={solutionContent[selectedSolution].screenshot}
+                  alt="Preview do módulo"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Right cards */}
-      <div className="space-y-6">
-        <div className="bg-gray-100 rounded-3xl p-8">
-          <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="h-8 w-auto" />
-          <p className="text-3xl md:text-4xl text-gray-900 leading-tight mt-4">
-            <span className="font-semibold">{solutionContent[selectedSolution].statText}</span>{' '}
-            {solutionContent[selectedSolution].statSubtext}
-          </p>
-        </div>
+      {/* Right card (single container like the mock) */}
+      <div className="bg-gray-100 rounded-3xl p-8 md:p-9">
+        <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="h-6 md:h-7 w-auto" />
+        <p className="text-2xl md:text-3xl text-gray-900 leading-tight mt-4">
+          <span className="font-semibold">{solutionContent[selectedSolution].statText}</span>{' '}
+          {solutionContent[selectedSolution].statSubtext}
+        </p>
 
-        <div className="bg-gray-100 rounded-3xl p-8">
-          <p className="text-lg md:text-xl text-gray-800 mb-6 italic">
+        <div className="mt-8">
+          <p className="text-sm md:text-base text-gray-800 leading-relaxed italic">
             {solutionContent[selectedSolution].testimonial.quote}
           </p>
-          <hr className="border-gray-300 mb-6" />
-          <div className="flex items-center gap-4">
+          <hr className="border-gray-300 my-6" />
+          <div className="flex items-center gap-3">
             <img
               src={solutionContent[selectedSolution].testimonial.avatar}
               alt={solutionContent[selectedSolution].testimonial.name}
-              className="w-14 h-14 rounded-full object-cover"
+              className="w-11 h-11 rounded-full object-cover"
             />
             <div className="min-w-0">
-              <p className="font-bold text-gray-900">{solutionContent[selectedSolution].testimonial.name}</p>
-              <p className="text-gray-600">{solutionContent[selectedSolution].testimonial.role}</p>
+              <p className="font-semibold text-gray-900 leading-tight">
+                {solutionContent[selectedSolution].testimonial.name}
+              </p>
+              <p className="text-xs text-gray-600 leading-tight">
+                {solutionContent[selectedSolution].testimonial.role}
+              </p>
             </div>
           </div>
         </div>
@@ -661,7 +666,6 @@ export default function Home() {
     </div>
   </div>
 </section>
-
 
 {/* Efficiency Section - Black Background */}
 <section id="recursos" className="landing-anchor bg-black py-20 px-6">
