@@ -1,25 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
-import { Building2 } from 'lucide-react';
+import { Building2, Loader2 } from 'lucide-react';
 import { Company } from '../../types';
 import { toast } from 'sonner';
+import apiClient from '../../lib/apiClient';
 
 interface CompanySettingsProps {
   company: Company;
-  onUpdateCompany: (updatedCompany: Company) => void;
+  onUpdateCompany: (updates: Partial<Company>) => Promise<void>;
+  onRefreshCompany: () => Promise<void>;
 }
 
-export function CompanySettings({ company, onUpdateCompany }: CompanySettingsProps) {
+export function CompanySettings({ company, onUpdateCompany, onRefreshCompany }: CompanySettingsProps) {
   const [name, setName] = useState(company.name);
   const [cnpj, setCnpj] = useState(company.cnpj || '');
   const [phone, setPhone] = useState(company.phone || '');
   const [email, setEmail] = useState(company.email || '');
   const [site, setSite] = useState(company.site || '');
-  const [primaryColor, setPrimaryColor] = useState(company.primaryColor || '#4f46e5');
+  // primaryColor: por hora vamos manter esse campo no backend, mas esconder na UI
   const [addressZipcode, setAddressZipcode] = useState(company.addressZipcode || '');
   const [addressStreet, setAddressStreet] = useState(company.addressStreet || '');
   const [addressNumber, setAddressNumber] = useState(company.addressNumber || '');
@@ -29,13 +31,60 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
   const [addressCountry, setAddressCountry] = useState(company.addressCountry || 'Brasil');
   const [defaultProposalNotes, setDefaultProposalNotes] = useState(company.defaultProposalNotes || '');
   const [selectedLogoFile, setSelectedLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(company.logoUrl ?? null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const resolveUploadsUrl = (url?: string | null): string | null => {
+    if (!url) return null;
+    const value = String(url);
+    if (/^data:/i.test(value) || /^https?:\/\//i.test(value)) return value;
+
+    // Se VITE_API_URL for uma URL absoluta (ex.: https://api.meusite.com/api),
+    // precisamos montar o ORIGIN para servir /uploads no mesmo host.
+    const envUrl = (import.meta as any).env?.VITE_API_URL as string | undefined;
+    if (envUrl && !envUrl.startsWith('/')) {
+      const origin = envUrl.replace(/\/?api\/?$/i, '');
+      const path = value.startsWith('/') ? value : `/${value}`;
+      return `${origin}${path}`;
+    }
+
+    // Fallback: assume que /uploads é acessível na mesma origem do front (Vercel rewrites/proxy)
+    return value;
+  };
+
+  // Mantém o form sincronizado quando o Company do contexto for atualizado
+  useEffect(() => {
+    setName(company.name);
+    setCnpj(company.cnpj || '');
+    setPhone(company.phone || '');
+    setEmail(company.email || '');
+    setSite(company.site || '');
+    setAddressZipcode(company.addressZipcode || '');
+    setAddressStreet(company.addressStreet || '');
+    setAddressNumber(company.addressNumber || '');
+    setAddressDistrict(company.addressDistrict || '');
+    setAddressCity(company.addressCity || '');
+    setAddressState(company.addressState || '');
+    setAddressCountry(company.addressCountry || 'Brasil');
+    setDefaultProposalNotes(company.defaultProposalNotes || '');
+    setLogoPreview(resolveUploadsUrl(company.logoUrl) ?? null);
+    // não zera selectedLogoFile aqui, pra não perder seleção se o user ainda não salvou
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company.id, company.updatedAt]);
 
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
         toast.error('Por favor, selecione apenas arquivos de imagem.');
+        return;
+      }
+
+      const maxMb = 5;
+      if (file.size > maxMb * 1024 * 1024) {
+        toast.error(`A imagem deve ter no máximo ${maxMb}MB.`);
         return;
       }
 
@@ -48,40 +97,71 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
       };
       reader.readAsDataURL(file);
 
-      toast.info(
-        'Logo selecionada. Na versão real, o upload será via S3 com URL pré-assinada e logoUrl será salvo na Company.'
-      );
+      toast.info('Logo selecionada. Clique em "Salvar Alterações" para enviar.');
     }
   };
 
-  const handleSave = () => {
+  const uploadLogo = async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    // Importante: o apiClient tem Content-Type default como application/json.
+    // Aqui precisamos deixar o browser setar multipart/form-data com boundary.
+    const res = await apiClient.post<{ logoUrl: string }>('/company/logo', form, {
+      headers: { 'Content-Type': undefined } as any,
+    });
+    return res.data?.logoUrl;
+  };
+
+  const handleSave = async () => {
     if (!name.trim()) {
       toast.error('Nome da empresa é obrigatório');
       return;
     }
 
-    const updatedCompany: Company = {
-      ...company,
-      name: name.trim(),
-      cnpj: cnpj.trim() || undefined,
-      phone: phone.trim() || undefined,
-      email: email.trim() || undefined,
-      site: site.trim() || undefined,
-      primaryColor: primaryColor || undefined,
-      addressZipcode: addressZipcode.trim() || undefined,
-      addressStreet: addressStreet.trim() || undefined,
-      addressNumber: addressNumber.trim() || undefined,
-      addressDistrict: addressDistrict.trim() || undefined,
-      addressCity: addressCity.trim() || undefined,
-      addressState: addressState.trim() || undefined,
-      addressCountry: addressCountry.trim() || undefined,
-      defaultProposalNotes: defaultProposalNotes.trim() || undefined,
-      // logoUrl seria atualizada após upload real
-      updatedAt: new Date(),
-    };
+    try {
+      setIsSaving(true);
 
-    onUpdateCompany(updatedCompany);
-    toast.success('Dados da empresa atualizados (simulação em memória)');
+      // 1) Upload da logo (se houve alteração)
+      if (selectedLogoFile) {
+        setIsUploadingLogo(true);
+        const newLogoUrl = await uploadLogo(selectedLogoFile);
+        if (newLogoUrl) {
+          setLogoPreview(resolveUploadsUrl(newLogoUrl));
+        }
+        setSelectedLogoFile(null);
+        setIsUploadingLogo(false);
+
+        // Recarrega company para refletir logoUrl em todo o app
+        await onRefreshCompany();
+      }
+
+      // 2) Atualiza dados básicos
+      await onUpdateCompany({
+        name: name.trim(),
+        cnpj: cnpj.trim() || undefined,
+        phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
+        site: site.trim() || undefined,
+
+        addressZipcode: addressZipcode.trim() || undefined,
+        addressStreet: addressStreet.trim() || undefined,
+        addressNumber: addressNumber.trim() || undefined,
+        addressDistrict: addressDistrict.trim() || undefined,
+        addressCity: addressCity.trim() || undefined,
+        addressState: addressState.trim() || undefined,
+        addressCountry: addressCountry.trim() || undefined,
+
+        defaultProposalNotes: defaultProposalNotes.trim() || undefined,
+      });
+
+      toast.success('Dados da empresa atualizados');
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.message || e?.message || 'Erro ao salvar alterações');
+    } finally {
+      setIsUploadingLogo(false);
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -110,12 +190,19 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
             <Button
               variant="outline"
               onClick={() => document.getElementById('logo-upload')?.click()}
+              disabled={isSaving || isUploadingLogo}
             >
               Alterar Logo (logoUrl)
             </Button>
             {selectedLogoFile && (
               <p className="text-xs text-gray-500 mt-1">
                 Arquivo: {selectedLogoFile.name}
+              </p>
+            )}
+            {isUploadingLogo && (
+              <p className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Enviando logo...
               </p>
             )}
           </div>
@@ -175,25 +262,10 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
           />
         </div>
 
-        {/* Cor Primária */}
-        <div className="space-y-2">
-          <Label htmlFor="primaryColor">Cor Oficial (primaryColor)</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              id="primaryColor"
-              type="color"
-              value={primaryColor}
-              onChange={(e) => setPrimaryColor(e.target.value)}
-              className="w-20 h-10 cursor-pointer"
-            />
-            <Input
-              value={primaryColor}
-              onChange={(e) => setPrimaryColor(e.target.value)}
-              placeholder="#4f46e5"
-              className="flex-1"
-            />
-          </div>
-        </div>
+        {/* Cor Oficial (primaryColor) */}
+        {/*
+          Por hora vamos manter esse campo comentado na UI para evoluir depois com mais precisão.
+        */}
 
         {/* Endereço */}
         <div className="space-y-4 border-t pt-4">
@@ -290,7 +362,10 @@ export function CompanySettings({ company, onUpdateCompany }: CompanySettingsPro
 
         {/* Botão Salvar */}
         <div className="flex justify-end">
-          <Button onClick={handleSave}>Salvar Alterações</Button>
+          <Button onClick={handleSave} disabled={isSaving || isUploadingLogo}>
+            {(isSaving || isUploadingLogo) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Salvar Alterações
+          </Button>
         </div>
       </CardContent>
     </Card>

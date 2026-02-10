@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { useCompany } from '../contexts/CompanyContext';
 import { CompanySettings } from './settings/CompanySettings';
+import { OwnerCompaniesSettings } from './settings/OwnerCompaniesSettings';
 import { SubscriptionSettings } from './settings/SubscriptionSettings';
 import { UserProfileSettings } from './settings/UserProfileSettings';
 import { usePlatformPlans } from '../hooks/usePlatformPlans';
@@ -15,7 +16,7 @@ const getInitialTab = () => {
 };
 
 export function Settings() {
-  const { company, subscription, pointsUsed, updateCompanyData, updateSubscriptionData, isLoading } = useCompany();
+  const { company, subscription, pointsUsed, updateCompanyData, updateSubscriptionData, refreshCompanyData, isLoading } = useCompany();
   const { plans, loading: plansLoading, error: plansError } = usePlatformPlans();
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const currentSearch = typeof window === 'undefined' ? '' : window.location.search;
@@ -62,7 +63,10 @@ export function Settings() {
             </TabsList>
 
             <TabsContent value="company" className="mt-6">
-              <CompanySettings company={company} onUpdateCompany={updateCompanyData} />
+              <div className="space-y-6">
+                <CompanySettings company={company} onUpdateCompany={updateCompanyData} onRefreshCompany={refreshCompanyData} />
+                <OwnerCompaniesSettings />
+              </div>
             </TabsContent>
 
             <TabsContent value="subscription" className="mt-6">
