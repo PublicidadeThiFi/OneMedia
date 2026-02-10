@@ -368,6 +368,16 @@ export interface OwnerCompany {
   document?: string | null;
   email?: string | null;
   phone?: string | null;
+  site?: string | null;
+  logoUrl?: string | null;
+  addressZipcode?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressDistrict?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressCountry?: string | null;
+  defaultProposalNotes?: string | null;
   isPrimary: boolean;
   createdAt: Date;
   updatedAt: Date;
