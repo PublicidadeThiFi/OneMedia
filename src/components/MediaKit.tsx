@@ -652,7 +652,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       {/* HERO */}
       <div
         className="relative bg-cover"
-        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -450px' }}
+        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -420px' }}
       >
         <div className="absolute inset-0 bg-black/50" />
 
