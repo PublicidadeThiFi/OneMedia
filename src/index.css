@@ -4654,18 +4654,23 @@ html {
 /* Shell do Hero (contorno azul) */
 .hero-shell {
   position: relative;
-  padding: 72px 32px 240px; /* +altura para o card não colidir com o texto */
+  /*
+    O Hero possui imagens sobrepostas e um card flutuante (apenas no desktop).
+    Antes o padding-bottom estava muito alto, criando um "vazio" grande no
+    final do container arredondado.
+  */
+  padding: 72px 32px 110px;
 }
 
 @media (min-width: 640px) {
   .hero-shell {
-    padding: 84px 48px 280px;
+    padding: 84px 48px 130px;
   }
 }
 
 @media (min-width: 1024px) {
   .hero-shell {
-    padding: 96px 64px 340px;
+    padding: 96px 64px 160px;
   }
 }
 
@@ -4705,7 +4710,8 @@ html {
 .hero-stage {
   position: relative;
   margin-top: 24px;
-  margin-bottom: 24px;
+  /* Evita um espaço extra grande abaixo das imagens */
+  margin-bottom: 8px;
   min-height: 430px;
 }
 
