@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { useCompany } from '../contexts/CompanyContext';
-import { CompanySettings } from './settings/CompanySettings';
-import { OwnerCompaniesSettings } from './settings/OwnerCompaniesSettings';
+import { CompanyEntitySettings } from './settings/CompanyEntitySettings';
 import { SubscriptionSettings } from './settings/SubscriptionSettings';
 import { UserProfileSettings } from './settings/UserProfileSettings';
 import { usePlatformPlans } from '../hooks/usePlatformPlans';
@@ -64,8 +63,7 @@ export function Settings() {
 
             <TabsContent value="company" className="mt-6">
               <div className="space-y-6">
-                <CompanySettings company={company} onUpdateCompany={updateCompanyData} onRefreshCompany={refreshCompanyData} />
-                <OwnerCompaniesSettings />
+                <CompanyEntitySettings company={company} onUpdateCompany={updateCompanyData} onRefreshCompany={refreshCompanyData} />
               </div>
             </TabsContent>
 
