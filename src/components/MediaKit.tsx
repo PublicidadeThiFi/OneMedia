@@ -67,6 +67,14 @@ type MediaKitCompany = {
 };
 
 type MediaKitResponse = {
+  ownerCompanies?: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    isPrimary: boolean;
+  }[];
+  selectedOwnerCompanyId?: string | null;
   company: MediaKitCompany;
   points: MediaKitPoint[];
   stats: {
@@ -170,6 +178,24 @@ function FlyTo({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
+function InvalidateMapSize() {
+  const map = useMap();
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [map]);
+
+  useEffect(() => {
+    const onResize = () => map.invalidateSize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [map]);
+
+  return null;
+}
+
 export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   // Estados para filtros
   const [searchQuery, setSearchQuery] = useState('');
@@ -177,6 +203,9 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   const [cityFilter, setCityFilter] = useState<string>('all');
   const [stateFilter, setStateFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Availability>('all');
+
+  // Empresa responsável selecionada
+  const [ownerCompanyId, setOwnerCompanyId] = useState<string>('');
 
   // Compartilhamento (modo internal)
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -205,6 +234,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     const city = (params.get('city') || '').trim();
     const uf = (params.get('state') || '').trim();
     const status = (params.get('status') || '').trim();
+    const oc = (params.get('ownerCompanyId') || '').trim();
 
     if (q) setSearchQuery(q);
 
@@ -218,11 +248,24 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     if (status === 'Disponível' || status === 'Parcial' || status === 'Ocupado') {
       setStatusFilter(status as Availability);
     }
+
+    if (oc) setOwnerCompanyId(oc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Mantém o ownerCompanyId na URL para permitir compartilhar/atualizar sem perder seleção
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (ownerCompanyId) params.set('ownerCompanyId', ownerCompanyId);
+    else params.delete('ownerCompanyId');
+    const qs = params.toString();
+    const next = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, '', next);
+  }, [ownerCompanyId]);
+
   const allMediaKitPoints = useMemo(() => data?.points ?? [], [data?.points]);
   const company = data?.company ?? null;
+  const ownerCompanies = useMemo(() => data?.ownerCompanies ?? [], [data?.ownerCompanies]);
 
   const loadMediaKit = async () => {
     try {
@@ -238,14 +281,23 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
         }
 
         const resp = await publicApiClient.get<MediaKitResponse>('/public/media-kit', {
-          params: { token: safeToken },
+          params: {
+            token: safeToken,
+            ownerCompanyId: ownerCompanyId || undefined,
+          },
         });
         setData(resp.data);
+        const selected = resp.data.selectedOwnerCompanyId ?? '';
+        if (selected && selected !== ownerCompanyId) setOwnerCompanyId(selected);
         return;
       }
 
-      const resp = await apiClient.get<MediaKitResponse>('/media-kit');
+      const resp = await apiClient.get<MediaKitResponse>('/media-kit', {
+        params: { ownerCompanyId: ownerCompanyId || undefined },
+      });
       setData(resp.data);
+      const selected = resp.data.selectedOwnerCompanyId ?? '';
+      if (selected && selected !== ownerCompanyId) setOwnerCompanyId(selected);
     } catch (err: any) {
       const msg =
         err?.response?.status === 401
@@ -261,7 +313,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   useEffect(() => {
     loadMediaKit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, token]);
+  }, [mode, token, ownerCompanyId]);
 
   const availableCities = useMemo(() => {
     const cities = new Set(allMediaKitPoints.map((p) => p.addressCity).filter(Boolean) as string[]);
@@ -436,6 +488,10 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       if (statusFilter !== 'all') sp.set('status', String(statusFilter));
       else sp.delete('status');
 
+      // Persist selected responsible company
+      if (ownerSelectValue) sp.set('ownerCompanyId', ownerSelectValue);
+      else sp.delete('ownerCompanyId');
+
       return u.toString();
     } catch {
       return baseUrl;
@@ -557,6 +613,10 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
   const oneMediaUrl = getOneMediaUrl();
 
+  const ownerSelectValue = useMemo(() => {
+    return ownerCompanyId || data?.selectedOwnerCompanyId || ownerCompanies[0]?.id || '';
+  }, [ownerCompanyId, data?.selectedOwnerCompanyId, ownerCompanies]);
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* HERO */}
@@ -566,7 +626,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       >
         <div className="absolute inset-0 bg-black/50" />
 
-        <div className="relative max-w-7xl mx-auto px-6 py-10">
+        <div className="relative max-w-7xl mx-auto px-6 py-14 md:py-20 min-h-[260px] md:min-h-[340px]">
           <div className="flex items-center justify-between gap-4">
             <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-8 md:h-10" />
 
@@ -580,7 +640,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             </div>
           </div>
 
-          <div className="mt-10 max-w-2xl">
+          <div className="mt-12 md:mt-16 max-w-2xl">
             <h1 className="text-white text-3xl md:text-4xl font-semibold">Mídia Kit Digital</h1>
             {company?.name && (
               <p className="text-white/80 mt-2">
@@ -660,6 +720,27 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                 <SelectItem value="Ocupado">Ocupado</SelectItem>
               </SelectContent>
             </Select>
+
+            {ownerCompanies.length > 1 && (
+              <Select
+                value={ownerSelectValue}
+                onValueChange={(value: string) => {
+                  setOwnerCompanyId(value);
+                  setSelectedMapPointId(null);
+                }}
+              >
+                <SelectTrigger className="w-full lg:w-64">
+                  <SelectValue placeholder="Empresa responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ownerCompanies.map((oc) => (
+                    <SelectItem key={oc.id} value={oc.id}>
+                      {oc.name}{oc.isPrimary ? ' (principal)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </div>
@@ -711,7 +792,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     return (
                       <Card key={point.id} className="overflow-hidden">
                         <div className="flex flex-col sm:flex-row">
-                          <div className="sm:w-56 h-40 sm:h-auto bg-gray-100 relative">
+                          <div className="sm:w-56 h-36 sm:h-36 bg-gray-100 relative">
                             <ImageWithFallback
                               src={
                                 point.mainImageUrl ||
@@ -795,7 +876,13 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               <Card className="overflow-hidden lg:sticky lg:top-6">
                 <CardContent className="p-0">
                   <div className="h-[420px] sm:h-[520px]">
-                    <MapContainer
+                    {mapPointsWithCoords.length === 0 ? (
+                      <div className="h-full w-full flex items-center justify-center bg-white text-sm text-gray-500">
+                        Nenhum ponto com coordenadas para exibir no mapa.
+                      </div>
+                    ) : (
+                      <MapContainer
+                      key={`mk-map-${ownerSelectValue}-${mapPointsWithCoords.length}`}
                       center={[mapCenter.lat, mapCenter.lng]}
                       zoom={12}
                       scrollWheelZoom
@@ -805,6 +892,8 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
+
+                      <InvalidateMapSize />
 
                       {selectedMapPointId && (() => {
                         const p = mapPointsWithCoords.find((x) => x.id === selectedMapPointId);
@@ -842,6 +931,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                         );
                       })}
                     </MapContainer>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -855,22 +945,18 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
         <div className="max-w-7xl mx-auto px-6 py-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div className="space-y-3">
-              <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-8" />
-              <p className="text-sm text-white/80">Sua plataforma completa para gestão de mídia OOH/DOOH.</p>
+              <p className="text-sm font-semibold text-white">Empresa responsável pelos pontos</p>
 
-              <div className="pt-3">
-                <p className="text-xs text-white/60 mb-2">Empresa responsável</p>
-                {company?.logoUrl ? (
-                  <div className="inline-flex items-center rounded-md bg-white/10 p-2">
-                    <ImageWithFallback src={company.logoUrl} alt={company.name} className="h-8 w-auto" />
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/80">
-                    <Building className="w-4 h-4" />
-                    <span>{company?.name ?? '—'}</span>
-                  </div>
-                )}
-              </div>
+              {company?.logoUrl ? (
+                <div className="inline-flex items-center rounded-md bg-white/10 p-2">
+                  <ImageWithFallback src={company.logoUrl} alt={company.name} className="h-10 w-auto" />
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/80">
+                  <Building className="w-4 h-4" />
+                  <span>{company?.name ?? '—'}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -1034,19 +1120,30 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
           </DialogHeader>
 
           {detailsPoint ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="space-y-3">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-1 space-y-3">
                 <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                  <div className="h-48">
+                  <div className="h-56">
                     <ImageWithFallback
-                      src={detailsPoint.mainImageUrl || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'}
+                      src={
+                        detailsPoint.mainImageUrl ||
+                        'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
+                      }
                       alt={detailsPoint.name}
                       className="w-full h-full object-cover"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                  <div className="h-56">
+                    <MediaKitMapPreview point={detailsPoint} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 flex flex-col">
+                <div className="space-y-3 flex-1">
                   <div className="flex items-center gap-2">
                     <Badge className="bg-indigo-500">{detailsPoint.type}</Badge>
                     <Badge
@@ -1109,39 +1206,36 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                       <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceDay)}</div>
                     </div>
                   </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                    <Button
-                      className="gap-2"
-                      onClick={() => {
-                        handleRequestForPoints([detailsPoint]);
-                      }}
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      Solicitar proposta
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      className="gap-2"
-                      onClick={() => {
-                        if (detailsPoint.latitude && detailsPoint.longitude) {
-                          window.open(`https://www.google.com/maps?q=${detailsPoint.latitude},${detailsPoint.longitude}`, '_blank');
-                        } else {
-                          toast.info('Coordenadas GPS não cadastradas para este ponto de mídia.');
-                        }
-                      }}
-                    >
-                      <MapPin className="w-4 h-4" />
-                      Abrir no mapa
-                    </Button>
-                  </div>
                 </div>
-              </div>
 
-              <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                <div className="h-[420px]">
-                  <MediaKitMapPreview point={detailsPoint} />
+                <div className="flex flex-col sm:flex-row gap-2 pt-4">
+                  <Button
+                    className="gap-2"
+                    onClick={() => {
+                      handleRequestForPoints([detailsPoint]);
+                    }}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Solicitar proposta
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      if (detailsPoint.latitude && detailsPoint.longitude) {
+                        window.open(
+                          `https://www.google.com/maps?q=${detailsPoint.latitude},${detailsPoint.longitude}`,
+                          '_blank',
+                        );
+                      } else {
+                        toast.info('Coordenadas GPS não cadastradas para este ponto de mídia.');
+                      }
+                    }}
+                  >
+                    <MapPin className="w-4 h-4" />
+                    Abrir no mapa
+                  </Button>
                 </div>
               </div>
             </div>
