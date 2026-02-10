@@ -652,7 +652,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       {/* HERO */}
       <div
         className="relative bg-cover"
-        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -650px' }}
+        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -450px' }}
       >
         <div className="absolute inset-0 bg-black/50" />
 
@@ -883,7 +883,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                               </div>
 
                               <Button
-                                className="gap-2 self-start sm:self-end"
+                                className="gap-2 self-end"
                                 onClick={() => {
                                   setSelectedMapPointId(point.id);
                                   openDetails(point);
@@ -981,7 +981,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
           color: "#ffffff",
         }}
       >
-        <div className="max-w-7xl mx-auto px-6 py-10">
+        <div className="max-w-7xl mx-auto px-6 pt-14 pb-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Empresa responsável pelos pontos</p>
