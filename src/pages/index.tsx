@@ -991,36 +991,30 @@ export default function Home() {
         </div>
       </section>
 
-{/* Security Section - Black Background */}
-<section className="bg-black py-20 px-6">
-  <div className="max-w-4xl mx-auto text-center">
-    <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-      <img src={imgSecurityIcon} alt="Segurança" className="w-9 h-9" />
+{/* Security Section */}
+<section className="security-section">
+  <div className="security-wrap">
+    <div className="security-iconWrap" aria-hidden="true">
+      <img src={imgSecurityIcon} alt="" className="security-icon" />
     </div>
 
-    <h2 className="text-4xl md:text-5xl font-medium text-white leading-tight">
-      Segurança e Confiabilidade
-    </h2>
+    <h2 className="security-title">Segurança e Confiabilidade</h2>
 
-    <div className="mt-10 text-left max-w-xl mx-auto">
-      <h3 className="text-2xl md:text-3xl font-bold italic text-white mb-4 leading-tight">
-        Proteção total dos seus dados:
-      </h3>
+    <div className="security-block">
+      <h3 className="security-heading">Proteção total dos seus dados:</h3>
+      <ul className="security-list">
+        <li className="security-item"><span className="security-emoji">🔐</span><span>Criptografia SSL</span></li>
+        <li className="security-item"><span className="security-emoji">☁️</span><span>Backup automático</span></li>
+        <li className="security-item"><span className="security-emoji">🛡️</span><span>Conformidade LGPD</span></li>
+        <li className="security-item"><span className="security-emoji">📱</span><span>Acesso seguro multi-dispositivo</span></li>
+      </ul>
+    </div>
 
-      <div className="space-y-2 text-white/90 text-lg md:text-xl">
-        <p className="flex items-center gap-3"><span>🔐</span> <span>Criptografia SSL</span></p>
-        <p className="flex items-center gap-3"><span>☁️</span> <span>Backup automático</span></p>
-        <p className="flex items-center gap-3"><span>🛡️</span> <span>Conformidade LGPD</span></p>
-        <p className="flex items-center gap-3"><span>📱</span> <span>Acesso seguro multi-dispositivo</span></p>
-      </div>
-
-      <h3 className="text-2xl md:text-3xl font-bold italic text-white mt-10 mb-4 leading-tight">
-        Suporte que funciona:
-      </h3>
-
-      <div className="space-y-2 text-white/90 text-lg md:text-xl">
-        <p className="flex items-center gap-3"><span>📧</span> <span>E-mail prioritário</span></p>
-      </div>
+    <div className="security-block security-block--support">
+      <h3 className="security-heading">Suporte que funciona:</h3>
+      <ul className="security-list">
+        <li className="security-item"><span className="security-emoji">📧</span><span>E-mail prioritário</span></li>
+      </ul>
     </div>
   </div>
 </section>

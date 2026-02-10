@@ -5489,3 +5489,99 @@ html {
   .efficiency-item { transition: none; }
   .efficiency-item:active { transform: none; }
 }
+
+/* Security & Reliability (black section) */
+.security-section {
+  background: #000000;
+  padding: 80px 24px;
+}
+
+.security-wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.security-iconWrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  margin: 0 auto 18px;
+  background: rgba(255, 255, 255, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.security-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.security-title {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 44px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.security-block {
+  display: inline-block;
+  text-align: left;
+  margin-top: 26px;
+}
+
+.security-block--support {
+  margin-top: 18px;
+}
+
+.security-heading {
+  color: #ffffff;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 26px;
+  line-height: 1.15;
+  margin: 0 0 10px;
+}
+
+.security-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.security-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.90);
+  font-size: 16px;
+  line-height: 1.25;
+  margin: 4px 0;
+}
+
+.security-emoji {
+  width: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 700px) {
+  .security-section {
+    padding: 64px 20px;
+  }
+
+  .security-title {
+    font-size: 34px;
+  }
+
+  .security-heading {
+    font-size: 22px;
+  }
+
+  .security-item {
+    font-size: 14px;
+  }
+}

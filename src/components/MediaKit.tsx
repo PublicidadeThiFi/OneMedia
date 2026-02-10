@@ -109,6 +109,14 @@ function getOneMediaUrl(): string {
   return url;
 }
 
+function normalizeHttpUrl(url: string): string {
+  const trimmed = String(url ?? '').trim();
+  if (!trimmed) return '#';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+
 function normalizeWhatsAppPhone(phone?: string | null): string | null {
   const digits = String(phone ?? '').replace(/\D/g, '');
   if (!digits) return null;
@@ -644,7 +652,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       {/* HERO */}
       <div
         className="relative bg-cover"
-        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center 10%' }}
+        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -140px' }}
       >
         <div className="absolute inset-0 bg-black/50" />
 
@@ -807,7 +815,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                         <div className="p-4 flex flex-col sm:flex-row gap-4">
                           <div
                             className="relative flex-shrink-0 mx-auto sm:mx-0 bg-gray-100 rounded-xl overflow-hidden"
-                            style={{ width: 80, height: 60, minWidth: 80 }}
+                            style={{ width: 160, height: 140, minWidth: 160 }}
                           >
                             <ImageWithFallback
                               src={
@@ -857,7 +865,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                             </div>
 
                             {/* PRICE + CTA */}
-                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end gap-3 px-2 sm:px-3">
+                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end gap-3 px-4">
                               <div className="space-y-1 text-right">
                                 <div className="text-indigo-600 font-semibold whitespace-nowrap">
                                   {point.basePriceMonth != null ? `${formatCurrencyBRL(point.basePriceMonth)}/mês` : '—'}
@@ -971,14 +979,25 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Empresa responsável pelos pontos</p>
 
-              {displayCompany?.logoUrl ? (
-                <div className="inline-flex items-center rounded-md bg-white/10 p-2">
-                  <ImageWithFallback src={displayCompany.logoUrl} alt={displayCompany.name} className="h-10 w-auto" />
+              {displayCompany ? (
+                <div className="inline-flex items-center gap-3 rounded-md bg-white/10 p-2">
+                  {displayCompany.logoUrl ? (
+                    <ImageWithFallback
+                      src={displayCompany.logoUrl}
+                      alt={displayCompany.name}
+                      className="h-10 w-10 object-contain"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-md bg-white/10 flex items-center justify-center">
+                      <Building className="w-5 h-5 text-white/80" />
+                    </div>
+                  )}
+                  <span className="font-semibold text-white">{displayCompany.name}</span>
                 </div>
               ) : (
                 <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/90">
                   <Building className="w-4 h-4" />
-                  <span>{displayCompany?.name ?? '—'}</span>
+                  <span className="font-semibold">—</span>
                 </div>
               )}
             </div>
@@ -1007,7 +1026,14 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                 {displayCompany?.site && (
                   <div>
                     <div className="text-white/70 text-xs">Site</div>
-                    <div>{displayCompany.site}</div>
+                    <a
+                      href={normalizeHttpUrl(displayCompany.site)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="text-white/90 hover:text-white hover:underline"
+                    >
+                      {displayCompany.site}
+                    </a>
                   </div>
                 )}
               </div>
@@ -1016,18 +1042,38 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             <div className="md:text-right">
               <h3 className="font-semibold mb-3">Redes Sociais</h3>
               <div className="flex md:justify-end gap-3">
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
-                  <Linkedin className="w-4 h-4" />
-                </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
-                  <Instagram className="w-4 h-4" />
-                </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
-                  <Facebook className="w-4 h-4" />
-                </div>
-                <div className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10" aria-hidden>
-                  <Twitter className="w-4 h-4" />
-                </div>
+                <a
+                  href={oneMediaUrl || '#'}
+                  target={oneMediaUrl ? '_blank' : undefined}
+                  rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                >
+                  <Linkedin className="w-5 h-5" />
+                </a>
+                <a
+                  href={oneMediaUrl || '#'}
+                  target={oneMediaUrl ? '_blank' : undefined}
+                  rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                >
+                  <Instagram className="w-5 h-5" />
+                </a>
+                <a
+                  href={oneMediaUrl || '#'}
+                  target={oneMediaUrl ? '_blank' : undefined}
+                  rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                >
+                  <Facebook className="w-5 h-5" />
+                </a>
+                <a
+                  href={oneMediaUrl || '#'}
+                  target={oneMediaUrl ? '_blank' : undefined}
+                  rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                >
+                  <Twitter className="w-5 h-5" />
+                </a>
               </div>
             </div>
           </div>
@@ -1257,7 +1303,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     Abrir no mapa
                   </Button>
                 </div>
-              </div>
             </div>
           ) : (
             <div className="py-6 text-sm text-gray-600">Nenhum ponto selecionado.</div>
