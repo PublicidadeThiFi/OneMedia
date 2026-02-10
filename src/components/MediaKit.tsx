@@ -565,7 +565,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   };
 
   const handleRequestForPoints = (points: MediaKitPoint[]) => {
-    const phoneDigits = normalizeWhatsAppPhone(company?.phone);
+    const phoneDigits = normalizeWhatsAppPhone(displayCompany?.phone);
     if (!phoneDigits) {
       toast.error('Número de WhatsApp da empresa não cadastrado.');
       return;
@@ -575,7 +575,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       return;
     }
 
-    const companyName = company?.name ? ` (${company.name})` : '';
+    const companyName = displayCompany?.name ? ` (${displayCompany.name})` : '';
     const msg = [
       `Olá! Gostaria de solicitar uma proposta${companyName}.`,
       '',
@@ -610,23 +610,41 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
   const [selectedMapPointId, setSelectedMapPointId] = useState<string | null>(null);
 
-  const headerSubtitle =
-    company?.addressCity || company?.addressState
-      ? `${company?.addressCity ?? ''}${company?.addressState ? `, ${company.addressState}` : ''}`
-      : '';
-
   const oneMediaUrl = getOneMediaUrl();
 
   const ownerSelectValue = useMemo(() => {
     return ownerCompanyId || data?.selectedOwnerCompanyId || ownerCompanies[0]?.id || '';
   }, [ownerCompanyId, data?.selectedOwnerCompanyId, ownerCompanies]);
 
+  const displayCompany = useMemo<MediaKitCompany | null>(() => {
+    const oc = ownerCompanies.find((x) => x.id === ownerSelectValue);
+    if (oc) {
+      return {
+        id: oc.id,
+        name: oc.name,
+        logoUrl: oc.logoUrl ?? null,
+        primaryColor: null,
+        email: oc.email ?? null,
+        phone: oc.phone ?? null,
+        site: oc.site ?? null,
+        addressCity: oc.addressCity ?? null,
+        addressState: oc.addressState ?? null,
+      };
+    }
+    return company;
+  }, [ownerCompanies, ownerSelectValue, company]);
+
+  const headerSubtitle =
+    displayCompany?.addressCity || displayCompany?.addressState
+      ? `${displayCompany?.addressCity ?? ''}${displayCompany?.addressState ? `, ${displayCompany.addressState}` : ''}`
+      : '';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* HERO */}
       <div
-        className="relative bg-center bg-cover"
-        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})` }}
+        className="relative bg-cover"
+        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center 10%' }}
       >
         <div className="absolute inset-0 bg-black/50" />
 
@@ -646,9 +664,9 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
           <div className="mt-14 md:mt-20 max-w-2xl">
             <h1 className="text-white text-3xl md:text-4xl font-semibold">Mídia Kit Digital</h1>
-            {company?.name && (
+            {displayCompany?.name && (
               <p className="text-white/80 mt-2">
-                {company.name}{headerSubtitle ? ` — ${headerSubtitle}` : ''}
+                {displayCompany.name}{headerSubtitle ? ` — ${headerSubtitle}` : ''}
               </p>
             )}
 
@@ -787,7 +805,10 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     return (
                       <Card key={point.id} className="overflow-hidden">
                         <div className="p-4 flex flex-col sm:flex-row gap-4">
-                          <div className="relative flex-shrink-0 w-80 max-w-full h-60 mx-auto sm:mx-0 bg-gray-100 rounded-xl overflow-hidden">
+                          <div
+                            className="relative flex-shrink-0 mx-auto sm:mx-0 bg-gray-100 rounded-xl overflow-hidden"
+                            style={{ width: 80, height: 60, minWidth: 80 }}
+                          >
                             <ImageWithFallback
                               src={
                                 point.mainImageUrl ||
@@ -796,9 +817,9 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                               alt={point.name}
                               className="w-full h-full object-cover"
                             />
-                            <Badge className="absolute top-3 left-3 bg-indigo-500">{point.type}</Badge>
+                            <Badge className="absolute top-1 left-1 bg-indigo-500 text-[10px] px-2 py-0.5">{point.type}</Badge>
                             <Badge
-                              className={`absolute top-3 right-3 ${
+                              className={`absolute top-1 right-1 text-[10px] px-2 py-0.5 ${
                                 availability === 'Disponível'
                                   ? 'bg-green-500'
                                   : availability === 'Parcial'
@@ -836,7 +857,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                             </div>
 
                             {/* PRICE + CTA */}
-                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end justify-between gap-3">
+                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end gap-3 px-2 sm:px-3">
                               <div className="space-y-1 text-right">
                                 <div className="text-indigo-600 font-semibold whitespace-nowrap">
                                   {point.basePriceMonth != null ? `${formatCurrencyBRL(point.basePriceMonth)}/mês` : '—'}
@@ -870,7 +891,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             <div className="lg:col-span-1">
               <Card className="overflow-hidden lg:sticky lg:top-6">
                 <CardContent className="p-0">
-                  <div className="h-[420px] sm:h-[520px]">
+                  <div className="h-[420px] sm:h-[520px]" style={{ height: "clamp(420px, 60vh, 520px)", minHeight: 420 }}>
                     {mapPointsWithCoords.length === 0 ? (
                       <div className="h-full w-full flex items-center justify-center bg-white text-sm text-gray-500">
                         Nenhum ponto com coordenadas para exibir no mapa.
@@ -937,20 +958,27 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       </div>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 text-white mt-10">
+      <footer
+        className="text-white mt-10 w-full"
+        style={{
+          backgroundImage: "linear-gradient(180deg, #0b1220 0%, #0f172a 60%, #020617 100%)",
+          backgroundColor: "#0b1220",
+          color: "#ffffff",
+        }}
+      >
         <div className="max-w-7xl mx-auto px-6 py-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div className="space-y-3">
               <p className="text-sm font-semibold text-white">Empresa responsável pelos pontos</p>
 
-              {company?.logoUrl ? (
+              {displayCompany?.logoUrl ? (
                 <div className="inline-flex items-center rounded-md bg-white/10 p-2">
-                  <ImageWithFallback src={company.logoUrl} alt={company.name} className="h-10 w-auto" />
+                  <ImageWithFallback src={displayCompany.logoUrl} alt={displayCompany.name} className="h-10 w-auto" />
                 </div>
               ) : (
                 <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/90">
                   <Building className="w-4 h-4" />
-                  <span>{company?.name ?? '—'}</span>
+                  <span>{displayCompany?.name ?? '—'}</span>
                 </div>
               )}
             </div>
@@ -958,28 +986,28 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             <div>
               <h3 className="font-semibold mb-3">Contato &amp; Localização</h3>
               <div className="space-y-2 text-sm text-white/90">
-                {(company?.addressCity || company?.addressState) && (
+                {(displayCompany?.addressCity || displayCompany?.addressState) && (
                   <div>
                     <div className="text-white/70 text-xs">Local</div>
-                    <div>{[company?.addressCity, company?.addressState].filter(Boolean).join(' - ')}</div>
+                    <div>{[displayCompany?.addressCity, displayCompany?.addressState].filter(Boolean).join(' - ')}</div>
                   </div>
                 )}
-                {company?.email && (
+                {displayCompany?.email && (
                   <div>
                     <div className="text-white/70 text-xs">Email</div>
-                    <div>{company.email}</div>
+                    <div>{displayCompany.email}</div>
                   </div>
                 )}
-                {company?.phone && (
+                {displayCompany?.phone && (
                   <div>
                     <div className="text-white/70 text-xs">Telefone</div>
-                    <div>{company.phone}</div>
+                    <div>{displayCompany.phone}</div>
                   </div>
                 )}
-                {company?.site && (
+                {displayCompany?.site && (
                   <div>
                     <div className="text-white/70 text-xs">Site</div>
-                    <div>{company.site}</div>
+                    <div>{displayCompany.site}</div>
                   </div>
                 )}
               </div>
