@@ -652,11 +652,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       {/* HERO */}
       <div
         className="relative bg-cover"
-        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -140px' }}
+        style={{ backgroundImage: `url(${OUTDOOR_BG_SRC})`, backgroundPosition: 'center -650px' }}
       >
         <div className="absolute inset-0 bg-black/50" />
 
-        <div className="relative max-w-7xl mx-auto px-8 md:px-10 py-20 md:py-28 min-h-[350px] md:min-h-[460px]">
+        <div className="relative max-w-7xl mx-auto px-8 md:px-10 py-20 md:py-28 min-h-[504px] md:min-h-[662px]">
           <div className="flex items-start justify-between gap-6">
             <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-8 md:h-10" />
 
@@ -815,7 +815,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                         <div className="p-4 flex flex-col sm:flex-row gap-4">
                           <div
                             className="relative flex-shrink-0 mx-auto sm:mx-0 bg-gray-100 rounded-xl overflow-hidden"
-                            style={{ width: 160, height: 140, minWidth: 160 }}
+                            style={{ width: 180, height: 200, minWidth: 180 }}
                           >
                             <ImageWithFallback
                               src={
@@ -839,33 +839,40 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                             </Badge>
                           </div>
 
-                          <div className="flex-1 min-w-0 flex flex-col sm:flex-row gap-4">
-                            {/* INFO */}
-                            <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[1fr_1.2fr_auto] gap-4 items-start">
+                            {/* STATS */}
+                            <div className="space-y-1 text-sm text-gray-700">
+                              <div>Faces/Telas: {unitsCount}</div>
+                              <div>Livres: {availableUnitsCount}</div>
+                              <div>
+                                Impacto/dia:{' '}
+                                {point.dailyImpressions ? `${Math.floor(Number(point.dailyImpressions) / 1000)}k` : '—'}
+                              </div>
+                            </div>
+
+                            {/* INFO (local e dados adicionais) */}
+                            <div className="min-w-0">
                               <h3 className="text-gray-900 font-semibold truncate">{point.name}</h3>
 
                               <div className="mt-2 text-sm text-gray-600 flex items-start gap-2">
                                 <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
                                 <span className="truncate">
                                   {[point.addressStreet, point.addressNumber].filter(Boolean).join(', ') || '—'}
+                                  {point.addressDistrict ? ` — ${point.addressDistrict}` : ''}
                                   {point.addressCity || point.addressState
-                                    ? ` — ${[point.addressCity, point.addressState].filter(Boolean).join(' / ')}`
+                                    ? ` • ${[point.addressCity, point.addressState].filter(Boolean).join(' / ')}`
                                     : ''}
                                 </span>
                               </div>
 
-                              <div className="mt-3 space-y-1 text-sm text-gray-700">
-                                <div>Faces/Telas: {unitsCount}</div>
-                                <div>Livres: {availableUnitsCount}</div>
-                                <div>
-                                  Impacto/dia:{' '}
-                                  {point.dailyImpressions ? `${Math.floor(Number(point.dailyImpressions) / 1000)}k` : '—'}
-                                </div>
+                              <div className="mt-2 text-xs text-gray-600 space-y-1">
+                                {point.subcategory ? <div>Categoria: {point.subcategory}</div> : null}
+                                {point.environment ? <div>Ambiente: {point.environment}</div> : null}
                               </div>
                             </div>
 
                             {/* PRICE + CTA */}
-                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end gap-3 px-4">
+                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end gap-2 px-4">
                               <div className="space-y-1 text-right">
                                 <div className="text-indigo-600 font-semibold whitespace-nowrap">
                                   {point.basePriceMonth != null ? `${formatCurrencyBRL(point.basePriceMonth)}/mês` : '—'}
@@ -1046,33 +1053,33 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   href={oneMediaUrl || '#'}
                   target={oneMediaUrl ? '_blank' : undefined}
                   rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
                 >
-                  <Linkedin className="w-5 h-5" />
+                  <Linkedin className="w-10 h-10" />
                 </a>
                 <a
                   href={oneMediaUrl || '#'}
                   target={oneMediaUrl ? '_blank' : undefined}
                   rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
                 >
-                  <Instagram className="w-5 h-5" />
+                  <Instagram className="w-10 h-10" />
                 </a>
                 <a
                   href={oneMediaUrl || '#'}
                   target={oneMediaUrl ? '_blank' : undefined}
                   rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
                 >
-                  <Facebook className="w-5 h-5" />
+                  <Facebook className="w-10 h-10" />
                 </a>
                 <a
                   href={oneMediaUrl || '#'}
                   target={oneMediaUrl ? '_blank' : undefined}
                   rel={oneMediaUrl ? 'noreferrer noopener' : undefined}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/10 hover:bg-white/15"
                 >
-                  <Twitter className="w-5 h-5" />
+                  <Twitter className="w-10 h-10" />
                 </a>
               </div>
             </div>
