@@ -329,10 +329,14 @@ function OwnerCompanyEditor({
               onChange={handleLogoChange}
             />
             <Button
-              variant="outline"
-              onClick={() => document.getElementById(`owner-logo-upload-${ownerCompany.id}`)?.click()}
-              disabled={isSaving || isUploadingLogo}
-            >
+  variant="outline"
+  onClick={() =>
+    globalThis.document
+      ?.getElementById(`owner-logo-upload-${ownerCompany.id}`)
+      ?.click()
+  }
+  disabled={isSaving || isUploadingLogo}
+>
               Alterar Logo (logoUrl)
             </Button>
             {selectedLogoFile && (
