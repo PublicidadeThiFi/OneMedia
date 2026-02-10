@@ -1,11 +1,21 @@
 import { useNavigation } from '../App';
-import { ArrowRight, Check, AlertTriangle, CheckCircle2, Zap, Eye, Rocket, Link as LinkIcon } from 'lucide-react';
-import { useState } from 'react';
+import { 
+  ArrowRight, Check, AlertTriangle, CheckCircle2, 
+  Zap, Eye, Rocket, Link as LinkIcon, Settings,
+  Sparkles, Upload, MapPin, FileText, Map, BarChart3
+} from 'lucide-react';
+
+import { JSX, useState } from 'react';
 import imgOnemediaLogo from "figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png";
 import imgImage1 from "figma:asset/0622760ec539e74e0a9554dceb8a7a9549b2d826.png";
 import imgImage2 from "figma:asset/a650fd3251a7c56702fe8a07a33be4a6b676ce4a.png";
 import imgLogotipoOutdoorBr from "figma:asset/b772fcca664e51771498ee420b09d2bb7a1c5fed.png";
 import imgCeoOutdoor from "figma:asset/b410819dec3dab15947c18ed6baae2284d619ffd.png";
+import imgAutomationIcon from "figma:asset/4927f4005fdcb4cee75f7c6be5a84c437632a666.png";
+import imgSecurityIcon from "figma:asset/6798ffea025a808956ca89ea6da0e04d0cee19d8.png";
+
+
+
 
 // Import real module screenshots from Figma
 import imgInventario from "figma:asset/6278c812688036c294627847a92c37d9fdd135d8.png";
@@ -26,6 +36,46 @@ import imgRelatorios from "figma:asset/24be53fa98cb70de89bcd6b3013fd88d5eff019e.
 import imgRelatorios2 from "figma:asset/ea58b2fcd4a9774626acfd9e0441683b3d91eced.png";
 import imgOutros1 from "figma:asset/2e890f0b983e67f4196361f257d7f43fc5fe006a.png";
 import imgOutros2 from "figma:asset/1896d19035e48bc6bce4326ab159c9231b61df91.png";
+
+type SolutionBadgePos = 'topRight' | 'bottomLeft' | 'bottomRight';
+type SolutionBadge = { label: string; icon: JSX.Element; position: SolutionBadgePos };
+
+const badgePositionClass: Record<SolutionBadgePos, string> = {
+  topRight: 'top-4 right-4',
+  bottomLeft: 'bottom-4 left-4',
+  bottomRight: 'bottom-4 right-4',
+};
+
+function GifOrFallback({
+  name,
+  fallback,
+  className = '',
+  alt = ''
+}: {
+  name: string;
+  fallback: JSX.Element;
+  className?: string;
+  alt?: string;
+}) {
+  const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const [src, setSrc] = useState(`/gifs/${name}.gif`);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) return <div className={className}>{fallback}</div>;
+
+  return (
+    <img
+      src={src}
+      alt={alt || name}
+      className={className}
+      onError={() => {
+        if (src === `/gifs/${name}.gif` && normalized !== name) setSrc(`/gifs/${normalized}.gif`);
+        else setFailed(true);
+      }}
+    />
+  );
+}
+
 
 // Module type definition
 type ModuleKey = 'inventario' | 'propostas' | 'campanhas' | 'financeiro' | 'reservas' | 'clientes' | 'proprietarios' | 'relatorios' | 'outros';
@@ -74,83 +124,124 @@ const moduleImages = {
 // Solution content for each tab
 const solutionContent = {
   inventario: {
-    title: 'Organize seu patrimônio com precisão militar',
-    description: 'Cadastre pontos, faces e proprietários com geolocalização automática e controle de status em tempo real.',
-    statLogo: imgOnemediaLogo,
-    statText: 'Redução de 70%',
-    statSubtext: 'no tempo de organização',
-    testimonial: {
-      quote: '"O inventário inteligente nos deu a organização que precisávamos. Agora sabemos exatamente onde cada ponto está localizado e seu status em tempo real, acabou a bagunça no controle do patrimônio."',
-      name: 'Carlos Mendes',
-      role: 'Diretor Comercial, OutdoorBR',
-      avatar: imgCeoOutdoor
-    }
-  },
-  propostas: {
-    title: 'Crie propostas comerciais em minutos',
-    description: 'Monte propostas profissionais com templates personalizáveis, cálculos automáticos de valores e aprovação digital integrada.',
-    statLogo: imgOnemediaLogo,
-    statText: 'Aumento de 85%',
-    statSubtext: 'na taxa de conversão',
-    testimonial: {
-      quote: '"Com a automação de propostas, nosso time comercial triplicou a quantidade de orçamentos enviados. Os templates prontos economizam horas de trabalho e impressionam os clientes."',
-      name: 'Mariana Silva',
-      role: 'Gerente de Vendas, MediaPlus',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400'
-    }
-  },
-  campanhas: {
-    title: 'Gerencie todas as campanhas em um só lugar',
-    description: 'Acompanhe veiculações, monitore performance e controle prazos com calendário visual integrado ao inventário disponível.',
-    statLogo: imgOnemediaLogo,
-    statText: 'Redução de 60%',
-    statSubtext: 'em conflitos de veiculação',
-    testimonial: {
-      quote: '"O controle de campanhas centralizado acabou com os problemas de sobreposição. Agora visualizamos tudo em tempo real e nunca mais perdemos um prazo de veiculação."',
-      name: 'Roberto Alves',
-      role: 'Coordenador de Operações, UrbanMedia',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400'
-    }
-  },
-  financeiro: {
-    title: 'Controle financeiro completo e automático',
-    description: 'Gestão de cobranças, recebimentos e despesas com alertas inteligentes e integração direta às campanhas ativas.',
-    statLogo: imgOnemediaLogo,
-    statText: 'Redução de 78%',
-    statSubtext: 'em inadimplência',
-    testimonial: {
-      quote: '"Os alertas automáticos de pagamento transformaram nosso fluxo de caixa. Antes perdíamos muito tempo perseguindo clientes, agora o sistema cuida disso automaticamente."',
-      name: 'Paula Ferreira',
-      role: 'Diretora Financeira, VisionOut',
-      avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400'
-    }
-  },
-  midiakit: {
-    title: 'Mídia kit digital que vende sozinho',
-    description: 'Apresente seu inventário com mapas interativos, fotos em alta resolução e dados de audiência que impressionam clientes.',
-    statLogo: imgOnemediaLogo,
-    statText: 'Aumento de 92%',
-    statSubtext: 'em engajamento de clientes',
-    testimonial: {
-      quote: '"O mídia kit digital é nossa melhor ferramenta de vendas. Os clientes navegam pelo mapa, veem fotos reais dos pontos e já fecham negócio na primeira reunião."',
-      name: 'Fernando Costa',
-      role: 'Diretor Comercial, MegaOut',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400'
-    }
-  },
-  dashboard: {
-    title: 'Inteligência de dados para decisões rápidas',
-    description: 'Dashboards em tempo real com indicadores de ocupação, faturamento, performance comercial e análises preditivas.',
-    statLogo: imgOnemediaLogo,
-    statText: 'Aumento de 110%',
-    statSubtext: 'na velocidade de decisão',
-    testimonial: {
-      quote: '"Ter todos os indicadores em um dashboard único mudou completamente nossa gestão. Identificamos oportunidades e problemas em segundos, não mais em semanas."',
-      name: 'Juliana Martins',
-      role: 'CEO, StreetMedia Group',
-      avatar: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400'
-    }
+  title: 'Organize seu patrimônio com precisão militar',
+  description: 'Cadastre pontos, faces e proprietários com geolocalização automática e controle de status em tempo real.',
+  screenshot: imgInventario,
+  badges: [
+    { label: 'Cadastro Automático', icon: <Sparkles className="w-4 h-4" />, position: 'topRight' },
+    { label: 'Upload de Fotos', icon: <Upload className="w-4 h-4" />, position: 'bottomLeft' },
+    { label: 'Geolocalização Ativa', icon: <MapPin className="w-4 h-4" />, position: 'bottomRight' },
+  ] as SolutionBadge[],
+  statLogo: imgLogotipoOutdoorBr,
+  statText: 'Redução de 70%',
+  statSubtext: 'no tempo de organização',
+  testimonial: {
+    quote: '"O inventário inteligente nos deu a organização que precisávamos. Agora sabemos exatamente onde cada ponto está localizado e seu status em tempo real, acabou a bagunça no controle do patrimônio."',
+    name: 'Carlos Mendes',
+    role: 'Diretor Comercial, OutdoorBR',
+    avatar: imgCeoOutdoor
   }
+},
+
+propostas: {
+  title: 'Crie propostas comerciais em minutos',
+  description: 'Monte propostas profissionais com templates personalizáveis, cálculos automáticos de valores e aprovação digital integrada.',
+  screenshot: imgPropostas,
+  badges: [
+    { label: 'Templates Prontos', icon: <FileText className="w-4 h-4" />, position: 'topRight' },
+    { label: 'Aprovação Digital', icon: <CheckCircle2 className="w-4 h-4" />, position: 'bottomLeft' },
+    { label: 'Envio em PDF', icon: <FileText className="w-4 h-4" />, position: 'bottomRight' },
+  ] as SolutionBadge[],
+  statLogo: imgOnemediaLogo,
+  statText: 'Aumento de 85%',
+  statSubtext: 'na taxa de conversão',
+  testimonial: {
+    quote: '"Com a automação de propostas, nosso time comercial triplicou a quantidade de orçamentos enviados. Os templates prontos economizam horas de trabalho e impressionam os clientes."',
+    name: 'Mariana Silva',
+    role: 'Gerente de Vendas, MediaPlus',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400'
+  }
+},
+
+campanhas: {
+  title: 'Gerencie todas as campanhas em um só lugar',
+  description: 'Acompanhe veiculações, monitore performance e controle prazos com calendário visual integrado ao inventário disponível.',
+  screenshot: imgCampanhas,
+  badges: [
+    { label: 'Status em Tempo Real', icon: <BarChart3 className="w-4 h-4" />, position: 'topRight' },
+    { label: 'Calendário Visual', icon: <Check className="w-4 h-4" />, position: 'bottomLeft' },
+    { label: 'Prazos & Alertas', icon: <AlertTriangle className="w-4 h-4" />, position: 'bottomRight' },
+  ] as SolutionBadge[],
+  statLogo: imgOnemediaLogo,
+  statText: 'Redução de 60%',
+  statSubtext: 'em conflitos de veiculação',
+  testimonial: {
+    quote: '"O controle de campanhas centralizado acabou com os problemas de sobreposição. Agora visualizamos tudo em tempo real e nunca mais perdemos um prazo de veiculação."',
+    name: 'Roberto Alves',
+    role: 'Coordenador de Operações, UrbanMedia',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400'
+  }
+},
+
+financeiro: {
+  title: 'Controle financeiro completo e automático',
+  description: 'Gestão de cobranças, recebimentos e despesas com alertas inteligentes e integração direta às campanhas ativas.',
+  screenshot: imgFinanceiro,
+  badges: [
+    { label: 'Cobrança Automática', icon: <Sparkles className="w-4 h-4" />, position: 'topRight' },
+    { label: 'Alertas de Pagamento', icon: <AlertTriangle className="w-4 h-4" />, position: 'bottomLeft' },
+    { label: 'Relatórios', icon: <BarChart3 className="w-4 h-4" />, position: 'bottomRight' },
+  ] as SolutionBadge[],
+  statLogo: imgOnemediaLogo,
+  statText: 'Redução de 78%',
+  statSubtext: 'em inadimplência',
+  testimonial: {
+    quote: '"Os alertas automáticos de pagamento transformaram nosso fluxo de caixa. Antes perdíamos muito tempo perseguindo clientes, agora o sistema cuida disso automaticamente."',
+    name: 'Paula Ferreira',
+    role: 'Diretora Financeira, VisionOut',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400'
+  }
+},
+
+midiakit: {
+  title: 'Mídia kit digital que vende sozinho',
+  description: 'Apresente seu inventário com mapas interativos, fotos em alta resolução e dados de audiência que impressionam clientes.',
+  screenshot: imgRelatorios2,
+  badges: [
+    { label: 'Mapa Interativo', icon: <Map className="w-4 h-4" />, position: 'topRight' },
+    { label: 'Fotos HD', icon: <Upload className="w-4 h-4" />, position: 'bottomLeft' },
+    { label: 'Solicitação Rápida', icon: <Sparkles className="w-4 h-4" />, position: 'bottomRight' },
+  ] as SolutionBadge[],
+  statLogo: imgOnemediaLogo,
+  statText: 'Aumento de 92%',
+  statSubtext: 'em engajamento de clientes',
+  testimonial: {
+    quote: '"O mídia kit digital é nossa melhor ferramenta de vendas. Os clientes navegam pelo mapa, veem fotos reais dos pontos e já fecham negócio na primeira reunião."',
+    name: 'Fernando Costa',
+    role: 'Diretor Comercial, MegaOut',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400'
+  }
+},
+
+dashboard: {
+  title: 'Inteligência de dados para decisões rápidas',
+  description: 'Dashboards em tempo real com indicadores de ocupação, faturamento, performance comercial e análises preditivas.',
+  screenshot: imgRelatorios2,
+  badges: [
+    { label: 'KPIs em Tempo Real', icon: <BarChart3 className="w-4 h-4" />, position: 'topRight' },
+    { label: 'Insights', icon: <Sparkles className="w-4 h-4" />, position: 'bottomLeft' },
+    { label: 'Config. Inteligente', icon: <Settings className="w-4 h-4" />, position: 'bottomRight' },
+  ] as SolutionBadge[],
+  statLogo: imgOnemediaLogo,
+  statText: 'Aumento de 110%',
+  statSubtext: 'na velocidade de decisão',
+  testimonial: {
+    quote: '"Ter todos os indicadores em um dashboard único mudou completamente nossa gestão. Identificamos oportunidades e problemas em segundos, não mais em semanas."',
+    name: 'Juliana Martins',
+    role: 'CEO, StreetMedia Group',
+    avatar: 'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=400'
+  }
+}
 };
 
 export default function Home() {
@@ -463,238 +554,339 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Solutions Section */}
-      <section id="solucoes" className="landing-anchor py-20 px-6">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-5xl md:text-6xl font-medium text-gray-900 text-center mb-16">
-            Soluções para todos os negócios.
-            <br />
-            Uma única plataforma.
-          </h2>
+{/* Solutions Section */}
+<section id="solucoes" className="landing-anchor py-20 px-6">
+  <div className="max-w-7xl mx-auto">
+    <h2 className="text-5xl md:text-6xl font-medium text-gray-900 text-center mb-16">
+      Soluções para todos os negócios.
+      <br />
+      Uma única plataforma.
+    </h2>
 
-          {/* Tabs */}
-          <div className="flex flex-wrap justify-center gap-2 mb-16 p-2 border border-gray-900 rounded-full max-w-6xl mx-auto">
-            {[
-              { label: 'Inventário', key: 'inventario' },
-              { label: 'Propostas', key: 'propostas' },
-              { label: 'Campanhas', key: 'campanhas' },
-              { label: 'Financeiro', key: 'financeiro' },
-              { label: 'Mídia Kit', key: 'midiakit' },
-              { label: 'Dashboard', key: 'dashboard' }
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setSelectedSolution(tab.key as SolutionTab)}
-                className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${
-                  selectedSolution === tab.key
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
-                    : 'text-gray-900 hover:bg-gray-100'
-                }`}
+    {/* Tabs */}
+    <div className="flex flex-wrap justify-center gap-2 mb-16 p-2 border border-gray-900 rounded-full max-w-6xl mx-auto">
+      {[
+        { label: 'Inventário', key: 'inventario' },
+        { label: 'Propostas', key: 'propostas' },
+        { label: 'Campanhas', key: 'campanhas' },
+        { label: 'Financeiro', key: 'financeiro' },
+        { label: 'Mídia Kit', key: 'midiakit' },
+        { label: 'Dashboard', key: 'dashboard' }
+      ].map((tab) => (
+        <button
+          key={tab.key}
+          onClick={() => setSelectedSolution(tab.key as SolutionTab)}
+          className={`px-8 py-3 rounded-full text-lg font-medium transition-all ${
+            selectedSolution === tab.key
+              ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
+              : 'text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+
+    {/* Layout */}
+    <div className="grid lg:grid-cols-[1.25fr_0.75fr] gap-12 items-start">
+      {/* Left big card */}
+      <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-[34px] p-8 md:p-10 text-white relative overflow-hidden">
+        <div className="grid md:grid-cols-[340px_1fr] gap-8 items-center">
+          <div className="space-y-6">
+            <h3 className="text-4xl font-semibold leading-tight">
+              {solutionContent[selectedSolution].title}
+            </h3>
+            <p className="text-xl opacity-95 leading-relaxed">
+              {solutionContent[selectedSolution].description}
+            </p>
+            <button
+              onClick={() => navigate('/cadastro')}
+              className="inline-flex items-center gap-3 px-8 py-4 bg-white text-blue-700 text-xl rounded-full hover:shadow-xl transition-all"
+            >
+              Teste Grátis 30 dias
+              <ArrowRight className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="relative">
+            <div className="bg-white/10 rounded-2xl p-3 md:p-4">
+              <img
+                src={solutionContent[selectedSolution].screenshot}
+                alt="Preview do módulo"
+                className="w-full rounded-xl shadow-2xl"
+              />
+            </div>
+
+            {solutionContent[selectedSolution].badges?.map((b: SolutionBadge) => (
+              <div
+                key={b.label}
+                className={`absolute ${badgePositionClass[b.position]} bg-white/90 text-gray-900 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg backdrop-blur-sm`}
               >
-                {tab.label}
-              </button>
+                {b.icon}
+                <span className="text-xs md:text-sm font-medium leading-none">{b.label}</span>
+              </div>
             ))}
           </div>
+        </div>
+      </div>
 
-          {/* Content Card - Dynamic based on selected solution */}
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-[34px] p-12 text-white">
-              <h3 className="text-4xl font-semibold mb-6 leading-tight">
-                {solutionContent[selectedSolution].title}
-              </h3>
-              <p className="text-xl mb-8 opacity-95 leading-relaxed">
-                {solutionContent[selectedSolution].description}
-              </p>
-              <button
-                onClick={() => navigate('/cadastro')}
-                className="flex items-center gap-3 px-8 py-4 bg-white text-blue-700 text-xl rounded-full hover:shadow-xl transition-all"
-              >
-                Teste Grátis 30 dias
-                <ArrowRight className="w-6 h-6" />
-              </button>
+      {/* Right cards */}
+      <div className="space-y-6">
+        <div className="bg-gray-100 rounded-3xl p-8">
+          <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="h-8 w-auto" />
+          <p className="text-3xl md:text-4xl text-gray-900 leading-tight mt-4">
+            <span className="font-semibold">{solutionContent[selectedSolution].statText}</span>{' '}
+            {solutionContent[selectedSolution].statSubtext}
+          </p>
+        </div>
+
+        <div className="bg-gray-100 rounded-3xl p-8">
+          <p className="text-lg md:text-xl text-gray-800 mb-6 italic">
+            {solutionContent[selectedSolution].testimonial.quote}
+          </p>
+          <hr className="border-gray-300 mb-6" />
+          <div className="flex items-center gap-4">
+            <img
+              src={solutionContent[selectedSolution].testimonial.avatar}
+              alt={solutionContent[selectedSolution].testimonial.name}
+              className="w-14 h-14 rounded-full object-cover"
+            />
+            <div className="min-w-0">
+              <p className="font-bold text-gray-900">{solutionContent[selectedSolution].testimonial.name}</p>
+              <p className="text-gray-600">{solutionContent[selectedSolution].testimonial.role}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+{/* Efficiency Section - Black Background */}
+<section id="recursos" className="landing-anchor bg-black py-20 px-6">
+  <div className="max-w-6xl mx-auto">
+    <div className="text-center mb-14">
+      <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+        <img src={imgAutomationIcon} alt="Automação" className="w-9 h-9" />
+      </div>
+      <h2 className="text-4xl md:text-5xl font-medium text-white mb-2">
+        Mais eficiência.
+        <br />
+        Multiplicada por automação.
+      </h2>
+    </div>
+
+    <div className="grid md:grid-cols-[260px_1fr] gap-12 items-start">
+      {/* Left pills */}
+      <div className="space-y-3">
+        {[
+          { label: 'Automação de reservas', color: 'bg-blue-500', key: 'reservas' },
+          { label: 'Gerador de relatórios', color: 'bg-red-500', key: 'relatorios' },
+          { label: 'Automação financeira', color: 'bg-yellow-400', key: 'financeira' },
+          { label: 'Automação de propostas', color: 'bg-green-500', key: 'propostas' },
+          { label: 'Automação do mídia kit', color: 'bg-blue-600', key: 'midiakit' },
+          { label: 'Automação de dashboard', color: 'bg-red-500', key: 'dashboard' }
+        ].map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setSelectedAutomation(item.key)}
+            className={`w-full flex items-center gap-3 rounded-full px-4 py-3 transition-all ${
+              selectedAutomation === item.key
+                ? 'bg-white/10 ring-2 ring-white/20'
+                : 'bg-white/5 hover:bg-white/10'
+            }`}
+          >
+            <span className={`w-3.5 h-3.5 rounded-full ${item.color} shrink-0`} />
+            <span className="text-white text-sm md:text-base font-medium text-left">{item.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Right content */}
+      <div className="text-white">
+        <h3 className="text-3xl md:text-4xl font-bold italic mb-5 leading-tight">
+          {automationContent[selectedAutomation as keyof typeof automationContent].title}
+        </h3>
+        <p className="text-xl md:text-2xl leading-relaxed">
+          {automationContent[selectedAutomation as keyof typeof automationContent].description}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+{/* Benefits / Differential Section */}
+<section className="py-16 px-6">
+  <div className="max-w-7xl mx-auto">
+    <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-12">
+      O diferencial da onemedia.com
+    </h2>
+
+    {[
+      {
+        key: 'planilhas',
+        front: {
+          color: 'bg-blue-600',
+          title: 'Gestão centralizada do seu inventário',
+          desc: 'Automação que elimina retrabalho e multiplica sua produtividade operacional diariamente.',
+          fallback: <Zap className="w-20 h-20 text-blue-600" />
+        },
+        back: {
+          statColor: 'bg-blue-600',
+          statMain: '80%',
+          statSub: 'menos tempo\nem planilhas',
+          quote:
+            '"A automação transformou nossa rotina. O que levava horas em planilhas agora é feito em minutos, sem erros. Ganhamos uma agilidade impressionante."'
+        }
+      },
+      {
+        key: 'visibilidade',
+        front: {
+          color: 'bg-red-600',
+          title: 'Visibilidade total em tempo real',
+          desc: 'Decisões estratégicas baseadas em dados precisos, não em suposições arriscadas.',
+          fallback: <Eye className="w-20 h-20 text-gray-500" />
+        },
+        back: {
+          statColor: 'bg-red-600',
+          statMain: '100%',
+          statSub: 'de visibilidade\nsobre o inventário',
+          quote:
+            '"Agora tomamos decisões estratégicas em minutos, com base em dados reais, não em palpites. A visibilidade é total."'
+        }
+      },
+      {
+        key: 'resultados',
+        front: {
+          color: 'bg-yellow-300 text-gray-900',
+          title: 'Implementação em minutos',
+          desc: 'Configure rapidamente e comece a ver resultados transformadores ainda hoje.',
+          fallback: <Rocket className="w-20 h-20 text-orange-500" />
+        },
+        back: {
+          statColor: 'bg-yellow-300 text-gray-900',
+          statMain: '15min',
+          statSub: 'tempo médio\nde configuração',
+          quote:
+            '"Conectamos nossas telas, importamos o inventário e começamos a rodar campanhas no mesmo dia. Foi plug-and-play."'
+        }
+      },
+      {
+        key: 'integracao',
+        front: {
+          color: 'bg-green-600',
+          title: 'Integração completa e inteligente',
+          desc: 'Todos os módulos conectados para fluxo de trabalho perfeito e eficiente.',
+          fallback: <Settings className="w-20 h-20 text-gray-600" />
+        },
+        back: {
+          statColor: 'bg-green-600',
+          statMain: '3x',
+          statSub: 'mais propostas\naprovadas',
+          quote:
+            '"Agora, uma proposta aprovada gera automaticamente o contrato e a ordem de serviço. Nossa equipe parou de bater cabeça."'
+        }
+      }
+    ].map((row: any, idx: number) => {
+      const reverse = idx % 2 === 1;
+
+      const IconCard = (
+        <div className="bg-slate-100 rounded-3xl flex items-center justify-center h-full">
+          <GifOrFallback
+            name={row.key === 'integracao' ? 'integração' : row.key} // plug-and-play conforme seu padrão
+            fallback={row.front.fallback}
+            className="w-24 h-24 object-contain"
+            alt={row.key}
+          />
+        </div>
+      );
+
+      const FrontTextCard = (
+        <div className={`rounded-3xl p-8 h-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 ${row.front.color}`}>
+          <h3 className={`text-2xl md:text-3xl font-semibold leading-tight ${String(row.front.color).includes('yellow') ? 'text-gray-900' : 'text-white'} max-w-[320px]`}>
+            {row.front.title}
+          </h3>
+          <p className={`${String(row.front.color).includes('yellow') ? 'text-gray-900' : 'text-white/90'} text-sm md:text-base leading-snug max-w-[360px]`}>
+            {row.front.desc}
+          </p>
+        </div>
+      );
+
+      const StatCard = (
+        <div className={`rounded-3xl p-8 h-full flex flex-col justify-center whitespace-pre-line ${row.back.statColor}`}>
+          <div className="text-5xl md:text-6xl font-semibold leading-none">
+            {row.back.statMain}
+          </div>
+          <div className="text-xl md:text-2xl mt-2 leading-tight">
+            {row.back.statSub}
+          </div>
+        </div>
+      );
+
+      const Testimonial = (
+        <div className="bg-slate-100 rounded-3xl p-8 h-full flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <img src={imgCeoOutdoor} className="w-10 h-10 rounded-full object-cover" alt="Carlos Mendes" />
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-900 leading-tight">Carlos Mendes</p>
+                <p className="text-xs text-gray-600 leading-tight">Diretor Comercial, OutdoorBR</p>
+              </div>
+            </div>
+            <img src={imgLogotipoOutdoorBr} alt="OutdoorBR" className="h-6 w-auto shrink-0" />
+          </div>
+
+          <p className="text-gray-800 text-sm md:text-base leading-relaxed italic">
+            {row.back.quote}
+          </p>
+        </div>
+      );
+
+      return (
+        <div key={row.key} className="differential-flip h-[320px] sm:h-[280px] md:h-[140px] mb-4">
+          <div className="differential-flip-inner">
+            {/* Front */}
+            <div className="differential-face differential-front">
+              <div className="grid md:grid-cols-2 gap-6 h-full">
+                {reverse ? (
+                  <>
+                    {FrontTextCard}
+                    {IconCard}
+                  </>
+                ) : (
+                  <>
+                    {IconCard}
+                    {FrontTextCard}
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-gray-100 rounded-3xl p-8">
-                <div className="flex justify-center mb-6">
-                  <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="h-12" />
-                </div>
-                <p className="text-3xl">
-                  <span className="font-semibold">{solutionContent[selectedSolution].statText}</span> {solutionContent[selectedSolution].statSubtext}
-                </p>
-              </div>
-
-              <div className="bg-gray-100 rounded-3xl p-8">
-                <p className="text-xl text-gray-800 mb-6 italic">
-                  {solutionContent[selectedSolution].testimonial.quote}
-                </p>
-                <hr className="border-gray-400 mb-6" />
-                <div className="flex items-center gap-4">
-                  <img 
-                    src={solutionContent[selectedSolution].testimonial.avatar} 
-                    alt={solutionContent[selectedSolution].testimonial.name} 
-                    className="w-14 h-14 rounded-full object-cover" 
-                  />
-                  <div>
-                    <p className="font-bold text-gray-900">{solutionContent[selectedSolution].testimonial.name}</p>
-                    <p className="text-gray-600">{solutionContent[selectedSolution].testimonial.role}</p>
-                  </div>
-                </div>
+            {/* Back */}
+            <div className="differential-face differential-back">
+              <div className="grid md:grid-cols-2 gap-6 h-full">
+                {reverse ? (
+                  <>
+                    {Testimonial}
+                    {StatCard}
+                  </>
+                ) : (
+                  <>
+                    {StatCard}
+                    {Testimonial}
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
-      </section>
+      );
+    })}
+  </div>
+</section>
 
-      {/* Efficiency Section - Black Background */}
-      <section id="recursos" className="landing-anchor bg-black py-12 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10">
-            <div className="inline-block mb-4">
-              <Zap className="w-16 h-16 text-blue-400" />
-            </div>
-            <h2 className="text-4xl md:text-5xl font-medium text-white mb-2">
-              Mais eficiência.
-              <br />
-              Multiplicada por automação.
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 items-start">
-            {/* Left - Automation Features */}
-            <div className="space-y-2.5 max-h-[420px] overflow-y-auto pl-1 pr-3 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
-              {[
-                { icon: '🔵', label: 'Automação de reservas', color: 'bg-blue-600', key: 'reservas' },
-                { icon: '🔴', label: 'Gerador de relatórios', color: 'bg-red-600', key: 'relatorios' },
-                { icon: '🟡', label: 'Automação financeira', color: 'bg-yellow-500', key: 'financeira' },
-                { icon: '🟢', label: 'Automação de propostas', color: 'bg-green-600', key: 'propostas' },
-                { icon: '🔵', label: 'Automação do mídia kit', color: 'bg-blue-700', key: 'midiakit' },
-                { icon: '🔴', label: 'Automação de dashboard', color: 'bg-red-600', key: 'dashboard' }
-              ].map((item, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelectedAutomation(item.key)}
-                  className={`w-full flex items-center gap-3 rounded-full px-4 py-2.5 transition-all cursor-pointer ${
-                    selectedAutomation === item.key 
-                      ? 'bg-gray-700 shadow-[0_0_0_2px_rgba(255,255,255,0.6)] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.8)]' 
-                      : 'bg-gray-800 hover:bg-gray-700'
-                  }`}
-                >
-                  <div className={`w-10 h-10 ${item.color} rounded-full flex items-center justify-center text-xl shrink-0`}>
-                    {item.icon}
-                  </div>
-                  <p className="text-white text-lg font-medium text-left">{item.label}</p>
-                </button>
-              ))}
-            </div>
-
-            {/* Right - Dynamic Description */}
-            <div className="text-white max-h-[420px] flex flex-col justify-center">
-              <h3 className="text-3xl md:text-4xl font-bold italic mb-4 leading-tight">
-                {automationContent[selectedAutomation as keyof typeof automationContent].title}
-              </h3>
-              <p className="text-xl md:text-2xl leading-relaxed line-clamp-6">
-                {automationContent[selectedAutomation as keyof typeof automationContent].description}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section */}
-      <section className="py-14 px-6">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-12">
-            O diferencial da onemedia.com
-          </h2>
-
-          <div className="space-y-3">
-            {/* Benefit 1 */}
-            <div className="bg-gray-100 rounded-[40px] py-3 px-3">
-              <div className="grid md:grid-cols-2 gap-6 items-center max-w-5xl mx-auto">
-                <div className="bg-blue-600 rounded-2xl p-6 text-white">
-                  <h3 className="text-xl font-semibold mb-2 leading-tight">
-                    80% menos tempo
-                    <br />
-                    em planilhas
-                  </h3>
-                  <p className="text-sm opacity-95 leading-snug">
-                    Automação que elimina retrabalho e multiplica sua produtividade operacional diariamente.
-                  </p>
-                </div>
-                <div className="flex justify-center">
-                  <div className="bg-white rounded-2xl p-8">
-                    <Zap className="w-24 h-24 text-yellow-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefit 2 */}
-            <div className="bg-gray-100 rounded-[40px] py-3 px-3">
-              <div className="grid md:grid-cols-2 gap-6 items-center max-w-5xl mx-auto">
-                <div className="flex justify-center order-2 md:order-1">
-                  <div className="bg-white rounded-2xl p-8">
-                    <Eye className="w-24 h-24 text-gray-600" />
-                  </div>
-                </div>
-                <div className="bg-red-500 rounded-2xl p-6 text-white order-1 md:order-2">
-                  <h3 className="text-xl font-semibold mb-2 leading-tight">
-                    Visibilidade total
-                    <br />
-                    em tempo real
-                  </h3>
-                  <p className="text-sm opacity-95 leading-snug">
-                    Decisões estratégicas baseadas em dados precisos, não em suposições arriscadas.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefit 3 */}
-            <div className="bg-gray-100 rounded-[40px] py-3 px-3">
-              <div className="grid md:grid-cols-2 gap-6 items-center max-w-5xl mx-auto">
-                <div className="bg-yellow-400 rounded-2xl p-6 text-gray-900">
-                  <h3 className="text-xl font-semibold mb-2 leading-tight">
-                    Implementação
-                    <br />
-                    em minutos
-                  </h3>
-                  <p className="text-sm leading-snug">
-                    Configure rapidamente e comece a ver resultados transformadores ainda hoje.
-                  </p>
-                </div>
-                <div className="flex justify-center">
-                  <div className="bg-white rounded-2xl p-8">
-                    <Rocket className="w-24 h-24 text-orange-500" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Benefit 4 */}
-            <div className="bg-gray-100 rounded-[40px] py-3 px-3">
-              <div className="grid md:grid-cols-2 gap-6 items-center max-w-5xl mx-auto">
-                <div className="flex justify-center order-2 md:order-1">
-                  <div className="bg-white rounded-2xl p-8">
-                    <LinkIcon className="w-24 h-24 text-blue-400" />
-                  </div>
-                </div>
-                <div className="bg-green-600 rounded-2xl p-6 text-white order-1 md:order-2">
-                  <h3 className="text-xl font-semibold mb-2 leading-tight">
-                    Integração completa
-                    <br />
-                    e inteligente
-                  </h3>
-                  <p className="text-sm opacity-95 leading-snug">
-                    Todos os módulos conectados para fluxo de trabalho perfeito e eficiente.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Pricing Comparison Section */}
       <section id="precos" className="landing-anchor py-12 px-6 bg-blue-500/5">
@@ -800,63 +992,40 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Security Section - Black Background */}
-      <section className="bg-black py-12 px-6">
-        <div className="max-w-6xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-10">
-            <div className="inline-block p-4 bg-white/10 rounded-full mb-4">
-              <svg className="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h2 className="text-4xl md:text-5xl font-medium text-white leading-tight">
-              Segurança e Confiabilidade
-            </h2>
-          </div>
+{/* Security Section - Black Background */}
+<section className="bg-black py-20 px-6">
+  <div className="max-w-4xl mx-auto text-center">
+    <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+      <img src={imgSecurityIcon} alt="Segurança" className="w-9 h-9" />
+    </div>
 
-          {/* Content - 2 Columns on Desktop */}
-          <div className="grid md:grid-cols-2 gap-10 max-w-5xl mx-auto">
-            {/* Column 1 - Data Protection */}
-            <div>
-              <h3 className="text-2xl md:text-3xl font-bold italic text-white mb-5 leading-tight">
-                Proteção total dos seus dados:
-              </h3>
-              <div className="space-y-3 text-xl md:text-2xl text-white">
-                <p className="flex items-center gap-2">
-                  <span>🔐</span>
-                  <span>Criptografia SSL</span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <span>☁️</span>
-                  <span>Backup automático</span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <span>🛡️</span>
-                  <span>Conformidade LGPD</span>
-                </p>
-                <p className="flex items-center gap-2">
-                  <span>📱</span>
-                  <span>Acesso seguro multi-dispositivo</span>
-                </p>
-              </div>
-            </div>
+    <h2 className="text-4xl md:text-5xl font-medium text-white leading-tight">
+      Segurança e Confiabilidade
+    </h2>
 
-            {/* Column 2 - Support */}
-            <div>
-              <h3 className="text-2xl md:text-3xl font-bold italic text-white mb-5 leading-tight">
-                Suporte que funciona:
-              </h3>
-              <div className="space-y-3 text-xl md:text-2xl text-white">
-                <p className="flex items-center gap-2">
-                  <span>📧</span>
-                  <span>E-mail prioritário</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+    <div className="mt-10 text-left max-w-xl mx-auto">
+      <h3 className="text-2xl md:text-3xl font-bold italic text-white mb-4 leading-tight">
+        Proteção total dos seus dados:
+      </h3>
+
+      <div className="space-y-2 text-white/90 text-lg md:text-xl">
+        <p className="flex items-center gap-3"><span>🔐</span> <span>Criptografia SSL</span></p>
+        <p className="flex items-center gap-3"><span>☁️</span> <span>Backup automático</span></p>
+        <p className="flex items-center gap-3"><span>🛡️</span> <span>Conformidade LGPD</span></p>
+        <p className="flex items-center gap-3"><span>📱</span> <span>Acesso seguro multi-dispositivo</span></p>
+      </div>
+
+      <h3 className="text-2xl md:text-3xl font-bold italic text-white mt-10 mb-4 leading-tight">
+        Suporte que funciona:
+      </h3>
+
+      <div className="space-y-2 text-white/90 text-lg md:text-xl">
+        <p className="flex items-center gap-3"><span>📧</span> <span>E-mail prioritário</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
 
       {/* Footer */}
       <footer className="bg-white py-16 px-6 border-t border-gray-200">
