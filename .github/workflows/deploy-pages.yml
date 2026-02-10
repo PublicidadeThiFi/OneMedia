@@ -34,6 +34,10 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          # Configure these in GitHub: Settings -> Secrets and variables -> Actions -> Variables
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          URL_ONE_MEDIA: ${{ vars.URL_ONE_MEDIA }}
         run: npm run build
 
       # SPA fallback for direct links (/login, /app/..., etc.) on GitHub Pages

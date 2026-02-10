@@ -28,6 +28,12 @@ function isSafeWhenBlocked(url: string): boolean {
 // Se o BD for instanciado remotamente, usa 'http://174.129.69.244:3333/api' como fallback lá no .env -> Sendo usado no momento.
 // src/lib/apiClient.ts
 
+const MISSING_API_BASE_URL = '__MISSING_API_BASE_URL__';
+
+function looksLikeVercelHost(hostname: string): boolean {
+  return /(^|\.)vercel\.app$/i.test(hostname);
+}
+
 const getBaseUrl = () => {
   const envUrl = (import.meta as any).env?.VITE_API_URL;
   
@@ -37,14 +43,35 @@ const getBaseUrl = () => {
       return envUrl; 
     }
     // Se for uma URL completa, remove a barra final
-    return envUrl.replace(/\/$/, '');
+    const normalized = envUrl.replace(/\/$/, '');
+
+    // Ajuda a evitar erro comum: configurar como https://api.seudominio.com (sem /api)
+    // Nosso backend expõe /api/* e o frontend usa endpoints relativos (ex.: /signup),
+    // então a base deve terminar com /api.
+    if (/^https?:\/\//i.test(normalized) && !/\/api$/i.test(normalized)) {
+      return `${normalized}/api`;
+    }
+
+    return normalized;
   }
   
-  // Se não houver variável, em produção usamos rota relativa (/api) para funcionar com rewrites (Vercel/Nginx)
-  // e evitar Mixed Content (HTTPS -> HTTP).
-  // Em dev, mantenha o backend local.
+  // Se não houver variável, em produção só é seguro usar rota relativa (/api)
+  // quando existe um proxy/rewrite no MESMO host (ex.: Vercel).
+  // No GitHub Pages (ou domínio apontando para Pages), isso não existe e cairia no Pages,
+  // causando erros como 405.
   const isDev = (import.meta as any).env?.DEV === true;
-  return isDev ? 'http://localhost:3333/api' : '/api';
+  if (isDev) return 'http://localhost:3333/api';
+
+  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (looksLikeVercelHost(host)) {
+    return '/api';
+  }
+
+  // Em produção fora do Vercel, exija VITE_API_URL explícito.
+  console.error(
+    '[apiClient] VITE_API_URL não configurada. Defina VITE_API_URL (ex.: https://api.seudominio.com/api).'
+  );
+  return MISSING_API_BASE_URL;
 };
 
 const API_BASE_URL = getBaseUrl();
@@ -98,6 +125,11 @@ export const publicApiClient = axios.create({
 // Attach access token to all requests
 apiClient.interceptors.request.use(
   (config) => {
+    if (API_BASE_URL === MISSING_API_BASE_URL) {
+      toast.error('Configuração da API ausente. Defina VITE_API_URL (Actions vars) e faça novo deploy.');
+      throw new (axios as any).CanceledError('MISSING_API_BASE_URL');
+    }
+
     const access = getAccessState();
     if (access.isBlocked) {
       const method = String(config.method ?? 'get').toLowerCase();
@@ -127,6 +159,18 @@ apiClient.interceptors.request.use(
     } else if (isPublicAuth && config.headers) {
       // defensive: ensure no Authorization header leaks into login
       delete (config.headers as any).Authorization;
+    }
+    return config;
+  },
+  (error: any) => Promise.reject(error)
+);
+
+// Same safeguard for public client (used by pages like /verify-email)
+publicApiClient.interceptors.request.use(
+  (config) => {
+    if (API_BASE_URL === MISSING_API_BASE_URL) {
+      toast.error('Configuração da API ausente. Defina VITE_API_URL (Actions vars) e faça novo deploy.');
+      throw new (axios as any).CanceledError('MISSING_API_BASE_URL');
     }
     return config;
   },

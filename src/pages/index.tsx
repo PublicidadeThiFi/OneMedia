@@ -587,25 +587,17 @@ export default function Home() {
     <div className="solutions-layout">
       {/* Left big card */}
       <div className="solutions-left-card bg-gradient-to-r from-blue-500 to-blue-700">
-        {/* badges are positioned relative to the whole card (as in the mock) */}
-        {solutionContent[selectedSolution].badges?.map((b: SolutionBadge) => (
-          <div key={b.label} className={`solutions-badge ${badgePositionClass[b.position]}`}>
-            {b.icon}
-            <span>{b.label}</span>
-          </div>
-        ))}
-
         <div className="solutions-left-inner">
           <div className="solutions-left-text">
-            <h3 className="text-3xl md:text-4xl font-semibold leading-tight">
+            <h3 className="solutions-left-title">
               {solutionContent[selectedSolution].title}
             </h3>
-            <p className="mt-4 text-sm md:text-base opacity-95 leading-relaxed">
+            <p className="solutions-left-desc">
               {solutionContent[selectedSolution].description}
             </p>
             <button
               onClick={() => navigate('/cadastro')}
-              className="mt-6 inline-flex items-center gap-3 px-6 py-3 bg-white text-blue-700 text-sm rounded-full hover:shadow-xl transition-all"
+              className="solutions-left-cta"
             >
               Teste Grátis 30 dias
               <ArrowRight className="w-5 h-5" />
@@ -613,6 +605,14 @@ export default function Home() {
           </div>
 
           <div className="solutions-left-preview">
+            {/* badges are positioned relative to the preview (as in the mock) */}
+            {solutionContent[selectedSolution].badges?.map((b: SolutionBadge) => (
+              <div key={b.label} className={`solutions-badge ${badgePositionClass[b.position]}`}>
+                {b.icon}
+                <span>{b.label}</span>
+              </div>
+            ))}
+
             <div className="solutions-preview-surface">
               <div className="solutions-preview-frame">
                 <img
@@ -626,18 +626,18 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Right card (single container like the mock) */}
-      <div className="solutions-right-card">
-        <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="solutions-stat-logo" />
-        <p className="solutions-stat">
-          <span className="solutions-stat-strong">{solutionContent[selectedSolution].statText}</span>{' '}
-          {solutionContent[selectedSolution].statSubtext}
-        </p>
-
-        <div className="solutions-testimonial">
-          <p className="solutions-quote">
-            {solutionContent[selectedSolution].testimonial.quote}
+      {/* Right column (two cards like the mock) */}
+      <div className="solutions-right">
+        <div className="solutions-right-statCard">
+          <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="solutions-stat-logo" />
+          <p className="solutions-stat">
+            <span className="solutions-stat-strong">{solutionContent[selectedSolution].statText}</span>{' '}
+            {solutionContent[selectedSolution].statSubtext}
           </p>
+        </div>
+
+        <div className="solutions-right-testimonialCard">
+          <p className="solutions-quote">{solutionContent[selectedSolution].testimonial.quote}</p>
           <div className="solutions-divider" />
           <div className="solutions-person">
             <img
