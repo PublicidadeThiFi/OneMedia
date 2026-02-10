@@ -1176,139 +1176,141 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       </Dialog>
 
       {/* Dialog: Detalhes do ponto */}
-      <Dialog
-        open={detailsOpen}
-        onOpenChange={(open: boolean) => {
-          setDetailsOpen(open);
-          if (!open) setDetailsPoint(null);
-        }}
-      >
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Detalhes do ponto</DialogTitle>
-            <DialogDescription>Informações completas do ponto e localização no mapa.</DialogDescription>
-          </DialogHeader>
+<Dialog
+  open={detailsOpen}
+  onOpenChange={(open: boolean) => {
+    setDetailsOpen(open);
+    if (!open) setDetailsPoint(null);
+  }}
+>
+  <DialogContent className="max-w-4xl">
+    <DialogHeader>
+      <DialogTitle>Detalhes do ponto</DialogTitle>
+      <DialogDescription>Informações completas do ponto e localização no mapa.</DialogDescription>
+    </DialogHeader>
 
-          {detailsPoint ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-1 space-y-3">
-                <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                  <div className="h-56">
-                    <ImageWithFallback
-                      src={
-                        detailsPoint.mainImageUrl ||
-                        'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
-                      }
-                      alt={detailsPoint.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                  <div className="h-56">
-                    <MediaKitMapPreview point={detailsPoint} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="lg:col-span-2 flex flex-col">
-                <div className="space-y-3 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-indigo-500">{detailsPoint.type}</Badge>
-                    <Badge
-                      className={`${
-                        (detailsPoint.availability ?? 'Disponível') === 'Disponível'
-                          ? 'bg-green-500'
-                          : (detailsPoint.availability ?? 'Disponível') === 'Parcial'
-                            ? 'bg-amber-500'
-                            : 'bg-orange-500'
-                      }`}
-                    >
-                      {detailsPoint.availability ?? 'Disponível'}
-                    </Badge>
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900">{detailsPoint.name}</h3>
-
-                  <div className="text-sm text-gray-700">
-                    {[detailsPoint.addressStreet, detailsPoint.addressNumber].filter(Boolean).join(', ')}
-                    {detailsPoint.addressDistrict ? ` — ${detailsPoint.addressDistrict}` : ''}
-                    {(detailsPoint.addressCity || detailsPoint.addressState) && (
-                      <> • {[detailsPoint.addressCity, detailsPoint.addressState].filter(Boolean).join(' / ')}</>
-                    )}
-                  </div>
-
-                  {detailsPoint.description && (
-                    <div className="text-sm text-gray-600 whitespace-pre-wrap">{detailsPoint.description}</div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <div className="text-xs text-gray-500">Faces/Telas</div>
-                      <div className="text-gray-900">{detailsPoint.unitsCount ?? '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">Livres</div>
-                      <div className="text-gray-900">{detailsPoint.availableUnitsCount ?? '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">Impacto/dia</div>
-                      <div className="text-gray-900">{detailsPoint.dailyImpressions ?? '—'}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">Categoria</div>
-                      <div className="text-gray-900">{detailsPoint.subcategory ?? '—'}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <div className="text-xs text-gray-500">Semanal</div>
-                      <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">Mensal</div>
-                      <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                  <Button
-                    className="gap-2"
-                    onClick={() => {
-                      handleRequestForPoints([detailsPoint]);
-                    }}
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Solicitar proposta
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => {
-                      if (detailsPoint.latitude && detailsPoint.longitude) {
-                        window.open(
-                          `https://www.google.com/maps?q=${detailsPoint.latitude},${detailsPoint.longitude}`,
-                          '_blank',
-                        );
-                      } else {
-                        toast.info('Coordenadas GPS não cadastradas para este ponto de mídia.');
-                      }
-                    }}
-                  >
-                    <MapPin className="w-4 h-4" />
-                    Abrir no mapa
-                  </Button>
-                </div>
+    {detailsPoint ? (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-1 space-y-3">
+          <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+            <div className="h-56">
+              <ImageWithFallback
+                src={
+                  detailsPoint.mainImageUrl ||
+                  'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800'
+                }
+                alt={detailsPoint.name}
+                className="w-full h-full object-cover"
+              />
             </div>
-          ) : (
-            <div className="py-6 text-sm text-gray-600">Nenhum ponto selecionado.</div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </div>
+
+          <div className="rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+            <div className="h-56">
+              <MediaKitMapPreview point={detailsPoint} />
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 flex flex-col">
+          <div className="space-y-3 flex-1">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-indigo-500">{detailsPoint.type}</Badge>
+              <Badge
+                className={
+                  (detailsPoint.availability ?? 'Disponível') === 'Disponível'
+                    ? 'bg-green-500'
+                    : (detailsPoint.availability ?? 'Disponível') === 'Parcial'
+                      ? 'bg-amber-500'
+                      : 'bg-orange-500'
+                }
+              >
+                {detailsPoint.availability ?? 'Disponível'}
+              </Badge>
+            </div>
+
+            <h3 className="text-lg font-semibold text-gray-900">{detailsPoint.name}</h3>
+
+            <div className="text-sm text-gray-700">
+              {[detailsPoint.addressStreet, detailsPoint.addressNumber].filter(Boolean).join(', ')}
+              {detailsPoint.addressDistrict ? ` — ${detailsPoint.addressDistrict}` : ''}
+              {(detailsPoint.addressCity || detailsPoint.addressState) && (
+                <> • {[detailsPoint.addressCity, detailsPoint.addressState].filter(Boolean).join(' / ')}</>
+              )}
+            </div>
+
+            {detailsPoint.description && (
+              <div className="text-sm text-gray-600 whitespace-pre-wrap">{detailsPoint.description}</div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-gray-500">Faces/Telas</div>
+                <div className="text-gray-900">{detailsPoint.unitsCount ?? '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Livres</div>
+                <div className="text-gray-900">{detailsPoint.availableUnitsCount ?? '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Impacto/dia</div>
+                <div className="text-gray-900">{detailsPoint.dailyImpressions ?? '—'}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Categoria</div>
+                <div className="text-gray-900">{detailsPoint.subcategory ?? '—'}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-gray-500">Semanal</div>
+                <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Mensal</div>
+                <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <Button
+              className="gap-2"
+              onClick={() => {
+                handleRequestForPoints([detailsPoint]);
+              }}
+            >
+              <MessageCircle className="w-4 h-4" />
+              Solicitar proposta
+            </Button>
+
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => {
+                if (detailsPoint.latitude && detailsPoint.longitude) {
+                  window.open(
+                    `https://www.google.com/maps?q=${detailsPoint.latitude},${detailsPoint.longitude}`,
+                    '_blank',
+                  );
+                } else {
+                  toast.info('Coordenadas GPS não cadastradas para este ponto de mídia.');
+                }
+              }}
+            >
+              <MapPin className="w-4 h-4" />
+              Abrir no mapa
+            </Button>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div className="py-6 text-sm text-gray-600">Nenhum ponto selecionado.</div>
+    )}
+  </DialogContent>
+</Dialog>
+
 
       {/* Dialog de Compartilhamento (somente modo internal) */}
       {mode === 'internal' && (
