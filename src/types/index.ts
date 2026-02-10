@@ -798,6 +798,7 @@ export interface ActivityLog {
   updatedAt: Date;
 }
 
+
 export interface Message {
   id: string;
   companyId: string;
