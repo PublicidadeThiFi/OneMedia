@@ -706,9 +706,9 @@ export default function Home() {
 
 
 {/* Benefits / Differential Section */}
-<section className="py-16 px-6">
-  <div className="max-w-7xl mx-auto">
-    <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-12">
+<section className="diff-section">
+  <div className="diff-container">
+    <h2 className="diff-title">
       O diferencial da onemedia.com
     </h2>
 
@@ -716,13 +716,13 @@ export default function Home() {
       {
         key: 'planilhas',
         front: {
-          color: 'bg-blue-600',
+          color: 'diff-theme-blue',
           title: 'Gestão centralizada do seu inventário',
           desc: 'Automação que elimina retrabalho e multiplica sua produtividade operacional diariamente.',
           fallback: <Zap className="w-20 h-20 text-blue-600" />
         },
         back: {
-          statColor: 'bg-blue-600',
+          statColor: 'diff-theme-blue',
           statMain: '80%',
           statSub: 'menos tempo\nem planilhas',
           quote:
@@ -732,13 +732,13 @@ export default function Home() {
       {
         key: 'visibilidade',
         front: {
-          color: 'bg-red-600',
+          color: 'diff-theme-red',
           title: 'Visibilidade total em tempo real',
           desc: 'Decisões estratégicas baseadas em dados precisos, não em suposições arriscadas.',
           fallback: <Eye className="w-20 h-20 text-gray-500" />
         },
         back: {
-          statColor: 'bg-red-600',
+          statColor: 'diff-theme-red',
           statMain: '100%',
           statSub: 'de visibilidade\nsobre o inventário',
           quote:
@@ -748,13 +748,13 @@ export default function Home() {
       {
         key: 'resultados',
         front: {
-          color: 'bg-yellow-300 text-gray-900',
+          color: 'diff-theme-yellow',
           title: 'Implementação em minutos',
           desc: 'Configure rapidamente e comece a ver resultados transformadores ainda hoje.',
           fallback: <Rocket className="w-20 h-20 text-orange-500" />
         },
         back: {
-          statColor: 'bg-yellow-300 text-gray-900',
+          statColor: 'diff-theme-yellow',
           statMain: '15min',
           statSub: 'tempo médio\nde configuração',
           quote:
@@ -764,13 +764,13 @@ export default function Home() {
       {
         key: 'integracao',
         front: {
-          color: 'bg-green-600',
+          color: 'diff-theme-green',
           title: 'Integração completa e inteligente',
           desc: 'Todos os módulos conectados para fluxo de trabalho perfeito e eficiente.',
           fallback: <Settings className="w-20 h-20 text-gray-600" />
         },
         back: {
-          statColor: 'bg-green-600',
+          statColor: 'diff-theme-green',
           statMain: '3x',
           statSub: 'mais propostas\naprovadas',
           quote:
@@ -781,7 +781,7 @@ export default function Home() {
       const reverse = idx % 2 === 1;
 
       const IconCard = (
-        <div className="bg-slate-100 rounded-3xl flex items-center justify-center h-full">
+        <div className="diff-card diff-surface diff-iconCard">
           <GifOrFallback
             name={row.key === 'integracao' ? 'integração' : row.key} // plug-and-play conforme seu padrão
             fallback={row.front.fallback}
@@ -792,52 +792,63 @@ export default function Home() {
       );
 
       const FrontTextCard = (
-        <div className={`rounded-3xl p-8 h-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 ${row.front.color}`}>
-          <h3 className={`text-2xl md:text-3xl font-semibold leading-tight ${String(row.front.color).includes('yellow') ? 'text-gray-900' : 'text-white'} max-w-[320px]`}>
+        <div
+          className={`diff-card diff-textCard ${row.key === 'planilhas' ? 'diff-textCard--blue' : ''} ${row.key === 'visibilidade' ? 'diff-textCard--red' : ''} ${row.key === 'resultados' ? 'diff-textCard--yellow' : ''} ${row.key === 'integracao' ? 'diff-textCard--green' : ''}`}
+        >
+          <h3 className="diff-textTitle">
             {row.front.title}
           </h3>
-          <p className={`${String(row.front.color).includes('yellow') ? 'text-gray-900' : 'text-white/90'} text-sm md:text-base leading-snug max-w-[360px]`}>
+          <p className="diff-textDesc">
             {row.front.desc}
           </p>
         </div>
       );
 
       const StatCard = (
-        <div className={`rounded-3xl p-8 h-full flex flex-col justify-center whitespace-pre-line ${row.back.statColor}`}>
-          <div className="text-5xl md:text-6xl font-semibold leading-none">
+        <div
+          className={`diff-card diff-statCard ${row.key === 'planilhas' ? 'diff-statCard--blue' : ''} ${row.key === 'visibilidade' ? 'diff-statCard--red' : ''} ${row.key === 'resultados' ? 'diff-statCard--yellow' : ''} ${row.key === 'integracao' ? 'diff-statCard--green' : ''}`}
+        >
+          <div className="diff-statMain">
             {row.back.statMain}
           </div>
-          <div className="text-xl md:text-2xl mt-2 leading-tight">
-            {row.back.statSub}
+          <div className="diff-statSub">
+            {String(row.back.statSub)
+              .split('\n')
+              .map((line: string, i: number) => (
+                <span key={i}>
+                  {line}
+                  {i < String(row.back.statSub).split('\n').length - 1 ? <br /> : null}
+                </span>
+              ))}
           </div>
         </div>
       );
 
       const Testimonial = (
-        <div className="bg-slate-100 rounded-3xl p-8 h-full flex flex-col justify-between">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <img src={imgCeoOutdoor} className="w-10 h-10 rounded-full object-cover" alt="Carlos Mendes" />
-              <div className="min-w-0">
-                <p className="font-semibold text-gray-900 leading-tight">Carlos Mendes</p>
-                <p className="text-xs text-gray-600 leading-tight">Diretor Comercial, OutdoorBR</p>
+        <div className="diff-card diff-surface diff-testimonial">
+          <div className="diff-testimonial-header">
+            <div className="diff-testimonial-person">
+              <img src={imgCeoOutdoor} className="diff-avatar" alt="Carlos Mendes" />
+              <div className="diff-person-meta">
+                <p className="diff-person-name">Carlos Mendes</p>
+                <p className="diff-person-role">Diretor Comercial, OutdoorBR</p>
               </div>
             </div>
-            <img src={imgLogotipoOutdoorBr} alt="OutdoorBR" className="h-6 w-auto shrink-0" />
+            <img src={imgLogotipoOutdoorBr} alt="OutdoorBR" className="diff-brand" />
           </div>
 
-          <p className="text-gray-800 text-sm md:text-base leading-relaxed italic">
+          <p className="diff-quote">
             {row.back.quote}
           </p>
         </div>
       );
 
       return (
-        <div key={row.key} className="differential-flip h-[320px] sm:h-[280px] md:h-[140px] mb-4">
+        <div key={row.key} className="differential-flip diff-row">
           <div className="differential-flip-inner">
             {/* Front */}
             <div className="differential-face differential-front">
-              <div className="grid md:grid-cols-2 gap-6 h-full">
+              <div className={`diff-pair ${reverse ? 'diff-pair--reverse' : ''}`}>
                 {reverse ? (
                   <>
                     {FrontTextCard}
@@ -854,7 +865,7 @@ export default function Home() {
 
             {/* Back */}
             <div className="differential-face differential-back">
-              <div className="grid md:grid-cols-2 gap-6 h-full">
+              <div className={`diff-pair ${reverse ? 'diff-pair--reverse' : ''}`}>
                 {reverse ? (
                   <>
                     {Testimonial}

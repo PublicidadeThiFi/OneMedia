@@ -4822,6 +4822,261 @@ html {
   perspective: 1400px;
 }
 
+/* ------------------------------------------------------------
+   Differential Section (landing) — custom layout helpers
+   The Tailwind bundle shipped with this project does not include
+   arbitrary-value utilities (ex: h-[140px], max-w-[320px], text-white/90).
+   To keep the section stable, we style it with dedicated classes.
+------------------------------------------------------------ */
+
+.diff-section {
+  padding: 64px 24px;
+}
+
+.diff-container {
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+.diff-title {
+  font-size: 2.25rem;
+  line-height: 1.15;
+  font-weight: 500;
+  color: #0f172a;
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+@media (min-width: 48rem) {
+  .diff-title {
+    font-size: 3rem;
+  }
+}
+
+.diff-row {
+  height: 320px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 40rem) {
+  .diff-row { height: 280px; }
+}
+
+@media (min-width: 48rem) {
+  .diff-row { height: 140px; }
+}
+
+.diff-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+@media (min-width: 48rem) {
+  .diff-pair {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+    align-items: stretch;
+  }
+
+  .diff-pair--reverse {
+    grid-template-columns: 1fr 220px;
+  }
+}
+
+.diff-card {
+  border-radius: 24px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.diff-surface {
+  background: #eef2f7;
+}
+
+.diff-iconCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+}
+
+@media (min-width: 48rem) {
+  .diff-iconCard { min-height: 100%; }
+}
+
+.diff-textCard {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+
+@media (min-width: 40rem) {
+  .diff-textCard {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+}
+
+.diff-textTitle {
+  font-size: 1.5rem;
+  line-height: 1.15;
+  font-weight: 700;
+  max-width: 320px;
+}
+
+.diff-textDesc {
+  font-size: 0.95rem;
+  line-height: 1.45;
+  max-width: 380px;
+}
+
+.diff-textCard--blue {
+  background: #4d78b7;
+  color: #ffffff;
+}
+
+/* Optional theme tokens (used by data maps) */
+.diff-theme-blue { background: #4d78b7; color: #ffffff; }
+.diff-theme-red { background: #ef4444; color: #ffffff; }
+.diff-theme-yellow { background: #f3d46b; color: #111827; }
+.diff-theme-green { background: #5aa46c; color: #0b1f12; }
+
+.diff-textCard--blue .diff-textDesc {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.diff-textCard--red {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.diff-textCard--red .diff-textDesc {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.diff-textCard--yellow {
+  background: #f3d46b;
+  color: #111827;
+}
+
+.diff-textCard--yellow .diff-textDesc {
+  color: #1f2937;
+}
+
+.diff-textCard--green {
+  background: #5aa46c;
+  color: #0b1f12;
+}
+
+.diff-textCard--green .diff-textDesc {
+  color: rgba(11, 31, 18, 0.82);
+}
+
+.diff-statCard {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.diff-statMain {
+  font-size: 3.25rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.diff-statSub {
+  margin-top: 8px;
+  font-size: 1.25rem;
+  line-height: 1.15;
+  font-weight: 500;
+}
+
+.diff-statCard--blue {
+  background: #4d78b7;
+  color: #ffffff;
+}
+
+.diff-statCard--red {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.diff-statCard--yellow {
+  background: #f3d46b;
+  color: #111827;
+}
+
+.diff-statCard--green {
+  background: #5aa46c;
+  color: #ffffff;
+}
+
+.diff-testimonial {
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.diff-testimonial-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.diff-testimonial-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.diff-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  object-fit: cover;
+}
+
+.diff-person-meta {
+  min-width: 0;
+}
+
+.diff-person-name {
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.diff-person-role {
+  font-size: 0.75rem;
+  color: #475569;
+  line-height: 1.1;
+}
+
+.diff-brand {
+  height: 22px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.diff-quote {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #0f172a;
+  font-style: italic;
+}
+
 .differential-flip-inner {
   position: relative;
   width: 100%;
