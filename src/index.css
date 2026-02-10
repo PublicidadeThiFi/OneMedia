@@ -4850,3 +4850,227 @@ html {
   .differential-flip:hover .differential-flip-inner { transform: none; }
   .differential-back { display: none; }
 }
+
+
+/* ------------------------------------------------------------
+   Solutions Section (landing) — custom layout helpers
+   This project ships with a precompiled Tailwind CSS bundle.
+   To avoid missing utilities, we style the landing "Soluções" section
+   with dedicated classes.
+------------------------------------------------------------ */
+
+.solutions-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid #0f172a;
+  border-radius: 9999px;
+  max-width: 980px;
+  margin: 0 auto 40px;
+}
+
+.solutions-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.solutions-tab:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.solutions-tab--active {
+  color: #ffffff;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.24);
+}
+
+.solutions-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+@media (width >= 48rem) {
+  .solutions-layout {
+    grid-template-columns: 2fr 1fr;
+    gap: 36px;
+  }
+}
+
+.solutions-left-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 32px;
+}
+
+.solutions-left-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+@media (width >= 48rem) {
+  .solutions-left-inner {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.solutions-left-text {
+  max-width: 380px;
+}
+
+.solutions-left-preview {
+  flex: 1;
+  min-width: 0;
+}
+
+.solutions-preview-surface {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 12px;
+}
+
+.solutions-preview-frame {
+  position: relative;
+  width: 100%;
+  height: 260px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (width >= 48rem) {
+  .solutions-preview-frame {
+    height: 240px;
+  }
+}
+
+.solutions-preview-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.solutions-badge {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.16);
+}
+
+.solutions-badge span {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.solutions-badge--topRight {
+  top: 18px;
+  right: 18px;
+}
+
+.solutions-badge--bottomLeft {
+  bottom: 18px;
+  left: 18px;
+}
+
+.solutions-badge--bottomRight {
+  bottom: 18px;
+  right: 18px;
+}
+
+.solutions-right-card {
+  background: #f3f4f6;
+  border-radius: 28px;
+  padding: 32px;
+}
+
+.solutions-stat-logo {
+  height: 28px;
+  width: auto;
+}
+
+.solutions-stat {
+  margin-top: 16px;
+  font-size: 28px;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.solutions-stat-strong {
+  font-weight: 700;
+}
+
+.solutions-testimonial {
+  margin-top: 26px;
+}
+
+.solutions-quote {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #111827;
+  font-style: italic;
+}
+
+.solutions-divider {
+  height: 1px;
+  width: 100%;
+  background: #d1d5db;
+  margin: 18px 0;
+}
+
+.solutions-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.solutions-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  object-fit: cover;
+  flex: none;
+}
+
+.solutions-person-text {
+  min-width: 0;
+}
+
+.solutions-person-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.solutions-person-role {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .solutions-tab { transition: none; }
+  .solutions-tab--active { box-shadow: none; }
+}

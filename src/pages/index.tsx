@@ -41,9 +41,9 @@ type SolutionBadgePos = 'topRight' | 'bottomLeft' | 'bottomRight';
 type SolutionBadge = { label: string; icon: JSX.Element; position: SolutionBadgePos };
 
 const badgePositionClass: Record<SolutionBadgePos, string> = {
-  topRight: 'top-6 right-6',
-  bottomLeft: 'bottom-6 left-6',
-  bottomRight: 'bottom-6 right-6',
+  topRight: 'solutions-badge--topRight',
+  bottomLeft: 'solutions-badge--bottomLeft',
+  bottomRight: 'solutions-badge--bottomRight',
 };
 
 function GifOrFallback({
@@ -564,7 +564,7 @@ export default function Home() {
     </h2>
 
     {/* Tabs */}
-    <div className="flex flex-wrap justify-center gap-2 mb-10 p-1.5 border border-gray-900 rounded-full max-w-5xl mx-auto">
+    <div className="solutions-tabs">
       {[
         { label: 'Inventário', key: 'inventario' },
         { label: 'Propostas', key: 'propostas' },
@@ -576,11 +576,7 @@ export default function Home() {
         <button
           key={tab.key}
           onClick={() => setSelectedSolution(tab.key as SolutionTab)}
-          className={`px-5 md:px-6 py-2 rounded-full text-sm md:text-base font-medium transition-all ${
-            selectedSolution === tab.key
-              ? 'bg-gradient-to-r from-blue-500 to-blue-700 text-white'
-              : 'text-gray-900 hover:bg-gray-100'
-          }`}
+          className={`solutions-tab ${selectedSolution === tab.key ? 'solutions-tab--active' : ''}`}
         >
           {tab.label}
         </button>
@@ -588,44 +584,41 @@ export default function Home() {
     </div>
 
     {/* Layout */}
-    <div className="grid grid-cols-1 md:grid-cols-[1.25fr_0.75fr] gap-8 md:gap-10 items-start">
+    <div className="solutions-layout">
       {/* Left big card */}
-      <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-[32px] p-7 md:p-8 text-white relative overflow-hidden">
+      <div className="solutions-left-card bg-gradient-to-r from-blue-500 to-blue-700">
         {/* badges are positioned relative to the whole card (as in the mock) */}
         {solutionContent[selectedSolution].badges?.map((b: SolutionBadge) => (
-          <div
-            key={b.label}
-            className={`absolute ${badgePositionClass[b.position]} bg-white/90 text-gray-900 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg backdrop-blur-sm`}
-          >
+          <div key={b.label} className={`solutions-badge ${badgePositionClass[b.position]}`}>
             {b.icon}
-            <span className="text-xs md:text-sm font-medium leading-none">{b.label}</span>
+            <span>{b.label}</span>
           </div>
         ))}
 
-        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6 md:gap-8 items-center">
-          <div className="space-y-4 md:space-y-5">
+        <div className="solutions-left-inner">
+          <div className="solutions-left-text">
             <h3 className="text-3xl md:text-4xl font-semibold leading-tight">
               {solutionContent[selectedSolution].title}
             </h3>
-            <p className="text-sm md:text-base opacity-95 leading-relaxed">
+            <p className="mt-4 text-sm md:text-base opacity-95 leading-relaxed">
               {solutionContent[selectedSolution].description}
             </p>
             <button
               onClick={() => navigate('/cadastro')}
-              className="inline-flex items-center gap-3 px-6 py-3 bg-white text-blue-700 text-sm md:text-base rounded-full hover:shadow-xl transition-all"
+              className="mt-6 inline-flex items-center gap-3 px-6 py-3 bg-white text-blue-700 text-sm rounded-full hover:shadow-xl transition-all"
             >
               Teste Grátis 30 dias
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="w-full max-w-[560px] md:ml-auto">
-            <div className="bg-white/10 rounded-2xl p-3">
-              <div className="relative w-full aspect-[16/10] overflow-hidden rounded-xl">
+          <div className="solutions-left-preview">
+            <div className="solutions-preview-surface">
+              <div className="solutions-preview-frame">
                 <img
                   src={solutionContent[selectedSolution].screenshot}
                   alt="Preview do módulo"
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="solutions-preview-img"
                 />
               </div>
             </div>
@@ -634,31 +627,27 @@ export default function Home() {
       </div>
 
       {/* Right card (single container like the mock) */}
-      <div className="bg-gray-100 rounded-3xl p-8 md:p-9">
-        <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="h-6 md:h-7 w-auto" />
-        <p className="text-2xl md:text-3xl text-gray-900 leading-tight mt-4">
-          <span className="font-semibold">{solutionContent[selectedSolution].statText}</span>{' '}
+      <div className="solutions-right-card">
+        <img src={solutionContent[selectedSolution].statLogo} alt="Logo" className="solutions-stat-logo" />
+        <p className="solutions-stat">
+          <span className="solutions-stat-strong">{solutionContent[selectedSolution].statText}</span>{' '}
           {solutionContent[selectedSolution].statSubtext}
         </p>
 
-        <div className="mt-8">
-          <p className="text-sm md:text-base text-gray-800 leading-relaxed italic">
+        <div className="solutions-testimonial">
+          <p className="solutions-quote">
             {solutionContent[selectedSolution].testimonial.quote}
           </p>
-          <hr className="border-gray-300 my-6" />
-          <div className="flex items-center gap-3">
+          <div className="solutions-divider" />
+          <div className="solutions-person">
             <img
               src={solutionContent[selectedSolution].testimonial.avatar}
               alt={solutionContent[selectedSolution].testimonial.name}
-              className="w-11 h-11 rounded-full object-cover"
+              className="solutions-avatar"
             />
-            <div className="min-w-0">
-              <p className="font-semibold text-gray-900 leading-tight">
-                {solutionContent[selectedSolution].testimonial.name}
-              </p>
-              <p className="text-xs text-gray-600 leading-tight">
-                {solutionContent[selectedSolution].testimonial.role}
-              </p>
+            <div className="solutions-person-text">
+              <p className="solutions-person-name">{solutionContent[selectedSolution].testimonial.name}</p>
+              <p className="solutions-person-role">{solutionContent[selectedSolution].testimonial.role}</p>
             </div>
           </div>
         </div>
