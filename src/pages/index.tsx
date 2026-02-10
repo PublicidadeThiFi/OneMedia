@@ -657,51 +657,46 @@ export default function Home() {
 </section>
 
 {/* Efficiency Section - Black Background */}
-<section id="recursos" className="landing-anchor bg-black py-20 px-6">
-  <div className="max-w-6xl mx-auto">
-    <div className="text-center mb-14">
-      <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
-        <img src={imgAutomationIcon} alt="Automação" className="w-9 h-9" />
+<section id="recursos" className="landing-anchor efficiency-section">
+  <div className="efficiency-wrap">
+    <div className="efficiency-header">
+      <div className="efficiency-iconWrap">
+        <img src={imgAutomationIcon} alt="Automação" />
       </div>
-      <h2 className="text-4xl md:text-5xl font-medium text-white mb-2">
+      <h2 className="efficiency-heading">
         Mais eficiência.
         <br />
         Multiplicada por automação.
       </h2>
     </div>
 
-    <div className="grid md:grid-cols-[260px_1fr] gap-12 items-start">
-      {/* Left pills */}
-      <div className="space-y-3">
+    <div className="efficiency-grid">
+      <div className="efficiency-menu">
         {[
-          { label: 'Automação de reservas', color: 'bg-blue-500', key: 'reservas' },
-          { label: 'Gerador de relatórios', color: 'bg-red-500', key: 'relatorios' },
-          { label: 'Automação financeira', color: 'bg-yellow-400', key: 'financeira' },
-          { label: 'Automação de propostas', color: 'bg-green-500', key: 'propostas' },
-          { label: 'Automação do mídia kit', color: 'bg-blue-600', key: 'midiakit' },
-          { label: 'Automação de dashboard', color: 'bg-red-500', key: 'dashboard' }
+          { label: 'Automação de reservas', dot: 'blue', key: 'reservas' },
+          { label: 'Gerador de relatórios', dot: 'red', key: 'relatorios' },
+          { label: 'Automação financeira', dot: 'yellow', key: 'financeira' },
+          { label: 'Automação de propostas', dot: 'green', key: 'propostas' },
+          { label: 'Automação do mídia kit', dot: 'blue2', key: 'midiakit' },
+          { label: 'Automação de dashboard', dot: 'red2', key: 'dashboard' }
         ].map((item) => (
           <button
             key={item.key}
             onClick={() => setSelectedAutomation(item.key)}
-            className={`w-full flex items-center gap-3 rounded-full px-4 py-3 transition-all ${
-              selectedAutomation === item.key
-                ? 'bg-white/10 ring-2 ring-white/20'
-                : 'bg-white/5 hover:bg-white/10'
-            }`}
+            className={`efficiency-item ${selectedAutomation === item.key ? 'efficiency-item--active' : ''}`}
+            type="button"
           >
-            <span className={`w-3.5 h-3.5 rounded-full ${item.color} shrink-0`} />
-            <span className="text-white text-sm md:text-base font-medium text-left">{item.label}</span>
+            <span className={`efficiency-dot efficiency-dot--${item.dot}`} aria-hidden="true" />
+            <span className="efficiency-itemLabel">{item.label}</span>
           </button>
         ))}
       </div>
 
-      {/* Right content */}
-      <div className="text-white">
-        <h3 className="text-3xl md:text-4xl font-bold italic mb-5 leading-tight">
+      <div className="efficiency-content">
+        <h3 className="efficiency-content-title">
           {automationContent[selectedAutomation as keyof typeof automationContent].title}
         </h3>
-        <p className="text-xl md:text-2xl leading-relaxed">
+        <p className="efficiency-content-desc">
           {automationContent[selectedAutomation as keyof typeof automationContent].description}
         </p>
       </div>
