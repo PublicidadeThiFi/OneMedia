@@ -72,6 +72,10 @@ type MediaKitResponse = {
     name: string;
     email: string | null;
     phone: string | null;
+    site?: string | null;
+    logoUrl?: string | null;
+    addressCity?: string | null;
+    addressState?: string | null;
     isPrimary: boolean;
   }[];
   selectedOwnerCompanyId?: string | null;
@@ -626,8 +630,8 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       >
         <div className="absolute inset-0 bg-black/50" />
 
-        <div className="relative max-w-7xl mx-auto px-6 py-14 md:py-20 min-h-[260px] md:min-h-[340px]">
-          <div className="flex items-center justify-between gap-4">
+        <div className="relative max-w-7xl mx-auto px-8 md:px-10 py-20 md:py-28 min-h-[350px] md:min-h-[460px]">
+          <div className="flex items-start justify-between gap-6">
             <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-8 md:h-10" />
 
             <div className="flex items-center gap-2">
@@ -640,7 +644,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             </div>
           </div>
 
-          <div className="mt-12 md:mt-16 max-w-2xl">
+          <div className="mt-14 md:mt-20 max-w-2xl">
             <h1 className="text-white text-3xl md:text-4xl font-semibold">Mídia Kit Digital</h1>
             {company?.name && (
               <p className="text-white/80 mt-2">
@@ -648,7 +652,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               </p>
             )}
 
-            <Button className="mt-5 gap-2" onClick={openBulkRequestDialog}>
+            <Button className="mt-6 gap-2" onClick={openBulkRequestDialog}>
               <MessageCircle className="w-4 h-4" />
               Solicitar Proposta
             </Button>
@@ -780,19 +784,10 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     const availableUnitsCount = point.availableUnitsCount ?? Math.max(unitsCount - occupiedUnitsCount, 0);
                     const availability = (point.availability ?? (availableUnitsCount > 0 ? 'Disponível' : 'Ocupado')) as Availability;
 
-                    const displayPrice =
-                      point.basePriceWeek != null
-                        ? `${formatCurrencyBRL(point.basePriceWeek)}/semana`
-                        : point.basePriceMonth != null
-                          ? `${formatCurrencyBRL(point.basePriceMonth)}/mês`
-                          : point.basePriceDay != null
-                            ? `${formatCurrencyBRL(point.basePriceDay)}/dia`
-                            : '—';
-
                     return (
                       <Card key={point.id} className="overflow-hidden">
-                        <div className="flex flex-col sm:flex-row">
-                          <div className="sm:w-56 h-36 sm:h-36 bg-gray-100 relative">
+                        <div className="p-4 flex flex-col sm:flex-row gap-4">
+                          <div className="relative flex-shrink-0 w-80 max-w-full h-60 mx-auto sm:mx-0 bg-gray-100 rounded-xl overflow-hidden">
                             <ImageWithFallback
                               src={
                                 point.mainImageUrl ||
@@ -815,54 +810,54 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                             </Badge>
                           </div>
 
-                          <CardContent className="flex-1 py-4">
-                            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                              <div className="min-w-0">
-                                <h3 className="text-gray-900 font-semibold truncate">{point.name}</h3>
-                                <div className="mt-2 space-y-1 text-sm text-gray-600">
-                                  <div className="flex items-center gap-2">
-                                    <MapPin className="w-4 h-4" />
-                                    <span className="truncate">
-                                      {[point.addressStreet, point.addressNumber].filter(Boolean).join(', ')}
-                                      {point.addressCity || point.addressState
-                                        ? ` — ${[point.addressCity, point.addressState].filter(Boolean).join(' / ')}`
-                                        : ''}
-                                    </span>
-                                  </div>
+                          <div className="flex-1 min-w-0 flex flex-col sm:flex-row gap-4">
+                            {/* INFO */}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-gray-900 font-semibold truncate">{point.name}</h3>
 
-                                  {point.subcategory && (
-                                    <div className="flex items-center gap-2">
-                                      <span className="inline-block w-4" />
-                                      <span>{point.subcategory}</span>
-                                    </div>
-                                  )}
+                              <div className="mt-2 text-sm text-gray-600 flex items-start gap-2">
+                                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                <span className="truncate">
+                                  {[point.addressStreet, point.addressNumber].filter(Boolean).join(', ') || '—'}
+                                  {point.addressCity || point.addressState
+                                    ? ` — ${[point.addressCity, point.addressState].filter(Boolean).join(' / ')}`
+                                    : ''}
+                                </span>
+                              </div>
 
-                                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                                    <span>Faces/Telas: {unitsCount}</span>
-                                    <span>Livres: {availableUnitsCount}</span>
-                                    <span>
-                                      Impacto/dia:{' '}
-                                      {point.dailyImpressions ? `${Math.floor(point.dailyImpressions / 1000)}k` : '—'}
-                                    </span>
-                                  </div>
+                              <div className="mt-3 space-y-1 text-sm text-gray-700">
+                                <div>Faces/Telas: {unitsCount}</div>
+                                <div>Livres: {availableUnitsCount}</div>
+                                <div>
+                                  Impacto/dia:{' '}
+                                  {point.dailyImpressions ? `${Math.floor(Number(point.dailyImpressions) / 1000)}k` : '—'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* PRICE + CTA */}
+                            <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end justify-between gap-3">
+                              <div className="space-y-1 text-right">
+                                <div className="text-indigo-600 font-semibold whitespace-nowrap">
+                                  {point.basePriceMonth != null ? `${formatCurrencyBRL(point.basePriceMonth)}/mês` : '—'}
+                                </div>
+                                <div className="text-indigo-600 font-semibold whitespace-nowrap">
+                                  {point.basePriceWeek != null ? `${formatCurrencyBRL(point.basePriceWeek)}/semana` : '—'}
                                 </div>
                               </div>
 
-                              <div className="flex md:flex-col md:items-end items-center justify-between gap-3">
-                                <div className="text-indigo-600 font-semibold whitespace-nowrap">{displayPrice}</div>
-                                <Button
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setSelectedMapPointId(point.id);
-                                    openDetails(point);
-                                  }}
-                                >
-                                  <Eye className="w-4 h-4" />
-                                  Ver Detalhes
-                                </Button>
-                              </div>
+                              <Button
+                                className="gap-2 self-start sm:self-end"
+                                onClick={() => {
+                                  setSelectedMapPointId(point.id);
+                                  openDetails(point);
+                                }}
+                              >
+                                <Eye className="w-4 h-4" />
+                                Ver Detalhes
+                              </Button>
                             </div>
-                          </CardContent>
+                          </div>
                         </div>
                       </Card>
                     );
@@ -882,12 +877,13 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                       </div>
                     ) : (
                       <MapContainer
-                      key={`mk-map-${ownerSelectValue}-${mapPointsWithCoords.length}`}
-                      center={[mapCenter.lat, mapCenter.lng]}
-                      zoom={12}
-                      scrollWheelZoom
-                      className="w-full h-full"
-                    >
+  key={`mk-map-${ownerSelectValue}-${mapPointsWithCoords.length}`}
+  center={[mapCenter.lat, mapCenter.lng]}
+  zoom={12}
+  scrollWheelZoom
+  className="w-full h-full"
+  style={{ height: '100%', width: '100%' }}
+>
                       <TileLayer
                         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -941,7 +937,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       </div>
 
       {/* FOOTER */}
-      <footer className="bg-[#06162c] text-white mt-10">
+      <footer className="bg-slate-900 text-white mt-10">
         <div className="max-w-7xl mx-auto px-6 py-10">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div className="space-y-3">
@@ -952,7 +948,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   <ImageWithFallback src={company.logoUrl} alt={company.name} className="h-10 w-auto" />
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/80">
+                <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm text-white/90">
                   <Building className="w-4 h-4" />
                   <span>{company?.name ?? '—'}</span>
                 </div>
@@ -961,28 +957,28 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
             <div>
               <h3 className="font-semibold mb-3">Contato &amp; Localização</h3>
-              <div className="space-y-2 text-sm text-white/80">
+              <div className="space-y-2 text-sm text-white/90">
                 {(company?.addressCity || company?.addressState) && (
                   <div>
-                    <div className="text-white/60 text-xs">Local</div>
+                    <div className="text-white/70 text-xs">Local</div>
                     <div>{[company?.addressCity, company?.addressState].filter(Boolean).join(' - ')}</div>
                   </div>
                 )}
                 {company?.email && (
                   <div>
-                    <div className="text-white/60 text-xs">Email</div>
+                    <div className="text-white/70 text-xs">Email</div>
                     <div>{company.email}</div>
                   </div>
                 )}
                 {company?.phone && (
                   <div>
-                    <div className="text-white/60 text-xs">Telefone</div>
+                    <div className="text-white/70 text-xs">Telefone</div>
                     <div>{company.phone}</div>
                   </div>
                 )}
                 {company?.site && (
                   <div>
-                    <div className="text-white/60 text-xs">Site</div>
+                    <div className="text-white/70 text-xs">Site</div>
                     <div>{company.site}</div>
                   </div>
                 )}
@@ -1192,7 +1188,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <div className="text-xs text-gray-500">Semanal</div>
                       <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
@@ -1200,10 +1196,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     <div>
                       <div className="text-xs text-gray-500">Mensal</div>
                       <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">Diária</div>
-                      <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceDay)}</div>
                     </div>
                   </div>
                 </div>

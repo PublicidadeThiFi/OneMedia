@@ -187,3 +187,10 @@
 html {
   font-size: var(--font-size);
 }
+
+
+/* Leaflet maps */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+}
