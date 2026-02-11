@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, Component, ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
@@ -27,6 +27,51 @@ type NavigateFunction = (path: string) => void;
 const NavigationContext = createContext<NavigateFunction>(() => { });
 
 export const useNavigation = () => useContext(NavigationContext);
+
+class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }>{
+  state = { hasError: false, message: '' };
+
+  static getDerivedStateFromError(err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Erro inesperado';
+    return { hasError: true, message: msg };
+  }
+
+  componentDidCatch(err: unknown) {
+    // eslint-disable-next-line no-console
+    console.error('Root render crashed:', err);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-white px-6">
+        <div className="max-w-lg w-full rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <h1 className="text-lg font-semibold text-gray-900">Algo deu errado ao carregar o app</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Isso pode acontecer após uma atualização quando o navegador/CDN entrega arquivos em cache.
+          </p>
+          <p className="mt-3 text-xs text-gray-500 break-words">{this.state.message}</p>
+
+          <div className="mt-5 flex flex-col sm:flex-row gap-3">
+            <button
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              onClick={() => window.location.reload()}
+            >
+              Recarregar
+            </button>
+            <button
+              className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+              onClick={() => (window.location.href = '/?clearcache=1')}
+            >
+              Limpar cache e abrir o site
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
 
 export default function App() {
   const getCurrentPath = () => window.location.pathname + window.location.search;
@@ -113,13 +158,15 @@ export default function App() {
   };
 
   return (
-    <NavigationContext.Provider value={navigate}>
-      <AuthProvider>
-        <CompanyProvider>
-          {renderRoute()}
-          <Toaster richColors position="top-right" />
-        </CompanyProvider>
-      </AuthProvider>
-    </NavigationContext.Provider>
+    <RootErrorBoundary>
+      <NavigationContext.Provider value={navigate}>
+        <AuthProvider>
+          <CompanyProvider>
+            {renderRoute()}
+            <Toaster richColors position="top-right" />
+          </CompanyProvider>
+        </AuthProvider>
+      </NavigationContext.Provider>
+    </RootErrorBoundary>
   );
 }

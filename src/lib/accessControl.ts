@@ -21,14 +21,37 @@ function safeParse(raw: string | null): AccessState | null {
     if (typeof (parsed as any)?.isBlocked !== 'boolean') return null;
     return parsed as AccessState;
   } catch {
-    return null;
+    // Legacy/buggy builds may have stored something like:
+    // {'isBlocked':false,'reason':null} (single quotes / not valid JSON).
+    // Try a best-effort normalization and, if it works, we'll rewrite it.
+    try {
+      const looksLikeSingleQuotedJson = raw.includes("'") && !raw.includes('"');
+      if (!looksLikeSingleQuotedJson) return null;
+
+      const normalized = raw.replace(/'/g, '"');
+      const parsed = JSON.parse(normalized);
+      if (typeof (parsed as any)?.isBlocked !== 'boolean') return null;
+      return parsed as AccessState;
+    } catch {
+      return null;
+    }
   }
 }
 
 function loadFromStorage() {
   if (typeof window === 'undefined') return;
-  const stored = safeParse(window.localStorage.getItem(STORAGE_KEY));
-  if (stored) state = stored;
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const stored = safeParse(raw);
+  if (stored) {
+    state = stored;
+    // If we managed to recover a legacy format, persist it back in valid JSON
+    // so future boots don't depend on this heuristic.
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // ignore
+    }
+  }
 }
 
 function saveToStorage() {

@@ -107,24 +107,59 @@ const serializeParams = (params: any): string => {
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   paramsSerializer: serializeParams,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // IMPORTANT:
+  // Do NOT set Content-Type globally.
+  // In browsers, sending `Content-Type: application/json` on GET/HEAD requests
+  // forces a CORS preflight header list that can be rejected by some CORS configs,
+  // which results in the request being blocked (only the OPTIONS appears in Network)
+  // and can leave the UI in a "blank" state on hard reload.
+  headers: {},
 });
 
 // Public client (no auth headers / no auto-redirect on 401). Useful for public pages like Media Kit.
 export const publicApiClient = axios.create({
   baseURL: API_BASE_URL,
   paramsSerializer: serializeParams,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: {},
 });
+
+// Ensure we don't accidentally send Content-Type on GET/HEAD requests for public routes.
+publicApiClient.interceptors.request.use((config) => {
+  normalizeContentType(config);
+  if (API_BASE_URL === MISSING_API_BASE_URL) {
+    toast.error('Configuração da API ausente. Defina VITE_API_URL (Actions vars) e faça novo deploy.');
+    throw new (axios as any).CanceledError('MISSING_API_BASE_URL');
+  }
+  return config;
+});
+
+function normalizeContentType(config: any) {
+  const method = String(config?.method ?? 'get').toLowerCase();
+  const hasBody = ['post', 'put', 'patch'].includes(method);
+
+  config.headers = config.headers ?? {};
+
+  // Axios may carry over a default Content-Type to GET in some setups.
+  // Remove it for body-less methods to reduce CORS friction.
+  if (!hasBody) {
+    delete (config.headers as any)['Content-Type'];
+    delete (config.headers as any)['content-type'];
+    return;
+  }
+
+  // For body methods, ensure JSON content-type unless explicitly set.
+  const ct = (config.headers as any)['Content-Type'] ?? (config.headers as any)['content-type'];
+  if (!ct) {
+    (config.headers as any)['Content-Type'] = 'application/json';
+  }
+}
 
 
 // Attach access token to all requests
 apiClient.interceptors.request.use(
   (config) => {
+    normalizeContentType(config);
+
     if (API_BASE_URL === MISSING_API_BASE_URL) {
       toast.error('Configuração da API ausente. Defina VITE_API_URL (Actions vars) e faça novo deploy.');
       throw new (axios as any).CanceledError('MISSING_API_BASE_URL');
@@ -152,25 +187,14 @@ apiClient.interceptors.request.use(
     // Important: do NOT attach an existing Authorization header to public auth endpoints
     // (login / verify-2fa), otherwise a stale token can make the backend treat the request
     // as authenticated and trigger account-block checks.
-    const isPublicAuth = /^\/auth\/(login|verify-2fa)\b/i.test(url);
+    // Treat refresh as public too: it should work even when the access token is expired/invalid.
+    const isPublicAuth = /^\/auth\/(login|verify-2fa|refresh)\b/i.test(url);
     if (token && !isPublicAuth) {
       config.headers = config.headers ?? {};
       (config.headers as any).Authorization = `Bearer ${token}`;
     } else if (isPublicAuth && config.headers) {
       // defensive: ensure no Authorization header leaks into login
       delete (config.headers as any).Authorization;
-    }
-    return config;
-  },
-  (error: any) => Promise.reject(error)
-);
-
-// Same safeguard for public client (used by pages like /verify-email)
-publicApiClient.interceptors.request.use(
-  (config) => {
-    if (API_BASE_URL === MISSING_API_BASE_URL) {
-      toast.error('Configuração da API ausente. Defina VITE_API_URL (Actions vars) e faça novo deploy.');
-      throw new (axios as any).CanceledError('MISSING_API_BASE_URL');
     }
     return config;
   },
