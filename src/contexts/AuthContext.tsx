@@ -119,6 +119,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
+   * Navegação pós-login.
+   *
+   * O hook useNavigation() do projeto pode tipar navigate() como (to: string) => void,
+   * porém em runtime é comum suportar um 2º argumento com opções (ex.: { replace: true }).
+   * Fazemos um cast seguro para não quebrar o TS e manter a intenção de "replace" quando suportado.
+   */
+  const navigateToApp = () => {
+    const nav = navigate as unknown as (to: string, opts?: { replace?: boolean }) => void;
+    nav('/app/', { replace: true });
+  };
+
+  /**
    * Helper para extrair tokens em QUALQUER formato aceito
    */
   const extractTokens = (data: AuthResponse): AuthTokens | null => {
@@ -184,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPendingEmail(null);
       setAuthReady(true);
 
-      navigate('/app');
+      navigateToApp();
     } finally {
       setLoading(false);
     }
@@ -218,7 +230,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRequiresTwoFactor(false);
       setPendingEmail(null);
       setAuthReady(true);
-      navigate('/app');
+
+      navigateToApp();
     } finally {
       setLoading(false);
     }
