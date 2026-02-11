@@ -208,6 +208,36 @@ apiClient.interceptors.response.use(
 
     const originalRequest = error.config as any;
 
+    // Some browsers/proxies may respond 304 (Not Modified) for XHR when a GET response
+    // is cached (ETag/If-None-Match). Axios treats 304 as an error (validateStatus default),
+    // which can break boot flows (notably /auth/me on hard refresh), resulting in a blank UI.
+    // We retry once with a cache-busting param to force a fresh 200 + body.
+    if (
+      error.response?.status === 304 &&
+      !originalRequest.__retry304 &&
+      String(originalRequest.method ?? 'get').toLowerCase() === 'get'
+    ) {
+      originalRequest.__retry304 = true;
+
+      originalRequest.headers = originalRequest.headers ?? {};
+      // Ask intermediaries to revalidate and avoid reusing stale cached entries.
+      (originalRequest.headers as any)['Cache-Control'] = 'no-cache';
+      (originalRequest.headers as any).Pragma = 'no-cache';
+      // Remove conditional headers if present.
+      delete (originalRequest.headers as any)['If-None-Match'];
+      delete (originalRequest.headers as any)['If-Modified-Since'];
+
+      // Add a cache-busting param while preserving existing params.
+      const ts = Date.now();
+      if (originalRequest.params && typeof originalRequest.params === 'object') {
+        originalRequest.params = { ...(originalRequest.params as any), _ts: ts };
+      } else {
+        originalRequest.params = { _ts: ts };
+      }
+
+      return apiClient.request(originalRequest);
+    }
+
     // Ajuda de debug para o problema que você viu
     if (error.response?.status === 404 && originalRequest.url?.includes('/signup')) {
       console.error(
