@@ -1,0 +1,17 @@
+Options -MultiViews
+
+RewriteEngine On
+
+# Do NOT rewrite API / uploads / static assets routes
+RewriteCond %{REQUEST_URI} !^/api/ [NC]
+RewriteCond %{REQUEST_URI} !^/uploads/ [NC]
+RewriteCond %{REQUEST_URI} !^/assets/ [NC]
+RewriteCond %{REQUEST_URI} !^/figma-assets/ [NC]
+RewriteCond %{REQUEST_URI} !^/favicon\.ico$ [NC]
+RewriteCond %{REQUEST_URI} !^/favicon\.png$ [NC]
+RewriteCond %{REQUEST_URI} !^/version\.json$ [NC]
+
+# If the request is not a real file or directory, serve index.html (SPA fallback)
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
