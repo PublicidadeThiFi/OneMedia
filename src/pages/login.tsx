@@ -219,6 +219,15 @@ export default function Login() {
               Entre em contato com o suporte
             </button>
           </p>
+          <p className="mt-3 text-sm text-gray-600">
+            Esqueceu sua senha?{' '}
+            <button
+              onClick={() => navigate('/forgot-password')}
+              className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
+            >
+              Redefinir senha
+            </button>
+          </p>
         </div>
       </main>
     </div>
