@@ -1,4 +1,5 @@
 import { useNavigation } from '../App';
+import { useWaitlist } from '../contexts/WaitlistContext';
 import { 
   ArrowRight, Check, AlertTriangle, CheckCircle2, 
   Zap, Eye, Rocket, Link as LinkIcon, Settings,
@@ -246,6 +247,7 @@ dashboard: {
 
 export default function Home() {
   const navigate = useNavigation();
+  const { openWaitlist } = useWaitlist();
   const [selectedModule, setSelectedModule] = useState<ModuleKey>('inventario');
   const [previousModule, setPreviousModule] = useState<ModuleKey | null>(null);
   const [exitedModules, setExitedModules] = useState<Set<ModuleKey>>(new Set());
@@ -337,13 +339,19 @@ export default function Home() {
               Iniciar sessão
             </button>
             <button
-              onClick={() => navigate('/cadastro')}
+              onClick={() => {
+                openWaitlist('index:header:ver-demonstracao');
+                // navigate('/cadastro');
+              }}
               className="hidden md:flex items-center gap-2 px-6 py-2.5 border border-blue-600 text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
             >
               Ver demonstração
             </button>
             <button
-              onClick={() => navigate('/cadastro')}
+              onClick={() => {
+                openWaitlist('index:header:teste-gratis-30-dias');
+                // navigate('/cadastro');
+              }}
               className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:shadow-lg transition-all"
             >
               Teste Grátis 30 dias
@@ -380,7 +388,10 @@ export default function Home() {
               
               <div className="flex flex-col items-center gap-4">
                 <button
-                  onClick={() => navigate('/cadastro')}
+                  onClick={() => {
+                    openWaitlist('index:hero:teste-gratis-30-dias');
+                    // navigate('/cadastro');
+                  }}
                   className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl rounded-full hover:shadow-xl transition-all"
                 >
                   Teste Grátis 30 dias
@@ -543,7 +554,10 @@ export default function Home() {
               </div>
 
               <button
-                onClick={() => navigate('/cadastro')}
+                onClick={() => {
+                  openWaitlist('index:produtos:teste-gratis-30-dias');
+                  // navigate('/cadastro');
+                }}
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:shadow-lg transition-all"
               >
                 Teste Grátis 30 dias
@@ -596,7 +610,10 @@ export default function Home() {
               {solutionContent[selectedSolution].description}
             </p>
             <button
-              onClick={() => navigate('/cadastro')}
+              onClick={() => {
+                openWaitlist(`index:solucoes:${selectedSolution}:teste-gratis-30-dias`);
+                // navigate('/cadastro');
+              }}
               className="solutions-left-cta"
             >
               Teste Grátis 30 dias
@@ -975,7 +992,10 @@ export default function Home() {
 
           <div className="text-center mt-8">
             <button
-              onClick={() => navigate('/cadastro')}
+              onClick={() => {
+                openWaitlist('index:mais-eficiencia:teste-gratis-30-dias');
+                // navigate('/cadastro');
+              }}
               className="flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-2xl rounded-full hover:shadow-2xl transition-all mx-auto mb-4"
             >
               Teste Grátis 30 dias

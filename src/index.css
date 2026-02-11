@@ -202,6 +202,149 @@
   }
 }
 
+/* =====================
+   Waitlist Modal (Home CTAs)
+   ===================== */
+
+.waitlist-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 1000;
+}
+
+.waitlist-modal {
+  width: 100%;
+  max-width: 520px;
+  background: white;
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+  position: relative;
+}
+
+.waitlist-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.waitlist-close:hover {
+  filter: brightness(0.95);
+}
+
+.waitlist-header {
+  text-align: center;
+  padding: 6px 8px 16px;
+}
+
+.waitlist-logo {
+  height: 52px;
+  margin: 0 auto 10px;
+}
+
+.waitlist-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.waitlist-subtitle {
+  margin: 10px auto 0;
+  max-width: 420px;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.waitlist-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.waitlist-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.waitlist-field > span {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.waitlist-input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+}
+
+.waitlist-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.16);
+}
+
+.waitlist-submit {
+  width: 100%;
+  border: none;
+  border-radius: 18px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.waitlist-submit:hover {
+  filter: brightness(1.02);
+}
+
+.waitlist-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.waitlist-disclaimer {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  margin: 4px 0 0;
+}
+
+@media (max-width: 480px) {
+  .waitlist-modal {
+    padding: 22px;
+    border-radius: 22px;
+  }
+  .waitlist-title {
+    font-size: 22px;
+  }
+}
+
 @layer base {
   *, :after, :before, ::backdrop {
     box-sizing: border-box;

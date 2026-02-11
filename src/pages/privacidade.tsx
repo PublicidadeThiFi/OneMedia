@@ -1,9 +1,11 @@
 import { ArrowLeft, Shield, Lock, Eye, FileText, Users, Mail } from 'lucide-react';
 import { useNavigation } from '../App';
+import { useWaitlist } from '../contexts/WaitlistContext';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Privacidade() {
   const navigate = useNavigation();
+  const { openWaitlist } = useWaitlist();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
@@ -189,7 +191,10 @@ export default function Privacidade() {
         {/* CTA Button */}
         <div className="mt-12 text-center">
           <button
-            onClick={() => navigate('/cadastro')}
+            onClick={() => {
+              openWaitlist('privacidade:cta:comecar-teste-gratis');
+              // navigate('/cadastro');
+            }}
             className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-4 rounded-full hover:shadow-xl hover:scale-105 transition-all text-lg font-medium"
           >
             Começar teste grátis
