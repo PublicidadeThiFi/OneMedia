@@ -103,6 +103,14 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
 
   const { isBlocked, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
 
+
+  const pastDueGraceDaysLeft = useMemo(() => {
+    if (isBlocked) return null;
+    if (!subscription) return null;
+    if (String(subscription.status) !== 'EM_ATRASO') return null;
+    if (!subscription.currentPeriodEnd) return null;
+    const due = new Date(subscription.currentPeriodEnd as any);
+
   // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
   // to bootstrap /auth/me using tokens from localStorage.
   // While authReady=false we must NOT redirect yet.
@@ -138,13 +146,6 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
       </div>
     );
   }
-
-  const pastDueGraceDaysLeft = useMemo(() => {
-    if (isBlocked) return null;
-    if (!subscription) return null;
-    if (String(subscription.status) !== 'EM_ATRASO') return null;
-    if (!subscription.currentPeriodEnd) return null;
-    const due = new Date(subscription.currentPeriodEnd as any);
     if (Number.isNaN(due.getTime())) return null;
     const dayMs = 24 * 60 * 60 * 1000;
     const graceEnd = due.getTime() + 3 * dayMs;
