@@ -99,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fetchCurrentUser = async () => {
       try {
         setLoading(true);
-        const response = await apiClient.get<AuthUser>('/auth/me');
+        const response = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
         const me = response.data;
         setUser(me);
         setTokens({
@@ -117,18 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void fetchCurrentUser();
   }, []);
-
-  /**
-   * Navegação pós-login.
-   *
-   * O hook useNavigation() do projeto pode tipar navigate() como (to: string) => void,
-   * porém em runtime é comum suportar um 2º argumento com opções (ex.: { replace: true }).
-   * Fazemos um cast seguro para não quebrar o TS e manter a intenção de "replace" quando suportado.
-   */
-  const navigateToApp = () => {
-    const nav = navigate as unknown as (to: string, opts?: { replace?: boolean }) => void;
-    nav('/app/', { replace: true });
-  };
 
   /**
    * Helper para extrair tokens em QUALQUER formato aceito
@@ -190,13 +178,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTokens(extracted);
 
       // Carrega usuário completo
-      const meResponse = await apiClient.get<AuthUser>('/auth/me');
+      const meResponse = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
       setUser(meResponse.data);
       setRequiresTwoFactor(false);
       setPendingEmail(null);
       setAuthReady(true);
 
-      navigateToApp();
+        // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
+        // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
+        navigate('/app/');
     } finally {
       setLoading(false);
     }
@@ -225,13 +215,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setTokens(extracted);
 
-      const meResponse = await apiClient.get<AuthUser>('/auth/me');
+      const meResponse = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
       setUser(meResponse.data);
       setRequiresTwoFactor(false);
       setPendingEmail(null);
       setAuthReady(true);
-
-      navigateToApp();
+        // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
+        // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
+        navigate('/app/');
     } finally {
       setLoading(false);
     }
