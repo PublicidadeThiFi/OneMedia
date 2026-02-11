@@ -109,7 +109,18 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
     if (!subscription) return null;
     if (String(subscription.status) !== 'EM_ATRASO') return null;
     if (!subscription.currentPeriodEnd) return null;
+
     const due = new Date(subscription.currentPeriodEnd as any);
+    if (Number.isNaN(due.getTime())) return null;
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const graceEnd = due.getTime() + 3 * dayMs;
+    const leftMs = graceEnd - Date.now();
+
+    if (leftMs <= 0) return 0;
+    return Math.ceil(leftMs / dayMs);
+  }, [isBlocked, subscription?.status, subscription?.currentPeriodEnd]);
+
 
   // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
   // to bootstrap /auth/me using tokens from localStorage.
@@ -146,13 +157,6 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
       </div>
     );
   }
-    if (Number.isNaN(due.getTime())) return null;
-    const dayMs = 24 * 60 * 60 * 1000;
-    const graceEnd = due.getTime() + 3 * dayMs;
-    const leftMs = graceEnd - Date.now();
-    if (leftMs <= 0) return 0;
-    return Math.ceil(leftMs / dayMs);
-  }, [isBlocked, subscription?.status, subscription?.currentPeriodEnd]);
 
   const goToSubscriptionSettings = () => {
     setCurrentPage('settings');
@@ -225,7 +229,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
         <Sidebar
           currentPage={currentPage}
           onNavigate={handleNavigate}
-          isSuperAdmin={user.isSuperAdmin}
+          isSuperAdmin={Boolean(user?.isSuperAdmin)}
         />
       </div>
 
@@ -255,7 +259,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
           <Sidebar
             currentPage={currentPage}
             onNavigate={handleNavigate}
-            isSuperAdmin={user.isSuperAdmin}
+            isSuperAdmin={Boolean(user?.isSuperAdmin)}
             isMobile={true}
           />
         </div>
