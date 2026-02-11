@@ -1,10 +1,12 @@
 import { useNavigation } from '../App';
+import { useWaitlist } from '../contexts/WaitlistContext';
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import { useState } from 'react';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Planos() {
   const navigate = useNavigation();
+  const { openWaitlist } = useWaitlist();
   const [showContactModal, setShowContactModal] = useState(false);
 
   const plans = [
@@ -162,7 +164,16 @@ export default function Planos() {
                 </ul>
 
                 <button
-                  onClick={() => navigate('/cadastro')}
+                  onClick={() => {
+                    const key = plan.name
+                      .toLowerCase()
+                      .normalize('NFD')
+                      .replace(/[\u0300-\u036f]/g, '')
+                      .replace(/[^a-z0-9]+/g, '-')
+                      .replace(/(^-|-$)/g, '');
+                    openWaitlist(`planos:card:${key}:${plan.price === 'Sob consulta' ? 'falar-com-vendas' : 'comecar-agora'}`);
+                    // navigate('/cadastro');
+                  }}
                   className={`w-full flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r ${plan.color} text-white rounded-full hover:shadow-xl transition-all text-lg font-semibold`}
                 >
                   {plan.price === 'Sob consulta' ? 'Falar com vendas' : 'Começar agora'}
@@ -181,7 +192,10 @@ export default function Planos() {
               Teste todas as funcionalidades sem compromisso. Não é necessário cartão de crédito.
             </p>
             <button
-              onClick={() => navigate('/cadastro')}
+              onClick={() => {
+                openWaitlist('planos:cta:comecar-teste-gratis');
+                // navigate('/cadastro');
+              }}
               className="flex items-center gap-3 px-12 py-5 bg-white text-blue-700 text-2xl rounded-full hover:shadow-2xl transition-all mx-auto font-semibold"
             >
               Começar teste grátis
