@@ -33,7 +33,7 @@ export default function Contato() {
         <div className="grid md:grid-cols-2 gap-6 mb-12">
           {/* Email */}
           <a
-            href="mailto:contato@oohmanager.com"
+            href="mailto:thifi.contato.oficial@gmail.com"
             className="bg-white rounded-2xl p-8 border-2 border-gray-200 hover:border-blue-600 transition-all hover:shadow-xl group"
           >
             <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-gradient-to-br group-hover:from-blue-600 group-hover:to-blue-700 transition-all shadow-lg shadow-transparent group-hover:shadow-blue-500/30">
@@ -41,12 +41,12 @@ export default function Contato() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">E-mail</h3>
             <p className="text-gray-600 mb-4">Envie um e-mail para nossa equipe comercial</p>
-            <p className="text-blue-600 font-medium group-hover:text-blue-700">contato@oohmanager.com</p>
+            <p className="text-blue-600 font-medium group-hover:text-blue-700">thifi.contato.oficial@gmail.com</p>
           </a>
 
           {/* WhatsApp */}
           <a
-            href="https://wa.me/5511999999999"
+            href="https://wa.me/5561982541672"
             target="_blank"
             rel="noopener noreferrer"
             className="bg-white rounded-2xl p-8 border-2 border-gray-200 hover:border-blue-600 transition-all hover:shadow-xl group"
@@ -56,7 +56,7 @@ export default function Contato() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">WhatsApp</h3>
             <p className="text-gray-600 mb-4">Fale diretamente com nosso time</p>
-            <p className="text-blue-600 font-medium group-hover:text-blue-700">(11) 99999-9999</p>
+            <p className="text-blue-600 font-medium group-hover:text-blue-700">(61) 98254-1672</p>
           </a>
         </div>
 

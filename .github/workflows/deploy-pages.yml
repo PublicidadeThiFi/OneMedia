@@ -38,6 +38,9 @@ jobs:
           # Configure these in GitHub: Settings -> Secrets and variables -> Actions -> Variables
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           URL_ONE_MEDIA: ${{ vars.URL_ONE_MEDIA }}
+          # Waitlist / Leads (Make webhook -> Google Sheets)
+          VITE_WAITLIST_WEBHOOK_URL: ${{ vars.VITE_WAITLIST_WEBHOOK_URL }}
+          VITE_WAITLIST_API_KEY: ${{ vars.VITE_WAITLIST_API_KEY }}
         run: npm run build
 
       # SPA support for direct links (/login, /app, /app/..., etc.) on GitHub Pages

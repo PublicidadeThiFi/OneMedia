@@ -90,7 +90,7 @@ export function Footer() {
               <Linkedin className="w-5 h-5" />
             </a>
             <a
-              href="https://instagram.com"
+              href="https://instagram.com/thifi.agency"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-600 hover:text-[#4F46E5] transition-colors"
@@ -98,13 +98,13 @@ export function Footer() {
               <Instagram className="w-5 h-5" />
             </a>
             <a
-              href="mailto:contato@oohmanager.com"
+              href="mailto:thifi.contato.oficial@gmail.com"
               className="text-gray-600 hover:text-[#4F46E5] transition-colors"
             >
               <Mail className="w-5 h-5" />
             </a>
             <a
-              href="https://wa.me/5511999999999"
+              href="https://wa.me/5561982541672"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-600 hover:text-[#4F46E5] transition-colors"

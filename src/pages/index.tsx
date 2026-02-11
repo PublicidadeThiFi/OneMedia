@@ -1108,7 +1108,7 @@ export default function Home() {
             <div className="space-y-4">
               {/* WhatsApp */}
               <a
-                href="https://wa.me/5511999999999?text=Olá!%20Gostaria%20de%20conhecer%20mais%20sobre%20a%20plataforma%20OneMedia%20para%20gestão%20de%20mídia%20OOH/DOOH.%20Poderia%20me%20ajudar?"
+                href="https://wa.me/5561982541672?text=Olá!%20Gostaria%20de%20conhecer%20mais%20sobre%20a%20plataforma%20OneMedia%20para%20gestão%20de%20mídia%20OOH/DOOH.%20Poderia%20me%20ajudar?"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-4 p-4 border-2 border-gray-200 rounded-2xl hover:border-blue-600 hover:shadow-lg transition-all group"
@@ -1126,7 +1126,7 @@ export default function Home() {
 
               {/* Email */}
               <a
-                href="mailto:contato@onemedia.com?subject=Interesse%20na%20plataforma%20OneMedia&body=Olá!%0A%0AGostaria%20de%20conhecer%20mais%20sobre%20a%20plataforma%20OneMedia%20para%20gestão%20de%20mídia%20OOH/DOOH.%0A%0APoderia%20me%20enviar%20mais%20informações?%0A%0AObrigado!"
+                href="mailto:thifi.contato.oficial@gmail.com?subject=Interesse%20na%20plataforma%20OneMedia&body=Olá!%0A%0AGostaria%20de%20conhecer%20mais%20sobre%20a%20plataforma%20OneMedia%20para%20gestão%20de%20mídia%20OOH/DOOH.%0A%0APoderia%20me%20enviar%20mais%20informações?%0A%0AObrigado!"
                 className="flex items-center gap-4 p-4 border-2 border-gray-200 rounded-2xl hover:border-blue-600 hover:shadow-lg transition-all group"
               >
                 <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center group-hover:bg-blue-600 transition-colors">
@@ -1136,7 +1136,7 @@ export default function Home() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold text-gray-900">E-mail</p>
-                  <p className="text-sm text-gray-600">contato@onemedia.com</p>
+                  <p className="text-sm text-gray-600">thifi.contato.oficial@gmail.com</p>
                 </div>
               </a>
             </div>
