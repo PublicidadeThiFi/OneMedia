@@ -41,10 +41,11 @@ jobs:
         run: npm run build
 
       # SPA fallback for direct links (/login, /app/..., etc.) on GitHub Pages
-      - name: Add SPA fallback (404.html)
+      - name: Add .nojekyll (disable Jekyll)
         run: |
-          cp dist/index.html dist/404.html
           touch dist/.nojekyll
+          # 404.html is provided by /public/404.html (SPA redirect for GitHub Pages)
+          test -f dist/404.html && echo "404.html OK" || (echo "Missing dist/404.html" && exit 1)
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
