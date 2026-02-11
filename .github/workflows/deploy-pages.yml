@@ -40,13 +40,19 @@ jobs:
           URL_ONE_MEDIA: ${{ vars.URL_ONE_MEDIA }}
         run: npm run build
 
-      # SPA fallback for direct links (/login, /app/..., etc.) on GitHub Pages
-      - name: Add .nojekyll (disable Jekyll)
+      # SPA support for direct links (/login, /app, /app/..., etc.) on GitHub Pages
+      - name: Add SPA support (404.html + /app index)
         run: |
           touch dist/.nojekyll
-          # 404.html is provided by /public/404.html (SPA redirect for GitHub Pages)
-          test -f dist/404.html && echo "404.html OK" || (echo "Missing dist/404.html" && exit 1)
 
+          # Ensure /app (no trailing slash) has a real document on Pages.
+          mkdir -p dist/app
+          cp dist/index.html dist/app/index.html
+
+          # Keep a custom 404.html if you provided one via /public/404.html.
+          if [ ! -f dist/404.html ]; then
+            cp dist/index.html dist/404.html
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
