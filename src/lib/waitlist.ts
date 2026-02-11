@@ -28,6 +28,7 @@ export async function submitWaitlistLead(payload: WaitlistLeadPayload): Promise<
     return { ok: false, error: 'VITE_WAITLIST_WEBHOOK_URL não configurada.' };
   }
 
+  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
