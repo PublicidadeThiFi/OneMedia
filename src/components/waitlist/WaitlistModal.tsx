@@ -172,7 +172,7 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
           </button>
 
           <p className="waitlist-disclaimer">
-            Fique tranquilo, também não gostamos de spam. Você receberá apenas novidades exclusivas e o convite de lançamento.
+            Fique tranquilo, também não gostamos de spam.\n Você receberá apenas novidades exclusivas e o convite de lançamento.
           </p>
         </div>
       </div>
