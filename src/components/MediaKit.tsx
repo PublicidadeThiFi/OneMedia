@@ -223,6 +223,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [publicTokenUrl, setPublicTokenUrl] = useState('');
   const [shareUrl, setShareUrl] = useState('');
+  const [menuShareUrl, setMenuShareUrl] = useState('');
 
   // Solicitar proposta (bulk)
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
@@ -524,11 +525,23 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     }
   };
 
+  const buildMenuUrlFromMkBase = (mkBaseUrl: string) => {
+    try {
+      const u = new URL(mkBaseUrl);
+      u.pathname = '/menu';
+      // Mantém o token no query param
+      return u.toString();
+    } catch {
+      return `${window.location.origin}/menu`;
+    }
+  };
+
   const handleShare = async () => {
     setShareDialogOpen(true);
     const base = await ensurePublicTokenUrl();
     if (!base) return;
     setShareUrl(buildShareUrlWithFilters(base));
+    setMenuShareUrl(buildMenuUrlFromMkBase(base));
   };
 
   const handleCopyLink = async () => {
@@ -563,6 +576,35 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       } else {
         toast.info('Selecione e copie o link manualmente (Ctrl+C ou Cmd+C)');
       }
+    }
+  };
+
+  const handleCopyMenuLink = async () => {
+    const base = await ensurePublicTokenUrl();
+    if (!base) return;
+
+    const url = buildMenuUrlFromMkBase(base);
+    setMenuShareUrl(url);
+    if (!url) return;
+
+    const onCopied = () => {
+      toast.success('Link do Cardápio (protótipo) copiado para a área de transferência!');
+      setShareDialogOpen(false);
+    };
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(url)
+        .then(onCopied)
+        .catch(() => {
+          const success = copyToClipboardFallback(url);
+          if (success) onCopied();
+          else toast.info('Selecione e copie o link manualmente (Ctrl+C ou Cmd+C)');
+        });
+    } else {
+      const success = copyToClipboardFallback(url);
+      if (success) onCopied();
+      else toast.info('Selecione e copie o link manualmente (Ctrl+C ou Cmd+C)');
     }
   };
 
@@ -1332,12 +1374,29 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Input readOnly value={shareUrl || 'Gerando link...'} className="flex-1" />
-                <Button onClick={handleCopyLink} className="gap-2" disabled={!shareUrl}>
-                  <Copy className="w-4 h-4" />
-                  Copiar
-                </Button>
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-gray-700">Link do Mídia Kit</div>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={shareUrl || 'Gerando link...'} className="flex-1" />
+                  <Button onClick={handleCopyLink} className="gap-2" disabled={!shareUrl}>
+                    <Copy className="w-4 h-4" />
+                    Copiar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-gray-700">Link do Cardápio (protótipo)</div>
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={menuShareUrl || 'Gerando link...'} className="flex-1" />
+                  <Button onClick={handleCopyMenuLink} className="gap-2" disabled={!menuShareUrl}>
+                    <Copy className="w-4 h-4" />
+                    Copiar
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Abre o fluxo do Cardápio (UF → Cidade → Pontos → Carrinho → Enviar proposta).
+                </p>
               </div>
 
               <p className="text-sm text-gray-500">

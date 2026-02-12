@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, Component, ReactNode } from 'react';
+import { useState, useEffect, Component, ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
@@ -18,18 +18,22 @@ import Privacidade from './pages/privacidade';
 import Planos from './pages/planos';
 import PropostaPublica from './pages/proposta-publica';
 import MidiaKitPublico from './pages/midia-kit-publico';
+import MenuHome from './pages/menu';
+import MenuSelectUF from './pages/menu-uf';
+import MenuSelectCity from './pages/menu-cidades';
+import MenuPontosPlaceholder from './pages/menu-pontos';
 
 // Internal App
 import { MainApp } from './components/MainApp';
 
+import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
+
+// Backward-compatible re-exports (many components import these from "../App")
+export { useNavigation } from './contexts/NavigationContext';
+export type { NavigateFunction } from './contexts/NavigationContext';
+
 // Re-export Page type for components
 export type { Page } from './components/MainApp';
-
-// Navigation Context
-type NavigateFunction = (path: string) => void;
-const NavigationContext = createContext<NavigateFunction>(() => { });
-
-export const useNavigation = () => useContext(NavigationContext);
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }>{
   state = { hasError: false, message: '' };
@@ -113,6 +117,31 @@ export default function App() {
     // /mk?token=<publicToken>
     if (cleanPath === '/mk') {
       return <MidiaKitPublico />;
+    }
+
+    // PUBLIC MENU (CARDÁPIO) ROUTES (prototype)
+    // /menu?token=<publicToken>
+    // /menu/uf?token=<publicToken>
+    // /menu/cidades?token=<publicToken>&uf=XX
+    // /menu/pontos?token=<publicToken>&uf=XX&city=YYY
+    if (cleanPath === '/menu') return <MenuHome />;
+    if (cleanPath === '/menu/uf') return <MenuSelectUF />;
+    if (cleanPath === '/menu/cidades') return <MenuSelectCity />;
+    if (cleanPath === '/menu/pontos') return <MenuPontosPlaceholder />;
+
+    // PUBLIC MENU / CARDÁPIO (protótipo)
+    // /menu?token=<publicToken>
+    if (cleanPath === '/menu') {
+      return <MenuHome />;
+    }
+    if (cleanPath === '/menu/uf') {
+      return <MenuSelectUF />;
+    }
+    if (cleanPath === '/menu/cidades') {
+      return <MenuSelectCity />;
+    }
+    if (cleanPath === '/menu/pontos') {
+      return <MenuPontosPlaceholder />;
     }
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
