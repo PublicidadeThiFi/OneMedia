@@ -227,7 +227,7 @@ midiakit: {
 dashboard: {
   title: 'Inteligência de dados para decisões rápidas',
   description: 'Dashboards em tempo real com indicadores de ocupação, faturamento, performance comercial e análises preditivas.',
-  screenshot: imgRelatorios2,
+  screenshot: imgRelatorios,
   badges: [
     { label: 'KPIs em Tempo Real', icon: <BarChart3 className="w-4 h-4" />, position: 'topRight' },
     { label: 'Insights', icon: <Sparkles className="w-4 h-4" />, position: 'bottomLeft' },
