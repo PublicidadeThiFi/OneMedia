@@ -46,8 +46,8 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
   };
 
   const handleForgotPassword = () => {
-    // TODO: Implement forgot password flow
-    alert('Funcionalidade de recuperação de senha em desenvolvimento.\n\nPor favor, entre em contato com o suporte.');
+    // Navega para o fluxo de recuperação de senha
+    navigate('/forgot-password');
   };
 
   return (
