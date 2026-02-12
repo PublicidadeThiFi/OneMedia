@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useNavigation } from '../../App';
 import { LoginCredentials } from '../../types/auth';
-import { useWaitlist } from '../contexts/WaitlistContext';
+import { useWaitlist } from '../../contexts/WaitlistContext';
 
 type LoginFormProps = {
   onSubmit: (credentials: LoginCredentials) => Promise<void>;
