@@ -254,7 +254,6 @@ export default function Home() {
   const [selectedSolution, setSelectedSolution] = useState<SolutionTab>('inventario');
   const [selectedAutomation, setSelectedAutomation] = useState<string>('reservas');
   const [showContactModal, setShowContactModal] = useState(false);
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Handle module selection with dedicated module sets
@@ -474,8 +473,7 @@ export default function Home() {
                       >
                         <img 
                           src={moduleImages[module].image2} 
-                          alt={`${module} - Vista 2`} 
-                          onClick={() => isActive && setExpandedImage(moduleImages[module].image2)}
+                          alt={`${module} - Vista 2`}
                           className="hero-img"
                           style={{
                             transform: 'rotate(-1.5deg) scale(0.88)',
@@ -494,8 +492,7 @@ export default function Home() {
                       >
                         <img 
                           src={moduleImages[module].image1} 
-                          alt={`${module} - Vista 1`} 
-                          onClick={() => isActive && setExpandedImage(moduleImages[module].image1)}
+                          alt={`${module} - Vista 1`}
                           className="hero-img hero-img--front"
                           style={{
                             transform: 'rotate(1.2deg)',
@@ -1174,31 +1171,6 @@ export default function Home() {
       )}
 
       {/* Image Lightbox Modal */}
-      {expandedImage && (
-        <div 
-          className="fixed inset-0 bg-black/95 flex items-center justify-center z-[60] p-4 backdrop-blur-sm"
-          onClick={() => setExpandedImage(null)}
-        >
-          <button
-            onClick={() => setExpandedImage(null)}
-            className="absolute top-6 right-6 w-12 h-12 flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-full transition-all group"
-          >
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          
-          <div className="max-w-7xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
-            <img 
-              src={expandedImage} 
-              alt="Screenshot expandido" 
-              className="w-full h-full object-contain rounded-2xl shadow-2xl"
-              style={{ imageRendering: 'crisp-edges' }}
-            />
-            <p className="text-white text-center mt-4 text-sm opacity-75">Clique fora da imagem ou no X para fechar</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
