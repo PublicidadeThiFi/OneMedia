@@ -99,9 +99,9 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
 
         <div className="waitlist-header">
           <img src={imgOnemediaLogo} alt="OneMedia" className="waitlist-logo" />
-          <h2 className="waitlist-title">Entre na lista de espera</h2>
+          <h2 className="waitlist-title">Chega de perder tempo (e dinheiro) com planilhas de OOH desatualizadas</h2>
           <p className="waitlist-subtitle">
-            Preencha seus dados para receber novidades e prioridade no acesso.
+            Estamos finalizando a plataforma que vai automatizar seu Mídia Kit e organizar seu inventário com precisão militar. Entre na lista de espera para ser um dos primeiros a dominar o mercado com a OneMedia.
           </p>
         </div>
 
@@ -172,7 +172,7 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
           </button>
 
           <p className="waitlist-disclaimer">
-            Ao enviar, você concorda em ser contatado(a) sobre novidades do OneMedia.
+            Fique tranquilo, também não gostamos de spam. Você receberá apenas novidades exclusivas e o convite de lançamento.
           </p>
         </div>
       </div>
