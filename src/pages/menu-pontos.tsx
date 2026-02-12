@@ -11,6 +11,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { MediaType } from '../types';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
+import { getCartCount } from '../lib/menuCart';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -37,11 +38,7 @@ function safeText(value?: string | null): string {
 
 function getCartCountFromStorage(): number {
   try {
-    const raw = localStorage.getItem('menu_cart');
-    if (!raw) return 0;
-    const parsed = JSON.parse(raw);
-    const items = Array.isArray(parsed?.items) ? parsed.items : Array.isArray(parsed) ? parsed : [];
-    return items.length;
+    return getCartCount();
   } catch {
     return 0;
   }
@@ -107,9 +104,11 @@ export default function MenuPontos() {
   }, [uf, city]);
 
   const onDetails = (point: PublicMediaKitPoint) => {
-    toast.info('Detalhes completos do ponto entram na próxima etapa do protótipo.', {
-      description: point.name,
-    });
+    if (!point?.id) {
+      toast.error('Não foi possível abrir os detalhes deste ponto.');
+      return;
+    }
+    navigate(`/menu/detalhe${buildQuery({ token, id: point.id, uf, city })}`);
   };
 
   return (
@@ -123,7 +122,7 @@ export default function MenuPontos() {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => toast.info('Carrinho será implementado na próxima etapa.')}
+                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city })}`)}
               >
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})

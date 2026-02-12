@@ -22,6 +22,9 @@ import MenuHome from './pages/menu';
 import MenuSelectUF from './pages/menu-uf';
 import MenuSelectCity from './pages/menu-cidades';
 import MenuPontosPlaceholder from './pages/menu-pontos';
+import MenuDetalhe from './pages/menu-detalhe';
+import MenuFaces from './pages/menu-faces';
+import MenuCarrinho from './pages/menu-carrinho';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -124,25 +127,16 @@ export default function App() {
     // /menu/uf?token=<publicToken>
     // /menu/cidades?token=<publicToken>&uf=XX
     // /menu/pontos?token=<publicToken>&uf=XX&city=YYY
+    // /menu/detalhe?token=<publicToken>&id=<pointId>
+    // /menu/faces?token=<publicToken>&id=<pointId>
+    // /menu/carrinho?token=<publicToken>
     if (cleanPath === '/menu') return <MenuHome />;
     if (cleanPath === '/menu/uf') return <MenuSelectUF />;
     if (cleanPath === '/menu/cidades') return <MenuSelectCity />;
     if (cleanPath === '/menu/pontos') return <MenuPontosPlaceholder />;
-
-    // PUBLIC MENU / CARDÁPIO (protótipo)
-    // /menu?token=<publicToken>
-    if (cleanPath === '/menu') {
-      return <MenuHome />;
-    }
-    if (cleanPath === '/menu/uf') {
-      return <MenuSelectUF />;
-    }
-    if (cleanPath === '/menu/cidades') {
-      return <MenuSelectCity />;
-    }
-    if (cleanPath === '/menu/pontos') {
-      return <MenuPontosPlaceholder />;
-    }
+    if (cleanPath === '/menu/detalhe') return <MenuDetalhe />;
+    if (cleanPath === '/menu/faces') return <MenuFaces />;
+    if (cleanPath === '/menu/carrinho') return <MenuCarrinho />;
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
     // All /app/* routes render the MainApp component with sidebar and modules
