@@ -34,7 +34,7 @@ import imgClientes2 from "figma:asset/cd83b92791eb35af88ec6625a90b444217be6c1b.p
 import imgProprietarios from "figma:asset/bc4c41825d562aa00505148f9c2cf7776c1dda25.png";
 import imgProprietarios2 from "figma:asset/bbbe5dc0a7da7fae50e76241d183ed958b85d959.png";
 import imgRelatorios from "figma:asset/24be53fa98cb70de89bcd6b3013fd88d5eff019e.png";
-import imgRelatorios2 from "figma:asset/ea58b2fcd4a9774626acfd9e0441683b3d91eced.png";
+import imgRelatorios2 from "figma:asset/midiakit.png";
 import imgOutros1 from "figma:asset/2e890f0b983e67f4196361f257d7f43fc5fe006a.png";
 import imgOutros2 from "figma:asset/1896d19035e48bc6bce4326ab159c9231b61df91.png";
 
