@@ -172,7 +172,7 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
             //navigate('/cadastro');
           }}
           className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
-          disabled={isLoading}
+          //disabled={isLoading}
         >
           Começar teste grátis
         </button>
