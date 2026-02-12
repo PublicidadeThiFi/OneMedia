@@ -167,11 +167,11 @@ export default function Privacidade() {
                   Para questões sobre privacidade ou proteção de dados, entre em contato:
                 </p>
                 <a 
-                  href="mailto:privacidade@onemedia.com" 
+                  href="mailto:thifi.contato.oficial@gmail.com" 
                   className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
                 >
                   <Mail className="w-4 h-4" />
-                  privacidade@onemedia.com
+                  thifi.contato.oficial@gmail.com
                 </a>
               </div>
             </div>
