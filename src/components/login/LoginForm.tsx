@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useNavigation } from '../../App';
 import { LoginCredentials } from '../../types/auth';
+import { useWaitlist } from '../contexts/WaitlistContext';
 
 type LoginFormProps = {
   onSubmit: (credentials: LoginCredentials) => Promise<void>;
@@ -17,6 +18,7 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { openWaitlist } = useWaitlist();
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -165,7 +167,10 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
         Ainda não tem conta?{' '}
         <button
           type="button"
-          onClick={() => navigate('/cadastro')}
+          onClick={() => {
+            openWaitlist('privacidade:cta:comecar-teste-gratis');
+            //navigate('/cadastro');
+          }}
           className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
           disabled={isLoading}
         >
