@@ -99,9 +99,15 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
 
         <div className="waitlist-header">
           <img src={imgOnemediaLogo} alt="OneMedia" className="waitlist-logo" />
-          <h2 className="waitlist-title">Chega de perder tempo (e dinheiro) com planilhas de OOH desatualizadas</h2>
+          <h2 className="waitlist-title">Chega de perder tempo (e dinheiro) 
+            <br />
+            com planilhas de OOH desatualizadas</h2>
           <p className="waitlist-subtitle">
-            Estamos finalizando a plataforma que vai automatizar seu Mídia Kit e organizar seu inventário com precisão militar. Entre na lista de espera para ser um dos primeiros a dominar o mercado com a OneMedia.
+            Estamos finalizando a plataforma que vai automatizar seu Mídia Kit e organizar seu inventário 
+            <br />
+            com precisão militar. <strong>Entre na lista de espera para ser um dos primeiros</strong> a dominar o mercado 
+            <br />
+            com a OneMedia.
           </p>
         </div>
 
@@ -172,7 +178,9 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
           </button>
 
           <p className="waitlist-disclaimer">
-            Fique tranquilo, também não gostamos de spam.\n Você receberá apenas novidades exclusivas e o convite de lançamento.
+            Fique tranquilo, também não gostamos de spam. 
+            <br />
+            Você receberá apenas <strong>novidades exclusivas</strong> e o <strong>convite de lançamento</strong>.
           </p>
         </div>
       </div>
