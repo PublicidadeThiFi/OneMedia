@@ -4,7 +4,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, Loader2, CircleDot } from 'lucide-react';
+import { ArrowLeft, Loader2, CircleDot, FileText, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchMenuRequest, type MenuRequestRecord } from '../lib/menuRequestApi';
 
@@ -71,6 +71,70 @@ export default function MenuAcompanhar() {
     return `/menu/enviado${buildQuery({ token, rid })}`;
   }, [token, rid]);
 
+  const propostaUrl = useMemo(() => {
+    return `/menu/proposta${buildQuery({ token, rid })}`;
+  }, [token, rid]);
+
+  const ownerUrl = useMemo(() => {
+    return `/menu/dono${buildQuery({ token, rid })}`;
+  }, [token, rid]);
+
+  const timeline = useMemo(() => {
+    const events = Array.isArray(data?.events) ? data!.events! : [];
+    const getAt = (t: string) => events.find((e) => e.type === t)?.at || null;
+
+    return [
+      {
+        key: 'REQUEST_SUBMITTED',
+        title: 'Solicitação enviada',
+        desc: 'Recebemos sua solicitação e enviamos ao responsável.',
+        at: getAt('REQUEST_SUBMITTED'),
+      },
+      {
+        key: 'OWNER_OPENED',
+        title: 'Em análise',
+        desc: 'O responsável está avaliando os itens e condições.',
+        at: getAt('OWNER_OPENED'),
+      },
+      {
+        key: 'QUOTE_SENT',
+        title: 'Proposta enviada',
+        desc: 'Uma versão da proposta foi enviada para você visualizar.',
+        at: getAt('QUOTE_SENT'),
+      },
+      {
+        key: 'QUOTE_OPENED',
+        title: 'Proposta visualizada',
+        desc: 'Registramos a abertura do link (protótipo).',
+        at: getAt('QUOTE_OPENED'),
+      },
+      {
+        key: 'QUOTE_REJECTED',
+        title: 'Revisão solicitada',
+        desc: 'Você solicitou revisão/ajuste na proposta.',
+        at: getAt('QUOTE_REJECTED'),
+      },
+      {
+        key: 'QUOTE_APPROVED',
+        title: 'Aprovada',
+        desc: 'A proposta foi aprovada e ficou travada.',
+        at: getAt('QUOTE_APPROVED'),
+      },
+    ];
+  }, [data]);
+
+  const hasQuote = Boolean(data?.currentQuoteVersion);
+  const statusLabel = useMemo(() => {
+    const s = String(data?.status || '').toUpperCase();
+    if (s === 'SUBMITTED') return 'Solicitação recebida';
+    if (s === 'IN_REVIEW') return 'Em análise';
+    if (s === 'QUOTE_SENT') return 'Proposta enviada';
+    if (s === 'REVISION_REQUESTED') return 'Revisão solicitada';
+    if (s === 'APPROVED') return 'Aprovada';
+    if (s === 'RECEBIDA') return 'Solicitação recebida';
+    return s ? s : '—';
+  }, [data?.status]);
+
   return (
     <div className="min-h-screen w-full bg-gray-50">
       <div className="mx-auto max-w-3xl px-4 py-8">
@@ -115,9 +179,26 @@ export default function MenuAcompanhar() {
                     <div className="mt-2 flex items-start gap-3">
                       <CircleDot className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
-                        <div className="text-sm font-medium text-gray-900">Solicitação recebida</div>
-                        <div className="mt-0.5 text-xs text-gray-600">Aguardando avaliação do responsável.</div>
+                        <div className="text-sm font-medium text-gray-900">{statusLabel}</div>
+                        <div className="mt-0.5 text-xs text-gray-600">
+                          {hasQuote ? 'Você já pode abrir a proposta e aprovar/solicitar revisão.' : 'Aguardando avaliação do responsável.'}
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                      <Button
+                        className="gap-2"
+                        disabled={!hasQuote}
+                        onClick={() => navigate(propostaUrl)}
+                      >
+                        <FileText className="h-4 w-4" />
+                        Ver proposta
+                      </Button>
+                      <Button variant="outline" className="gap-2" onClick={() => navigate(ownerUrl)}>
+                        <UserCog className="h-4 w-4" />
+                        Sou o responsável
+                      </Button>
                     </div>
                   </div>
 
@@ -145,6 +226,29 @@ export default function MenuAcompanhar() {
                 )}
 
                 <Separator className="my-5" />
+
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Linha do tempo</div>
+                  <div className="mt-3 space-y-3">
+                    {timeline.map((t) => {
+                      const done = Boolean(t.at);
+                      return (
+                        <div key={t.key} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 h-2.5 w-2.5 rounded-full ${done ? 'bg-green-500' : 'bg-gray-300'}`} />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-medium text-gray-900">{t.title}</div>
+                                <div className="text-xs text-gray-500">{done ? formatDateTimeBr(t.at) : '—'}</div>
+                              </div>
+                              <div className="mt-0.5 text-xs text-gray-600">{t.desc}</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div>
                   <div className="text-sm font-semibold text-gray-900">Itens solicitados</div>

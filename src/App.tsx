@@ -28,6 +28,11 @@ import MenuCarrinho from './pages/menu-carrinho';
 import MenuCheckout from './pages/menu-checkout';
 import MenuEnviado from './pages/menu-enviado';
 import MenuAcompanhar from './pages/menu-acompanhar';
+import MenuProposta from './pages/menu-proposta';
+import MenuDonoWorkspace from './pages/menu-dono-workspace';
+import MenuDonoEnviada from './pages/menu-dono-enviada';
+import MenuDonoRevisao from './pages/menu-dono-revisao';
+import MenuDonoAprovada from './pages/menu-dono-aprovada';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -146,6 +151,12 @@ export default function App() {
     if (cleanPath === '/menu/checkout') return <MenuCheckout />;
     if (cleanPath === '/menu/enviado') return <MenuEnviado />;
     if (cleanPath === '/menu/acompanhar') return <MenuAcompanhar />;
+  if (cleanPath === '/menu/proposta') return <MenuProposta />;
+
+  if (cleanPath === '/menu/dono') return <MenuDonoWorkspace />;
+  if (cleanPath === '/menu/dono/enviada') return <MenuDonoEnviada />;
+  if (cleanPath === '/menu/dono/revisao') return <MenuDonoRevisao />;
+  if (cleanPath === '/menu/dono/aprovada') return <MenuDonoAprovada />;
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
     // All /app/* routes render the MainApp component with sidebar and modules
