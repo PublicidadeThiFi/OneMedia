@@ -25,6 +25,9 @@ import MenuPontosPlaceholder from './pages/menu-pontos';
 import MenuDetalhe from './pages/menu-detalhe';
 import MenuFaces from './pages/menu-faces';
 import MenuCarrinho from './pages/menu-carrinho';
+import MenuCheckout from './pages/menu-checkout';
+import MenuEnviado from './pages/menu-enviado';
+import MenuAcompanhar from './pages/menu-acompanhar';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -130,6 +133,9 @@ export default function App() {
     // /menu/detalhe?token=<publicToken>&id=<pointId>
     // /menu/faces?token=<publicToken>&id=<pointId>
     // /menu/carrinho?token=<publicToken>
+    // /menu/checkout?token=<publicToken>
+    // /menu/enviado?token=<publicToken>&rid=<requestId>
+    // /menu/acompanhar?token=<publicToken>&rid=<requestId>
     if (cleanPath === '/menu') return <MenuHome />;
     if (cleanPath === '/menu/uf') return <MenuSelectUF />;
     if (cleanPath === '/menu/cidades') return <MenuSelectCity />;
@@ -137,6 +143,9 @@ export default function App() {
     if (cleanPath === '/menu/detalhe') return <MenuDetalhe />;
     if (cleanPath === '/menu/faces') return <MenuFaces />;
     if (cleanPath === '/menu/carrinho') return <MenuCarrinho />;
+    if (cleanPath === '/menu/checkout') return <MenuCheckout />;
+    if (cleanPath === '/menu/enviado') return <MenuEnviado />;
+    if (cleanPath === '/menu/acompanhar') return <MenuAcompanhar />;
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
     // All /app/* routes render the MainApp component with sidebar and modules

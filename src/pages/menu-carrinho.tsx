@@ -277,9 +277,11 @@ export default function MenuCarrinho() {
               <Button onClick={() => navigate(backUrl)} variant="outline">
                 Adicionar mais pontos
               </Button>
-              <Button onClick={() => toast.info('Checkout/solicitação entra na Etapa 4.')}
-                className="gap-2">
-                Continuar (Etapa 4)
+              <Button
+                onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city })}`)}
+                className="gap-2"
+              >
+                Continuar
               </Button>
             </div>
           </>
