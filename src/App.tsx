@@ -9,6 +9,8 @@ import Home from './pages/index';
 import Cadastro from './pages/cadastro';
 import Login from './pages/login';
 import VerifyEmail from './pages/verify-email';
+import ForgotPassword from './pages/forgot-password';
+import ResetPassword from './pages/reset-password';
 import Dashboard from './pages/dashboard';
 import Contato from './pages/contato';
 import Termos from './pages/termos';
@@ -141,6 +143,10 @@ export default function App() {
         return <Planos />;
       case '/login':
         return <Login />;
+      case '/forgot-password':
+        return <ForgotPassword />;
+      case '/reset-password':
+        return <ResetPassword />;
       case '/verify-email':
         return <VerifyEmail />;
       case '/dashboard':
