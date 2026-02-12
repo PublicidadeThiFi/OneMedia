@@ -1091,8 +1091,30 @@ export default function Home() {
           <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-600">© 2026 OneMedia. Todos os direitos reservados.</p>
             <div className="flex gap-6 text-gray-600">
-              <a href="https://onemedia.com/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">Privacidade</a>
-              <a href="https://onemedia.com/termos" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 transition-colors">Termos</a>
+              {/*
+                Importante: essas páginas existem dentro do próprio SPA (/privacidade e /termos).
+                Usamos navigate() para evitar reload completo e também evitar abrir outro domínio.
+              */}
+              <a
+                href="/privacidade"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/privacidade');
+                }}
+                className="hover:text-blue-600 transition-colors"
+              >
+                Privacidade
+              </a>
+              <a
+                href="/termos"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/termos');
+                }}
+                className="hover:text-blue-600 transition-colors"
+              >
+                Termos
+              </a>
             </div>
           </div>
         </div>
