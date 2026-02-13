@@ -112,6 +112,7 @@ export default function App() {
     window.scrollTo(0, 0); // Scroll to top on navigation
   };
 
+  
   // Route component based on current path
   const renderRoute = () => {
     // Remove trailing slash and query params for matching
