@@ -36,18 +36,21 @@ function formatDateTimeBr(iso?: string | null): string {
 export default function MenuDonoRevisao() {
   const navigate = useNavigation();
 
-  const { token, rid } = useMemo(() => {
+  const { token, t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
     };
   }, []);
 
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
+
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const workspaceUrl = useMemo(() => `/menu/dono${buildQuery({ token, rid })}`, [token, rid]);
+  const workspaceUrl = useMemo(() => `/menu/dono${buildQuery(authQuery)}`, [authQuery]);
 
   const currentQuote: MenuQuoteVersionRecord | null = useMemo(() => {
     const quotes = Array.isArray(data?.quotes) ? data!.quotes! : [];
@@ -57,7 +60,7 @@ export default function MenuDonoRevisao() {
   }, [data]);
 
   const refresh = async () => {
-    const res = await fetchMenuRequest({ requestId: rid, token, view: 'owner' });
+    const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
     setData(res);
   };
 
@@ -66,7 +69,7 @@ export default function MenuDonoRevisao() {
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token, view: 'owner' });
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
@@ -79,7 +82,7 @@ export default function MenuDonoRevisao() {
     return () => {
       alive = false;
     };
-  }, [rid, token]);
+  }, [rid, token, t]);
 
   return (
     <div className="min-h-screen w-full bg-gray-50">

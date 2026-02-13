@@ -4,9 +4,14 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, Loader2, Copy, ExternalLink, FileText, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, ExternalLink, FileText, RefreshCw, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchMenuRequest, type MenuQuoteVersionRecord, type MenuRequestRecord } from '../lib/menuRequestApi';
+import {
+  fetchMenuRequest,
+  regenerateMenuLink,
+  type MenuQuoteVersionRecord,
+  type MenuRequestRecord,
+} from '../lib/menuRequestApi';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -36,20 +41,22 @@ function formatDateTimeBr(iso?: string | null): string {
 export default function MenuDonoEnviada() {
   const navigate = useNavigation();
 
-  const { token, rid } = useMemo(() => {
+  const { token, t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
     };
   }, []);
 
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
+
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const workspaceUrl = useMemo(() => `/menu/dono${buildQuery({ token, rid })}`, [token, rid]);
-  const acompanharUrl = useMemo(() => `/menu/acompanhar${buildQuery({ token, rid })}`, [token, rid]);
-  const propostaUrl = useMemo(() => `/menu/proposta${buildQuery({ token, rid })}`, [token, rid]);
+  const workspaceUrl = useMemo(() => `/menu/dono${buildQuery(authQuery)}`, [authQuery]);
 
   const currentQuote: MenuQuoteVersionRecord | null = useMemo(() => {
     const quotes = Array.isArray(data?.quotes) ? data!.quotes! : [];
@@ -59,7 +66,7 @@ export default function MenuDonoEnviada() {
   }, [data]);
 
   const refresh = async () => {
-    const res = await fetchMenuRequest({ requestId: rid, token, view: 'owner' });
+    const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
     setData(res);
   };
 
@@ -68,7 +75,7 @@ export default function MenuDonoEnviada() {
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token, view: 'owner' });
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
@@ -81,12 +88,18 @@ export default function MenuDonoEnviada() {
     return () => {
       alive = false;
     };
-  }, [rid, token]);
+  }, [rid, token, t]);
 
-  const full = (path: string) => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}${path}`;
-  };
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const full = (path: string) => `${origin}${path}`;
+
+  const clientT = data?.links?.client?.token || '';
+  const clientProposalUrl = clientT
+    ? `/menu/proposta?rid=${encodeURIComponent(rid)}&t=${encodeURIComponent(clientT)}`
+    : `/menu/proposta${buildQuery(authQuery)}`;
+  const clientTrackUrl = clientT
+    ? `/menu/acompanhar?rid=${encodeURIComponent(rid)}&t=${encodeURIComponent(clientT)}`
+    : `/menu/acompanhar${buildQuery(authQuery)}`;
 
   const copy = async (url: string) => {
     try {
@@ -94,6 +107,20 @@ export default function MenuDonoEnviada() {
       toast.success('Copiado');
     } catch {
       toast.error('Não foi possível copiar');
+    }
+  };
+
+  const onRegenerateClient = async () => {
+    try {
+      setIsRegenerating(true);
+      await regenerateMenuLink({ requestId: rid, aud: 'client', token, t });
+      await refresh();
+      toast.success('Link regenerado', { description: 'O link anterior foi invalidado e um novo foi gerado.' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Falha ao regenerar.';
+      toast.error('Não foi possível regenerar', { description: String(msg) });
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -142,7 +169,7 @@ export default function MenuDonoEnviada() {
                     <>
                       <div>Versão: <span className="font-semibold">v{currentQuote.version}</span></div>
                       <div className="mt-1">Enviada em: <span className="font-semibold">{formatDateTimeBr(currentQuote.createdAt)}</span></div>
-                      <div className="mt-1">Última abertura: <span className="font-semibold">{formatDateTimeBr(currentQuote.openedAt)}</span></div>
+                      <div className="mt-1">Última abertura (proposta): <span className="font-semibold">{formatDateTimeBr(currentQuote.openedAt)}</span></div>
                       <div className="mt-1">Status: <span className="font-semibold">{currentQuote.status}</span></div>
                     </>
                   ) : (
@@ -154,38 +181,56 @@ export default function MenuDonoEnviada() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                    <div className="text-xs text-gray-500">Link do cliente (proposta)</div>
-                    <div className="mt-2 flex gap-2">
-                      <Button className="gap-2" onClick={() => navigate(propostaUrl)}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs text-gray-500">Link do cliente (proposta)</div>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={onRegenerateClient} disabled={isRegenerating}>
+                        {isRegenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                        Regenerar
+                      </Button>
+                    </div>
+                    {data.links?.client && (
+                      <div className="mt-2 text-xs text-gray-600">
+                        <div>Aberta em: <span className="font-semibold">{formatDateTimeBr(data.links.client.openedAtLast)}</span></div>
+                        <div className="mt-0.5">Expira em: <span className="font-semibold">{formatDateTimeBr(data.links.client.expiresAt)}</span></div>
+                      </div>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <Button className="gap-2" onClick={() => navigate(clientProposalUrl)}>
                         <FileText className="h-4 w-4" />
                         Abrir
                       </Button>
-                      <Button variant="outline" className="gap-2" onClick={() => copy(full(propostaUrl))}>
+                      <Button variant="outline" className="gap-2" onClick={() => copy(full(clientProposalUrl))}>
                         <Copy className="h-4 w-4" />
                         Copiar
                       </Button>
                     </div>
-                    <div className="mt-2 text-xs text-gray-500 break-all">{full(propostaUrl)}</div>
+                    <div className="mt-2 text-xs text-gray-500 break-all">{full(clientProposalUrl)}</div>
                   </div>
 
                   <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
                     <div className="text-xs text-gray-500">Acompanhamento (timeline)</div>
-                    <div className="mt-2 flex gap-2">
-                      <Button variant="outline" className="gap-2" onClick={() => navigate(acompanharUrl)}>
+                    {data.links?.client && (
+                      <div className="mt-2 text-xs text-gray-600">
+                        <div>Aberta em: <span className="font-semibold">{formatDateTimeBr(data.links.client.openedAtLast)}</span></div>
+                        <div className="mt-0.5">Expira em: <span className="font-semibold">{formatDateTimeBr(data.links.client.expiresAt)}</span></div>
+                      </div>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <Button variant="outline" className="gap-2" onClick={() => navigate(clientTrackUrl)}>
                         <ExternalLink className="h-4 w-4" />
                         Abrir
                       </Button>
-                      <Button variant="outline" className="gap-2" onClick={() => copy(full(acompanharUrl))}>
+                      <Button variant="outline" className="gap-2" onClick={() => copy(full(clientTrackUrl))}>
                         <Copy className="h-4 w-4" />
                         Copiar
                       </Button>
                     </div>
-                    <div className="mt-2 text-xs text-gray-500 break-all">{full(acompanharUrl)}</div>
+                    <div className="mt-2 text-xs text-gray-500 break-all">{full(clientTrackUrl)}</div>
                   </div>
                 </div>
 
                 <div className="mt-6 text-xs text-gray-500">
-                  * Rastreamento básico do protótipo: marcamos "abertura" quando o cliente acessa a tela de proposta.
+                  * Etapa 6: links assinados com expiração + rastreio (aberto/expira) + regeneração.
                 </div>
               </>
             )}

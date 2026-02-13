@@ -19,10 +19,11 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 export default function MenuEnviado() {
   const navigate = useNavigation();
 
-  const { token, rid, uf, city } = useMemo(() => {
+  const { token, t, rid, uf, city } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
       uf: String(sp.get('uf') || '').trim().toUpperCase(),
       city: String(sp.get('city') || '').trim(),
@@ -31,9 +32,11 @@ export default function MenuEnviado() {
 
   const [copied, setCopied] = useState(false);
 
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
+
   const acompanhamentoUrl = useMemo(() => {
-    return `/menu/acompanhar${buildQuery({ token, rid })}`;
-  }, [token, rid]);
+    return `/menu/acompanhar${buildQuery(authQuery)}`;
+  }, [authQuery]);
 
   const fullAcompanhamentoUrl = useMemo(() => {
     // Best effort: use current origin to copy a fully qualified URL
@@ -52,7 +55,7 @@ export default function MenuEnviado() {
     }
   };
 
-  const backToMenu = `/menu/pontos${buildQuery({ token, uf, city })}`;
+  const backToMenu = token ? `/menu/pontos${buildQuery({ token, uf, city })}` : '/menu';
 
   return (
     <div className="min-h-screen w-full bg-gray-50">

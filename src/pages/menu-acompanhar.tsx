@@ -36,10 +36,11 @@ function formatDateTimeBr(iso?: string | null): string {
 export default function MenuAcompanhar() {
   const navigate = useNavigation();
 
-  const { token, rid } = useMemo(() => {
+  const { token, t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
     };
   }, []);
@@ -52,7 +53,7 @@ export default function MenuAcompanhar() {
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token });
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
@@ -65,15 +66,17 @@ export default function MenuAcompanhar() {
     return () => {
       alive = false;
     };
-  }, [rid, token]);
+  }, [rid, token, t]);
+
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
 
   const backToSent = useMemo(() => {
-    return `/menu/enviado${buildQuery({ token, rid })}`;
-  }, [token, rid]);
+    return `/menu/enviado${buildQuery(authQuery)}`;
+  }, [authQuery]);
 
   const propostaUrl = useMemo(() => {
-    return `/menu/proposta${buildQuery({ token, rid })}`;
-  }, [token, rid]);
+    return `/menu/proposta${buildQuery(authQuery)}`;
+  }, [authQuery]);
 
   const ownerUrl = useMemo(() => {
     return `/menu/dono${buildQuery({ token, rid })}`;
@@ -195,10 +198,12 @@ export default function MenuAcompanhar() {
                         <FileText className="h-4 w-4" />
                         Ver proposta
                       </Button>
-                      <Button variant="outline" className="gap-2" onClick={() => navigate(ownerUrl)}>
-                        <UserCog className="h-4 w-4" />
-                        Sou o responsável
-                      </Button>
+                      {token ? (
+                        <Button variant="outline" className="gap-2" onClick={() => navigate(ownerUrl)}>
+                          <UserCog className="h-4 w-4" />
+                          Sou o responsável
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
 

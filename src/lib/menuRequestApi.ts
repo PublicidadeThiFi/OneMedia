@@ -45,6 +45,24 @@ export type MenuRequestRecord = {
   events?: MenuEvent[];
   quotes?: MenuQuoteVersionRecord[];
   currentQuoteVersion?: number | null;
+
+  // Stage 6 — links assinados + rastreio + expiração
+  links?: {
+    client: {
+      token?: string;
+      expiresAt: string;
+      openedAtFirst?: string | null;
+      openedAtLast?: string | null;
+      regeneratedAt?: string | null;
+    };
+    owner: {
+      token?: string;
+      expiresAt: string;
+      openedAtFirst?: string | null;
+      openedAtLast?: string | null;
+      regeneratedAt?: string | null;
+    };
+  };
 };
 
 export type MenuEventType =
@@ -109,44 +127,86 @@ export async function createMenuRequest(input: CreateMenuRequestInput): Promise<
   return resp.data;
 }
 
-export async function fetchMenuRequest(params: { requestId: string; token: string; view?: 'client' | 'owner' }): Promise<MenuRequestRecord> {
+export async function fetchMenuRequest(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  view?: 'client' | 'owner';
+}): Promise<MenuRequestRecord> {
   const requestId = String(params.requestId || '').trim();
   const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
   const view = params.view;
+
+  const query: Record<string, string | undefined> = { view };
+  if (t) query.t = t;
+  else query.token = token;
 
   const resp = await publicApiClient.get<MenuRequestRecord>(
     `/public/menu/request/${encodeURIComponent(requestId)}`,
-    { params: { token, view } },
+    { params: query },
   );
   return resp.data;
 }
 
-export async function sendMenuQuote(params: { requestId: string; token: string; draft: MenuQuoteDraft }): Promise<{ version: number; totals: MenuQuoteTotals }> {
+export async function sendMenuQuote(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  draft: MenuQuoteDraft;
+}): Promise<{ version: number; totals: MenuQuoteTotals }> {
   const requestId = String(params.requestId || '').trim();
   const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
   const resp = await publicApiClient.post<{ version: number; totals: MenuQuoteTotals }>(
     `/public/menu/quote/${encodeURIComponent(requestId)}/send`,
-    { token, draft: params.draft },
+    { token: token || undefined, t: t || undefined, draft: params.draft },
   );
   return resp.data;
 }
 
-export async function rejectMenuQuote(params: { requestId: string; token: string; reason?: string }): Promise<{ ok: true }> {
+export async function rejectMenuQuote(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  reason?: string;
+}): Promise<{ ok: true }> {
   const requestId = String(params.requestId || '').trim();
   const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
   const resp = await publicApiClient.post<{ ok: true }>(
     `/public/menu/quote/${encodeURIComponent(requestId)}/reject`,
-    { token, reason: params.reason },
+    { token: token || undefined, t: t || undefined, reason: params.reason },
   );
   return resp.data;
 }
 
-export async function approveMenuQuote(params: { requestId: string; token: string }): Promise<{ ok: true }> {
+export async function approveMenuQuote(params: { requestId: string; token?: string; t?: string }): Promise<{ ok: true }> {
   const requestId = String(params.requestId || '').trim();
   const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
   const resp = await publicApiClient.post<{ ok: true }>(
     `/public/menu/quote/${encodeURIComponent(requestId)}/approve`,
-    { token },
+    { token: token || undefined, t: t || undefined },
+  );
+  return resp.data;
+}
+
+export async function regenerateMenuLink(params: {
+  requestId: string;
+  aud: 'client' | 'owner';
+  token?: string;
+  t?: string;
+}): Promise<{ aud: 'client' | 'owner'; token: string; expiresAt: string }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const aud = params.aud;
+
+  const resp = await publicApiClient.post<{ aud: 'client' | 'owner'; token: string; expiresAt: string }>(
+    `/public/menu/link/${encodeURIComponent(requestId)}/regenerate`,
+    { token: token || undefined, t: t || undefined },
+    { params: { aud } },
   );
   return resp.data;
 }

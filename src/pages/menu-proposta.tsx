@@ -52,10 +52,11 @@ function formatDateTimeBr(iso?: string | null): string {
 export default function MenuProposta() {
   const navigate = useNavigation();
 
-  const { token, rid } = useMemo(() => {
+  const { token, t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
     };
   }, []);
@@ -67,7 +68,8 @@ export default function MenuProposta() {
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
-  const backUrl = useMemo(() => `/menu/acompanhar${buildQuery({ token, rid })}`, [token, rid]);
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
+  const backUrl = useMemo(() => `/menu/acompanhar${buildQuery(authQuery)}`, [authQuery]);
 
   const currentQuote: MenuQuoteVersionRecord | null = useMemo(() => {
     const quotes = Array.isArray(data?.quotes) ? data!.quotes! : [];
@@ -77,7 +79,7 @@ export default function MenuProposta() {
   }, [data]);
 
   const refresh = async () => {
-    const res = await fetchMenuRequest({ requestId: rid, token, view: 'client' });
+    const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
     setData(res);
   };
 
@@ -86,7 +88,7 @@ export default function MenuProposta() {
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token, view: 'client' });
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
@@ -99,7 +101,7 @@ export default function MenuProposta() {
     return () => {
       alive = false;
     };
-  }, [rid, token]);
+  }, [rid, token, t]);
 
   const canApprove = Boolean(currentQuote) && currentQuote?.status !== 'APPROVED' && String(data?.status || '').toUpperCase() !== 'APPROVED';
   const canReject = Boolean(currentQuote) && currentQuote?.status === 'SENT' && String(data?.status || '').toUpperCase() !== 'APPROVED';
@@ -107,7 +109,7 @@ export default function MenuProposta() {
   const onApprove = async () => {
     try {
       setIsActing(true);
-      await approveMenuQuote({ requestId: rid, token });
+      await approveMenuQuote({ requestId: rid, token, t });
       toast.success('Aprovada!', { description: 'Registramos sua aprovação (protótipo).' });
       await refresh();
       navigate(backUrl);
@@ -122,7 +124,7 @@ export default function MenuProposta() {
   const onReject = async () => {
     try {
       setIsActing(true);
-      await rejectMenuQuote({ requestId: rid, token, reason: rejectReason });
+      await rejectMenuQuote({ requestId: rid, token, t, reason: rejectReason });
       toast.success('Revisão solicitada', { description: 'Enviamos o pedido de revisão ao responsável (protótipo).' });
       setShowReject(false);
       setRejectReason('');

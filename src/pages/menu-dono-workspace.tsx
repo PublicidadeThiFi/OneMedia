@@ -6,10 +6,11 @@ import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   fetchMenuRequest,
+  regenerateMenuLink,
   sendMenuQuote,
   type MenuQuoteDraft,
   type MenuQuoteServiceLine,
@@ -95,10 +96,11 @@ function computePreviewTotals(record: MenuRequestRecord | null, draft: MenuQuote
 export default function MenuDonoWorkspace() {
   const navigate = useNavigation();
 
-  const { token, rid } = useMemo(() => {
+  const { token, t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
     };
   }, []);
@@ -106,6 +108,7 @@ export default function MenuDonoWorkspace() {
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isRegeneratingClient, setIsRegeneratingClient] = useState(false);
 
   const [draft, setDraft] = useState<MenuQuoteDraft>({
     message: '',
@@ -118,11 +121,27 @@ export default function MenuDonoWorkspace() {
   const [servicePick, setServicePick] = useState<string>(MOCK_SERVICES[0]?.name || '');
   const [serviceValue, setServiceValue] = useState<number>(MOCK_SERVICES[0]?.defaultValue || 0);
 
-  const backUrl = useMemo(() => `/menu/acompanhar${buildQuery({ token, rid })}`, [token, rid]);
-  const propostaUrl = useMemo(() => `/menu/proposta${buildQuery({ token, rid })}`, [token, rid]);
-  const o4Url = useMemo(() => `/menu/dono/enviada${buildQuery({ token, rid })}`, [token, rid]);
-  const o5Url = useMemo(() => `/menu/dono/revisao${buildQuery({ token, rid })}`, [token, rid]);
-  const o6Url = useMemo(() => `/menu/dono/aprovada${buildQuery({ token, rid })}`, [token, rid]);
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
+
+  const clientToken = data?.links?.client?.token || '';
+  const ownerToken = data?.links?.owner?.token || '';
+  const backUrl = useMemo(() => {
+    if (clientToken) return `/menu/acompanhar?rid=${encodeURIComponent(rid)}&t=${encodeURIComponent(clientToken)}`;
+    return `/menu/acompanhar${buildQuery(authQuery)}`;
+  }, [clientToken, rid, authQuery]);
+
+  const propostaUrl = useMemo(() => {
+    if (clientToken) return `/menu/proposta?rid=${encodeURIComponent(rid)}&t=${encodeURIComponent(clientToken)}`;
+    return `/menu/proposta${buildQuery(authQuery)}`;
+  }, [clientToken, rid, authQuery]);
+  const o4Url = useMemo(() => `/menu/dono/enviada${buildQuery(authQuery)}`, [authQuery]);
+  const o5Url = useMemo(() => `/menu/dono/revisao${buildQuery(authQuery)}`, [authQuery]);
+  const o6Url = useMemo(() => `/menu/dono/aprovada${buildQuery(authQuery)}`, [authQuery]);
+
+  const ownerWorkspaceLink = useMemo(() => {
+    if (ownerToken) return `/menu/dono?rid=${encodeURIComponent(rid)}&t=${encodeURIComponent(ownerToken)}`;
+    return `/menu/dono${buildQuery(authQuery)}`;
+  }, [ownerToken, rid, authQuery]);
 
   const currentQuote: MenuQuoteVersionRecord | null = useMemo(() => {
     const quotes = Array.isArray(data?.quotes) ? data!.quotes! : [];
@@ -141,7 +160,7 @@ export default function MenuDonoWorkspace() {
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token, view: 'owner' });
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
 
@@ -168,7 +187,38 @@ export default function MenuDonoWorkspace() {
     return () => {
       alive = false;
     };
-  }, [rid, token]);
+  }, [rid, token, t]);
+
+  const refresh = async () => {
+    const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
+    setData(res);
+  };
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const full = (path: string) => `${origin}${path}`;
+
+  const copy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Copiado');
+    } catch {
+      toast.error('Não foi possível copiar');
+    }
+  };
+
+  const onRegenerateClient = async () => {
+    try {
+      setIsRegeneratingClient(true);
+      await regenerateMenuLink({ requestId: rid, aud: 'client', token, t });
+      await refresh();
+      toast.success('Link do cliente regenerado', { description: 'O link anterior foi invalidado.' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Falha ao regenerar.';
+      toast.error('Não foi possível regenerar', { description: String(msg) });
+    } finally {
+      setIsRegeneratingClient(false);
+    }
+  };
 
   const onPickService = (name: string) => {
     setServicePick(name);
@@ -199,7 +249,7 @@ export default function MenuDonoWorkspace() {
     try {
       if (isLocked) return;
       setIsSending(true);
-      await sendMenuQuote({ requestId: rid, token, draft });
+      await sendMenuQuote({ requestId: rid, token, t, draft });
       toast.success('Proposta enviada', { description: 'Versão criada e vinculada ao request (protótipo).' });
       navigate(o4Url);
     } catch (err: any) {
@@ -255,6 +305,62 @@ export default function MenuDonoWorkspace() {
                     Atualizado em <span className="font-semibold">{formatDateTimeBr(data.updatedAt || data.createdAt)}</span>
                   </div>
                 </div>
+
+                {data.links && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-xs text-gray-500">Link do cliente (assinado)</div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={onRegenerateClient}
+                          disabled={isRegeneratingClient}
+                        >
+                          {isRegeneratingClient ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                          Regenerar
+                        </Button>
+                      </div>
+
+                      <div className="mt-2 text-xs text-gray-600">
+                        <div>Aberta em: <span className="font-semibold">{formatDateTimeBr(data.links?.client?.openedAtLast)}</span></div>
+                        <div className="mt-0.5">Expira em: <span className="font-semibold">{formatDateTimeBr(data.links?.client?.expiresAt)}</span></div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => copy(full(backUrl))}>
+                          <Copy className="h-4 w-4" />
+                          Copiar acompanhamento
+                        </Button>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => copy(full(propostaUrl))}>
+                          <Copy className="h-4 w-4" />
+                          Copiar proposta
+                        </Button>
+                      </div>
+
+                      <div className="mt-2 text-xs text-gray-500 break-all">{full(propostaUrl)}</div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                      <div className="text-xs text-gray-500">Link do dono (workspace)</div>
+
+                      <div className="mt-2 text-xs text-gray-600">
+                        <div>Aberta em: <span className="font-semibold">{formatDateTimeBr(data.links?.owner?.openedAtLast)}</span></div>
+                        <div className="mt-0.5">Expira em: <span className="font-semibold">{formatDateTimeBr(data.links?.owner?.expiresAt)}</span></div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => copy(full(ownerWorkspaceLink))}>
+                          <Copy className="h-4 w-4" />
+                          Copiar link
+                        </Button>
+                      </div>
+
+                      <div className="mt-2 text-xs text-gray-500 break-all">{full(ownerWorkspaceLink)}</div>
+                    </div>
+                  </div>
+                )}
 
                 {isLocked && (
                   <div className="mt-4 rounded-xl border border-gray-900 bg-gray-900 px-4 py-3 text-sm text-white">

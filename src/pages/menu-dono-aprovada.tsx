@@ -45,19 +45,21 @@ function formatDateTimeBr(iso?: string | null): string {
 export default function MenuDonoAprovada() {
   const navigate = useNavigation();
 
-  const { token, rid } = useMemo(() => {
+  const { token, t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || sp.get('t') || '',
+      token: sp.get('token') || '',
+      t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
     };
   }, []);
 
+  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
+
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const workspaceUrl = useMemo(() => `/menu/dono${buildQuery({ token, rid })}`, [token, rid]);
-  const propostaUrl = useMemo(() => `/menu/proposta${buildQuery({ token, rid })}`, [token, rid]);
+  const workspaceUrl = useMemo(() => `/menu/dono${buildQuery(authQuery)}`, [authQuery]);
 
   const currentQuote: MenuQuoteVersionRecord | null = useMemo(() => {
     const quotes = Array.isArray(data?.quotes) ? data!.quotes! : [];
@@ -66,12 +68,18 @@ export default function MenuDonoAprovada() {
     return quotes.find((q) => q.version === v) || null;
   }, [data]);
 
+  const clientT = data?.links?.client?.token || '';
+  const propostaUrl = useMemo(() => {
+    if (clientT) return `/menu/proposta?rid=${encodeURIComponent(rid)}&t=${encodeURIComponent(clientT)}`;
+    return `/menu/proposta${buildQuery(authQuery)}`;
+  }, [clientT, rid, authQuery]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token, view: 'owner' });
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
@@ -84,7 +92,7 @@ export default function MenuDonoAprovada() {
     return () => {
       alive = false;
     };
-  }, [rid, token]);
+  }, [rid, token, t]);
 
   return (
     <div className="min-h-screen w-full bg-gray-50">
