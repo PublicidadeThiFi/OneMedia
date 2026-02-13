@@ -168,8 +168,8 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
         <button
           type="button"
           onClick={() => {
-            //openWaitlist('privacidade:cta:comecar-teste-gratis');
-            navigate('/cadastro');
+            openWaitlist('privacidade:cta:comecar-teste-gratis');
+            //navigate('/cadastro');
           }}
           className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
           //disabled={isLoading}
