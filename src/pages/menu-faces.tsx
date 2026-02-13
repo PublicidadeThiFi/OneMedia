@@ -1,0 +1,231 @@
+import { useMemo, useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
+import { Button } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Checkbox } from '../components/ui/checkbox';
+import { Separator } from '../components/ui/separator';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
+import { toast } from 'sonner';
+import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
+import { PublicMediaKitPoint } from '../lib/publicMediaKit';
+import { addToCart, getCartCount, formatAddress } from '../lib/menuCart';
+import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { MediaUnit } from '../types';
+
+function buildQuery(params: Record<string, string | undefined | null>) {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    const val = String(v ?? '').trim();
+    if (val) sp.set(k, val);
+  });
+  const qs = sp.toString();
+  return qs ? `?${qs}` : '';
+}
+
+function formatCurrencyBRL(value?: number | null): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+export default function MenuFaces() {
+  const navigate = useNavigation();
+
+  const { token, pointId, uf, city } = useMemo(() => {
+    const sp = new URLSearchParams(window.location.search);
+    return {
+      token: sp.get('token') || sp.get('t') || '',
+      pointId: sp.get('id') || sp.get('pointId') || '',
+      uf: String(sp.get('uf') || '').trim().toUpperCase(),
+      city: String(sp.get('city') || '').trim(),
+    };
+  }, []);
+
+  const { data, loading, error } = usePublicMediaKit({ token });
+
+  const point: PublicMediaKitPoint | null = useMemo(() => {
+    const points = data?.points ?? [];
+    return points.find((p) => String(p.id) === String(pointId)) ?? null;
+  }, [data?.points, pointId]);
+
+  const units: MediaUnit[] = useMemo(() => {
+    const list = Array.isArray(point?.units) ? point!.units!.filter((u) => u?.isActive !== false) : [];
+    return list;
+  }, [point]);
+
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
+
+  const backUrl = useMemo(() => `/menu/detalhe${buildQuery({ token, id: pointId, uf, city })}`, [token, pointId, uf, city]);
+
+  const onToggle = (unitId: string, next: boolean) => {
+    setSelected((prev) => ({ ...prev, [unitId]: next }));
+  };
+
+  const onAddSelected = () => {
+    if (!point) return;
+    const ids = Object.keys(selected).filter((k) => selected[k]);
+    if (ids.length === 0) {
+      toast.info('Selecione pelo menos uma face/tela.');
+      return;
+    }
+
+    let addedCount = 0;
+    ids.forEach((id) => {
+      const unit = units.find((u) => u.id === id) ?? null;
+      const res = addToCart({ point, unit, durationDays: 30 });
+      if (res.added) addedCount += 1;
+    });
+
+    if (addedCount > 0) {
+      toast.success('Adicionado ao carrinho', {
+        description: `${addedCount} item(ns) adicionado(s).`,
+      });
+    } else {
+      toast.info('Esses itens já estavam no carrinho.');
+    }
+
+    navigate(`/menu/carrinho${buildQuery({ token, uf, city })}`);
+  };
+
+  const cartCount = useMemo(() => getCartCount(), [selectedCount, pointId]);
+
+  return (
+    <div className="min-h-screen w-full bg-gray-50">
+      <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
+          <div className="text-sm text-gray-600">Seleção de faces/telas</div>
+
+          <div className="ml-auto flex items-center gap-2">
+            {cartCount > 0 && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city })}`)}
+              >
+                <ShoppingCart className="h-4 w-4" />
+                Ver carrinho ({cartCount})
+              </Button>
+            )}
+            <Button variant="ghost" className="gap-2" onClick={() => navigate(backUrl)}>
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
+          </div>
+        </div>
+
+        {error && (
+          <Card className="mt-5 border-amber-200 bg-amber-50">
+            <CardContent className="py-4">
+              <div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div>
+              <div className="mt-1 text-sm text-amber-800">{error}</div>
+            </CardContent>
+          </Card>
+        )}
+
+        {loading && (
+          <Card className="mt-5 animate-pulse">
+            <CardContent className="py-6">
+              <div className="h-5 w-56 bg-gray-200 rounded" />
+              <div className="mt-3 h-3 w-80 bg-gray-200 rounded" />
+              <div className="mt-6 h-40 w-full bg-gray-200 rounded" />
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !error && !point && (
+          <Card className="mt-5">
+            <CardContent className="py-6">
+              <div className="text-sm font-semibold text-gray-900">Ponto não encontrado</div>
+              <div className="mt-1 text-sm text-gray-600">Volte e selecione outro ponto.</div>
+              <div className="mt-4">
+                <Button variant="outline" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city })}`)}>
+                  Voltar para a lista
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {point && (
+          <>
+            <Card className="mt-5">
+              <CardContent className="py-6">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-lg font-bold text-gray-900">{point.name}</div>
+                    <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado'}</div>
+                    <div className="mt-3 text-xs text-gray-600">
+                      Selecione as faces/telas que deseja incluir no carrinho.
+                    </div>
+                  </div>
+
+                  <Button className="gap-2" onClick={onAddSelected} disabled={units.length === 0}>
+                    <ShoppingCart className="h-4 w-4" />
+                    Adicionar selecionadas ({selectedCount})
+                  </Button>
+                </div>
+
+                <Separator className="my-5" />
+
+                <div className="space-y-3">
+                  {units.length > 0 ? (
+                    units.map((u) => {
+                      const checked = !!selected[u.id];
+                      const priceMonth = u.priceMonth ?? point.basePriceMonth;
+                      const priceWeek = u.priceWeek ?? point.basePriceWeek;
+                      return (
+                        <div key={u.id} className="rounded-xl border border-gray-200 p-3">
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v: boolean | 'indeterminate') => onToggle(u.id, v === true)}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-900">
+                                {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
+                              </div>
+                              <div className="mt-1 text-xs text-gray-600">
+                                {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
+                                {u.orientation ? ` • ${u.orientation}` : ''}
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
+                                <div>
+                                  <span className="text-gray-500">Mensal:</span>{' '}
+                                  <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-500">Semanal:</span>{' '}
+                                  <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="h-20 w-28 overflow-hidden rounded-lg bg-gray-100">
+                              <ImageWithFallback
+                                src={(u.imageUrl || point.mainImageUrl || '') as string}
+                                alt={u.label}
+                                className="h-full w-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-gray-600">Nenhuma face/tela ativa cadastrada neste ponto.</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

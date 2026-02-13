@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, Component, ReactNode } from 'react';
+import { useState, useEffect, Component, ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
@@ -18,18 +18,33 @@ import Privacidade from './pages/privacidade';
 import Planos from './pages/planos';
 import PropostaPublica from './pages/proposta-publica';
 import MidiaKitPublico from './pages/midia-kit-publico';
+import MenuHome from './pages/menu';
+import MenuSelectUF from './pages/menu-uf';
+import MenuSelectCity from './pages/menu-cidades';
+import MenuPontosPlaceholder from './pages/menu-pontos';
+import MenuDetalhe from './pages/menu-detalhe';
+import MenuFaces from './pages/menu-faces';
+import MenuCarrinho from './pages/menu-carrinho';
+import MenuCheckout from './pages/menu-checkout';
+import MenuEnviado from './pages/menu-enviado';
+import MenuAcompanhar from './pages/menu-acompanhar';
+import MenuProposta from './pages/menu-proposta';
+import MenuDonoWorkspace from './pages/menu-dono-workspace';
+import MenuDonoEnviada from './pages/menu-dono-enviada';
+import MenuDonoRevisao from './pages/menu-dono-revisao';
+import MenuDonoAprovada from './pages/menu-dono-aprovada';
 
 // Internal App
 import { MainApp } from './components/MainApp';
 
+import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
+
+// Backward-compatible re-exports (many components import these from "../App")
+export { useNavigation } from './contexts/NavigationContext';
+export type { NavigateFunction } from './contexts/NavigationContext';
+
 // Re-export Page type for components
 export type { Page } from './components/MainApp';
-
-// Navigation Context
-type NavigateFunction = (path: string) => void;
-const NavigationContext = createContext<NavigateFunction>(() => { });
-
-export const useNavigation = () => useContext(NavigationContext);
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }>{
   state = { hasError: false, message: '' };
@@ -114,6 +129,34 @@ export default function App() {
     if (cleanPath === '/mk') {
       return <MidiaKitPublico />;
     }
+
+    // PUBLIC MENU (CARDÁPIO) ROUTES (prototype)
+    // /menu?token=<publicToken>
+    // /menu/uf?token=<publicToken>
+    // /menu/cidades?token=<publicToken>&uf=XX
+    // /menu/pontos?token=<publicToken>&uf=XX&city=YYY
+    // /menu/detalhe?token=<publicToken>&id=<pointId>
+    // /menu/faces?token=<publicToken>&id=<pointId>
+    // /menu/carrinho?token=<publicToken>
+    // /menu/checkout?token=<publicToken>
+    // /menu/enviado?token=<publicToken>&rid=<requestId>
+    // /menu/acompanhar?token=<publicToken>&rid=<requestId>
+    if (cleanPath === '/menu') return <MenuHome />;
+    if (cleanPath === '/menu/uf') return <MenuSelectUF />;
+    if (cleanPath === '/menu/cidades') return <MenuSelectCity />;
+    if (cleanPath === '/menu/pontos') return <MenuPontosPlaceholder />;
+    if (cleanPath === '/menu/detalhe') return <MenuDetalhe />;
+    if (cleanPath === '/menu/faces') return <MenuFaces />;
+    if (cleanPath === '/menu/carrinho') return <MenuCarrinho />;
+    if (cleanPath === '/menu/checkout') return <MenuCheckout />;
+    if (cleanPath === '/menu/enviado') return <MenuEnviado />;
+    if (cleanPath === '/menu/acompanhar') return <MenuAcompanhar />;
+  if (cleanPath === '/menu/proposta') return <MenuProposta />;
+
+  if (cleanPath === '/menu/dono') return <MenuDonoWorkspace />;
+  if (cleanPath === '/menu/dono/enviada') return <MenuDonoEnviada />;
+  if (cleanPath === '/menu/dono/revisao') return <MenuDonoRevisao />;
+  if (cleanPath === '/menu/dono/aprovada') return <MenuDonoAprovada />;
 
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
     // All /app/* routes render the MainApp component with sidebar and modules
