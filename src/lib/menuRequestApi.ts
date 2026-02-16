@@ -79,17 +79,24 @@ export type MenuEvent = {
   meta?: Record<string, any>;
 };
 
+export type MenuQuoteDiscountApplyTo = 'SERVICES' | 'BASE' | 'ALL';
+
 export type MenuQuoteServiceLine = {
   name: string;
   value: number;
+  discountPercent?: number | null;
+  discountFixed?: number | null;
 };
 
 export type MenuQuoteDraft = {
   message?: string | null;
   services?: MenuQuoteServiceLine[];
   manualServiceValue?: number | null;
+
+  // Desconto global (opcional)
   discountPercent?: number | null;
   discountFixed?: number | null;
+  discountApplyTo?: MenuQuoteDiscountApplyTo | null;
 };
 
 export type MenuQuoteTotals = {

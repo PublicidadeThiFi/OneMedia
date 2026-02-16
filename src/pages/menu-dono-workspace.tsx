@@ -90,18 +90,37 @@ function computeBase(items: any[]): number {
 
 function computePreviewTotals(record: MenuRequestRecord | null, draft: MenuQuoteDraft) {
   const base = computeBase(record?.items || []);
-  const services = Number(
-    (
-      (draft.services || []).reduce((acc, s) => acc + Number(s.value || 0), 0) +
-      Number(draft.manualServiceValue || 0)
-    ).toFixed(2),
-  );
-  const subtotal = base + services;
+
+  const manual = Math.max(0, Number(draft.manualServiceValue || 0));
+  const serviceLines = Array.isArray(draft.services) ? draft.services : [];
+  const servicesRaw = Number((serviceLines.reduce((acc, s) => acc + Number(s.value || 0), 0) + manual).toFixed(2));
+
+  // Desconto por linha (serviços)
+  let servicesLineDiscount = 0;
+  for (const s of serviceLines) {
+    const value = Math.max(0, Number(s.value || 0));
+    if (value <= 0) continue;
+    const pct = Math.max(0, Number((s as any)?.discountPercent || 0));
+    const fixed = Math.max(0, Number((s as any)?.discountFixed || 0));
+    const d = Math.min(value, value * (pct / 100) + fixed);
+    servicesLineDiscount += d;
+  }
+  servicesLineDiscount = Number(servicesLineDiscount.toFixed(2));
+  const servicesNet = Number(Math.max(0, servicesRaw - servicesLineDiscount).toFixed(2));
+
+  const applyToRaw = String((draft as any)?.discountApplyTo || '').trim().toUpperCase();
+  const applyTo = applyToRaw === 'BASE' ? 'BASE' : applyToRaw === 'SERVICES' ? 'SERVICES' : 'ALL';
+
   const pct = Math.max(0, Number(draft.discountPercent || 0));
   const fixed = Math.max(0, Number(draft.discountFixed || 0));
-  const discount = Number(Math.min(subtotal, subtotal * (pct / 100) + fixed).toFixed(2));
-  const total = Number(Math.max(0, subtotal - discount).toFixed(2));
-  return { base, services, discount, total };
+
+  const globalBase = applyTo === 'BASE' ? base : applyTo === 'SERVICES' ? servicesNet : base + servicesNet;
+  const globalDiscount = Number(Math.min(globalBase, globalBase * (pct / 100) + fixed).toFixed(2));
+
+  const discount = Number((servicesLineDiscount + globalDiscount).toFixed(2));
+  const total = Number(Math.max(0, base + servicesRaw - discount).toFixed(2));
+
+  return { base, services: servicesRaw, discount, total, servicesLineDiscount, globalDiscount, applyTo };
 }
 
 export default function MenuDonoWorkspace() {
@@ -127,6 +146,7 @@ export default function MenuDonoWorkspace() {
     manualServiceValue: null,
     discountPercent: null,
     discountFixed: null,
+    discountApplyTo: 'ALL',
   });
 
   const [servicePick, setServicePick] = useState<string>(MOCK_SERVICES[0]?.name || '');
@@ -182,10 +202,18 @@ export default function MenuDonoWorkspace() {
         if (last?.draft) {
           setDraft({
             message: last.draft.message || '',
-            services: Array.isArray(last.draft.services) ? last.draft.services : [],
+            services: Array.isArray(last.draft.services)
+              ? last.draft.services.map((s: any) => ({
+                  name: s?.name,
+                  value: s?.value,
+                  discountPercent: s?.discountPercent ?? null,
+                  discountFixed: s?.discountFixed ?? null,
+                }))
+              : [],
             manualServiceValue: last.draft.manualServiceValue ?? null,
             discountPercent: last.draft.discountPercent ?? null,
             discountFixed: last.draft.discountFixed ?? null,
+            discountApplyTo: (last.draft as any)?.discountApplyTo ?? 'ALL',
           });
         }
       } catch (err: any) {
@@ -242,7 +270,7 @@ export default function MenuDonoWorkspace() {
     const value = Number(serviceValue || 0);
     if (!name || !Number.isFinite(value) || value <= 0) return;
 
-    const line: MenuQuoteServiceLine = { name, value };
+    const line: MenuQuoteServiceLine = { name, value, discountPercent: null, discountFixed: null };
     setDraft((d) => ({
       ...d,
       services: [...(d.services || []), line],
@@ -255,6 +283,14 @@ export default function MenuDonoWorkspace() {
       services: (d.services || []).filter((_, i) => i !== idx),
     }));
   };
+
+  const updateServiceLine = (idx: number, patch: Partial<MenuQuoteServiceLine>) => {
+    setDraft((d) => ({
+      ...d,
+      services: (d.services || []).map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+    }));
+  };
+
 
   const onSend = async () => {
     try {
@@ -480,15 +516,59 @@ export default function MenuDonoWorkspace() {
 
                       {(draft.services || []).length > 0 && (
                         <div className="mt-3 space-y-2">
-                          {(draft.services || []).map((s, idx) => (
-                            <div key={`${s.name}-${idx}`} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
-                              <div className="text-sm text-gray-900">{s.name}</div>
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(s.value)}</div>
-                                <Button variant="ghost" size="sm" onClick={() => removeServiceLine(idx)} disabled={isLocked}>Remover</Button>
+                          {(draft.services || []).map((s, idx) => {
+                            const value = Math.max(0, Number(s?.value || 0));
+                            const dp = Math.max(0, Number((s as any)?.discountPercent || 0));
+                            const df = Math.max(0, Number((s as any)?.discountFixed || 0));
+                            const lineDiscount = Number(Math.min(value, value * (dp / 100) + df).toFixed(2));
+                            const hasLineDiscount = lineDiscount > 0;
+
+                            return (
+                              <div key={`${s.name}-${idx}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm text-gray-900">{s.name}</div>
+
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <div className="text-xs text-gray-500">Desconto do serviço (opcional)</div>
+
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        className="h-9 w-20"
+                                        value={(s as any)?.discountPercent == null ? '' : String((s as any)?.discountPercent)}
+                                        onChange={(e) =>
+                                          updateServiceLine(idx, { discountPercent: e.target.value ? Number(e.target.value) : null })
+                                        }
+                                        placeholder="%"
+                                        disabled={isLocked}
+                                      />
+                                      <Input
+                                        type="number"
+                                        className="h-9 w-24"
+                                        value={(s as any)?.discountFixed == null ? '' : String((s as any)?.discountFixed)}
+                                        onChange={(e) =>
+                                          updateServiceLine(idx, { discountFixed: e.target.value ? Number(e.target.value) : null })
+                                        }
+                                        placeholder="R$"
+                                        disabled={isLocked}
+                                      />
+                                    </div>
+
+                                    {hasLineDiscount && (
+                                      <div className="text-xs text-gray-500">
+                                        (- {formatMoneyBr(lineDiscount)})
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between sm:justify-end gap-3">
+                                  <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(s.value)}</div>
+                                  <Button variant="ghost" size="sm" onClick={() => removeServiceLine(idx)} disabled={isLocked}>Remover</Button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
 
@@ -509,9 +589,22 @@ export default function MenuDonoWorkspace() {
                       <Separator className="my-4" />
 
                       <div className="text-sm font-semibold text-gray-900">Descontos</div>
-                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
-                          <div className="text-xs text-gray-500">% (sobre subtotal)</div>
+                          <div className="text-xs text-gray-500">Aplicar em</div>
+                          <select
+                            className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                            value={String((draft as any)?.discountApplyTo || 'ALL')}
+                            onChange={(e) => setDraft((d) => ({ ...d, discountApplyTo: e.target.value as any }))}
+                            disabled={isLocked}
+                          >
+                            <option value="ALL">Tudo (base + serviços)</option>
+                            <option value="BASE">Base (pontos/faces)</option>
+                            <option value="SERVICES">Serviços</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500">% (sobre escopo)</div>
                           <Input
                             type="number"
                             value={draft.discountPercent == null ? '' : String(draft.discountPercent)}
@@ -545,8 +638,18 @@ export default function MenuDonoWorkspace() {
                           <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.services)}</div>
                         </div>
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
-                          <div className="text-xs text-gray-500">Desconto</div>
+                          <div className="text-xs text-gray-500">Descontos</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
+                          <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
+                            {previewTotals.servicesLineDiscount > 0 && (
+                              <div>Serviços: - {formatMoneyBr(previewTotals.servicesLineDiscount)}</div>
+                            )}
+                            {previewTotals.globalDiscount > 0 && (
+                              <div>
+                                Global ({previewTotals.applyTo === 'BASE' ? 'Base' : previewTotals.applyTo === 'SERVICES' ? 'Serviços' : 'Tudo'}): - {formatMoneyBr(previewTotals.globalDiscount)}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2">
                           <div className="text-xs text-gray-300">Total</div>
