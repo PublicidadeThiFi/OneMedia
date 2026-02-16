@@ -6,7 +6,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Loader2, CircleDot, FileText, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
-import { fetchMenuRequest, type MenuRequestRecord } from '../lib/menuRequestApi';
+import { classifyMenuRequestError, fetchMenuRequest, type MenuRequestRecord } from '../lib/menuRequestApi';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -47,18 +47,25 @@ export default function MenuAcompanhar() {
 
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setIsLoading(true);
+        setLoadError(null);
         const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar.';
-        toast.error('Não foi possível carregar', { description: String(msg) });
+        if (!alive) return;
+        setData(null);
+        const classified = classifyMenuRequestError(err);
+        setLoadError(classified);
+        if (classified.kind === 'GENERIC') {
+          toast.error(classified.title, { description: classified.description });
+        }
       } finally {
         if (alive) setIsLoading(false);
       }
@@ -161,7 +168,15 @@ export default function MenuAcompanhar() {
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="text-sm text-gray-600">Não encontramos essa solicitação.</div>
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-gray-900">{loadError?.title || 'Não encontramos essa solicitação.'}</div>
+                <div className="text-sm text-gray-600">{loadError?.description || 'Verifique o link e tente novamente.'}</div>
+                <div className="pt-2">
+                  <Button variant="outline" onClick={() => navigate('/menu')}>
+                    Ir para o início
+                  </Button>
+                </div>
+              </div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">

@@ -30,13 +30,62 @@ function formatCurrencyBRL(value?: number | null): string {
   }).format(Number(value));
 }
 
-function makeMapsUrl(point: PublicMediaKitPoint): string {
-  const lat = Number(point.latitude);
-  const lng = Number(point.longitude);
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+function parseCoord(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const s = String(v).trim();
+  if (!s) return null;
 
-  if (hasCoords) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`;
+  // Common input formats:
+  // - ' -23.55 '
+  // - '-23,55' (comma decimal)
+  const normalized = s.includes(',') && !s.includes('.') ? s.replace(',', '.') : s;
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+function getLatLng(point: any): { lat: number; lng: number } | null {
+  const lat =
+    parseCoord(point?.latitude) ??
+    parseCoord(point?.lat) ??
+    parseCoord(point?.location?.lat) ??
+    parseCoord(point?.coords?.lat) ??
+    null;
+
+  const lng =
+    parseCoord(point?.longitude) ??
+    parseCoord(point?.lng) ??
+    parseCoord(point?.lon) ??
+    parseCoord(point?.location?.lng) ??
+    parseCoord(point?.location?.lon) ??
+    parseCoord(point?.coords?.lng) ??
+    parseCoord(point?.coords?.lon) ??
+    null;
+
+  if (lat === null || lng === null) return null;
+
+  // Range validation
+  if (lat < -90 || lat > 90) return null;
+  if (lng < -180 || lng > 180) return null;
+
+  // Common "missing coords" sentinel: 0,0 even though there is a valid address.
+  const hasAddress = Boolean(
+    String(point?.addressStreet || '').trim() ||
+      String(point?.addressDistrict || '').trim() ||
+      String(point?.addressCity || '').trim() ||
+      String(point?.addressState || '').trim() ||
+      String(point?.addressZipcode || '').trim(),
+  );
+  if (hasAddress && lat == 0 && lng == 0) return null;
+
+  return { lat, lng };
+}
+
+function makeMapsUrl(point: PublicMediaKitPoint): string {
+  const coords = getLatLng(point as any);
+  if (coords) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(`${coords.lat},${coords.lng}`)}`;
   }
 
   const addr = formatAddress(point);
@@ -46,11 +95,9 @@ function makeMapsUrl(point: PublicMediaKitPoint): string {
 }
 
 function makeMapsEmbedUrl(point: PublicMediaKitPoint): string | null {
-  const lat = Number(point.latitude);
-  const lng = Number(point.longitude);
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-  if (!hasCoords) return null;
-  return `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}&z=15&output=embed`;
+  const coords = getLatLng(point as any);
+  if (!coords) return null;
+  return `https://www.google.com/maps?q=${encodeURIComponent(`${coords.lat},${coords.lng}`)}&z=15&output=embed`;
 }
 
 export default function MenuDetalhe() {

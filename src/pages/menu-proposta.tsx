@@ -8,6 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { ArrowLeft, Loader2, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  classifyMenuRequestError,
   approveMenuQuote,
   fetchMenuRequest,
   rejectMenuQuote,
@@ -63,6 +64,7 @@ export default function MenuProposta() {
 
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
   const [isActing, setIsActing] = useState(false);
 
   const [showReject, setShowReject] = useState(false);
@@ -88,12 +90,18 @@ export default function MenuProposta() {
     (async () => {
       try {
         setIsLoading(true);
+        setLoadError(null);
         const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar.';
-        toast.error('Não foi possível carregar', { description: String(msg) });
+        if (!alive) return;
+        setData(null);
+        const classified = classifyMenuRequestError(err);
+        setLoadError(classified);
+        if (classified.kind === 'GENERIC') {
+          toast.error(classified.title, { description: classified.description });
+        }
       } finally {
         if (alive) setIsLoading(false);
       }

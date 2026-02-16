@@ -9,6 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  classifyMenuRequestError,
   fetchMenuRequest,
   regenerateMenuLink,
   sendMenuQuote,
@@ -107,6 +108,7 @@ export default function MenuDonoWorkspace() {
 
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isRegeneratingClient, setIsRegeneratingClient] = useState(false);
 
@@ -160,6 +162,7 @@ export default function MenuDonoWorkspace() {
     (async () => {
       try {
         setIsLoading(true);
+        setLoadError(null);
         const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
@@ -178,8 +181,13 @@ export default function MenuDonoWorkspace() {
           });
         }
       } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar.';
-        toast.error('Não foi possível carregar', { description: String(msg) });
+        if (!alive) return;
+        setData(null);
+        const classified = classifyMenuRequestError(err);
+        setLoadError(classified);
+        if (classified.kind === 'GENERIC') {
+          toast.error(classified.title, { description: classified.description });
+        }
       } finally {
         if (alive) setIsLoading(false);
       }
@@ -293,7 +301,15 @@ export default function MenuDonoWorkspace() {
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="text-sm text-gray-600">Não encontramos essa solicitação.</div>
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-gray-900">{loadError?.title || 'Não encontramos essa solicitação.'}</div>
+                <div className="text-sm text-gray-600">{loadError?.description || 'Verifique o link e tente novamente.'}</div>
+                <div className="pt-2">
+                  <Button variant="outline" onClick={() => navigate('/menu')}>
+                    Ir para o início
+                  </Button>
+                </div>
+              </div>
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -537,9 +553,9 @@ export default function MenuDonoWorkspace() {
                           <div className="text-xs text-gray-500">Desconto</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2">
-                          <div className="text-xs text-gray-300">Total</div>
-                          <div className="text-sm font-semibold text-white">{formatMoneyBr(previewTotals.total)}</div>
+                        <div className="rounded-xl border border-gray-200 bg-white px-3 py-2">
+                          <div className="text-xs text-gray-500">Total</div>
+                          <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.total)}</div>
                         </div>
                       </div>
 

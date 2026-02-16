@@ -109,6 +109,58 @@ export type MenuQuoteVersionRecord = {
   openedAt?: string | null;
 };
 
+
+export type MenuRequestLoadErrorKind = 'REVOKED' | 'EXPIRED' | 'NOT_FOUND' | 'MISSING_TOKEN' | 'GENERIC';
+
+export type MenuRequestLoadError = {
+  kind: MenuRequestLoadErrorKind;
+  title: string;
+  description: string;
+};
+
+export function classifyMenuRequestError(err: any): MenuRequestLoadError {
+  const status = Number(err?.response?.status || 0);
+  const rawMsg = String(err?.response?.data?.message || err?.message || '').trim();
+  const msg = rawMsg.toLowerCase();
+
+  if (status === 401) {
+    if (msg.includes('expir')) {
+      return {
+        kind: 'EXPIRED',
+        title: 'Link expirado',
+        description: 'Este link expirou. Peça ao responsável para gerar um novo link.',
+      };
+    }
+    return {
+      kind: 'REVOKED',
+      title: 'Link revogado ou inválido',
+      description: 'Este link não é mais válido (pode ter sido regenerado). Peça um novo link ao responsável.',
+    };
+  }
+
+  if (status === 404) {
+    return {
+      kind: 'NOT_FOUND',
+      title: 'Solicitação não encontrada',
+      description: 'Verifique se o link está completo ou peça ao responsável para reenviar.',
+    };
+  }
+
+  if (status === 400 && (msg.includes('token') || msg.includes('ausente'))) {
+    return {
+      kind: 'MISSING_TOKEN',
+      title: 'Acesso inválido',
+      description: 'Token ausente. Abra o Cardápio a partir do link compartilhado.',
+    };
+  }
+
+  return {
+    kind: 'GENERIC',
+    title: 'Não foi possível carregar',
+    description: rawMsg || 'Falha ao carregar.',
+  };
+}
+
 export async function createMenuRequest(input: CreateMenuRequestInput): Promise<CreateMenuRequestResponse> {
   const payload = {
     token: String(input.token || '').trim(),
