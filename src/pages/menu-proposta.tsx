@@ -270,7 +270,10 @@ export default function MenuProposta() {
                     <div className="text-xs text-gray-500">Descontos</div>
                     <div className="mt-1 text-lg font-bold text-gray-900">- {formatMoneyBr(currentQuote.totals.discount)}</div>
                   </div>
-                  <div className="rounded-xl border border-gray-900 bg-gray-900 px-4 py-3">
+                  <div
+                    className="rounded-xl border border-gray-900 bg-gray-900 px-4 py-3"
+                    style={{ backgroundColor: "#111827", color: "#ffffff" }}
+                  >
                     <div className="text-xs text-gray-300">Total</div>
                     <div className="mt-1 text-lg font-bold text-white">{formatMoneyBr(currentQuote.totals.total)}</div>
                   </div>
