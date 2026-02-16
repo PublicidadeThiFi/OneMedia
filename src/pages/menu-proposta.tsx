@@ -7,6 +7,7 @@ import { Separator } from '../components/ui/separator';
 import { Textarea } from '../components/ui/textarea';
 import { ArrowLeft, Loader2, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
+import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
 import {
   classifyMenuRequestError,
   approveMenuQuote,
@@ -87,6 +88,20 @@ export default function MenuProposta() {
 
   useEffect(() => {
     let alive = true;
+
+    // rid é obrigatório para carregar a proposta
+    if (!String(rid || '').trim()) {
+      setData(null);
+      setIsLoading(false);
+      setLoadError({
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso inválido',
+        description: 'O link está incompleto. Abra a proposta a partir do link enviado.',
+      });
+      return () => {
+        alive = false;
+      };
+    }
     (async () => {
       try {
         setIsLoading(true);
@@ -169,7 +184,23 @@ export default function MenuProposta() {
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="text-sm text-gray-600">Não encontramos essa solicitação.</div>
+              <MenuRequestErrorCard
+                error={loadError || {
+                  kind: 'NOT_FOUND',
+                  title: 'Solicitação não encontrada',
+                  description: 'Verifique se o link está completo ou peça ao responsável para reenviar.',
+                }}
+                primaryAction={{
+                  label: 'Ir para o início',
+                  variant: 'outline',
+                  onClick: () => navigate('/menu'),
+                }}
+                secondaryAction={{
+                  label: 'Voltar para acompanhamento',
+                  variant: 'ghost',
+                  onClick: () => navigate(backUrl),
+                }}
+              />
             ) : !currentQuote ? (
               <div className="rounded-xl border border-gray-200 bg-white px-4 py-4">
                 <div className="flex items-start gap-3">

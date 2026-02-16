@@ -127,11 +127,15 @@ export type MenuRequestLoadError = {
 
 export function classifyMenuRequestError(err: any): MenuRequestLoadError {
   const status = Number(err?.response?.status || 0);
-  const rawMsg = String(err?.response?.data?.message || err?.message || '').trim();
+  const rawMsg = String(err?.response?.data?.message || err?.response?.data?.error || err?.message || '').trim();
   const msg = rawMsg.toLowerCase();
 
-  if (status === 401) {
-    if (msg.includes('expir')) {
+  const looksExpired = msg.includes('expir');
+  const looksRevoked = msg.includes('revog') || msg.includes('inválid') || msg.includes('inval');
+
+  // Back-ends diferentes podem usar 401/403/410 para expiração/revogação
+  if ([401, 403, 410].includes(status)) {
+    if (looksExpired) {
       return {
         kind: 'EXPIRED',
         title: 'Link expirado',
@@ -153,12 +157,22 @@ export function classifyMenuRequestError(err: any): MenuRequestLoadError {
     };
   }
 
-  if (status === 400 && (msg.includes('token') || msg.includes('ausente'))) {
-    return {
-      kind: 'MISSING_TOKEN',
-      title: 'Acesso inválido',
-      description: 'Token ausente. Abra o Cardápio a partir do link compartilhado.',
-    };
+  if (status === 400) {
+    if (msg.includes('token') || msg.includes('ausente') || msg.includes('missing')) {
+      return {
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso inválido',
+        description: 'Token ausente. Abra o Cardápio a partir do link compartilhado.',
+      };
+    }
+
+    if (looksRevoked) {
+      return {
+        kind: 'REVOKED',
+        title: 'Link revogado ou inválido',
+        description: 'Este link não é mais válido (pode ter sido regenerado). Peça um novo link ao responsável.',
+      };
+    }
   }
 
   return {

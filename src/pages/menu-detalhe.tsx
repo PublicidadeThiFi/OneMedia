@@ -30,13 +30,37 @@ function formatCurrencyBRL(value?: number | null): string {
   }).format(Number(value));
 }
 
-function makeMapsUrl(point: PublicMediaKitPoint): string {
-  const lat = Number(point.latitude);
-  const lng = Number(point.longitude);
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+function parseCoord(value: any): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const s = String(value).trim();
+  if (!s) return null;
+  const normalized = s.replace(',', '.');
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : null;
+}
 
-  if (hasCoords) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}`;
+function readCoords(point: PublicMediaKitPoint): { lat: number; lng: number } | null {
+  const p: any = point as any;
+  const lat = parseCoord(p.latitude ?? p.lat ?? p.location?.lat);
+  const lng = parseCoord(p.longitude ?? p.lng ?? p.location?.lng ?? p.location?.lon);
+
+  if (lat === null || lng === null) return null;
+
+  // ranges válidos
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+
+  // evita (0,0) quando temos endereço (sinal clássico de dado quebrado)
+  const addr = formatAddress(point);
+  if (addr && lat == 0 && lng == 0) return null;
+
+  return { lat, lng };
+}
+
+function makeMapsUrl(point: PublicMediaKitPoint): string {
+  const coords = readCoords(point);
+  if (coords) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(`${coords.lat},${coords.lng}`)}`;
   }
 
   const addr = formatAddress(point);
@@ -46,11 +70,15 @@ function makeMapsUrl(point: PublicMediaKitPoint): string {
 }
 
 function makeMapsEmbedUrl(point: PublicMediaKitPoint): string | null {
-  const lat = Number(point.latitude);
-  const lng = Number(point.longitude);
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-  if (!hasCoords) return null;
-  return `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}&z=15&output=embed`;
+  const coords = readCoords(point);
+  if (coords) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(`${coords.lat},${coords.lng}`)}&z=15&output=embed`;
+  }
+
+  const addr = formatAddress(point);
+  if (addr) return `https://www.google.com/maps?q=${encodeURIComponent(addr)}&z=15&output=embed`;
+
+  return null;
 }
 
 export default function MenuDetalhe() {

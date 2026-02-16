@@ -8,7 +8,9 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
 import {
+  classifyMenuRequestError,
   fetchMenuRequest,
   regenerateMenuLink,
   sendMenuQuote,
@@ -137,6 +139,7 @@ export default function MenuDonoWorkspace() {
 
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isRegeneratingClient, setIsRegeneratingClient] = useState(false);
 
@@ -188,9 +191,25 @@ export default function MenuDonoWorkspace() {
 
   useEffect(() => {
     let alive = true;
+
+    // rid é obrigatório para carregar o workspace
+    if (!String(rid || '').trim()) {
+      setData(null);
+      setIsLoading(false);
+      setLoadError({
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso inválido',
+        description: 'O link está incompleto. Abra o workspace a partir do link do responsável.',
+      });
+      return () => {
+        alive = false;
+      };
+    }
+
     (async () => {
       try {
         setIsLoading(true);
+        setLoadError(null);
         const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
@@ -217,8 +236,12 @@ export default function MenuDonoWorkspace() {
           });
         }
       } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar.';
-        toast.error('Não foi possível carregar', { description: String(msg) });
+        const classified = classifyMenuRequestError(err);
+        setData(null);
+        setLoadError(classified);
+        if (classified.kind === 'GENERIC') {
+          toast.error(classified.title, { description: classified.description });
+        }
       } finally {
         if (alive) setIsLoading(false);
       }
@@ -340,7 +363,18 @@ export default function MenuDonoWorkspace() {
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="text-sm text-gray-600">Não encontramos essa solicitação.</div>
+              <MenuRequestErrorCard
+                error={loadError || {
+                  kind: 'NOT_FOUND',
+                  title: 'Solicitação não encontrada',
+                  description: 'Verifique se o link está completo ou gere um novo link para o responsável.',
+                }}
+                primaryAction={{
+                  label: 'Ir para o início',
+                  variant: 'outline',
+                  onClick: () => navigate('/menu'),
+                }}
+              />
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">

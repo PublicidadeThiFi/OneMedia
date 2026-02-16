@@ -7,7 +7,8 @@ import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Loader2, CircleDot, FileText, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import { daysToDurationParts, formatDurationParts } from '../lib/menuCart';
-import { fetchMenuRequest, type MenuRequestRecord } from '../lib/menuRequestApi';
+import { classifyMenuRequestError, fetchMenuRequest, type MenuRequestRecord } from '../lib/menuRequestApi';
+import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -48,26 +49,7 @@ export default function MenuAcompanhar() {
 
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        setIsLoading(true);
-        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
-        if (!alive) return;
-        setData(res);
-      } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar.';
-        toast.error('Não foi possível carregar', { description: String(msg) });
-      } finally {
-        if (alive) setIsLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [rid, token, t]);
+  const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
 
   const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
 
@@ -82,6 +64,48 @@ export default function MenuAcompanhar() {
   const ownerUrl = useMemo(() => {
     return `/menu/dono${buildQuery({ token, rid })}`;
   }, [token, rid]);
+
+  useEffect(() => {
+    let alive = true;
+
+    // rid é obrigatório para carregar status
+    if (!String(rid || '').trim()) {
+      setData(null);
+      setIsLoading(false);
+      setLoadError({
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso inválido',
+        description: 'O link está incompleto. Abra o acompanhamento a partir do link enviado.',
+      });
+      return () => {
+        alive = false;
+      };
+    }
+
+    (async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'client' });
+        if (!alive) return;
+        setData(res);
+      } catch (err: any) {
+        if (!alive) return;
+        setData(null);
+        const classified = classifyMenuRequestError(err);
+        setLoadError(classified);
+        if (classified.kind === 'GENERIC') {
+          toast.error(classified.title, { description: classified.description });
+        }
+      } finally {
+        if (alive) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [rid, token, t]);
 
   const timeline = useMemo(() => {
     const events = Array.isArray(data?.events) ? data!.events! : [];
@@ -162,7 +186,23 @@ export default function MenuAcompanhar() {
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="text-sm text-gray-600">Não encontramos essa solicitação.</div>
+              <MenuRequestErrorCard
+                error={loadError || {
+                  kind: 'NOT_FOUND',
+                  title: 'Solicitação não encontrada',
+                  description: 'Verifique se o link está completo ou peça ao responsável para reenviar.',
+                }}
+                primaryAction={{
+                  label: 'Ir para o início',
+                  variant: 'outline',
+                  onClick: () => navigate('/menu'),
+                }}
+                secondaryAction={{
+                  label: 'Voltar',
+                  variant: 'ghost',
+                  onClick: () => navigate(backToSent),
+                }}
+              />
             ) : (
               <>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
