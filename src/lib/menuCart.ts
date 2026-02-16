@@ -2,6 +2,12 @@ import { MediaPoint, MediaType, MediaUnit, UnitType } from '../types';
 
 export const CART_STORAGE_KEY = 'menu_cart';
 
+export type DurationParts = {
+  years: number;
+  months: number;
+  days: number;
+};
+
 export type MenuCartItemSnapshot = {
   pointName: string;
   pointType?: MediaType | string;
@@ -20,13 +26,20 @@ export type MenuCartItem = {
   id: string;
   pointId: string;
   unitId?: string | null;
+
+  /**
+   * New: duration split in years/months/days (free input).
+   * We also keep durationDays for easier pricing/math.
+   */
+  duration: DurationParts;
   durationDays: number;
+
   addedAt: string;
   snapshot: MenuCartItemSnapshot;
 };
 
 export type MenuCart = {
-  version: 1;
+  version: 2;
   updatedAt: string;
   items: MenuCartItem[];
 };
@@ -45,36 +58,107 @@ function makeId(): string {
   return `mc_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
 }
 
+export function normalizeDurationParts(input: any): DurationParts {
+  const years = Math.max(0, Math.floor(Number(input?.years) || 0));
+  const months = Math.max(0, Math.floor(Number(input?.months) || 0));
+  const days = Math.max(0, Math.floor(Number(input?.days) || 0));
+  return { years, months, days };
+}
+
+export function durationPartsToDays(parts: DurationParts): number {
+  const p = normalizeDurationParts(parts);
+  // Pricing approximation: month=30 days, year=365 days.
+  const total = p.years * 365 + p.months * 30 + p.days;
+  return Math.max(1, Math.min(365 * 100, Math.floor(total || 0)));
+}
+
+export function daysToDurationParts(daysRaw: any): DurationParts {
+  const d = Math.max(1, Math.min(365 * 100, Math.floor(Number(daysRaw) || 30)));
+  const years = Math.floor(d / 365);
+  const rem1 = d % 365;
+  const months = Math.floor(rem1 / 30);
+  const days = rem1 % 30;
+  return { years, months, days };
+}
+
+export function formatDurationParts(parts: DurationParts): string {
+  const p = normalizeDurationParts(parts);
+  const segs: string[] = [];
+  if (p.years) segs.push(`${p.years} ${p.years === 1 ? 'ano' : 'anos'}`);
+  if (p.months) segs.push(`${p.months} ${p.months === 1 ? 'mês' : 'meses'}`);
+  if (p.days || segs.length === 0) segs.push(`${p.days || 0} ${p.days === 1 ? 'dia' : 'dias'}`);
+  return segs.join(', ');
+}
+
+function normalizeItem(raw: any): MenuCartItem | null {
+  if (!raw) return null;
+  const id = String(raw.id || '').trim();
+  const pointId = String(raw.pointId || '').trim();
+  if (!id || !pointId) return null;
+
+  const unitId = raw.unitId === null || raw.unitId === undefined ? null : String(raw.unitId);
+
+  // Backward compatibility:
+  // - older cart stored durationDays only
+  // - newer cart stores duration parts
+  const durationParts = raw.duration ? normalizeDurationParts(raw.duration) : daysToDurationParts(raw.durationDays);
+  const durationDays = durationPartsToDays(durationParts);
+
+  return {
+    id,
+    pointId,
+    unitId,
+    duration: durationParts,
+    durationDays,
+    addedAt: String(raw.addedAt || nowIso()),
+    snapshot: (raw.snapshot || {}) as MenuCartItemSnapshot,
+  };
+}
+
 export function readCart(): MenuCart {
   try {
     const raw = localStorage.getItem(CART_STORAGE_KEY);
-    if (!raw) return { version: 1, updatedAt: nowIso(), items: [] };
+    if (!raw) return { version: 2, updatedAt: nowIso(), items: [] };
 
     const parsed = JSON.parse(raw);
 
     // Backward compatibility: some versions stored just an array
-    const items = Array.isArray(parsed?.items)
+    const rawItems = Array.isArray(parsed?.items)
       ? parsed.items
       : Array.isArray(parsed)
         ? parsed
         : [];
 
+    const items: MenuCartItem[] = [];
+    for (const it of rawItems) {
+      const n = normalizeItem(it);
+      if (n) items.push(n);
+    }
+
     return {
-      version: 1,
+      version: 2,
       updatedAt: String(parsed?.updatedAt || nowIso()),
-      items: items.filter(Boolean) as MenuCartItem[],
+      items,
     };
   } catch {
-    return { version: 1, updatedAt: nowIso(), items: [] };
+    return { version: 2, updatedAt: nowIso(), items: [] };
   }
 }
 
 export function writeCart(cart: MenuCart) {
+  const rawItems = Array.isArray(cart?.items) ? cart.items : [];
+  const items: MenuCartItem[] = [];
+  for (const it of rawItems) {
+    const n = normalizeItem(it);
+    if (n) items.push(n);
+  }
+
   const safe: MenuCart = {
-    version: 1,
+    version: 2,
     updatedAt: nowIso(),
-    items: Array.isArray(cart?.items) ? cart.items : [],
+    items,
   };
+
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(safe));
 }
 
@@ -89,12 +173,18 @@ export function isSameSelection(a: MenuCartItem, pointId: string, unitId?: strin
 export function addToCart(input: {
   point: MediaPoint;
   unit?: MediaUnit | null;
+  duration?: DurationParts;
+  /** @deprecated keep compatibility */
   durationDays?: number;
 }): { added: boolean; item: MenuCartItem } {
   const cart = readCart();
 
   const unit = input.unit ?? null;
-  const durationDays = Number.isFinite(Number(input.durationDays)) ? Number(input.durationDays) : 30;
+
+  const duration = input.duration
+    ? normalizeDurationParts(input.duration)
+    : daysToDurationParts(Number.isFinite(Number(input.durationDays)) ? Number(input.durationDays) : 30);
+  const durationDays = durationPartsToDays(duration);
 
   const point = input.point;
   const pointName = String(point.name || '').trim() || 'Ponto';
@@ -127,6 +217,7 @@ export function addToCart(input: {
     id: exists ? cart.items.find((i) => isSameSelection(i, pointId, unitId))!.id : makeId(),
     pointId,
     unitId,
+    duration,
     durationDays,
     addedAt: nowIso(),
     snapshot,
@@ -147,22 +238,34 @@ export function removeFromCart(itemId: string) {
   writeCart(cart);
 }
 
-export function updateItemDuration(itemId: string, durationDays: number) {
+export function updateItemDurationParts(itemId: string, duration: DurationParts) {
   const cart = readCart();
-  const d = Math.max(1, Math.floor(Number(durationDays) || 30));
-  cart.items = cart.items.map((i) => (i.id === itemId ? { ...i, durationDays: d } : i));
+  const parts = normalizeDurationParts(duration);
+  const days = durationPartsToDays(parts);
+  cart.items = cart.items.map((i) => (i.id === itemId ? { ...i, duration: parts, durationDays: days } : i));
   writeCart(cart);
 }
 
-export function applyDurationToAll(durationDays: number) {
+/** @deprecated compatibility */
+export function updateItemDuration(itemId: string, durationDays: number) {
+  updateItemDurationParts(itemId, daysToDurationParts(durationDays));
+}
+
+export function applyDurationToAllParts(duration: DurationParts) {
   const cart = readCart();
-  const d = Math.max(1, Math.floor(Number(durationDays) || 30));
-  cart.items = cart.items.map((i) => ({ ...i, durationDays: d }));
+  const parts = normalizeDurationParts(duration);
+  const days = durationPartsToDays(parts);
+  cart.items = cart.items.map((i) => ({ ...i, duration: parts, durationDays: days }));
   writeCart(cart);
+}
+
+/** @deprecated compatibility */
+export function applyDurationToAll(durationDays: number) {
+  applyDurationToAllParts(daysToDurationParts(durationDays));
 }
 
 export function clearCart() {
-  writeCart({ version: 1, updatedAt: nowIso(), items: [] });
+  writeCart({ version: 2, updatedAt: nowIso(), items: [] });
 }
 
 export function normalizeUnitLabel(unit?: MediaUnit | null): string {
