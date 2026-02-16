@@ -77,7 +77,7 @@ export default function MenuFaces() {
     let addedCount = 0;
     ids.forEach((id) => {
       const unit = units.find((u) => u.id === id) ?? null;
-      const res = addToCart({ point, unit, durationDays: 30 });
+      const res = addToCart({ point, unit, duration: { years: 0, months: 1, days: 0 } });
       if (res.added) addedCount += 1;
     });
 

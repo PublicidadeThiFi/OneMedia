@@ -3,18 +3,19 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Trash2, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import {
-  applyDurationToAll,
+  applyDurationToAllParts,
   clearCart,
   formatAddress,
+  formatDurationParts,
   readCart,
   removeFromCart,
-  updateItemDuration,
+  updateItemDurationParts,
 } from '../lib/menuCart';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 
@@ -37,7 +38,6 @@ function formatCurrencyBRL(value?: number | null): string {
   }).format(Number(value));
 }
 
-const DURATION_OPTIONS = [7, 15, 30, 60, 90];
 
 export default function MenuCarrinho() {
   const navigate = useNavigation();
@@ -70,13 +70,19 @@ export default function MenuCarrinho() {
     return `/menu/pontos${buildQuery({ token, uf, city })}`;
   }, [token, uf, city]);
 
-  const [bulkDuration, setBulkDuration] = useState<string>('30');
+  const [bulkYears, setBulkYears] = useState<string>('0');
+  const [bulkMonths, setBulkMonths] = useState<string>('1');
+  const [bulkDays, setBulkDays] = useState<string>('0');
 
   const onApplyAll = () => {
-    const d = Math.max(1, Math.floor(Number(bulkDuration) || 30));
-    applyDurationToAll(d);
+    const parts = {
+      years: Math.max(0, Math.floor(Number(bulkYears) || 0)),
+      months: Math.max(0, Math.floor(Number(bulkMonths) || 0)),
+      days: Math.max(0, Math.floor(Number(bulkDays) || 0)),
+    };
+    applyDurationToAllParts(parts);
     setCartVersion((v) => v + 1);
-    toast.success('Duração aplicada para todos os itens', { description: `${d} dia(s)` });
+    toast.success('Duração aplicada para todos os itens', { description: formatDurationParts(parts) });
   };
 
   const onRemove = (itemId: string) => {
@@ -178,18 +184,20 @@ export default function MenuCarrinho() {
                   </div>
 
                   <div className="sm:ml-auto flex flex-col sm:flex-row gap-2">
-                    <Select value={bulkDuration} onValueChange={(v: string) => setBulkDuration(v)}>
-                      <SelectTrigger className="sm:w-[200px]">
-                        <SelectValue placeholder="Duração (dias)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DURATION_OPTIONS.map((d) => (
-                          <SelectItem key={d} value={String(d)}>
-                            {d} dia(s)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <div className="text-[11px] text-gray-500">Anos</div>
+                        <Input type="number" min={0} value={bulkYears} onChange={(e) => setBulkYears(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[11px] text-gray-500">Meses</div>
+                        <Input type="number" min={0} value={bulkMonths} onChange={(e) => setBulkMonths(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-[11px] text-gray-500">Dias</div>
+                        <Input type="number" min={0} value={bulkDays} onChange={(e) => setBulkDays(e.target.value)} />
+                      </div>
+                    </div>
 
                     <Button variant="outline" onClick={onApplyAll}>
                       Aplicar para todos
@@ -242,28 +250,43 @@ export default function MenuCarrinho() {
 
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                           <div className="text-xs text-gray-600">Duração</div>
-                          <Select
-                            value={String(item.durationDays)}
-                            onValueChange={(v: string) => {
-                              const d = Math.max(1, Math.floor(Number(v) || 30));
-                              updateItemDuration(item.id, d);
-                              setCartVersion((vv) => vv + 1);
-                            }}
-                          >
-                            <SelectTrigger className="sm:w-[180px]">
-                              <SelectValue placeholder="Duração" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {DURATION_OPTIONS.map((d) => (
-                                <SelectItem key={d} value={String(d)}>
-                                  {d} dia(s)
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+
+                          <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+                            <Input
+                              type="number"
+                              min={0}
+                              value={String(item.duration?.years ?? 0)}
+                              onChange={(e) => {
+                                updateItemDurationParts(item.id, { ...item.duration, years: Number(e.target.value || 0) });
+                                setCartVersion((vv) => vv + 1);
+                              }}
+                              placeholder="Anos"
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              value={String(item.duration?.months ?? 0)}
+                              onChange={(e) => {
+                                updateItemDurationParts(item.id, { ...item.duration, months: Number(e.target.value || 0) });
+                                setCartVersion((vv) => vv + 1);
+                              }}
+                              placeholder="Meses"
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              value={String(item.duration?.days ?? 0)}
+                              onChange={(e) => {
+                                updateItemDurationParts(item.id, { ...item.duration, days: Number(e.target.value || 0) });
+                                setCartVersion((vv) => vv + 1);
+                              }}
+                              placeholder="Dias"
+                            />
+                          </div>
 
                           <div className="sm:ml-auto text-xs text-gray-600">
-                            {item.durationDays >= 30 ? 'Mensal' : 'Período curto'}
+                            {formatDurationParts(item.duration)}
+                            {item.durationDays >= 30 ? ' • Mensal' : ' • Período curto'}
                           </div>
                         </div>
                       </div>

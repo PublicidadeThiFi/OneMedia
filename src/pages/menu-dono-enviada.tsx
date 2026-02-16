@@ -7,6 +7,7 @@ import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Loader2, Copy, ExternalLink, FileText, RefreshCw, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  classifyMenuRequestError,
   fetchMenuRequest,
   regenerateMenuLink,
   type MenuQuoteVersionRecord,
@@ -54,6 +55,7 @@ export default function MenuDonoEnviada() {
 
   const [data, setData] = useState<MenuRequestRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const workspaceUrl = useMemo(() => `/menu/dono${buildQuery(authQuery)}`, [authQuery]);
@@ -75,12 +77,18 @@ export default function MenuDonoEnviada() {
     (async () => {
       try {
         setIsLoading(true);
+        setLoadError(null);
         const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
         if (!alive) return;
         setData(res);
       } catch (err: any) {
-        const msg = err?.response?.data?.message || err?.message || 'Falha ao carregar.';
-        toast.error('Não foi possível carregar', { description: String(msg) });
+        if (!alive) return;
+        setData(null);
+        const classified = classifyMenuRequestError(err);
+        setLoadError(classified);
+        if (classified.kind === 'GENERIC') {
+          toast.error(classified.title, { description: classified.description });
+        }
       } finally {
         if (alive) setIsLoading(false);
       }
@@ -147,7 +155,15 @@ export default function MenuDonoEnviada() {
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="text-sm text-gray-600">Não encontramos essa solicitação.</div>
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-gray-900">{loadError?.title || 'Não encontramos essa solicitação.'}</div>
+                <div className="text-sm text-gray-600">{loadError?.description || 'Verifique o link e tente novamente.'}</div>
+                <div className="pt-2">
+                  <Button variant="outline" onClick={() => navigate('/menu')}>
+                    Ir para o início
+                  </Button>
+                </div>
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between gap-3">

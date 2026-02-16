@@ -9,7 +9,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { toast } from 'sonner';
-import { clearCart, readCart } from '../lib/menuCart';
+import { clearCart, formatDurationParts, readCart } from '../lib/menuCart';
 import { createMenuRequest } from '../lib/menuRequestApi';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
@@ -182,7 +182,7 @@ export default function MenuCheckout() {
                     </div>
                   </div>
                   <div className="shrink-0 text-xs text-gray-700">
-                    <span className="font-semibold">{it.durationDays}</span> dia(s)
+                    <span className="font-semibold">{formatDurationParts(it.duration)}</span>
                   </div>
                 </div>
               ))}
