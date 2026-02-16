@@ -685,7 +685,10 @@ export default function MenuDonoWorkspace() {
                             )}
                           </div>
                         </div>
-                        <div className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2">
+                        <div
+                          className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
+                          style={{ backgroundColor: "#111827", color: "#ffffff" }}
+                        >
                           <div className="text-xs text-gray-300">Total</div>
                           <div className="text-sm font-semibold text-white">{formatMoneyBr(previewTotals.total)}</div>
                         </div>

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import {useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, Loader2, CircleDot, FileText, UserCog } from 'lucide-react';
+import { ArrowLeft, Loader2, CircleDot, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { daysToDurationParts, formatDurationParts } from '../lib/menuCart';
 import { classifyMenuRequestError, fetchMenuRequest, type MenuRequestRecord } from '../lib/menuRequestApi';
@@ -60,10 +60,6 @@ export default function MenuAcompanhar() {
   const propostaUrl = useMemo(() => {
     return `/menu/proposta${buildQuery(authQuery)}`;
   }, [authQuery]);
-
-  const ownerUrl = useMemo(() => {
-    return `/menu/dono${buildQuery({ token, rid })}`;
-  }, [token, rid]);
 
   useEffect(() => {
     let alive = true;
@@ -239,12 +235,6 @@ export default function MenuAcompanhar() {
                         <FileText className="h-4 w-4" />
                         Ver proposta
                       </Button>
-                      {token ? (
-                        <Button variant="outline" className="gap-2" onClick={() => navigate(ownerUrl)}>
-                          <UserCog className="h-4 w-4" />
-                          Sou o responsável
-                        </Button>
-                      ) : null}
                     </div>
                   </div>
 
