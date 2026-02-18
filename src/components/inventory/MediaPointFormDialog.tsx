@@ -10,6 +10,8 @@ import { Badge } from '../ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { X, ChevronDown, Package } from 'lucide-react';
 import { MediaPoint, MediaType, ProductionCosts } from '../../types';
+import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
+import apiClient from '../../lib/apiClient';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
 
 interface MediaPointFormDialogProps {
@@ -41,6 +43,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+    const { cities: metaCities, refetch: refetchMeta } = useMediaPointsMeta();
+
+  const [addCityOpen, setAddCityOpen] = useState(false);
+  const [addCityName, setAddCityName] = useState('');
+  const [addCityState, setAddCityState] = useState('');
+  const [addCityError, setAddCityError] = useState<string | null>(null);
+  const [isAddingCity, setIsAddingCity] = useState(false);
 
 
   useEffect(() => {
@@ -94,6 +104,76 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const currentUf = String(formData.addressState ?? '').trim().toUpperCase();
+
+  const [citiesForUf, setCitiesForUf] = useState<string[]>([]);
+  const [citiesForUfLoading, setCitiesForUfLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fallback = Array.isArray(metaCities) ? metaCities : [];
+
+    // Sem UF selecionada: usa fallback vindo do meta
+    if (!currentUf) {
+      setCitiesForUf(fallback);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        setCitiesForUfLoading(true);
+        const res = await apiClient.get('/media-points/cities', { params: { state: currentUf } });
+
+        // Aceita formatos: { cities: [...] } ou lista direta
+        const data = (res as any)?.data;
+        const list = Array.isArray(data) ? data : Array.isArray(data?.cities) ? data.cities : [];
+
+        if (!cancelled) setCitiesForUf(list.length ? list : fallback);
+      } catch {
+        if (!cancelled) setCitiesForUf(fallback);
+      } finally {
+        if (!cancelled) setCitiesForUfLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUf, metaCities]);
+
+  const handleAddCity = async () => {
+    const uf = String(addCityState || currentUf).trim().toUpperCase();
+    const name = String(addCityName).trim();
+
+    if (!uf || !name) {
+      setAddCityError('Informe a UF e o nome da cidade.');
+      return;
+    }
+
+    try {
+      setIsAddingCity(true);
+      setAddCityError(null);
+
+      const response = await apiClient.post('/media-points/cities', { state: uf, name });
+      const created = response.data as { name?: string; state?: string };
+
+      updateField('addressState', created.state ?? uf);
+      updateField('addressCity', created.name ?? name);
+
+      await refetchMeta();
+      setAddCityOpen(false);
+      setAddCityName('');
+    } catch (err: any) {
+      const message = err?.response?.data?.message || 'Não foi possível adicionar a cidade.';
+      setAddCityError(String(message));
+    } finally {
+      setIsAddingCity(false);
     }
   };
 
@@ -300,22 +380,62 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Cidade *</Label>
-                  <Input
-                    placeholder="São Paulo"
-                    value={formData.addressCity || ''}
-                    onChange={(e) => updateField('addressCity', e.target.value)}
-                    className={errors.addressCity ? 'border-red-500' : ''}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label>Cidade *</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setAddCityState(currentUf || String(addCityState || '').trim().toUpperCase());
+                        setAddCityOpen(true);
+                        setAddCityError(null);
+                      }}
+                    >
+                      + Adicionar
+                    </Button>
+                  </div>
+
+                  <Select
+                    disabled={citiesForUfLoading}
+                    value={(formData.addressCity as string) || ''}
+                    onValueChange={(value: string) => {
+                      if (value === '__add__') {
+                        setAddCityState(currentUf);
+                        setAddCityName('');
+                        setAddCityError(null);
+                        setAddCityOpen(true);
+                        return;
+                      }
+                      updateField('addressCity', value);
+                    }}
+                  >
+                    <SelectTrigger className={errors.addressCity ? 'border-red-500' : ''}>
+                      <SelectValue
+                        placeholder={citiesForUfLoading ? 'Carregando...' : citiesForUf.length ? 'Selecione a cidade' : 'Nenhuma cidade cadastrada'}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {citiesForUf.map((city) => (
+                        <SelectItem key={city} value={city}>
+                          {city}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__add__">+ Adicionar nova cidade</SelectItem>
+                    </SelectContent>
+                  </Select>
+
                   {errors.addressCity && <p className="text-xs text-red-600">{errors.addressCity}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label>Estado *</Label>
                   <Select
-  value={formData.addressState || ''}
-  onValueChange={(value: string) => updateField('addressState', value)}
->
-
+                    value={formData.addressState || ''}
+                    onValueChange={(value: string) => {
+                      updateField('addressState', value);
+                      updateField('addressCity', '');
+                    }}
+                  >
                     <SelectTrigger className={errors.addressState ? 'border-red-500' : ''}>
                       <SelectValue placeholder="UF" />
                     </SelectTrigger>
@@ -585,7 +705,61 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
             {isSaving ? 'Salvando...' : mediaPoint ? 'Salvar Alterações' : 'Salvar Ponto'}
           </Button>
         </div>
-      </DialogContent>
+      
+
+      <Dialog
+        open={addCityOpen}
+        onOpenChange={(v: boolean) => {
+          setAddCityOpen(v);
+          if (!v) setAddCityError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar cidade</DialogTitle>
+            <DialogDescription>Cadastre uma nova cidade para aparecer na lista (por UF).</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>UF *</Label>
+              <Select value={addCityState || currentUf} onValueChange={(v: string) => setAddCityState(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="UF" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BRAZILIAN_STATES.map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nome da cidade *</Label>
+              <Input
+                value={addCityName}
+                onChange={(e) => setAddCityName(e.target.value)}
+                placeholder="Ex.: São Paulo"
+              />
+            </div>
+
+            {addCityError && <p className="text-red-500 text-sm">{addCityError}</p>}
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAddCityOpen(false)} disabled={isAddingCity}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleAddCity} disabled={isAddingCity}>
+                {isAddingCity ? 'Salvando...' : 'Adicionar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+</DialogContent>
     </Dialog>
   );
 }
