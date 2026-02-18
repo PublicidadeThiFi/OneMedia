@@ -1,139 +1,234 @@
-import { Check, Star, HelpCircle } from 'lucide-react';
-import { useState } from 'react';
+﻿import { CheckCircle2, HelpCircle, MapPin, Users, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigation } from '../../App';
-import { PLATFORM_PLANS } from '../../lib/plans';
+import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from './pricingData';
+
+const CARD_W = 340;
+
+function StrikeX({ text }: { text: string }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-block', color: '#9ca3af', fontSize: '0.875rem', fontWeight: 500 }}>
+      {text}
+      <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }} viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line x1="0" y1="0" x2="100" y2="100" stroke="#ef4444" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <line x1="100" y1="0" x2="0" y2="100" stroke="#ef4444" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </span>
+  );
+}
+
+function PlanCard({ children, featured = false }: { children: React.ReactNode; featured?: boolean }) {
+  return (
+    <div
+      style={{ width: CARD_W, minWidth: CARD_W, maxWidth: CARD_W }}
+      className={`relative flex-shrink-0 snap-start bg-white rounded-2xl flex flex-col shadow-sm hover:shadow-md transition-shadow duration-200 ${featured ? 'border-2 border-blue-600' : 'border border-gray-200'}`}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function Pricing() {
   const navigate = useNavigation();
   const [showAddonTooltip, setShowAddonTooltip] = useState(false);
+  const [sliderPoints, setSliderPoints] = useState(proSliderConfig.minPoints);
+  const sliderPrice = useProSliderPrice(sliderPoints);
+  const sliderAfter = useMemo(() => formatBRL(sliderPrice), [sliderPrice]);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const includes = [
-    'Todos os módulos do OneMedia',
-    'Multiusuário',
-    'Suporte por e-mail/WhatsApp',
-    'Teste grátis de 30 dias (sem cartão)',
-  ];
+  const scroll = (dir: 'left' | 'right') => {
+    const node = scrollRef.current;
+    if (!node) return;
+    node.scrollBy({ left: dir === 'left' ? -(CARD_W + 20) : (CARD_W + 20), behavior: 'smooth' });
+  };
+
+  const cardBody = (children: React.ReactNode) => (
+    <div className="p-5 flex flex-col flex-1 gap-3">{children}</div>
+  );
+
+  const limites = (users: number | string, points: number | string) => (
+    <>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs text-gray-700">
+          <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400" />Usuarios</span>
+          <span className="font-semibold text-gray-900">{users}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-gray-700">
+          <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
+          <span className="font-semibold text-gray-900">{points}</span>
+        </div>
+      </div>
+    </>
+  );
+
+  const featureList = () => (
+    <>
+      <p className="text-xs font-semibold text-gray-700">Todos os Recursos no Marketplace e mais:</p>
+      <ul className="space-y-1.5 text-xs text-gray-600 flex-1">
+        {sharedFeatures.map((item) => (
+          <li key={item} className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />{item}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 
   return (
     <section id="planos" className="py-20 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-gray-900 mb-4">
-            Escolha o plano ideal pelo volume de pontos
-          </h2>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Planos flexíveis que crescem com o seu negócio. Sem surpresas, sem taxas escondidas.
-          </p>
+        {/* Header */}
+        <div className="text-center mb-12">
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-600 mb-2">Teste gratis</p>
+          <h2 className="text-4xl font-semibold text-gray-900 mb-3">Planos com 1 mes gratuito</h2>
+          <p className="text-base text-gray-500 max-w-xl mx-auto">Sem cartao de credito. Cancele quando quiser.</p>
         </div>
 
-        {/* Plans Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {PLATFORM_PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative bg-white rounded-xl p-6 border-2 transition-all hover:shadow-lg ${
-                plan.isPopular
-                  ? 'border-[#4F46E5] shadow-lg'
-                  : 'border-gray-200 hover:border-[#4F46E5]'
-              }`}
-            >
-              {plan.isPopular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <div className="bg-[#4F46E5] text-white px-4 py-1 rounded-full flex items-center gap-1 text-sm">
-                    <Star className="w-4 h-4" />
-                    Mais Popular
-                  </div>
+        {/* Nav */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm text-gray-500">Arraste ou use as setas para ver os planos</span>
+          <div className="flex gap-2">
+            <button aria-label="Anterior" onClick={() => scroll('left')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button aria-label="Proximo" onClick={() => scroll('right')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Scroll container */}
+        <div ref={scrollRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-6" style={{ scrollbarWidth: 'none' }}>
+
+          {displayPlans.map((plan) => (
+            <PlanCard key={plan.id}>
+              {/* Badge */}
+              {plan.tag && (
+                <div className="absolute top-3 right-3">
+                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-blue-100">
+                    <Star className="w-2.5 h-2.5" />{plan.tag}
+                  </span>
                 </div>
               )}
+              {cardBody(
+                <>
+                  {/* Name */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                    <h3 className="text-base font-bold text-gray-900">{plan.name}</h3>
+                  </div>
 
-              <div className="text-center mb-6">
-                <h3 className="text-gray-900 mb-2">{plan.name}</h3>
-                <div className="text-sm text-gray-500 mb-4">
-                  {plan.maxPoints ? `Até ${plan.maxPoints} pontos` : 'Ilimitado'}
+                  {/* Price */}
+                  <div>
+                    {plan.strikePrice && <p><StrikeX text={plan.strikePrice} /></p>}
+                    <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
+                    <p className="text-sm text-gray-600">no primeiro mes</p>
+                    <p className="text-xs text-gray-400">Depois {plan.monthlyPrice}</p>
+                  </div>
+
+                  <hr className="border-gray-100" />
+
+                  {/* Description */}
+                  <p className="text-xs text-gray-500 leading-relaxed">{plan.description}</p>
+
+                  <hr className="border-gray-100" />
+
+                  {limites(plan.users, plan.points)}
+
+                  <hr className="border-gray-100" />
+
+                  {featureList()}
+
+                  <button onClick={() => navigate('/cadastro')} className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
+                    Comecar gratis
+                  </button>
+                </>
+              )}
+            </PlanCard>
+          ))}
+
+          {/* Pro 2000 */}
+          <PlanCard featured>
+            <div className="absolute top-3 right-3">
+              <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                <Star className="w-2.5 h-2.5" />Escalavel
+              </span>
+            </div>
+            {cardBody(
+              <>
+                {/* Name */}
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-blue-500 flex-shrink-0" />
+                  <h3 className="text-base font-bold text-gray-900">{proSliderConfig.name}</h3>
                 </div>
-                <div className="text-3xl text-gray-900 mb-1">{plan.priceLabel}</div>
-                {plan.monthlyPrice > 0 && <div className="text-sm text-gray-500">/mês</div>}
-              </div>
 
-              <ul className="space-y-3 mb-6">
-                {includes.map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-sm">
-                    <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                    <span className="text-gray-600">{item}</span>
-                  </li>
-                ))}
-              </ul>
+                {/* Price */}
+                <div>
+                  <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
+                  <p className="text-sm text-gray-600">no primeiro mes</p>
+                  <p className="text-xs text-gray-400">Depois {sliderAfter}/mes</p>
+                </div>
 
-              {plan.monthlyPrice === 0 ? (
-                <button
-                  onClick={() => navigate('/contato')}
-                  className="block w-full text-center bg-white border-2 border-[#4F46E5] text-[#4F46E5] px-6 py-3 rounded-lg hover:bg-[#4F46E5] hover:text-white transition-colors"
-                >
+                <hr className="border-gray-100" />
+
+                {/* Slider */}
+                <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-gray-800">
+                    <span>Pontos</span><span>{sliderPoints} pts</span>
+                  </div>
+                  <input type="range"
+                    min={proSliderConfig.minPoints} max={proSliderConfig.maxPoints} step={proSliderConfig.step}
+                    value={sliderPoints} onChange={(e) => setSliderPoints(Number(e.target.value))}
+                    className="w-full accent-blue-600" />
+                  <p className="text-[10px] text-gray-500">Arraste para ajustar pontos e ver o preco.</p>
+                </div>
+
+                <hr className="border-gray-100" />
+
+                {limites(proSliderConfig.users, sliderPoints)}
+
+                <hr className="border-gray-100" />
+
+                {featureList()}
+
+                <button onClick={() => navigate('/contato')} className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
                   Falar com vendas
                 </button>
-              ) : (
-                <button
-                  onClick={() => navigate(`/signup?planRange=${plan.range}`)}
-                  className={`block w-full text-center px-6 py-3 rounded-lg transition-colors ${
-                    plan.isPopular
-                      ? 'bg-[#4F46E5] text-white hover:bg-[#4338CA]'
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                  }`}
-                >
-                  Começar teste neste plano
-                </button>
-              )}
-            </div>
-          ))}
+              </>
+            )}
+          </PlanCard>
         </div>
 
-        {/* Multi-Proprietários */}
-        <div className="bg-gradient-to-r from-[#4F46E5]/10 to-purple-100 rounded-xl p-6 sm:p-8 border-2 border-[#4F46E5]/30">
-          <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-4">
+        {/* Multi-Proprietarios */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm mt-2">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h3 className="text-gray-900 mb-2">Multi-Proprietários</h3>
-              <p className="text-gray-600 mb-4 text-sm sm:text-base">
-                Permite cadastrar até 4 proprietários por ponto de mídia. 
-                Por padrão, todos os planos incluem 1 proprietário por ponto. Selecione o plano que precisa:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="bg-white rounded-lg px-4 py-3 border border-gray-200">
-                  <div className="text-sm text-gray-600 mb-1">1 proprietário</div>
-                  <div className="text-lg text-green-600">Incluso</div>
-                </div>
-                <div className="bg-white rounded-lg px-4 py-3 border border-[#4F46E5]">
-                  <div className="text-sm text-gray-600 mb-1">2 proprietários</div>
-                  <div className="text-lg text-[#4F46E5]">R$ 99/mês</div>
-                </div>
-                <div className="bg-white rounded-lg px-4 py-3 border border-[#4F46E5]">
-                  <div className="text-sm text-gray-600 mb-1">3 proprietários</div>
-                  <div className="text-lg text-[#4F46E5]">R$ 113,85/mês</div>
-                </div>
-                <div className="bg-white rounded-lg px-4 py-3 border border-[#4F46E5]">
-                  <div className="text-sm text-gray-600 mb-1">4 proprietários</div>
-                  <div className="text-lg text-[#4F46E5]">R$ 128,70/mês</div>
-                </div>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Multi-Proprietarios</h3>
+              <p className="text-xs text-gray-500 mb-4">Permite cadastrar ate 4 proprietarios por ponto de midia. Por padrao, todos os planos incluem 1 proprietario por ponto.</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: '1 proprietario', value: 'Incluso', color: 'text-green-600', bg: 'bg-gray-50 border-gray-200' },
+                  { label: '2 proprietarios', value: 'R$ 99/mes', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                  { label: '3 proprietarios', value: 'R$ 113,85/mes', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                  { label: '4 proprietarios', value: 'R$ 128,70/mes', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                ].map(({ label, value, color, bg }) => (
+                  <div key={label} className={`rounded-xl ${bg} border px-3 py-2.5 text-center`}>
+                    <div className="text-[11px] text-gray-500 mb-0.5">{label}</div>
+                    <div className={`text-xs font-semibold ${color}`}>{value}</div>
+                  </div>
+                ))}
               </div>
             </div>
-            
-            <div className="relative self-start">
-              <button
-                onMouseEnter={() => setShowAddonTooltip(true)}
-                onMouseLeave={() => setShowAddonTooltip(false)}
-                onClick={() => setShowAddonTooltip(!showAddonTooltip)}
-                className="p-2 hover:bg-white/50 rounded-lg transition-colors"
-              >
-                <HelpCircle className="w-6 h-6 text-[#4F46E5]" />
+            <div className="relative">
+              <button onMouseEnter={() => setShowAddonTooltip(true)} onMouseLeave={() => setShowAddonTooltip(false)}
+                onClick={() => setShowAddonTooltip(!showAddonTooltip)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <HelpCircle className="w-5 h-5 text-gray-400" />
               </button>
-              
               {showAddonTooltip && (
-                <div className="absolute right-0 sm:right-0 top-10 w-72 sm:w-80 bg-white rounded-lg shadow-xl p-4 border border-gray-200 z-10">
-                  <h4 className="text-sm text-gray-900 mb-2">Quando preciso de múltiplos proprietários?</h4>
-                  <p className="text-sm text-gray-600">
-                    Se você gerencia pontos que pertencem a vários proprietários diferentes, 
-                    ou precisa dividir repasses entre múltiplas empresas por ponto. 
-                    Ideal para veículos que trabalham com consórcios ou parcerias múltiplas.
-                  </p>
+                <div className="absolute right-0 top-10 w-72 bg-white rounded-xl shadow-xl p-4 border border-gray-200 z-10 text-xs text-gray-600">
+                  <p className="font-semibold text-gray-900 mb-1">Quando preciso de multiplos proprietarios?</p>
+                  Se voce gerencia pontos que pertencem a varios proprietarios diferentes, ou precisa dividir repasses entre multiplas empresas por ponto.
                 </div>
               )}
             </div>

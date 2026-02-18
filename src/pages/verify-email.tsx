@@ -57,13 +57,13 @@ export default function VerifyEmail() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
           </div>
           <button
             onClick={() => navigate('/')}
-            className="text-gray-700 hover:text-blue-600 transition-colors"
+            className="text-sm sm:text-base text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
           </button>
@@ -71,8 +71,8 @@ export default function VerifyEmail() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-10">
+      <main className="max-w-md mx-auto px-4 py-8 sm:py-20">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-5 sm:p-10">
           <div className="text-center">
             {status === 'loading' && (
               <div className="mx-auto mb-6 h-14 w-14 rounded-full bg-blue-50 flex items-center justify-center">
