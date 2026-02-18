@@ -1,97 +1,14 @@
 import { useNavigation } from '../App';
 import { useWaitlist } from '../contexts/WaitlistContext';
-import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
+import { Pricing } from '../components/landing/Pricing';
 
 export default function Planos() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
   const [showContactModal, setShowContactModal] = useState(false);
-
-  const plans = [
-    {
-      name: 'Até 50 pontos',
-      price: 'R$ 299',
-      period: '/mês',
-      description: 'Ideal para operações menores que estão começando',
-      capacity: 'Até 50 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: '50 a 100 pontos',
-      price: 'R$ 399',
-      period: '/mês',
-      description: 'Para empresas em crescimento com inventário moderado',
-      capacity: 'Até 100 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: '101 a 150 pontos',
-      price: 'R$ 499',
-      period: '/mês',
-      description: 'Plano popular para operações estabelecidas',
-      capacity: 'Até 150 pontos',
-      recommended: true,
-      color: 'from-green-500 to-green-700'
-    },
-    {
-      name: '151 a 200 pontos',
-      price: 'R$ 599',
-      period: '/mês',
-      description: 'Para empresas com inventário robusto',
-      capacity: 'Até 200 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: '201 a 250 pontos',
-      price: 'R$ 699',
-      period: '/mês',
-      description: 'Operações de médio a grande porte',
-      capacity: 'Até 250 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: '251 a 300 pontos',
-      price: 'R$ 799',
-      period: '/mês',
-      description: 'Para grandes veículos regionais',
-      capacity: 'Até 300 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: '301 a 350 pontos',
-      price: 'R$ 899',
-      period: '/mês',
-      description: 'Operações de grande escala',
-      capacity: 'Até 350 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: '351 a 400 pontos',
-      price: 'R$ 999',
-      period: '/mês',
-      description: 'Para grandes redes nacionais',
-      capacity: 'Até 400 pontos',
-      recommended: false,
-      color: 'from-blue-500 to-blue-700'
-    },
-    {
-      name: 'Mais de 400 pontos',
-      price: 'Sob consulta',
-      period: '',
-      description: 'Plano enterprise customizado para sua operação',
-      capacity: 'Ilimitado',
-      recommended: false,
-      color: 'from-purple-500 to-purple-700'
-    }
-  ];
 
   return (
     <div className="min-h-screen bg-white">
@@ -127,60 +44,8 @@ export default function Planos() {
             </p>
           </div>
 
-          {/* Pricing Cards */}
-          <div className="grid md:grid-cols-3 gap-8 mb-16">
-            {plans.map((plan, index) => (
-              <div
-                key={index}
-                className={`relative rounded-3xl p-8 ${
-                  plan.recommended 
-                    ? 'bg-gradient-to-br from-blue-50 to-green-50 ring-4 ring-green-500' 
-                    : 'bg-gray-50'
-                }`}
-              >
-                {plan.recommended && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <span className="bg-green-500 text-white px-6 py-2 rounded-full text-sm font-semibold">
-                      Mais Popular
-                    </span>
-                  </div>
-                )}
-
-                <div className="mb-8">
-                  <h3 className="text-3xl font-semibold text-gray-900 mb-2">{plan.name}</h3>
-                  <p className="text-gray-600 mb-6">{plan.description}</p>
-                  
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-bold text-gray-900">{plan.price}</span>
-                    {plan.period && <span className="text-xl text-gray-600">{plan.period}</span>}
-                  </div>
-                </div>
-
-                <ul className="space-y-4 mb-8">
-                  <li className="flex items-start gap-3">
-                    <Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                    <span className="text-gray-700">{plan.capacity}</span>
-                  </li>
-                </ul>
-
-                <button
-                  onClick={() => {
-                    const key = plan.name
-                      .toLowerCase()
-                      .normalize('NFD')
-                      .replace(/[\u0300-\u036f]/g, '')
-                      .replace(/[^a-z0-9]+/g, '-')
-                      .replace(/(^-|-$)/g, '');
-                    openWaitlist(`planos:card:${key}:${plan.price === 'Sob consulta' ? 'falar-com-vendas' : 'comecar-agora'}`);
-                    // navigate('/cadastro');
-                  }}
-                  className={`w-full flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r ${plan.color} text-white rounded-full hover:shadow-xl transition-all text-lg font-semibold`}
-                >
-                  {plan.price === 'Sob consulta' ? 'Falar com vendas' : 'Começar agora'}
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </div>
-            ))}
+          <div className="mb-16">
+            <Pricing />
           </div>
 
           {/* Trial Banner */}

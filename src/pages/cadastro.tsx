@@ -240,13 +240,13 @@ export default function Cadastro() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
           </div>
           <button
             onClick={() => navigate('/')}
-            className="text-gray-700 hover:text-blue-600 transition-colors"
+            className="text-sm sm:text-base text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
           </button>
@@ -254,9 +254,9 @@ export default function Cadastro() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-12">
         {isSuccess ? (
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-12">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-5 sm:p-12">
             <SuccessScreen
               companyName={step2Data.fantasyName}
               userEmail={step3Data.email}
@@ -268,7 +268,7 @@ export default function Cadastro() {
             <SignupStepper currentStep={currentStep} steps={stepTitles} />
 
             {/* Step Content */}
-            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-10 mt-8">
+            <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-4 sm:p-10 mt-5 sm:mt-8">
               {currentStep === 1 && (
                 <Step1Plan
                   data={step1Data}

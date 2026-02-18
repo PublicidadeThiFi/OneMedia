@@ -60,21 +60,21 @@ export default function ForgotPassword() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
           </div>
           <button
             onClick={() => navigate('/login')}
-            className="text-gray-700 hover:text-blue-600 transition-colors"
+            className="text-sm sm:text-base text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar
           </button>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 sm:p-10">
+      <main className="max-w-md mx-auto px-4 py-8 sm:py-20">
+        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-5 sm:p-10">
           <h1 className="text-2xl font-semibold text-gray-900">Esqueceu sua senha?</h1>
           <p className="mt-2 text-sm text-gray-600">
             Informe seu e-mail. Se existir uma conta, enviaremos um link para redefinir sua senha.

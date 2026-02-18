@@ -15,6 +15,7 @@ import Dashboard from './pages/dashboard';
 import Contato from './pages/contato';
 import Termos from './pages/termos';
 import Privacidade from './pages/privacidade';
+import MobileLandingPage from './pages/landing-mobile';
 import Planos from './pages/planos';
 import PropostaPublica from './pages/proposta-publica';
 import MidiaKitPublico from './pages/midia-kit-publico';
@@ -33,6 +34,7 @@ import MenuDonoWorkspace from './pages/menu-dono-workspace';
 import MenuDonoEnviada from './pages/menu-dono-enviada';
 import MenuDonoRevisao from './pages/menu-dono-revisao';
 import MenuDonoAprovada from './pages/menu-dono-aprovada';
+import OAuthCallback from './pages/oauth-callback';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -95,6 +97,12 @@ export default function App() {
   const getCurrentPath = () => window.location.pathname + window.location.search;
   const [currentPath, setCurrentPath] = useState(getCurrentPath());
 
+  const isMobileDevice = () => {
+    const width = window.innerWidth || document.documentElement.clientWidth;
+    const ua = navigator.userAgent || navigator.vendor;
+    return width <= 768 || /Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry/i.test(ua);
+  };
+
   // Listen to browser back/forward buttons
   useEffect(() => {
     const handlePopState = () => {
@@ -111,6 +119,14 @@ export default function App() {
     setCurrentPath(path);
     window.scrollTo(0, 0); // Scroll to top on navigation
   };
+
+  // Redirect root to mobile landing when on mobile devices
+  useEffect(() => {
+    const cleanPath = getCurrentPath().split('?')[0].replace(/\/$/, '') || '/';
+    if (cleanPath === '/' && isMobileDevice()) {
+      navigate('/landing-mobile');
+    }
+  }, [currentPath]);
 
   
   // Route component based on current path
@@ -185,6 +201,8 @@ export default function App() {
         return <Cadastro />;
       case '/planos':
         return <Planos />;
+      case '/landing-mobile':
+        return <MobileLandingPage />;
       case '/login':
         return <Login />;
       case '/forgot-password':
@@ -193,6 +211,8 @@ export default function App() {
         return <ResetPassword />;
       case '/verify-email':
         return <VerifyEmail />;
+      case '/oauth-callback':
+        return <OAuthCallback />;
       case '/dashboard':
         return <Dashboard />;
       case '/contato':

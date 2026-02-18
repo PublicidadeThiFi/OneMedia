@@ -54,9 +54,9 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-semibold text-gray-900 mb-2">Bem-vindo de volta</h2>
-        <p className="text-gray-600">
+      <div className="text-center mb-6 sm:mb-8">
+        <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 mb-2">Bem-vindo de volta</h2>
+        <p className="text-sm sm:text-base text-gray-600">
           Entre com suas credenciais para acessar o sistema
         </p>
       </div>

@@ -1,4 +1,5 @@
 import { useNavigation } from '../App';
+import { Pricing } from '../components/landing/Pricing';
 import { useWaitlist } from '../contexts/WaitlistContext';
 import { 
   ArrowRight, Check, AlertTriangle, CheckCircle2, 
@@ -901,112 +902,8 @@ export default function Home() {
 </section>
 
 
-      {/* Pricing Comparison Section */}
-      <section id="precos" className="landing-anchor py-12 px-6 bg-blue-500/5">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-medium text-gray-900 text-center mb-3 leading-tight">
-            Quanto você gasta hoje
-            <br />
-            para gerenciar seu inventário?
-          </h2>
-          <p className="text-xl md:text-2xl font-extralight text-gray-700 text-center mb-10 max-w-3xl mx-auto leading-snug">
-            Compare o custo real de manter planilhas e processos manuais vs. usar a <span className="font-medium">One Media!</span>
-          </p>
-
-          <div className="max-w-6xl mx-auto">
-            {/* Headers */}
-            <div className="grid lg:grid-cols-2 gap-6 mb-6">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="w-10 h-10 text-red-600" />
-                <h3 className="text-3xl text-gray-900">Gestão manual</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-10 h-10 text-green-600" />
-                <h3 className="text-3xl text-gray-900">Com a OneMedia</h3>
-              </div>
-            </div>
-
-            {/* Row 1 */}
-            <div className="grid lg:grid-cols-2 gap-6 mb-3">
-              <div className="bg-red-50 rounded-2xl px-5 py-4 flex justify-between items-center">
-                <p className="text-lg text-gray-900 leading-tight">Atualizar planilhas de inventário</p>
-                <p className="text-2xl font-semibold text-red-800 shrink-0 ml-3">15h/mês</p>
-              </div>
-              <div className="bg-green-50 rounded-2xl px-5 py-4 flex items-center">
-                <p className="text-lg text-gray-900 leading-tight">Inventário centralizado e sempre atualizado</p>
-              </div>
-            </div>
-
-            {/* Row 2 */}
-            <div className="grid lg:grid-cols-2 gap-6 mb-3">
-              <div className="bg-red-50 rounded-2xl px-5 py-4 flex justify-between items-center">
-                <p className="text-lg text-gray-900 leading-tight">Montar propostas e recalcular valores</p>
-                <p className="text-2xl font-semibold text-red-800 shrink-0 ml-3">20h/mês</p>
-              </div>
-              <div className="bg-green-50 rounded-2xl px-5 py-4 flex items-center">
-                <p className="text-lg text-gray-900 leading-tight">Propostas em poucos cliques, com templates</p>
-              </div>
-            </div>
-
-            {/* Row 3 */}
-            <div className="grid lg:grid-cols-2 gap-6 mb-3">
-              <div className="bg-red-50 rounded-2xl px-5 py-4 flex justify-between items-center">
-                <p className="text-lg text-gray-900 leading-tight">Conferir faturas e recebimentos</p>
-                <p className="text-2xl font-semibold text-red-800 shrink-0 ml-3">12h/mês</p>
-              </div>
-              <div className="bg-green-50 rounded-2xl px-5 py-4 flex items-center">
-                <p className="text-lg text-gray-900 leading-tight">Cobranças ligadas às campanhas, com alertas</p>
-              </div>
-            </div>
-
-            {/* Row 4 */}
-            <div className="grid lg:grid-cols-2 gap-6 mb-3">
-              <div className="bg-red-50 rounded-2xl px-5 py-4 flex justify-between items-center">
-                <p className="text-lg text-gray-900 leading-tight">Retrabalho por erros de comunicação</p>
-                <p className="text-2xl font-semibold text-red-800 shrink-0 ml-3">18h/mês</p>
-              </div>
-              <div className="bg-green-50 rounded-2xl px-5 py-4 flex items-center">
-                <p className="text-lg text-gray-900 leading-tight">Mídia kit e mapa integrados para vender mais</p>
-              </div>
-            </div>
-
-            {/* Bottom Cards */}
-            <div className="grid lg:grid-cols-2 gap-6 mt-6">
-              <div className="bg-red-700 rounded-2xl px-6 py-5 text-white border-l-4 border-white">
-                <p className="text-2xl font-semibold mb-1 leading-tight">Total: ~65h/mês desperdiçadas</p>
-                <p className="text-lg leading-tight">em tarefas repetitivas</p>
-              </div>
-              <div className="bg-green-700 rounded-2xl px-6 py-5 text-white border-l-4 border-white">
-                <p className="text-lg mb-1 leading-tight">Investimento mensal:</p>
-                <p className="text-xs opacity-90 mb-3">*Exemplo com 50 unidades de inventário</p>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm">A partir de:</span>
-                  <span className="text-5xl font-semibold leading-none">R$ 299</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center mt-8">
-            <button
-              onClick={() => {
-                openWaitlist('index:mais-eficiencia:teste-gratis-30-dias');
-                // navigate('/cadastro');
-              }}
-              className="flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-2xl rounded-full hover:shadow-2xl transition-all mx-auto mb-4"
-            >
-              Teste Grátis 30 dias
-              <ArrowRight className="w-7 h-7" />
-            </button>
-            <button 
-              onClick={() => navigate('/planos')} 
-              className="text-lg text-gray-900 underline hover:text-blue-600 transition-colors cursor-pointer"
-            >
-              Conheça os nossos planos.
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* Pricing Section */}
+      <Pricing />
 
 {/* Security Section */}
 <section className="security-section">
