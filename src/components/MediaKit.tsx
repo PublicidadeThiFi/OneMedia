@@ -29,7 +29,7 @@ import {
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from 'sonner';
 import apiClient, { publicApiClient } from '../lib/apiClient';
-import { MediaPoint, MediaType } from '../types';
+import { MediaPoint, MediaType, PromotionDiscountType, PromotionPayload } from '../types';
 
 // Map (Leaflet)
 import 'leaflet/dist/leaflet.css';
@@ -132,6 +132,23 @@ function formatCurrencyBRL(value?: number | null): string {
     currency: 'BRL',
     maximumFractionDigits: 0,
   }).format(Number(value));
+}
+
+function formatPromotionLabel(promo?: PromotionPayload | null): string {
+  if (!promo) return '';
+  const value = Number(promo.discountValue ?? 0);
+  if (promo.discountType === PromotionDiscountType.PERCENT) return `-${value}%`;
+  return `-${formatCurrencyBRL(value)}`;
+}
+
+function applyPromotion(price: number, promo?: PromotionPayload | null): number {
+  if (!promo) return price;
+  const value = Number(promo.discountValue ?? 0);
+  if (!Number.isFinite(price) || !Number.isFinite(value) || value <= 0) return price;
+  if (promo.discountType === PromotionDiscountType.PERCENT) {
+    return Math.max(0, price * (1 - value / 100));
+  }
+  return Math.max(0, price - value);
 }
 
 function buildPointText(point: MediaKitPoint): string {
@@ -879,6 +896,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                             >
                               {availability}
                             </Badge>
+                            {point.promotion ? (
+                              <Badge className="absolute bottom-1 left-1 bg-orange-500 text-white text-[10px] px-2 py-0.5">
+                                Promoção {formatPromotionLabel(point.promotion)}
+                              </Badge>
+                            ) : null}
                           </div>
 
                           <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[1fr_1.2fr_auto] gap-4 items-start">
@@ -917,10 +939,28 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                             <div className="w-full sm:w-52 flex-shrink-0 flex flex-col sm:items-end gap-2 px-4">
                               <div className="space-y-1 text-right">
                                 <div className="text-indigo-600 font-semibold whitespace-nowrap">
-                                  {point.basePriceMonth != null ? `${formatCurrencyBRL(point.basePriceMonth)}/mês` : '—'}
+                                  {point.basePriceMonth != null ? (
+                                    point.promotion ? (
+                                      <span className="flex flex-col">
+                                        <span className="text-xs text-gray-400 line-through">{formatCurrencyBRL(point.basePriceMonth)}/mês</span>
+                                        <span>{formatCurrencyBRL(applyPromotion(point.basePriceMonth, point.promotion))}/mês</span>
+                                      </span>
+                                    ) : (
+                                      `${formatCurrencyBRL(point.basePriceMonth)}/mês`
+                                    )
+                                  ) : '—'}
                                 </div>
                                 <div className="text-indigo-600 font-semibold whitespace-nowrap">
-                                  {point.basePriceWeek != null ? `${formatCurrencyBRL(point.basePriceWeek)}/semana` : '—'}
+                                  {point.basePriceWeek != null ? (
+                                    point.promotion ? (
+                                      <span className="flex flex-col">
+                                        <span className="text-xs text-gray-400 line-through">{formatCurrencyBRL(point.basePriceWeek)}/semana</span>
+                                        <span>{formatCurrencyBRL(applyPromotion(point.basePriceWeek, point.promotion))}/semana</span>
+                                      </span>
+                                    ) : (
+                                      `${formatCurrencyBRL(point.basePriceWeek)}/semana`
+                                    )
+                                  ) : '—'}
                                 </div>
                               </div>
 
@@ -1314,11 +1354,25 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <div className="text-xs text-gray-500">Semanal</div>
-                <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
+                {detailsPoint?.promotion && detailsPoint.basePriceWeek != null ? (
+                  <div className="flex flex-col">
+                    <div className="text-xs text-gray-400 line-through">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
+                    <div className="text-gray-900">{formatCurrencyBRL(applyPromotion(detailsPoint.basePriceWeek, detailsPoint.promotion))}</div>
+                  </div>
+                ) : (
+                  <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>
+                )}
               </div>
               <div>
                 <div className="text-xs text-gray-500">Mensal</div>
-                <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
+                {detailsPoint?.promotion && detailsPoint.basePriceMonth != null ? (
+                  <div className="flex flex-col">
+                    <div className="text-xs text-gray-400 line-through">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
+                    <div className="text-gray-900">{formatCurrencyBRL(applyPromotion(detailsPoint.basePriceMonth, detailsPoint.promotion))}</div>
+                  </div>
+                ) : (
+                  <div className="text-gray-900">{formatCurrencyBRL(detailsPoint.basePriceMonth)}</div>
+                )}
               </div>
             </div>
           </div>

@@ -4,32 +4,21 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { useNavigation } from '../contexts/NavigationContext';
 import { ArrowRight, Building2, Menu as MenuIcon, Tag } from 'lucide-react';
+import { buildMenuUrl, buildQueryString, getMenuQueryParams, MenuFlow } from '../lib/menuFlow';
 
 const ONE_MEDIA_LOGO_SRC = '/figma-assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 const OUTDOOR_BG_SRC = '/figma-assets/outdoor.png';
 
-function buildQuery(params: Record<string, string | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    const val = String(v ?? '').trim();
-    if (val) sp.set(k, val);
-  });
-  const qs = sp.toString();
-  return qs ? `?${qs}` : '';
-}
-
-type MenuFlow = 'default' | 'promotions' | 'agency';
-
 export default function MenuHome() {
   const navigate = useNavigation();
 
-  const token = useMemo(() => {
-    const sp = new URLSearchParams(window.location.search);
-    return sp.get('token') || sp.get('t') || '';
+  const { token, ownerCompanyId } = useMemo(() => {
+    const q = getMenuQueryParams();
+    return { token: q.token, ownerCompanyId: q.ownerCompanyId };
   }, []);
 
   const goToUF = (flow: MenuFlow) => {
-    navigate(`/menu/uf${buildQuery({ token, flow })}`);
+    navigate(buildMenuUrl('/menu/uf', { token, flow, ownerCompanyId }));
   };
 
   return (
@@ -163,7 +152,7 @@ export default function MenuHome() {
             <Button
               variant="outline"
               className="w-full sm:w-auto"
-              onClick={() => navigate(`/mk${buildQuery({ token })}`)}
+              onClick={() => navigate(`/mk${buildQueryString({ token, ownerCompanyId: ownerCompanyId ?? undefined })}`)}
             >
               Voltar para o Mídia Kit
             </Button>

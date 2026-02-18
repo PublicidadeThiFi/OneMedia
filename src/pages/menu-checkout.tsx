@@ -10,7 +10,10 @@ import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { clearCart, formatDurationParts, readCart } from '../lib/menuCart';
-import { createMenuRequest } from '../lib/menuRequestApi';
+import { publicApiClient } from '../lib/apiClient';
+import { getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+
+type CreateMenuRequestResponse = { requestId: string };
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -34,20 +37,22 @@ function normalizePhone(raw: string): string {
 export default function MenuCheckout() {
   const navigate = useNavigation();
 
-  const { token, uf, city } = useMemo(() => {
-    const sp = new URLSearchParams(window.location.search);
+  const { token, uf, city, flow, ownerCompanyId } = useMemo(() => {
+    const qp = getMenuQueryParams();
     return {
-      token: sp.get('token') || sp.get('t') || '',
-      uf: String(sp.get('uf') || '').trim().toUpperCase(),
-      city: String(sp.get('city') || '').trim(),
+      token: qp.token,
+      uf: qp.uf || '',
+      city: qp.city || '',
+      flow: qp.flow,
+      ownerCompanyId: qp.ownerCompanyId,
     };
   }, []);
 
   const cart = useMemo(() => readCart(), []);
 
   const backUrl = useMemo(() => {
-    return `/menu/carrinho${buildQuery({ token, uf, city })}`;
-  }, [token, uf, city]);
+    return `/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`;
+  }, [token, uf, city, flow, ownerCompanyId]);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -69,7 +74,7 @@ export default function MenuCheckout() {
     }
     if (!cart.items.length) {
       toast.error('Seu carrinho está vazio.');
-      navigate(`/menu/pontos${buildQuery({ token: t, uf, city })}`);
+      navigate(`/menu/pontos${buildQuery({ token: t, uf, city, flow, ownerCompanyId })}`);
       return;
     }
     if (!name) {
@@ -87,7 +92,7 @@ export default function MenuCheckout() {
 
     setIsSubmitting(true);
     try {
-      const res = await createMenuRequest({
+      const res = (await publicApiClient.post('/public/menu/request', {
         token: t,
         customerName: name,
         customerEmail: email,
@@ -98,11 +103,17 @@ export default function MenuCheckout() {
         items: cart.items,
         uf: uf || undefined,
         city: city || undefined,
-      });
+        flow,
+      })) as { data?: Partial<CreateMenuRequestResponse> };
+
+      const requestId = String(res?.data?.requestId || '').trim();
+      if (!requestId) {
+        throw new Error('Resposta inválida: requestId ausente.');
+      }
 
       clearCart();
       toast.success('Solicitação enviada!');
-      navigate(`/menu/enviado${buildQuery({ token: t, rid: res.requestId, uf, city })}`);
+      navigate(`/menu/enviado${buildQuery({ token: t, rid: requestId, uf, city, flow, ownerCompanyId })}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao enviar solicitação.';
       toast.error('Não foi possível enviar', { description: String(msg) });
@@ -117,6 +128,9 @@ export default function MenuCheckout() {
         <div className="mx-auto max-w-3xl px-4 py-8">
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
+            {isAgencyFlow(flow) && (
+              <Badge variant="outline" className="rounded-full">Agência</Badge>
+            )}
             <div className="text-sm text-gray-600">Checkout</div>
 
             <div className="ml-auto">

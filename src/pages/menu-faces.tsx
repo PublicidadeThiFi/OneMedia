@@ -12,6 +12,7 @@ import { PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, getCartCount, formatAddress } from '../lib/menuCart';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { MediaUnit } from '../types';
+import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -35,17 +36,22 @@ function formatCurrencyBRL(value?: number | null): string {
 export default function MenuFaces() {
   const navigate = useNavigation();
 
-  const { token, pointId, uf, city } = useMemo(() => {
-    const sp = new URLSearchParams(window.location.search);
+  const { token, pointId, uf, city, flow, ownerCompanyId } = useMemo(() => {
+    const qp = getMenuQueryParams();
     return {
-      token: sp.get('token') || sp.get('t') || '',
-      pointId: sp.get('id') || sp.get('pointId') || '',
-      uf: String(sp.get('uf') || '').trim().toUpperCase(),
-      city: String(sp.get('city') || '').trim(),
+      token: qp.token,
+      pointId: qp.pointId || '',
+      uf: qp.uf || '',
+      city: qp.city || '',
+      flow: qp.flow,
+      ownerCompanyId: qp.ownerCompanyId,
     };
   }, []);
 
-  const { data, loading, error } = usePublicMediaKit({ token });
+  const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId });
+
+  const isAgency = isAgencyFlow(flow);
+  const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
 
   const point: PublicMediaKitPoint | null = useMemo(() => {
     const points = data?.points ?? [];
@@ -60,7 +66,10 @@ export default function MenuFaces() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
 
-  const backUrl = useMemo(() => `/menu/detalhe${buildQuery({ token, id: pointId, uf, city })}`, [token, pointId, uf, city]);
+  const backUrl = useMemo(
+    () => `/menu/detalhe${buildQuery({ token, id: pointId, uf, city, flow, ownerCompanyId })}`,
+    [token, pointId, uf, city, flow, ownerCompanyId],
+  );
 
   const onToggle = (unitId: string, next: boolean) => {
     setSelected((prev) => ({ ...prev, [unitId]: next }));
@@ -89,7 +98,7 @@ export default function MenuFaces() {
       toast.info('Esses itens já estavam no carrinho.');
     }
 
-    navigate(`/menu/carrinho${buildQuery({ token, uf, city })}`);
+    navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`);
   };
 
   const cartCount = useMemo(() => getCartCount(), [selectedCount, pointId]);
@@ -99,6 +108,11 @@ export default function MenuFaces() {
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
+          {isAgency && markupPct > 0 && (
+            <Badge variant="outline" className="rounded-full">
+              Agência +{markupPct}%
+            </Badge>
+          )}
           <div className="text-sm text-gray-600">Seleção de faces/telas</div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -106,7 +120,7 @@ export default function MenuFaces() {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city })}`)}
+                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
               >
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})
@@ -177,8 +191,8 @@ export default function MenuFaces() {
                   {units.length > 0 ? (
                     units.map((u) => {
                       const checked = !!selected[u.id];
-                      const priceMonth = u.priceMonth ?? point.basePriceMonth;
-                      const priceWeek = u.priceWeek ?? point.basePriceWeek;
+                      const priceMonth = applyAgencyMarkup(u.priceMonth ?? point.basePriceMonth, markupPct);
+                      const priceWeek = applyAgencyMarkup(u.priceWeek ?? point.basePriceWeek, markupPct);
                       return (
                         <div key={u.id} className="rounded-xl border border-gray-200 p-3">
                           <div className="flex items-start gap-3">
