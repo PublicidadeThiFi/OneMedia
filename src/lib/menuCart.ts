@@ -10,6 +10,11 @@ export type DurationParts = {
 
 export type MenuCartItemSnapshot = {
   pointName: string;
+  /**
+   * Backward compatibility (older carts/snapshots used different field names).
+   * Prefer using `pointName` and `unitLabel` in new code.
+   */
+  mediaPointName?: string;
   pointType?: MediaType | string;
   addressLine?: string;
   city?: string;
@@ -17,6 +22,8 @@ export type MenuCartItemSnapshot = {
   imageUrl?: string;
   // When item is a specific face/screen
   unitLabel?: string;
+  /** Backward compatibility alias for `unitLabel`. */
+  mediaUnitLabel?: string;
   unitType?: UnitType;
   priceMonth?: number | null;
   priceWeek?: number | null;

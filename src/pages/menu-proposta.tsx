@@ -51,6 +51,23 @@ function formatDateTimeBr(iso?: string | null): string {
   }
 }
 
+function clampInt(v: any, min: number, max: number): number {
+  const n = Math.floor(Number(v) || 0);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null): string {
+  const years = clampInt(parts?.years, 0, 99);
+  const months = clampInt(parts?.months, 0, 99);
+  const days = clampInt(parts?.days, 0, 99);
+  const segs: string[] = [];
+  if (years) segs.push(`${years} ${years === 1 ? 'ano' : 'anos'}`);
+  if (months) segs.push(`${months} ${months === 1 ? 'mês' : 'meses'}`);
+  if (days || segs.length === 0) segs.push(`${days || 0} ${days === 1 ? 'dia' : 'dias'}`);
+  return segs.join(', ');
+}
+
 export default function MenuProposta() {
   const navigate = useNavigation();
 
@@ -128,6 +145,15 @@ export default function MenuProposta() {
 
   const canApprove = Boolean(currentQuote) && currentQuote?.status !== 'APPROVED' && String(data?.status || '').toUpperCase() !== 'APPROVED';
   const canReject = Boolean(currentQuote) && currentQuote?.status === 'SENT' && String(data?.status || '').toUpperCase() !== 'APPROVED';
+
+  const isApproved = Boolean(currentQuote) && (currentQuote?.status === 'APPROVED' || String(data?.status || '').toUpperCase() === 'APPROVED');
+
+  const contractDownloadUrl = useMemo(() => {
+    if (!String(rid || '').trim()) return '';
+    const base = `/api/public/menu/quote/${encodeURIComponent(rid)}/contract`;
+    const qs = buildQuery(t ? { t } : { token });
+    return `${base}${qs}`;
+  }, [rid, t, token]);
 
   const onApprove = async () => {
     try {
@@ -296,6 +322,33 @@ export default function MenuProposta() {
                   </>
                 )}
 
+                {Array.isArray(currentQuote.draft?.gifts) && currentQuote.draft.gifts.length > 0 && (
+                  <>
+                    <Separator className="my-5" />
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">Brindes (R$ 0)</div>
+                      <div className="mt-1 text-xs text-gray-600">
+                        Itens gratuitos com período de ocupação. Não alteram o total da proposta e constam como contrapartida.
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {currentQuote.draft.gifts.map((g: any) => (
+                          <div key={String(g.id)} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-gray-900 truncate">
+                                  {(String(g.scope || '').toUpperCase() === 'FACE' ? 'Face' : 'Ponto')}: {g.label || g.targetId}
+                                </div>
+                                <div className="mt-0.5 text-xs text-gray-600">Período: {formatPeriod(g.duration)}</div>
+                              </div>
+                              <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(0)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {currentQuote.draft?.message && (
                   <>
                     <Separator className="my-5" />
@@ -309,22 +362,38 @@ export default function MenuProposta() {
                 <Separator className="my-5" />
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button className="gap-2" disabled={!canApprove || isActing} onClick={onApprove}>
-                    <CheckCircle2 className="h-4 w-4" />
-                    Aprovar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    disabled={!canReject || isActing}
-                    onClick={() => setShowReject((s) => !s)}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Solicitar revisão
-                  </Button>
+                  {!isApproved && (
+                    <>
+                      <Button className="gap-2" disabled={!canApprove || isActing} onClick={onApprove}>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Aprovar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-2"
+                        disabled={!canReject || isActing}
+                        onClick={() => setShowReject((s) => !s)}
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Solicitar revisão
+                      </Button>
+                    </>
+                  )}
+
+                  {isApproved && String(contractDownloadUrl || '').trim() && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="gap-2"
+                      onClick={() => window.open(contractDownloadUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Baixar contrato
+                    </Button>
+                  )}
                 </div>
 
-                {showReject && (
+                {showReject && !isApproved && (
                   <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-4">
                     <div className="text-sm font-semibold text-gray-900">O que você quer ajustar?</div>
                     <div className="mt-1 text-xs text-gray-600">Ex.: prazo, desconto, serviços, ponto específico…</div>

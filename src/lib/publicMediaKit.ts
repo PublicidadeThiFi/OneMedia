@@ -20,6 +20,8 @@ export type PublicMediaKitCompany = {
   site: string | null;
   addressCity: string | null;
   addressState: string | null;
+  // Markup (%) aplicado no fluxo público "Sou Agência"
+  agencyMarkupPercent: number | null;
 };
 
 export type PublicMediaKitResponse = {

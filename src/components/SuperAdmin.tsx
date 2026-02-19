@@ -8,8 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { OwnerCompany } from '../types';
 import { useOwnerCompanies } from '../hooks/useOwnerCompanies';
 import { Plus, Pencil, Trash2, RefreshCcw } from 'lucide-react';
+import { apiClient } from '../lib/apiClient';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'sonner';
 
 export function SuperAdmin() {
+  const { user } = useAuth();
+
   const {
     ownerCompanies,
     loading,
@@ -23,6 +28,46 @@ export function SuperAdmin() {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<OwnerCompany | null>(null);
+
+  const isSuperAdmin = Boolean(user?.isSuperAdmin);
+  const [agencyMarkupPercent, setAgencyMarkupPercent] = useState<string>('0');
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [companySaving, setCompanySaving] = useState(false);
+
+  const loadCompany = async () => {
+    setCompanyLoading(true);
+    try {
+      const res = await apiClient.get('/company');
+      const p = Number(res?.data?.agencyMarkupPercent ?? 0);
+      setAgencyMarkupPercent(String(Number.isFinite(p) ? p : 0));
+    } catch {
+      // não bloqueia a tela
+    } finally {
+      setCompanyLoading(false);
+    }
+  };
+
+  const saveCompanyMarkup = async () => {
+    if (!isSuperAdmin) {
+      toast.error('Apenas SuperAdmin pode alterar o markup.');
+      return;
+    }
+    const next = Math.max(0, Math.min(500, Number(agencyMarkupPercent) || 0));
+    setCompanySaving(true);
+    try {
+      await apiClient.put('/company', { agencyMarkupPercent: next });
+      setAgencyMarkupPercent(String(next));
+      toast.success('Markup atualizado', { description: `Agência +${next}%` });
+    } catch (e: any) {
+      toast.error('Não foi possível salvar', { description: e?.response?.data?.message || e?.message });
+    } finally {
+      setCompanySaving(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCompany();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -39,6 +84,56 @@ export function SuperAdmin() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Cardápio público — Markup “Sou Agência”</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-sm text-gray-600">
+            Configure o percentual aplicado nos preços quando o cliente abrir o cardápio com <b>flow=agency</b>.
+            <br />
+            <b>0%</b> desativa o markup.
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-end gap-3">
+            <div className="space-y-2">
+              <Label>Percentual (%)</Label>
+              <Input
+                type="number"
+                min={0}
+                max={500}
+                step={1}
+                value={agencyMarkupPercent}
+                disabled={!isSuperAdmin || companyLoading || companySaving}
+                onChange={(e) => setAgencyMarkupPercent(e.target.value)}
+                className="w-full md:w-64"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={saveCompanyMarkup}
+                disabled={!isSuperAdmin || companyLoading || companySaving}
+              >
+                {companySaving ? 'Salvando...' : 'Salvar'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={loadCompany}
+                disabled={companyLoading || companySaving}
+                title="Recarregar valor atual"
+              >
+                <RefreshCcw className="w-4 h-4 mr-2" />
+                Recarregar
+              </Button>
+              {!isSuperAdmin && (
+                <span className="text-xs text-gray-500">Sem permissão</span>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Super Admin (Interno) – Empresas Proprietárias</CardTitle>

@@ -40,6 +40,23 @@ export enum Orientation {
   CONTRA_FLUXO = 'CONTRA_FLUXO',
 }
 
+export enum PromotionDiscountType {
+  PERCENT = 'PERCENT',
+  FIXED = 'FIXED',
+}
+
+export interface PromotionPayload {
+  id: string;
+  mediaPointId: string | null;
+  mediaUnitId: string | null;
+  discountType: PromotionDiscountType;
+  discountValue: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  showInMediaKit: boolean;
+  showInOutsideProposals: boolean;
+}
+
 export enum ClientStatus {
   LEAD = 'LEAD',
   PROSPECT = 'PROSPECT',
@@ -192,6 +209,8 @@ export interface Company {
   addressState?: string;
   addressCountry?: string;
   defaultProposalNotes?: string;
+  // Markup (%) aplicado no fluxo público "Sou Agência"
+  agencyMarkupPercent?: number;
   notificationPrefs?: any;
   integrations?: any;
   planId?: string;
@@ -252,6 +271,7 @@ export interface MediaPoint {
   basePriceDay?: number;
   mainImageUrl?: string;
   productionCosts?: ProductionCosts; // custos de produção OOH
+  promotion?: PromotionPayload | null;
   createdAt: Date;
   updatedAt: Date;
   units?: MediaUnit[];
@@ -281,6 +301,8 @@ export interface MediaUnit {
   priceWeek?: number;
   priceDay?: number;
   imageUrl?: string | null; // imagem específica da face/tela
+  promotion?: PromotionPayload | null;
+  effectivePromotion?: PromotionPayload | null;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

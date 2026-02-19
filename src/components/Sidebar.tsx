@@ -10,6 +10,7 @@ import {
   Wallet, 
   MessageSquare, 
   Globe, 
+  Tag, 
   Activity, 
   Settings as SettingsIcon,
   Shield
@@ -37,6 +38,7 @@ const menuItems = [
   { id: 'financial', label: 'Financeiro', icon: Wallet },
   { id: 'messages', label: 'Mensagens', icon: MessageSquare },
   { id: 'mediakit', label: 'Mídia Kit', icon: Globe },
+  { id: 'promotions', label: 'Promoções', icon: Tag },
   { id: 'activities', label: 'Atividades', icon: Activity },
   { id: 'settings', label: 'Configurações', icon: SettingsIcon },
 ] as const;

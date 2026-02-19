@@ -18,6 +18,7 @@ import { Reservations } from './Reservations';
 import { Financial } from './Financial';
 import { Messages } from './Messages';
 import { MediaKit } from './MediaKit';
+import { Promotions } from './Promotions';
 import { Activities } from './Activities';
 import { Settings } from './Settings';
 import { SuperAdmin } from './SuperAdmin';
@@ -38,6 +39,7 @@ export type Page =
   | 'financial'
   | 'messages'
   | 'mediakit'
+  | 'promotions'
   | 'activities'
   | 'settings'
   | 'superadmin';
@@ -206,6 +208,9 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
 
       case 'mediakit':
         return <MediaKit />;
+
+      case 'promotions':
+        return <Promotions />;
 
       case 'activities':
         return <Activities />;

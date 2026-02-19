@@ -18,6 +18,7 @@ import {
   updateItemDurationParts,
 } from '../lib/menuCart';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
+import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -42,16 +43,21 @@ function formatCurrencyBRL(value?: number | null): string {
 export default function MenuCarrinho() {
   const navigate = useNavigation();
 
-  const { token, uf, city } = useMemo(() => {
-    const sp = new URLSearchParams(window.location.search);
+  const { token, uf, city, flow, ownerCompanyId } = useMemo(() => {
+    const qp = getMenuQueryParams();
     return {
-      token: sp.get('token') || sp.get('t') || '',
-      uf: String(sp.get('uf') || '').trim().toUpperCase(),
-      city: String(sp.get('city') || '').trim(),
+      token: qp.token,
+      uf: qp.uf || '',
+      city: qp.city || '',
+      flow: qp.flow,
+      ownerCompanyId: qp.ownerCompanyId,
     };
   }, []);
 
-  const { data } = usePublicMediaKit({ token });
+  const { data } = usePublicMediaKit({ token, ownerCompanyId });
+
+  const isAgency = isAgencyFlow(flow);
+  const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
 
   const [cartVersion, setCartVersion] = useState(0);
   const cart = useMemo(() => readCart(), [cartVersion]);
@@ -67,8 +73,8 @@ export default function MenuCarrinho() {
   }, []);
 
   const backUrl = useMemo(() => {
-    return `/menu/pontos${buildQuery({ token, uf, city })}`;
-  }, [token, uf, city]);
+    return `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`;
+  }, [token, uf, city, flow, ownerCompanyId]);
 
   const [bulkYears, setBulkYears] = useState<string>('0');
   const [bulkMonths, setBulkMonths] = useState<string>('1');
@@ -107,8 +113,11 @@ export default function MenuCarrinho() {
       const unitLabel = item.snapshot?.unitLabel || unit?.label || '';
       const address = p ? formatAddress(p) : item.snapshot?.addressLine || '';
       const img = item.snapshot?.imageUrl || unit?.imageUrl || p?.mainImageUrl || '';
-      const priceMonth = item.snapshot?.priceMonth ?? unit?.priceMonth ?? p?.basePriceMonth ?? null;
-      const priceWeek = item.snapshot?.priceWeek ?? unit?.priceWeek ?? p?.basePriceWeek ?? null;
+      const baseMonth = item.snapshot?.priceMonth ?? unit?.priceMonth ?? p?.basePriceMonth ?? null;
+      const baseWeek = item.snapshot?.priceWeek ?? unit?.priceWeek ?? p?.basePriceWeek ?? null;
+
+      const priceMonth = isAgency ? applyAgencyMarkup(baseMonth, markupPct) : baseMonth;
+      const priceWeek = isAgency ? applyAgencyMarkup(baseWeek, markupPct) : baseWeek;
 
       return {
         item,
@@ -120,13 +129,18 @@ export default function MenuCarrinho() {
         priceWeek,
       };
     });
-  }, [cart.items, data?.points]);
+  }, [cart.items, data?.points, isAgency, markupPct]);
 
   return (
     <div className="min-h-screen w-full bg-gray-50">
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
+          {isAgency && markupPct > 0 && (
+            <Badge variant="outline" className="rounded-full">
+              Agência +{markupPct}%
+            </Badge>
+          )}
           <div className="text-sm text-gray-600">Carrinho</div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -301,7 +315,7 @@ export default function MenuCarrinho() {
                 Adicionar mais pontos
               </Button>
               <Button
-                onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city })}`)}
+                onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
                 className="gap-2"
               >
                 Continuar

@@ -14,6 +14,12 @@ import {
   fetchMenuRequest,
   regenerateMenuLink,
   sendMenuQuote,
+  type MenuAppliedDiscount,
+  type MenuAppliedDiscountImpact,
+  type MenuDiscountAppliesTo,
+  type MenuDiscountScope,
+  type MenuGift,
+  type MenuGiftScope,
   type MenuQuoteDraft,
   type MenuQuoteServiceLine,
   type MenuQuoteVersionRecord,
@@ -54,6 +60,23 @@ function formatDateTimeBr(iso?: string | null): string {
   }
 }
 
+function clampInt(v: any, min: number, max: number): number {
+  const n = Math.floor(Number(v) || 0);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null): string {
+  const years = clampInt(parts?.years, 0, 99);
+  const months = clampInt(parts?.months, 0, 99);
+  const days = clampInt(parts?.days, 0, 99);
+  const segs: string[] = [];
+  if (years) segs.push(`${years} ${years === 1 ? 'ano' : 'anos'}`);
+  if (months) segs.push(`${months} ${months === 1 ? 'mês' : 'meses'}`);
+  if (days || segs.length === 0) segs.push(`${days || 0} ${days === 1 ? 'dia' : 'dias'}`);
+  return segs.join(', ');
+}
+
 type ServiceOption = { name: string; defaultValue: number };
 
 const MOCK_SERVICES: ServiceOption[] = [
@@ -63,21 +86,25 @@ const MOCK_SERVICES: ServiceOption[] = [
   { name: 'Logística', defaultValue: 350 },
 ];
 
-function computeBase(items: any[]): number {
-  let sum = 0;
-  for (const it of items || []) {
-    const d = (() => {
-    const dd = Number(it?.durationDays);
-    if (Number.isFinite(dd) && dd > 0) return Math.max(1, Math.floor(dd));
+function resolveItemDays(it: any): number {
+  const dd = Number(it?.durationDays);
+  if (Number.isFinite(dd) && dd > 0) return Math.max(1, Math.floor(dd));
 
-    const dur = it?.duration || {};
-    const years = Math.max(0, Math.floor(Number(dur?.years) || 0));
-    const months = Math.max(0, Math.floor(Number(dur?.months) || 0));
-    const days = Math.max(0, Math.floor(Number(dur?.days) || 0));
+  const dur = it?.duration || {};
+  const totalDays = Number(dur?.totalDays);
+  if (Number.isFinite(totalDays) && totalDays > 0) return Math.max(1, Math.floor(totalDays));
 
-    const total = years * 365 + months * 30 + days;
-    return Math.max(1, Math.floor(Number.isFinite(total) && total > 0 ? total : 30));
-  })();
+  const years = Math.max(0, Math.floor(Number(dur?.years) || 0));
+  const months = Math.max(0, Math.floor(Number(dur?.months) || 0));
+  const days = Math.max(0, Math.floor(Number(dur?.days) || 0));
+
+  const total = years * 365 + months * 30 + days;
+  return Math.max(1, Math.floor(Number.isFinite(total) && total > 0 ? total : 30));
+}
+
+function computeBaseByItemCents(items: any[]) {
+  const itemBaseFloats = (items || []).map((it) => {
+    const d = resolveItemDays(it);
     const week = Number(it?.snapshot?.priceWeek || 0);
     const month = Number(it?.snapshot?.priceMonth || 0);
 
@@ -85,45 +112,298 @@ function computeBase(items: any[]): number {
     if (d <= 7 && week > 0) base = week;
     else if (month > 0) base = month * Math.max(1, d / 30);
     else if (week > 0) base = week * Math.max(1, d / 7);
-    sum += base;
+
+    return Number(base.toFixed(6));
+  });
+
+  const baseGross = Number(itemBaseFloats.reduce((acc, v) => acc + v, 0).toFixed(2));
+  const baseGrossCents = Math.round(baseGross * 100);
+
+  let itemCents = itemBaseFloats.map((v) => Math.round(v * 100));
+  const sumItem = itemCents.reduce((acc, v) => acc + v, 0);
+  if (itemCents.length && sumItem !== baseGrossCents) {
+    itemCents[itemCents.length - 1] += baseGrossCents - sumItem;
   }
-  return Number(sum.toFixed(2));
+
+  return { baseGrossCents, itemCents };
 }
 
 function computePreviewTotals(record: MenuRequestRecord | null, draft: MenuQuoteDraft) {
-  const base = computeBase(record?.items || []);
+  const money = (cents: number) => Number((Math.max(0, cents) / 100).toFixed(2));
 
+  const items = record?.items || [];
+  const { baseGrossCents, itemCents } = computeBaseByItemCents(items);
+
+  // Serviços (gross)
   const manual = Math.max(0, Number(draft.manualServiceValue || 0));
   const serviceLines = Array.isArray(draft.services) ? draft.services : [];
   const servicesRaw = Number((serviceLines.reduce((acc, s) => acc + Number(s.value || 0), 0) + manual).toFixed(2));
+  const servicesRawCents = Math.round(servicesRaw * 100);
 
   // Desconto por linha (serviços)
-  let servicesLineDiscount = 0;
+  let servicesLineDiscountCents = 0;
   for (const s of serviceLines) {
     const value = Math.max(0, Number(s.value || 0));
     if (value <= 0) continue;
+    const valueCents = Math.round(value * 100);
     const pct = Math.max(0, Number((s as any)?.discountPercent || 0));
-    const fixed = Math.max(0, Number((s as any)?.discountFixed || 0));
-    const d = Math.min(value, value * (pct / 100) + fixed);
-    servicesLineDiscount += d;
+    const fixedCents = Math.round(Math.max(0, Number((s as any)?.discountFixed || 0)) * 100);
+
+    const pctCents = Math.round(valueCents * (pct / 100));
+    const dCents = Math.min(valueCents, pctCents + fixedCents);
+    servicesLineDiscountCents += dCents;
   }
-  servicesLineDiscount = Number(servicesLineDiscount.toFixed(2));
-  const servicesNet = Number(Math.max(0, servicesRaw - servicesLineDiscount).toFixed(2));
+  servicesLineDiscountCents = Math.min(servicesRawCents, Math.max(0, servicesLineDiscountCents));
+  let servicesNetCents = Math.max(0, servicesRawCents - servicesLineDiscountCents);
 
-  const applyToRaw = String((draft as any)?.discountApplyTo || '').trim().toUpperCase();
-  const applyTo = applyToRaw === 'BASE' ? 'BASE' : applyToRaw === 'SERVICES' ? 'SERVICES' : 'ALL';
+  // Descontos acumuláveis (Etapa 5)
+  let itemsNetCents = [...itemCents];
 
-  const pct = Math.max(0, Number(draft.discountPercent || 0));
-  const fixed = Math.max(0, Number(draft.discountFixed || 0));
+  const rawDiscounts0 = Array.isArray((draft as any)?.discounts) ? ((draft as any).discounts as MenuAppliedDiscount[]) : [];
 
-  const globalBase = applyTo === 'BASE' ? base : applyTo === 'SERVICES' ? servicesNet : base + servicesNet;
-  const globalDiscount = Number(Math.min(globalBase, globalBase * (pct / 100) + fixed).toFixed(2));
+  // Compat: se ainda vier no formato legado e não houver descontos novos, converte em 1 desconto "GENERAL"
+  let rawDiscounts: MenuAppliedDiscount[] = [...rawDiscounts0];
+  if (!rawDiscounts.length) {
+    const lp = Math.max(0, Number((draft as any)?.discountPercent || 0));
+    const lf = Math.max(0, Number((draft as any)?.discountFixed || 0));
+    const la = (String((draft as any)?.discountApplyTo || 'ALL').toUpperCase() as MenuDiscountAppliesTo) || 'ALL';
 
-  const discount = Number((servicesLineDiscount + globalDiscount).toFixed(2));
-  const total = Number(Math.max(0, base + servicesRaw - discount).toFixed(2));
+    if (lp > 0 || lf > 0) {
+      rawDiscounts = [
+        {
+          id: 'legacy_general',
+          scope: 'GENERAL',
+          targetId: null,
+          percent: lp > 0 ? lp : null,
+          fixed: lf > 0 ? lf : null,
+          appliesTo: la,
+          label: 'Desconto geral',
+        },
+      ];
+    }
+  }
 
-  return { base, services: servicesRaw, discount, total, servicesLineDiscount, globalDiscount, applyTo };
+  const scopeRank = (s: any) => {
+    const x = String(s || '').toUpperCase();
+    if (x === 'FACE') return 0;
+    if (x === 'POINT' || x === 'PONTO') return 1;
+    if (x === 'GENERAL' || x === 'GERAL') return 2;
+    return 9;
+  };
+
+  const discounts = rawDiscounts
+    .map((d: any, idx: number) => ({ ...(d || {}), __i: idx }))
+    .filter((d: any) => d && (Number(d?.percent || 0) > 0 || Number(d?.fixed || 0) > 0))
+    .sort((a: any, b: any) => scopeRank(a.scope) - scopeRank(b.scope) || a.__i - b.__i);
+
+  const reduceItems = (indexes: number[], amountCents: number) => {
+    const idxs = (indexes || []).filter((i) => Number.isFinite(i) && i >= 0 && i < itemsNetCents.length);
+    if (!idxs.length) return;
+
+    const baseSum = idxs.reduce((acc, i) => acc + Math.max(0, itemsNetCents[i]), 0);
+    if (baseSum <= 0) return;
+
+    const amount = Math.min(Math.max(0, amountCents), baseSum);
+
+    let allocated = 0;
+    for (let k = 0; k < idxs.length; k++) {
+      const i = idxs[k];
+      const current = Math.max(0, itemsNetCents[i]);
+      if (current <= 0) continue;
+
+      let share = k === idxs.length - 1 ? amount - allocated : Math.round((amount * current) / baseSum);
+      share = Math.min(current, Math.max(0, share));
+
+      itemsNetCents[i] = current - share;
+      allocated += share;
+      if (allocated >= amount) break;
+    }
+
+    let remaining = amount - allocated;
+    if (remaining > 0) {
+      for (let k = idxs.length - 1; k >= 0; k--) {
+        const i = idxs[k];
+        const current = Math.max(0, itemsNetCents[i]);
+        if (current <= 0) continue;
+        const take = Math.min(current, remaining);
+        itemsNetCents[i] = current - take;
+        remaining -= take;
+        if (remaining <= 0) break;
+      }
+    }
+  };
+
+  let baseDiscountCents = 0;
+  let servicesDiscountCents = 0;
+  const impacts: MenuAppliedDiscountImpact[] = [];
+
+  const sumBaseNetCents = () => itemsNetCents.reduce((acc, v) => acc + Math.max(0, v), 0);
+
+  for (const d of discounts as any[]) {
+    const scopeRaw = String(d?.scope || '').trim().toUpperCase();
+    const scope: MenuDiscountScope =
+      scopeRaw === 'FACE'
+        ? 'FACE'
+        : scopeRaw === 'POINT' || scopeRaw === 'PONTO'
+          ? 'POINT'
+          : scopeRaw === 'GENERAL' || scopeRaw === 'GERAL'
+            ? 'GENERAL'
+            : 'GENERAL';
+
+    const id = String(d?.id || '');
+    const targetId = (d?.targetId ?? null) as any;
+    const label = (d?.label ?? null) as any;
+
+    const pct = Math.max(0, Number(d?.percent || 0));
+    const fixedCents = Math.round(Math.max(0, Number(d?.fixed || 0)) * 100);
+
+    const appliesToRaw = String(d?.appliesTo ?? 'ALL').trim().toUpperCase();
+    const appliesTo: MenuDiscountAppliesTo =
+      appliesToRaw === 'BASE' ? 'BASE' : appliesToRaw === 'SERVICES' || appliesToRaw === 'SERVICE' ? 'SERVICES' : 'ALL';
+
+    if (pct <= 0 && fixedCents <= 0) continue;
+
+    const calcAmount = (baseCents: number) => {
+      const pctCents = Math.round(baseCents * (pct / 100));
+      return Math.min(Math.max(0, baseCents), Math.max(0, pctCents + fixedCents));
+    };
+
+    if (scope === 'FACE') {
+      const idxs = items
+        .map((it: any, idx: number) => (String(it?.unitId || '') === String(targetId || '') ? idx : -1))
+        .filter((i: number) => i >= 0);
+
+      const baseCents = idxs.reduce((acc: number, i: number) => acc + Math.max(0, itemsNetCents[i]), 0);
+      if (baseCents <= 0) continue;
+
+      const amountCents = calcAmount(baseCents);
+      if (amountCents <= 0) continue;
+
+      reduceItems(idxs, amountCents);
+      baseDiscountCents += amountCents;
+
+      impacts.push({
+        id,
+        scope,
+        targetId,
+        appliesTo: 'BASE',
+        label,
+        percent: pct,
+        fixed: money(fixedCents),
+        base: money(baseCents),
+        amount: money(amountCents),
+      });
+      continue;
+    }
+
+    if (scope === 'POINT') {
+      const idxs = items
+        .map((it: any, idx: number) => (String(it?.pointId || '') === String(targetId || '') ? idx : -1))
+        .filter((i: number) => i >= 0);
+
+      const baseCents = idxs.reduce((acc: number, i: number) => acc + Math.max(0, itemsNetCents[i]), 0);
+      if (baseCents <= 0) continue;
+
+      const amountCents = calcAmount(baseCents);
+      if (amountCents <= 0) continue;
+
+      reduceItems(idxs, amountCents);
+      baseDiscountCents += amountCents;
+
+      impacts.push({
+        id,
+        scope,
+        targetId,
+        appliesTo: 'BASE',
+        label,
+        percent: pct,
+        fixed: money(fixedCents),
+        base: money(baseCents),
+        amount: money(amountCents),
+      });
+      continue;
+    }
+
+    // GENERAL
+    const baseNetCents = sumBaseNetCents();
+    const totalNetCents = baseNetCents + servicesNetCents;
+
+    const baseCentsForCalc = appliesTo === 'BASE' ? baseNetCents : appliesTo === 'SERVICES' ? servicesNetCents : totalNetCents;
+    if (baseCentsForCalc <= 0) continue;
+
+    const amountCents = calcAmount(baseCentsForCalc);
+    if (amountCents <= 0) continue;
+
+    let basePart = 0;
+    let servicesPart = 0;
+
+    if (appliesTo === 'BASE') {
+      basePart = Math.min(baseNetCents, amountCents);
+    } else if (appliesTo === 'SERVICES') {
+      servicesPart = Math.min(servicesNetCents, amountCents);
+    } else {
+      const denom = Math.max(1, totalNetCents);
+      basePart = Math.round((amountCents * baseNetCents) / denom);
+      servicesPart = amountCents - basePart;
+
+      if (basePart > baseNetCents) {
+        const extra = basePart - baseNetCents;
+        basePart = baseNetCents;
+        servicesPart += extra;
+      }
+      if (servicesPart > servicesNetCents) {
+        const extra = servicesPart - servicesNetCents;
+        servicesPart = servicesNetCents;
+        basePart = Math.min(baseNetCents, basePart + extra);
+      }
+    }
+
+    if (basePart > 0) {
+      reduceItems(items.map((_: any, i: number) => i), basePart);
+      baseDiscountCents += basePart;
+    }
+    if (servicesPart > 0) {
+      const take = Math.min(servicesNetCents, servicesPart);
+      servicesNetCents -= take;
+      servicesDiscountCents += take;
+    }
+
+    impacts.push({
+      id,
+      scope: 'GENERAL',
+      targetId: null,
+      appliesTo,
+      label,
+      percent: pct,
+      fixed: money(fixedCents),
+      base: money(baseCentsForCalc),
+      amount: money(amountCents),
+      meta: appliesTo === 'ALL' ? { basePart: money(basePart), servicesPart: money(servicesPart) } : undefined,
+    });
+  }
+
+  const stackedDiscountCents = Math.max(0, baseDiscountCents + servicesDiscountCents);
+  const discountTotalCents = Math.min(baseGrossCents + servicesRawCents, Math.max(0, servicesLineDiscountCents + stackedDiscountCents));
+  const totalCents = Math.max(0, baseGrossCents + servicesRawCents - discountTotalCents);
+
+  return {
+    base: money(baseGrossCents),
+    services: money(servicesRawCents),
+    discount: money(discountTotalCents),
+    total: money(totalCents),
+    breakdown: {
+      baseGross: money(baseGrossCents),
+      baseNet: money(Math.max(0, baseGrossCents - baseDiscountCents)),
+      servicesGross: money(servicesRawCents),
+      servicesNet: money(Math.max(0, servicesRawCents - servicesLineDiscountCents - servicesDiscountCents)),
+      servicesLineDiscount: money(servicesLineDiscountCents),
+      baseDiscount: money(baseDiscountCents),
+      servicesDiscount: money(servicesDiscountCents),
+      appliedDiscounts: impacts,
+    },
+  };
 }
+
 
 export default function MenuDonoWorkspace() {
   const navigate = useNavigation();
@@ -147,6 +427,9 @@ export default function MenuDonoWorkspace() {
     message: '',
     services: [],
     manualServiceValue: null,
+    gifts: [],
+    discounts: [],
+    // legado (mantido por compat)
     discountPercent: null,
     discountFixed: null,
     discountApplyTo: 'ALL',
@@ -154,6 +437,176 @@ export default function MenuDonoWorkspace() {
 
   const [servicePick, setServicePick] = useState<string>(MOCK_SERVICES[0]?.name || '');
   const [serviceValue, setServiceValue] = useState<number>(MOCK_SERVICES[0]?.defaultValue || 0);
+
+  const faceOptions = useMemo(() => {
+    const m = new Map<string, { id: string; label: string }>();
+    for (const it of data?.items || []) {
+      const unitId = String(it?.unitId || '');
+      if (!unitId) continue;
+      if (!m.has(unitId)) {
+        const pointName = it?.snapshot?.pointName || it?.snapshot?.mediaPointName || it?.pointId || '';
+        const unitLabel = it?.snapshot?.unitLabel || it?.snapshot?.mediaUnitLabel || unitId;
+        m.set(unitId, { id: unitId, label: pointName ? `${pointName} • ${unitLabel}` : String(unitLabel) });
+      }
+    }
+    return Array.from(m.values());
+  }, [data?.items]);
+
+  const pointOptions = useMemo(() => {
+    const m = new Map<string, { id: string; label: string }>();
+    for (const it of data?.items || []) {
+      const pointId = String(it?.pointId || '');
+      if (!pointId) continue;
+      if (!m.has(pointId)) {
+        const pointName = it?.snapshot?.pointName || it?.snapshot?.mediaPointName || pointId;
+        m.set(pointId, { id: pointId, label: String(pointName) });
+      }
+    }
+    return Array.from(m.values());
+  }, [data?.items]);
+
+  const [newDiscountScope, setNewDiscountScope] = useState<MenuDiscountScope>('GENERAL');
+  const [newDiscountTargetId, setNewDiscountTargetId] = useState<string>('');
+  const [newDiscountAppliesTo, setNewDiscountAppliesTo] = useState<MenuDiscountAppliesTo>('ALL');
+  const [newDiscountPercent, setNewDiscountPercent] = useState<string>('');
+  const [newDiscountFixed, setNewDiscountFixed] = useState<string>('');
+
+  // Etapa 6 — Brindes
+  const [newGiftScope, setNewGiftScope] = useState<MenuGiftScope>('POINT');
+  const [newGiftTargetId, setNewGiftTargetId] = useState<string>('');
+  const [newGiftYears, setNewGiftYears] = useState<string>('');
+  const [newGiftMonths, setNewGiftMonths] = useState<string>('');
+  const [newGiftDays, setNewGiftDays] = useState<string>('30');
+
+  useEffect(() => {
+    // Auto-select a valid default target when options arrive / scope changes
+    if (newGiftScope === 'FACE') {
+      if (!newGiftTargetId || !faceOptions.some((x) => x.id === newGiftTargetId)) {
+        setNewGiftTargetId(faceOptions[0]?.id || '');
+      }
+      return;
+    }
+    if (!newGiftTargetId || !pointOptions.some((x) => x.id === newGiftTargetId)) {
+      setNewGiftTargetId(pointOptions[0]?.id || '');
+    }
+  }, [newGiftScope, newGiftTargetId, faceOptions, pointOptions]);
+
+  const removeDiscount = (id: string) => {
+    setDraft((d) => ({ ...d, discounts: (d.discounts || []).filter((x) => x.id !== id) }));
+  };
+
+  const addDiscount = () => {
+    if (isLocked) return;
+
+    const pct = Math.max(0, Number(newDiscountPercent || 0));
+    const fixed = Math.max(0, Number(newDiscountFixed || 0));
+
+    if (pct <= 0 && fixed <= 0) {
+      toast.error('Informe um desconto (%) ou (R$).');
+      return;
+    }
+
+    if ((newDiscountScope === 'FACE' || newDiscountScope === 'POINT') && !newDiscountTargetId) {
+      toast.error('Selecione o alvo do desconto.');
+      return;
+    }
+
+    const id = (() => {
+      try {
+        // @ts-ignore
+        return `md_${crypto.randomUUID()}`;
+      } catch {
+        return `md_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+    })();
+
+    const label =
+      newDiscountScope === 'FACE'
+        ? faceOptions.find((x) => x.id === newDiscountTargetId)?.label || 'Desconto por face'
+        : newDiscountScope === 'POINT'
+          ? pointOptions.find((x) => x.id === newDiscountTargetId)?.label || 'Desconto por ponto'
+          : 'Desconto geral';
+
+    const discount: MenuAppliedDiscount = {
+      id,
+      scope: newDiscountScope,
+      targetId: newDiscountScope === 'GENERAL' ? null : newDiscountTargetId,
+      percent: pct > 0 ? pct : null,
+      fixed: fixed > 0 ? fixed : null,
+      appliesTo: newDiscountScope === 'GENERAL' ? newDiscountAppliesTo : 'BASE',
+      label,
+    };
+
+    setDraft((d) => ({
+      ...d,
+      discounts: [...(d.discounts || []), discount],
+      // zera o legado para evitar confusão
+      discountPercent: null,
+      discountFixed: null,
+      discountApplyTo: 'ALL',
+    }));
+
+    setNewDiscountPercent('');
+    setNewDiscountFixed('');
+  };
+
+  const removeGift = (id: string) => {
+    setDraft((d) => ({ ...d, gifts: (d.gifts || []).filter((x) => x.id !== id) }));
+  };
+
+  const addGift = () => {
+    if (isLocked) return;
+
+    if ((newGiftScope === 'FACE' && !faceOptions.length) || (newGiftScope === 'POINT' && !pointOptions.length)) {
+      toast.error('Não há itens suficientes para este brinde.');
+      return;
+    }
+
+    const targetId = String(newGiftTargetId || '').trim();
+    if (!targetId) {
+      toast.error('Selecione o alvo do brinde.');
+      return;
+    }
+
+    const years = clampInt(newGiftYears, 0, 10);
+    const months = clampInt(newGiftMonths, 0, 24);
+    const days = clampInt(newGiftDays, 0, 31);
+    let totalDays = years * 365 + months * 30 + days;
+    if (totalDays <= 0) totalDays = 30;
+
+    const exists = (draft.gifts || []).some((g) => g.scope === newGiftScope && String(g.targetId) === String(targetId));
+    if (exists) {
+      toast.error('Esse brinde já foi adicionado para esse alvo.');
+      return;
+    }
+
+    const id = (() => {
+      try {
+        // @ts-ignore
+        return `mg_${crypto.randomUUID()}`;
+      } catch {
+        return `mg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+    })();
+
+    const label =
+      newGiftScope === 'FACE'
+        ? faceOptions.find((x) => x.id === targetId)?.label || 'Brinde por face'
+        : pointOptions.find((x) => x.id === targetId)?.label || 'Brinde por ponto';
+
+    const gift: MenuGift = {
+      id,
+      scope: newGiftScope,
+      targetId,
+      duration: { years, months, days, totalDays },
+      label,
+    };
+
+    setDraft((d) => ({
+      ...d,
+      gifts: [...(d.gifts || []), gift],
+    }));
+  };
 
   const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
 
@@ -206,6 +659,20 @@ export default function MenuDonoWorkspace() {
       };
     }
 
+    // Etapa 8 — blindagem: páginas do responsável só via link assinado (t)
+    if (!String(t || '').trim()) {
+      setData(null);
+      setIsLoading(false);
+      setLoadError({
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso restrito',
+        description: 'Este workspace é exclusivo do responsável. Abra a partir do link enviado por e-mail.',
+      });
+      return () => {
+        alive = false;
+      };
+    }
+
     (async () => {
       try {
         setIsLoading(true);
@@ -219,6 +686,59 @@ export default function MenuDonoWorkspace() {
         const v = res?.currentQuoteVersion;
         const last = v ? quotes.find((q) => q.version === v) : null;
         if (last?.draft) {
+          const loadedDiscounts0 = Array.isArray((last.draft as any)?.discounts) ? (((last.draft as any).discounts as any) || []) : [];
+
+          const loadedGifts0 = Array.isArray((last.draft as any)?.gifts)
+            ? (((last.draft as any).gifts as any) || [])
+            : Array.isArray((last.draft as any)?.brindes)
+              ? (((last.draft as any).brindes as any) || [])
+              : [];
+
+          const gifts: MenuGift[] = loadedGifts0
+            .map((g: any) => {
+              const scopeRaw = String(g?.scope ?? g?.targetType ?? g?.type ?? '').trim().toUpperCase();
+              const scope: MenuGiftScope = scopeRaw === 'POINT' || scopeRaw === 'PONTO' ? 'POINT' : 'FACE';
+              const targetId = String(g?.targetId ?? g?.target ?? g?.unitId ?? g?.pointId ?? '').trim();
+              if (!targetId) return null;
+
+              const period = g?.duration ?? g?.period ?? g?.occupation ?? {};
+              const years = clampInt(period?.years, 0, 10);
+              const months = clampInt(period?.months, 0, 24);
+              const days = clampInt(period?.days, 0, 31);
+              let totalDays = years * 365 + months * 30 + days;
+              if (totalDays <= 0) totalDays = 30;
+
+              return {
+                id: String(g?.id || `mg_legacy_${targetId}`),
+                scope,
+                targetId,
+                duration: { years, months, days, totalDays },
+                label: g?.label ?? null,
+              } as MenuGift;
+            })
+            .filter(Boolean) as MenuGift[];
+
+          const legacyPercent = Math.max(0, Number((last.draft as any)?.discountPercent || 0));
+          const legacyFixed = Math.max(0, Number((last.draft as any)?.discountFixed || 0));
+          const legacyApplyTo = ((String((last.draft as any)?.discountApplyTo || 'ALL').toUpperCase() as any) || 'ALL') as MenuDiscountAppliesTo;
+
+          const mergedDiscounts =
+            loadedDiscounts0.length
+              ? loadedDiscounts0
+              : legacyPercent > 0 || legacyFixed > 0
+                ? [
+                    {
+                      id: 'legacy_general',
+                      scope: 'GENERAL',
+                      targetId: null,
+                      percent: legacyPercent > 0 ? legacyPercent : null,
+                      fixed: legacyFixed > 0 ? legacyFixed : null,
+                      appliesTo: legacyApplyTo,
+                      label: 'Desconto geral',
+                    },
+                  ]
+                : [];
+
           setDraft({
             message: last.draft.message || '',
             services: Array.isArray(last.draft.services)
@@ -230,6 +750,9 @@ export default function MenuDonoWorkspace() {
                 }))
               : [],
             manualServiceValue: last.draft.manualServiceValue ?? null,
+            gifts,
+            discounts: mergedDiscounts,
+            // legado
             discountPercent: last.draft.discountPercent ?? null,
             discountFixed: last.draft.discountFixed ?? null,
             discountApplyTo: (last.draft as any)?.discountApplyTo ?? 'ALL',
@@ -622,40 +1145,265 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
-                      <div className="text-sm font-semibold text-gray-900">Descontos</div>
-                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <div>
-                          <div className="text-xs text-gray-500">Aplicar em</div>
-                          <select
-                            className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
-                            value={String((draft as any)?.discountApplyTo || 'ALL')}
-                            onChange={(e) => setDraft((d) => ({ ...d, discountApplyTo: e.target.value as any }))}
-                            disabled={isLocked}
-                          >
-                            <option value="ALL">Tudo (base + serviços)</option>
-                            <option value="BASE">Base (pontos/faces)</option>
-                            <option value="SERVICES">Serviços</option>
-                          </select>
+                                            <div className="text-sm font-semibold text-gray-900">Descontos</div>
+
+                                            <div className="mt-2 space-y-2">
+                                              {(draft.discounts || []).length === 0 ? (
+                                                <div className="rounded-xl border border-gray-200 px-3 py-2 text-xs text-gray-500">
+                                                  Nenhum desconto aplicado.
+                                                </div>
+                                              ) : (
+                                                (draft.discounts || []).map((d) => {
+                                                  const impact = previewTotals?.breakdown?.appliedDiscounts?.find((x) => x.id === d.id);
+                                                  const scopeLabel = d.scope === 'FACE' ? 'Face' : d.scope === 'POINT' ? 'Ponto' : 'Geral';
+                                                  const appliesToLabel =
+                                                    d.scope === 'GENERAL'
+                                                      ? d.appliesTo === 'BASE'
+                                                        ? 'Base'
+                                                        : d.appliesTo === 'SERVICES'
+                                                          ? 'Serviços'
+                                                          : 'Tudo'
+                                                      : 'Base';
+                                                  const valueParts = [
+                                                    d.percent ? `${d.percent}%` : null,
+                                                    d.fixed ? formatMoneyBr(d.fixed) : null,
+                                                  ].filter(Boolean);
+
+                                                  return (
+                                                    <div key={d.id} className="rounded-xl border border-gray-200 px-3 py-2">
+                                                      <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                          <div className="text-sm font-semibold text-gray-900 truncate">{d.label || `${scopeLabel} (${appliesToLabel})`}</div>
+                                                          <div className="text-[11px] text-gray-500">
+                                                            {scopeLabel}
+                                                            {d.scope !== 'GENERAL' && d.targetId ? ` • alvo: ${d.targetId}` : ''}
+                                                            {d.scope === 'GENERAL' ? ` • aplicar em: ${appliesToLabel}` : ''}
+                                                            {valueParts.length ? ` • ${valueParts.join(' + ')}` : ''}
+                                                          </div>
+                                                          {impact?.amount ? (
+                                                            <div className="mt-1 text-[11px] text-gray-600">Impacto: - {formatMoneyBr(impact.amount)}</div>
+                                                          ) : null}
+                                                        </div>
+
+                                                        <Button
+                                                          variant="outline"
+                                                          size="sm"
+                                                          onClick={() => removeDiscount(d.id)}
+                                                          disabled={isLocked}
+                                                        >
+                                                          Remover
+                                                        </Button>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })
+                                              )}
+                                            </div>
+
+                                            <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                                              <div className="text-xs font-semibold text-gray-700">Adicionar desconto</div>
+                                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                                                <div>
+                                                  <div className="text-xs text-gray-500">Escopo</div>
+                                                  <select
+                                                    className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                                    value={newDiscountScope}
+                                                    onChange={(e) => {
+                                                      const v = e.target.value as MenuDiscountScope;
+                                                      setNewDiscountScope(v);
+
+                                                      if (v === 'FACE') setNewDiscountTargetId(faceOptions[0]?.id || '');
+                                                      else if (v === 'POINT') setNewDiscountTargetId(pointOptions[0]?.id || '');
+                                                      else setNewDiscountTargetId('');
+                                                    }}
+                                                    disabled={isLocked}
+                                                  >
+                                                    <option value="GENERAL">Geral</option>
+                                                    <option value="FACE">Por face</option>
+                                                    <option value="POINT">Por ponto</option>
+                                                  </select>
+                                                </div>
+
+                                                <div>
+                                                  <div className="text-xs text-gray-500">{newDiscountScope === 'GENERAL' ? 'Aplicar em' : 'Alvo'}</div>
+
+                                                  {newDiscountScope === 'FACE' ? (
+                                                    <select
+                                                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                                      value={newDiscountTargetId}
+                                                      onChange={(e) => setNewDiscountTargetId(e.target.value)}
+                                                      disabled={isLocked || !faceOptions.length}
+                                                    >
+                                                      {faceOptions.map((o) => (
+                                                        <option key={o.id} value={o.id}>
+                                                          {o.label}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  ) : newDiscountScope === 'POINT' ? (
+                                                    <select
+                                                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                                      value={newDiscountTargetId}
+                                                      onChange={(e) => setNewDiscountTargetId(e.target.value)}
+                                                      disabled={isLocked || !pointOptions.length}
+                                                    >
+                                                      {pointOptions.map((o) => (
+                                                        <option key={o.id} value={o.id}>
+                                                          {o.label}
+                                                        </option>
+                                                      ))}
+                                                    </select>
+                                                  ) : (
+                                                    <select
+                                                      className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                                      value={newDiscountAppliesTo}
+                                                      onChange={(e) => setNewDiscountAppliesTo(e.target.value as MenuDiscountAppliesTo)}
+                                                      disabled={isLocked}
+                                                    >
+                                                      <option value="ALL">Tudo (base + serviços)</option>
+                                                      <option value="BASE">Base (pontos/faces)</option>
+                                                      <option value="SERVICES">Serviços</option>
+                                                    </select>
+                                                  )}
+                                                </div>
+
+                                                <div>
+                                                  <div className="text-xs text-gray-500">% (sobre escopo)</div>
+                                                  <Input
+                                                    type="number"
+                                                    value={newDiscountPercent}
+                                                    onChange={(e) => setNewDiscountPercent(e.target.value)}
+                                                    placeholder="0"
+                                                    disabled={isLocked}
+                                                  />
+                                                </div>
+
+                                                <div>
+                                                  <div className="text-xs text-gray-500">R$ fixo</div>
+                                                  <Input
+                                                    type="number"
+                                                    value={newDiscountFixed}
+                                                    onChange={(e) => setNewDiscountFixed(e.target.value)}
+                                                    placeholder="0"
+                                                    disabled={isLocked}
+                                                  />
+                                                </div>
+
+                                                <div className="flex items-end">
+                                                  <Button
+                                                    className="w-full"
+                                                    variant="outline"
+                                                    onClick={addDiscount}
+                                                    disabled={isLocked}
+                                                  >
+                                                    Adicionar
+                                                  </Button>
+                                                </div>
+                                              </div>
+
+                                              {(newDiscountScope === 'FACE' && !faceOptions.length) || (newDiscountScope === 'POINT' && !pointOptions.length) ? (
+                                                <div className="mt-2 text-[11px] text-amber-600">
+                                                  Não há itens suficientes para listar alvos deste escopo.
+                                                </div>
+                                              ) : null}
+                                            </div>
+
+                      <Separator className="my-4" />
+
+                      <div className="text-sm font-semibold text-gray-900">Brindes (R$ 0)</div>
+                      <div className="mt-2 text-[12px] text-gray-600">
+                        Brindes são itens gratuitos com período de ocupação. Eles <span className="font-semibold">não alteram o total</span>, mas aparecem no documento.
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {(draft.gifts || []).length === 0 ? (
+                          <div className="text-sm text-gray-600">Nenhum brinde adicionado.</div>
+                        ) : (
+                          (draft.gifts || []).map((g) => (
+                            <div key={g.id} className="rounded-xl border border-gray-200 px-3 py-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">
+                                    {g.scope === 'FACE' ? 'Face' : 'Ponto'}: {g.label || g.targetId}
+                                  </div>
+                                  <div className="mt-0.5 text-xs text-gray-600">
+                                    Período: {formatPeriod(g.duration)}
+                                  </div>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={() => removeGift(g.id)} disabled={isLocked}>
+                                  Remover
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                        <div className="text-xs font-semibold text-gray-700">Adicionar brinde</div>
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-6 gap-2">
+                          <div>
+                            <div className="text-xs text-gray-500">Tipo</div>
+                            <select
+                              className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                              value={newGiftScope}
+                              onChange={(e) => setNewGiftScope(e.target.value as MenuGiftScope)}
+                              disabled={isLocked}
+                            >
+                              <option value="POINT">Por ponto</option>
+                              <option value="FACE">Por face</option>
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <div className="text-xs text-gray-500">Alvo</div>
+                            {newGiftScope === 'FACE' ? (
+                              <select
+                                className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                value={newGiftTargetId}
+                                onChange={(e) => setNewGiftTargetId(e.target.value)}
+                                disabled={isLocked || !faceOptions.length}
+                              >
+                                {faceOptions.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <select
+                                className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                value={newGiftTargetId}
+                                onChange={(e) => setNewGiftTargetId(e.target.value)}
+                                disabled={isLocked || !pointOptions.length}
+                              >
+                                {pointOptions.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="text-xs text-gray-500">Anos (0–10)</div>
+                            <Input type="number" value={newGiftYears} onChange={(e) => setNewGiftYears(e.target.value)} placeholder="0" disabled={isLocked} />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500">Meses (0–24)</div>
+                            <Input type="number" value={newGiftMonths} onChange={(e) => setNewGiftMonths(e.target.value)} placeholder="0" disabled={isLocked} />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500">Dias (0–31)</div>
+                            <Input type="number" value={newGiftDays} onChange={(e) => setNewGiftDays(e.target.value)} placeholder="30" disabled={isLocked} />
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-xs text-gray-500">% (sobre escopo)</div>
-                          <Input
-                            type="number"
-                            value={draft.discountPercent == null ? '' : String(draft.discountPercent)}
-                            onChange={(e) => setDraft((d) => ({ ...d, discountPercent: e.target.value ? Number(e.target.value) : null }))}
-                            placeholder="0"
-                            disabled={isLocked}
-                          />
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500">R$ fixo</div>
-                          <Input
-                            type="number"
-                            value={draft.discountFixed == null ? '' : String(draft.discountFixed)}
-                            onChange={(e) => setDraft((d) => ({ ...d, discountFixed: e.target.value ? Number(e.target.value) : null }))}
-                            placeholder="0"
-                            disabled={isLocked}
-                          />
+
+                        <div className="mt-2">
+                          <Button className="w-full" variant="outline" onClick={addGift} disabled={isLocked}>
+                            Adicionar brinde
+                          </Button>
                         </div>
                       </div>
 
@@ -675,16 +1423,39 @@ export default function MenuDonoWorkspace() {
                           <div className="text-xs text-gray-500">Descontos</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
-                            {previewTotals.servicesLineDiscount > 0 && (
-                              <div>Serviços: - {formatMoneyBr(previewTotals.servicesLineDiscount)}</div>
-                            )}
-                            {previewTotals.globalDiscount > 0 && (
-                              <div>
-                                Global ({previewTotals.applyTo === 'BASE' ? 'Base' : previewTotals.applyTo === 'SERVICES' ? 'Serviços' : 'Tudo'}): - {formatMoneyBr(previewTotals.globalDiscount)}
+                            {previewTotals.breakdown?.servicesLineDiscount > 0 ? (
+                              <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown.servicesLineDiscount)}</div>
+                            ) : null}
+
+                            {(previewTotals.breakdown?.appliedDiscounts || []).map((d) => (
+                              <div key={d.id} className="truncate">
+                                {(d.label ||
+                                  (d.scope === 'FACE'
+                                    ? 'Face'
+                                    : d.scope === 'POINT'
+                                      ? 'Ponto'
+                                      : 'Geral'))}
+                                : - {formatMoneyBr(d.amount)}
                               </div>
-                            )}
+                            ))}
                           </div>
                         </div>
+
+                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                          <div className="text-xs text-gray-500">Brindes (R$ 0)</div>
+                          <div className="text-sm font-semibold text-gray-900">{(draft.gifts || []).length} item(ns)</div>
+                          <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
+                            {(draft.gifts || []).slice(0, 3).map((g) => (
+                              <div key={g.id} className="truncate">
+                                {(g.scope === 'FACE' ? 'Face' : 'Ponto')}: {g.label || g.targetId} • {formatPeriod(g.duration)}
+                              </div>
+                            ))}
+                            {(draft.gifts || []).length > 3 ? (
+                              <div className="text-[11px] text-gray-400">+{(draft.gifts || []).length - 3} outro(s)</div>
+                            ) : null}
+                          </div>
+                        </div>
+
                         <div
                           className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
                           style={{ backgroundColor: "#111827", color: "#ffffff" }}

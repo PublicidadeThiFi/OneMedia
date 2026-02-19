@@ -10,6 +10,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
+import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from "../lib/menuFlow";
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -84,17 +85,23 @@ function makeMapsEmbedUrl(point: PublicMediaKitPoint): string | null {
 export default function MenuDetalhe() {
   const navigate = useNavigation();
 
-  const { token, pointId, uf, city } = useMemo(() => {
-    const sp = new URLSearchParams(window.location.search);
+  const { token, pointId, uf, city, flow, ownerCompanyId } = useMemo(() => {
+    const qp = getMenuQueryParams();
     return {
-      token: sp.get('token') || sp.get('t') || '',
-      pointId: sp.get('id') || sp.get('pointId') || '',
-      uf: String(sp.get('uf') || '').trim().toUpperCase(),
-      city: String(sp.get('city') || '').trim(),
+      token: qp.token,
+      pointId: qp.pointId,
+      uf: qp.uf,
+      city: qp.city,
+      flow: qp.flow,
+      ownerCompanyId: qp.ownerCompanyId,
     };
   }, []);
 
-  const { data, loading, error } = usePublicMediaKit({ token });
+  const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId });
+
+  const isAgency = isAgencyFlow(flow);
+  const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
+
 
   const point = useMemo(() => {
     const points = data?.points ?? [];
@@ -131,15 +138,15 @@ export default function MenuDetalhe() {
   }, [pointId]);
 
   const backUrl = useMemo(() => {
-    return `/menu/pontos${buildQuery({ token, uf, city })}`;
-  }, [token, uf, city]);
+    return `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`;
+  }, [token, uf, city, flow, ownerCompanyId]);
 
   const onAdd = () => {
     if (!point) return;
 
     const units = Array.isArray(point.units) ? point.units.filter((u) => u?.isActive !== false) : [];
     if (units.length > 1) {
-      navigate(`/menu/faces${buildQuery({ token, id: point.id, uf, city })}`);
+      navigate(`/menu/faces${buildQuery({ token, id: point.id, uf, city, flow, ownerCompanyId })}`);
       return;
     }
 
@@ -181,6 +188,11 @@ export default function MenuDetalhe() {
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
+          {isAgency && markupPct > 0 && (
+            <Badge variant="outline" className="rounded-full">
+              Agência +{markupPct}%
+            </Badge>
+          )}
           <div className="text-sm text-gray-600">Detalhe do ponto</div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -188,7 +200,7 @@ export default function MenuDetalhe() {
               <Button
                 variant="outline"
                 className="gap-2"
-                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city })}`)}
+                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
               >
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})
@@ -266,8 +278,12 @@ export default function MenuDetalhe() {
 
                     <div className="flex flex-col gap-2 sm:items-end">
                       <div className="text-sm text-gray-600">Preço base</div>
-                      <div className="text-lg font-bold text-gray-900">{formatCurrencyBRL(point.basePriceMonth)}</div>
-                      <div className="text-xs text-gray-600">Mensal • {formatCurrencyBRL(point.basePriceWeek)} semanal</div>
+                      <div className="text-lg font-bold text-gray-900">
+                        {formatCurrencyBRL(applyAgencyMarkup(point.basePriceMonth, markupPct))}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        Mensal • {formatCurrencyBRL(applyAgencyMarkup(point.basePriceWeek, markupPct))} semanal
+                      </div>
                     </div>
                   </div>
 
@@ -381,11 +397,15 @@ export default function MenuDetalhe() {
                           </div>
                           <div className="mt-2 text-xs text-gray-700">
                             <span className="text-gray-500">Mensal:</span>{' '}
-                            <span className="font-semibold">{formatCurrencyBRL(u.priceMonth ?? point.basePriceMonth)}</span>
+                            <span className="font-semibold">
+                              {formatCurrencyBRL(applyAgencyMarkup(u.priceMonth ?? point.basePriceMonth, markupPct))}
+                            </span>
                           </div>
                           <div className="mt-1 text-xs text-gray-700">
                             <span className="text-gray-500">Semanal:</span>{' '}
-                            <span className="font-semibold">{formatCurrencyBRL(u.priceWeek ?? point.basePriceWeek)}</span>
+                            <span className="font-semibold">
+                              {formatCurrencyBRL(applyAgencyMarkup(u.priceWeek ?? point.basePriceWeek, markupPct))}
+                            </span>
                           </div>
                           {u.imageUrl && (
                             <div className="mt-3 h-28 w-full overflow-hidden rounded-lg bg-gray-100">

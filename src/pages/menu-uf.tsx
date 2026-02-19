@@ -1,17 +1,13 @@
 import { useMemo, useState } from 'react';
+import { ArrowLeft, ArrowRight, MapPinned, RefreshCcw } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
 import { useNavigation } from '../contexts/NavigationContext';
-import { ArrowLeft, ArrowRight, MapPinned, RefreshCcw } from 'lucide-react';
-import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { getBrStateName } from '../lib/brStates';
-
-function getTokenFromQuery() {
-  const sp = new URLSearchParams(window.location.search);
-  return sp.get('token') || sp.get('t') || '';
-}
+import { getMenuQueryParams } from '../lib/menuFlow';
+import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -34,8 +30,8 @@ export default function MenuSelectUF() {
   const navigate = useNavigation();
   const [q, setQ] = useState('');
 
-  const token = useMemo(() => getTokenFromQuery(), []);
-  const { data, loading, error, reload } = usePublicMediaKit({ token });
+  const { token, flow, ownerCompanyId } = useMemo(() => getMenuQueryParams(), []);
+  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId });
 
   const ufs = useMemo<UfRow[]>(() => {
     const points = data?.points ?? [];
@@ -62,9 +58,7 @@ export default function MenuSelectUF() {
 
     const query = q.trim().toLowerCase();
     if (!query) return rows;
-    return rows.filter(
-      (x) => x.uf.toLowerCase().includes(query) || x.name.toLowerCase().includes(query)
-    );
+    return rows.filter((x) => x.uf.toLowerCase().includes(query) || x.name.toLowerCase().includes(query));
   }, [data?.points, q]);
 
   return (
@@ -76,7 +70,11 @@ export default function MenuSelectUF() {
           </Badge>
           <div className="text-sm text-gray-600">UF → Cidade</div>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" className="gap-2" onClick={() => navigate(`/menu${buildQuery({ token })}`)}>
+            <Button
+              variant="ghost"
+              className="gap-2"
+              onClick={() => navigate(`/menu${buildQuery({ token, flow, ownerCompanyId })}`)}
+            >
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
@@ -86,9 +84,7 @@ export default function MenuSelectUF() {
         <div className="mt-4 flex items-start gap-3">
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">Selecione o Estado (UF)</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              As UFs abaixo são derivadas do inventário real do Mídia Kit público.
-            </p>
+            <p className="mt-1 text-sm text-gray-600">As UFs abaixo são derivadas do inventário real do Mídia Kit público.</p>
           </div>
           <Button variant="outline" className="gap-2" onClick={reload} disabled={loading}>
             <RefreshCcw className="h-4 w-4" />
@@ -109,7 +105,7 @@ export default function MenuSelectUF() {
           </Card>
         )}
 
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {loading && ufs.length === 0
             ? Array.from({ length: 6 }).map((_, idx) => (
                 <Card key={idx} className="animate-pulse">
@@ -121,7 +117,7 @@ export default function MenuSelectUF() {
                 </Card>
               ))
             : ufs.map((item) => (
-                <Card key={item.uf} className="hover:shadow-sm transition-shadow">
+                <Card key={item.uf} className="transition-shadow hover:shadow-sm">
                   <CardContent className="py-4">
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5">
@@ -139,7 +135,11 @@ export default function MenuSelectUF() {
                       <Button
                         size="sm"
                         className="gap-2"
-                        onClick={() => navigate(`/menu/cidades${buildQuery({ token, uf: item.uf })}`)}
+                        onClick={() =>
+                          navigate(
+                            `/menu/cidades${buildQuery({ token, uf: item.uf, flow, ownerCompanyId })}`
+                          )
+                        }
                       >
                         Escolher
                         <ArrowRight className="h-4 w-4" />
