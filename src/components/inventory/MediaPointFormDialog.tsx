@@ -12,6 +12,7 @@ import { X, ChevronDown, Package } from 'lucide-react';
 import { MediaPoint, MediaType, ProductionCosts } from '../../types';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
 import apiClient from '../../lib/apiClient';
+import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
 
 interface MediaPointFormDialogProps {
@@ -22,15 +23,6 @@ interface MediaPointFormDialogProps {
 }
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }: MediaPointFormDialogProps) {
-  // Normaliza URLs antigas (absolutas) para caminho relativo em /uploads/...
-  // (permite servir via proxy/rewrite, ex.: Vercel)
-  const normalizeUploadsUrl = (value?: string | null) => {
-    if (!value) return value ?? null;
-    if (value.startsWith('/uploads/')) return value;
-    const idx = value.indexOf('/uploads/');
-    if (idx >= 0) return value.slice(idx);
-    return value;
-  };
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
     type: MediaType.OOH,
@@ -59,7 +51,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
       setFormData(mediaPoint);
       setType(mediaPoint.type);
       setImageFile(null);
-      setImagePreview(normalizeUploadsUrl(mediaPoint.mainImageUrl) || null);
+      setImagePreview(resolveUploadsUrl(mediaPoint.mainImageUrl) || null);
     } else {
       setFormData({
         type: MediaType.OOH,
