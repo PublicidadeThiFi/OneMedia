@@ -1,4 +1,4 @@
-﻿import { CheckCircle2, MapPin, Users, Star } from 'lucide-react';
+﻿import { CheckCircle2, MapPin, Star } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigation } from '../../../App';
 import { useWaitlist } from '../../../contexts/WaitlistContext';
@@ -24,14 +24,10 @@ export function MobilePricing() {
   const [sliderPoints, setSliderPoints] = useState(proSliderConfig.minPoints);
   const sliderPrice = useProSliderPrice(sliderPoints);
 
-  const limites = (users: number | string, points: number | string) => (
+  const limites = (points: number | string) => (
     <>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-gray-700">
-          <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400" />Usuarios</span>
-          <span className="font-semibold text-gray-900">{users}</span>
-        </div>
         <div className="flex items-center justify-between text-xs text-gray-700">
           <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
           <span className="font-semibold text-gray-900">{points}</span>
@@ -99,7 +95,7 @@ export function MobilePricing() {
               <hr className="border-gray-100" />
               <p className="text-xs text-gray-500 leading-relaxed">{plan.description}</p>
               <hr className="border-gray-100" />
-              {limites(plan.users, plan.points)}
+              {limites(plan.points)}
               <hr className="border-gray-100" />
               {featureList()}
               <button onClick={() => openWaitlist('mobile-pricing:comecar-gratis')} className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
@@ -140,7 +136,7 @@ export function MobilePricing() {
               <p className="text-[10px] text-gray-500">Arraste para ajustar pontos e ver o preco.</p>
             </div>
             <hr className="border-gray-100" />
-            {limites(proSliderConfig.users, sliderPoints)}
+            {limites(sliderPoints)}
             <hr className="border-gray-100" />
             {featureList()}
             <button onClick={() => navigate('/contato')} className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
