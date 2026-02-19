@@ -87,7 +87,7 @@ export type MenuQuoteDiscountApplyTo = 'SERVICES' | 'BASE' | 'ALL';
  * Nota: mantemos campos legados por compatibilidade, mas o preferencial é `draft.discounts`.
  */
 export type MenuDiscountScope = 'FACE' | 'POINT' | 'GENERAL' | 'CATEGORY';
-export type MenuDiscountAppliesTo = 'BASE' | 'SERVICES' | 'ALL';
+export type MenuDiscountAppliesTo = 'BASE' | 'SERVICES' | 'COSTS' | 'ALL';
 
 export type MenuAppliedDiscount = {
   id: string;
@@ -156,6 +156,24 @@ export type MenuQuoteDraft = {
   discountApplyTo?: MenuQuoteDiscountApplyTo | null;
 };
 
+export type MenuQuoteItemBreakdown = {
+  index: number;
+  pointId?: string | null;
+  unitId?: string | null;
+
+  title: string;
+  location?: string | null;
+
+  durationLabel: string;
+  durationDays: number;
+
+  baseGross: number;
+  baseNet: number;
+
+  costsGross?: number;
+  costsNet?: number;
+};
+
 export type MenuQuoteTotalsBreakdown = {
   baseGross: number;
   baseNet: number;
@@ -163,16 +181,24 @@ export type MenuQuoteTotalsBreakdown = {
   servicesGross: number;
   servicesNet: number;
 
+  costsGross?: number;
+  costsNet?: number;
+
   servicesLineDiscount: number;
+  costsLineDiscount?: number;
+
   baseDiscount: number;
   servicesDiscount: number;
+  costsDiscount?: number;
 
   appliedDiscounts: MenuAppliedDiscountImpact[];
+  items?: MenuQuoteItemBreakdown[];
 };
 
 export type MenuQuoteTotals = {
   base: number;
   services: number;
+  costs?: number;
   discount: number;
   total: number;
   breakdown?: MenuQuoteTotalsBreakdown;
@@ -305,6 +331,22 @@ export async function sendMenuQuote(params: {
   const t = String(params.t || '').trim();
   const resp = await publicApiClient.post<{ version: number; totals: MenuQuoteTotals }>(
     `/public/menu/quote/${encodeURIComponent(requestId)}/send`,
+    { token: token || undefined, t: t || undefined, draft: params.draft },
+  );
+  return resp.data;
+}
+
+export async function previewMenuQuoteTotals(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  draft: MenuQuoteDraft;
+}): Promise<{ totals: MenuQuoteTotals }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const resp = await publicApiClient.post<{ totals: MenuQuoteTotals }>(
+    `/public/menu/quote/${encodeURIComponent(requestId)}/preview`,
     { token: token || undefined, t: t || undefined, draft: params.draft },
   );
   return resp.data;

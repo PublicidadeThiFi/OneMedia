@@ -12,6 +12,7 @@ import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
 import {
   classifyMenuRequestError,
   fetchMenuRequest,
+  previewMenuQuoteTotals,
   regenerateMenuLink,
   sendMenuQuote,
   type MenuAppliedDiscount,
@@ -22,6 +23,7 @@ import {
   type MenuGiftScope,
   type MenuQuoteDraft,
   type MenuQuoteServiceLine,
+  type MenuQuoteTotals,
   type MenuQuoteVersionRecord,
   type MenuRequestRecord,
 } from '../lib/menuRequestApi';
@@ -640,7 +642,71 @@ export default function MenuDonoWorkspace() {
   const status = String(data?.status || '').toUpperCase();
   const isLocked = status === 'APPROVED';
 
-  const previewTotals = useMemo(() => computePreviewTotals(data, draft), [data, draft]);
+  useEffect(() => {
+    let alive = true;
+    let timer: any = null;
+
+    if (!data) {
+      setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
+      setPreviewError(null);
+      setIsPreviewLoading(false);
+      return () => {
+        alive = false;
+        if (timer) clearTimeout(timer);
+      };
+    }
+
+    // Após aprovação, usamos sempre os totais persistidos na versão atual.
+    if (isLocked) {
+      const locked = currentQuote?.totals;
+      if (locked) setPreviewTotals({ ...(locked as any), costs: (locked as any)?.costs ?? 0 });
+      else setPreviewTotals(computePreviewTotals(data, draft) as any);
+      setPreviewError(null);
+      setIsPreviewLoading(false);
+      return () => {
+        alive = false;
+        if (timer) clearTimeout(timer);
+      };
+    }
+
+    // Debounce (evita flood enquanto digita)
+    setIsPreviewLoading(true);
+    setPreviewError(null);
+
+    timer = setTimeout(() => {
+      (async () => {
+        try {
+          const resp = await previewMenuQuoteTotals({
+            requestId: String(data?.id || ''),
+            token: token || undefined,
+            t: t || undefined,
+            draft,
+          });
+          if (!alive) return;
+          setPreviewTotals({ ...(resp?.totals as any), costs: (resp?.totals as any)?.costs ?? 0 });
+        } catch (err: any) {
+          if (!alive) return;
+          // Fallback local (não bloqueia o fluxo)
+          setPreviewTotals(computePreviewTotals(data, draft) as any);
+          setPreviewError('Não foi possível atualizar o preview agora.');
+        } finally {
+          if (!alive) return;
+          setIsPreviewLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [data, draft, token, t, isLocked, currentQuote]);
+
+
+  const [previewTotals, setPreviewTotals] = useState<MenuQuoteTotals>({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
 
   useEffect(() => {
     let alive = true;
@@ -1409,7 +1475,11 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
-                      <div className="text-sm font-semibold text-gray-900">Resumo (preview)</div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                        Resumo (preview)
+                        {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin text-gray-500" /> : null}
+                      </div>
+                      {previewError ? <div className="mt-1 text-xs text-amber-600">{previewError}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
                           <div className="text-xs text-gray-500">Base</div>
@@ -1423,8 +1493,8 @@ export default function MenuDonoWorkspace() {
                           <div className="text-xs text-gray-500">Descontos</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
-                            {previewTotals.breakdown?.servicesLineDiscount > 0 ? (
-                              <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown.servicesLineDiscount)}</div>
+                            {(previewTotals.breakdown?.servicesLineDiscount ?? 0) > 0 ? (
+                              <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown?.servicesLineDiscount ?? 0)}</div>
                             ) : null}
 
                             {(previewTotals.breakdown?.appliedDiscounts || []).map((d) => (
