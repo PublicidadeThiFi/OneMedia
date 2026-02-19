@@ -1,4 +1,4 @@
-﻿import { CheckCircle2, HelpCircle, MapPin, Users, ChevronLeft, ChevronRight, Star } from 'lucide-react';
+﻿﻿import { CheckCircle2, HelpCircle, MapPin, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useNavigation } from '../../App';
 import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from './pricingData';
@@ -46,14 +46,10 @@ export function Pricing() {
     <div className="p-5 flex flex-col flex-1 gap-3">{children}</div>
   );
 
-  const limites = (users: number | string, points: number | string) => (
+  const limites = (points: number | string) => (
     <>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-gray-700">
-          <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400" />Usuarios</span>
-          <span className="font-semibold text-gray-900">{users}</span>
-        </div>
         <div className="flex items-center justify-between text-xs text-gray-700">
           <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
           <span className="font-semibold text-gray-900">{points}</span>
@@ -134,7 +130,7 @@ export function Pricing() {
 
                   <hr className="border-gray-100" />
 
-                  {limites(plan.users, plan.points)}
+                  {limites(plan.points)}
 
                   <hr className="border-gray-100" />
 
@@ -186,7 +182,7 @@ export function Pricing() {
 
                 <hr className="border-gray-100" />
 
-                {limites(proSliderConfig.users, sliderPoints)}
+                {limites(sliderPoints)}
 
                 <hr className="border-gray-100" />
 
