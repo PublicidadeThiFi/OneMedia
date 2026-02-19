@@ -1,4 +1,4 @@
-﻿import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, MapPin, Star, Users } from 'lucide-react';
+﻿﻿import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, MapPin, Star } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from '../landing/pricingData';
 import { SignupPlanStep, PlanRange } from '../../types/signup';
@@ -68,14 +68,10 @@ export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
     <div className="p-5 flex flex-col flex-1 gap-3">{children}</div>
   );
 
-  const limites = (users: number | string, points: number | string) => (
+  const limites = (points: number | string) => (
     <>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-gray-700">
-          <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400" />Usuários</span>
-          <span className="font-semibold text-gray-900">{users}</span>
-        </div>
         <div className="flex items-center justify-between text-xs text-gray-700">
           <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
           <span className="font-semibold text-gray-900">{points}</span>
@@ -158,7 +154,7 @@ export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
                   <hr className="border-gray-100" />
                   <p className="text-xs text-gray-500 leading-relaxed">{plan.description}</p>
                   <hr className="border-gray-100" />
-                  {limites(plan.users, plan.points)}
+                  {limites(plan.points)}
                   <hr className="border-gray-100" />
                   {featureList()}
                   <div className={`mt-auto w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors ${
@@ -211,7 +207,7 @@ export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
                     <p className="text-[10px] text-gray-500">Arraste para ajustar pontos e ver o preço.</p>
                   </div>
                   <hr className="border-gray-100" />
-                  {limites(proSliderConfig.users, sliderPoints)}
+                  {limites(sliderPoints)}
                   <hr className="border-gray-100" />
                   {featureList()}
                   <div className={`mt-auto w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors ${

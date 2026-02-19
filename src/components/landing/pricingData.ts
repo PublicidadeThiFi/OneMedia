@@ -80,12 +80,12 @@ export const sharedFeatures = [
 export const proSliderConfig = {
   id: 'pro-2000',
   name: 'Pro 2.000',
-  minPoints: 400,
+  minPoints: 250,
   maxPoints: 2000,
   step: 50,
-  basePoints: 400,
-  basePrice: 999,
-  pricePer100: 120,
+  basePoints: 250,
+  basePrice: 699,
+  pricePer100: 200,
   users: 20,
 };
 
