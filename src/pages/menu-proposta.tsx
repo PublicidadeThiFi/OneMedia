@@ -146,6 +146,15 @@ export default function MenuProposta() {
   const canApprove = Boolean(currentQuote) && currentQuote?.status !== 'APPROVED' && String(data?.status || '').toUpperCase() !== 'APPROVED';
   const canReject = Boolean(currentQuote) && currentQuote?.status === 'SENT' && String(data?.status || '').toUpperCase() !== 'APPROVED';
 
+  const isApproved = Boolean(currentQuote) && (currentQuote?.status === 'APPROVED' || String(data?.status || '').toUpperCase() === 'APPROVED');
+
+  const contractDownloadUrl = useMemo(() => {
+    if (!String(rid || '').trim()) return '';
+    const base = `/api/public/menu/quote/${encodeURIComponent(rid)}/contract`;
+    const qs = buildQuery(t ? { t } : { token });
+    return `${base}${qs}`;
+  }, [rid, t, token]);
+
   const onApprove = async () => {
     try {
       setIsActing(true);
@@ -353,22 +362,38 @@ export default function MenuProposta() {
                 <Separator className="my-5" />
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button className="gap-2" disabled={!canApprove || isActing} onClick={onApprove}>
-                    <CheckCircle2 className="h-4 w-4" />
-                    Aprovar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    disabled={!canReject || isActing}
-                    onClick={() => setShowReject((s) => !s)}
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Solicitar revisão
-                  </Button>
+                  {!isApproved && (
+                    <>
+                      <Button className="gap-2" disabled={!canApprove || isActing} onClick={onApprove}>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Aprovar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-2"
+                        disabled={!canReject || isActing}
+                        onClick={() => setShowReject((s) => !s)}
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Solicitar revisão
+                      </Button>
+                    </>
+                  )}
+
+                  {isApproved && String(contractDownloadUrl || '').trim() && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="gap-2"
+                      onClick={() => window.open(contractDownloadUrl, '_blank', 'noopener,noreferrer')}
+                    >
+                      <FileText className="h-4 w-4" />
+                      Baixar contrato
+                    </Button>
+                  )}
                 </div>
 
-                {showReject && (
+                {showReject && !isApproved && (
                   <div className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-4">
                     <div className="text-sm font-semibold text-gray-900">O que você quer ajustar?</div>
                     <div className="mt-1 text-xs text-gray-600">Ex.: prazo, desconto, serviços, ponto específico…</div>
