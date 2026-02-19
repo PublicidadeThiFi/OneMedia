@@ -81,6 +81,38 @@ export type MenuEvent = {
 
 export type MenuQuoteDiscountApplyTo = 'SERVICES' | 'BASE' | 'ALL';
 
+/**
+ * Etapa 5 — descontos acumuláveis (stack)
+ *
+ * Nota: mantemos campos legados por compatibilidade, mas o preferencial é `draft.discounts`.
+ */
+export type MenuDiscountScope = 'FACE' | 'POINT' | 'GENERAL' | 'CATEGORY';
+export type MenuDiscountAppliesTo = 'BASE' | 'SERVICES' | 'ALL';
+
+export type MenuAppliedDiscount = {
+  id: string;
+  scope: MenuDiscountScope;
+  targetId?: string | null; // FACE: unitId | POINT: pointId | GENERAL: null
+  percent?: number | null;
+  fixed?: number | null;
+  appliesTo?: MenuDiscountAppliesTo | null;
+  label?: string | null;
+  meta?: Record<string, any>;
+};
+
+export type MenuAppliedDiscountImpact = {
+  id: string;
+  scope: MenuDiscountScope;
+  targetId?: string | null;
+  appliesTo?: MenuDiscountAppliesTo | null;
+  label?: string | null;
+  percent: number;
+  fixed: number;
+  base: number;
+  amount: number;
+  meta?: Record<string, any>;
+};
+
 export type MenuQuoteServiceLine = {
   name: string;
   value: number;
@@ -93,10 +125,27 @@ export type MenuQuoteDraft = {
   services?: MenuQuoteServiceLine[];
   manualServiceValue?: number | null;
 
-  // Desconto global (opcional)
+  // Novo (Etapa 5)
+  discounts?: MenuAppliedDiscount[];
+
+  // LEGADO (Etapas anteriores)
   discountPercent?: number | null;
   discountFixed?: number | null;
   discountApplyTo?: MenuQuoteDiscountApplyTo | null;
+};
+
+export type MenuQuoteTotalsBreakdown = {
+  baseGross: number;
+  baseNet: number;
+
+  servicesGross: number;
+  servicesNet: number;
+
+  servicesLineDiscount: number;
+  baseDiscount: number;
+  servicesDiscount: number;
+
+  appliedDiscounts: MenuAppliedDiscountImpact[];
 };
 
 export type MenuQuoteTotals = {
@@ -104,6 +153,7 @@ export type MenuQuoteTotals = {
   services: number;
   discount: number;
   total: number;
+  breakdown?: MenuQuoteTotalsBreakdown;
 };
 
 export type MenuQuoteVersionRecord = {
