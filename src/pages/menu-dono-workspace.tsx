@@ -18,6 +18,8 @@ import {
   type MenuAppliedDiscountImpact,
   type MenuDiscountAppliesTo,
   type MenuDiscountScope,
+  type MenuGift,
+  type MenuGiftScope,
   type MenuQuoteDraft,
   type MenuQuoteServiceLine,
   type MenuQuoteVersionRecord,
@@ -56,6 +58,23 @@ function formatDateTimeBr(iso?: string | null): string {
   } catch {
     return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(d);
   }
+}
+
+function clampInt(v: any, min: number, max: number): number {
+  const n = Math.floor(Number(v) || 0);
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
+function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null): string {
+  const years = clampInt(parts?.years, 0, 99);
+  const months = clampInt(parts?.months, 0, 99);
+  const days = clampInt(parts?.days, 0, 99);
+  const segs: string[] = [];
+  if (years) segs.push(`${years} ${years === 1 ? 'ano' : 'anos'}`);
+  if (months) segs.push(`${months} ${months === 1 ? 'mês' : 'meses'}`);
+  if (days || segs.length === 0) segs.push(`${days || 0} ${days === 1 ? 'dia' : 'dias'}`);
+  return segs.join(', ');
 }
 
 type ServiceOption = { name: string; defaultValue: number };
@@ -408,6 +427,7 @@ export default function MenuDonoWorkspace() {
     message: '',
     services: [],
     manualServiceValue: null,
+    gifts: [],
     discounts: [],
     // legado (mantido por compat)
     discountPercent: null,
@@ -450,6 +470,26 @@ export default function MenuDonoWorkspace() {
   const [newDiscountAppliesTo, setNewDiscountAppliesTo] = useState<MenuDiscountAppliesTo>('ALL');
   const [newDiscountPercent, setNewDiscountPercent] = useState<string>('');
   const [newDiscountFixed, setNewDiscountFixed] = useState<string>('');
+
+  // Etapa 6 — Brindes
+  const [newGiftScope, setNewGiftScope] = useState<MenuGiftScope>('POINT');
+  const [newGiftTargetId, setNewGiftTargetId] = useState<string>('');
+  const [newGiftYears, setNewGiftYears] = useState<string>('');
+  const [newGiftMonths, setNewGiftMonths] = useState<string>('');
+  const [newGiftDays, setNewGiftDays] = useState<string>('30');
+
+  useEffect(() => {
+    // Auto-select a valid default target when options arrive / scope changes
+    if (newGiftScope === 'FACE') {
+      if (!newGiftTargetId || !faceOptions.some((x) => x.id === newGiftTargetId)) {
+        setNewGiftTargetId(faceOptions[0]?.id || '');
+      }
+      return;
+    }
+    if (!newGiftTargetId || !pointOptions.some((x) => x.id === newGiftTargetId)) {
+      setNewGiftTargetId(pointOptions[0]?.id || '');
+    }
+  }, [newGiftScope, newGiftTargetId, faceOptions, pointOptions]);
 
   const removeDiscount = (id: string) => {
     setDraft((d) => ({ ...d, discounts: (d.discounts || []).filter((x) => x.id !== id) }));
@@ -508,6 +548,64 @@ export default function MenuDonoWorkspace() {
 
     setNewDiscountPercent('');
     setNewDiscountFixed('');
+  };
+
+  const removeGift = (id: string) => {
+    setDraft((d) => ({ ...d, gifts: (d.gifts || []).filter((x) => x.id !== id) }));
+  };
+
+  const addGift = () => {
+    if (isLocked) return;
+
+    if ((newGiftScope === 'FACE' && !faceOptions.length) || (newGiftScope === 'POINT' && !pointOptions.length)) {
+      toast.error('Não há itens suficientes para este brinde.');
+      return;
+    }
+
+    const targetId = String(newGiftTargetId || '').trim();
+    if (!targetId) {
+      toast.error('Selecione o alvo do brinde.');
+      return;
+    }
+
+    const years = clampInt(newGiftYears, 0, 10);
+    const months = clampInt(newGiftMonths, 0, 24);
+    const days = clampInt(newGiftDays, 0, 31);
+    let totalDays = years * 365 + months * 30 + days;
+    if (totalDays <= 0) totalDays = 30;
+
+    const exists = (draft.gifts || []).some((g) => g.scope === newGiftScope && String(g.targetId) === String(targetId));
+    if (exists) {
+      toast.error('Esse brinde já foi adicionado para esse alvo.');
+      return;
+    }
+
+    const id = (() => {
+      try {
+        // @ts-ignore
+        return `mg_${crypto.randomUUID()}`;
+      } catch {
+        return `mg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+    })();
+
+    const label =
+      newGiftScope === 'FACE'
+        ? faceOptions.find((x) => x.id === targetId)?.label || 'Brinde por face'
+        : pointOptions.find((x) => x.id === targetId)?.label || 'Brinde por ponto';
+
+    const gift: MenuGift = {
+      id,
+      scope: newGiftScope,
+      targetId,
+      duration: { years, months, days, totalDays },
+      label,
+    };
+
+    setDraft((d) => ({
+      ...d,
+      gifts: [...(d.gifts || []), gift],
+    }));
   };
 
   const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
@@ -576,6 +674,36 @@ export default function MenuDonoWorkspace() {
         if (last?.draft) {
           const loadedDiscounts0 = Array.isArray((last.draft as any)?.discounts) ? (((last.draft as any).discounts as any) || []) : [];
 
+          const loadedGifts0 = Array.isArray((last.draft as any)?.gifts)
+            ? (((last.draft as any).gifts as any) || [])
+            : Array.isArray((last.draft as any)?.brindes)
+              ? (((last.draft as any).brindes as any) || [])
+              : [];
+
+          const gifts: MenuGift[] = loadedGifts0
+            .map((g: any) => {
+              const scopeRaw = String(g?.scope ?? g?.targetType ?? g?.type ?? '').trim().toUpperCase();
+              const scope: MenuGiftScope = scopeRaw === 'POINT' || scopeRaw === 'PONTO' ? 'POINT' : 'FACE';
+              const targetId = String(g?.targetId ?? g?.target ?? g?.unitId ?? g?.pointId ?? '').trim();
+              if (!targetId) return null;
+
+              const period = g?.duration ?? g?.period ?? g?.occupation ?? {};
+              const years = clampInt(period?.years, 0, 10);
+              const months = clampInt(period?.months, 0, 24);
+              const days = clampInt(period?.days, 0, 31);
+              let totalDays = years * 365 + months * 30 + days;
+              if (totalDays <= 0) totalDays = 30;
+
+              return {
+                id: String(g?.id || `mg_legacy_${targetId}`),
+                scope,
+                targetId,
+                duration: { years, months, days, totalDays },
+                label: g?.label ?? null,
+              } as MenuGift;
+            })
+            .filter(Boolean) as MenuGift[];
+
           const legacyPercent = Math.max(0, Number((last.draft as any)?.discountPercent || 0));
           const legacyFixed = Math.max(0, Number((last.draft as any)?.discountFixed || 0));
           const legacyApplyTo = ((String((last.draft as any)?.discountApplyTo || 'ALL').toUpperCase() as any) || 'ALL') as MenuDiscountAppliesTo;
@@ -608,6 +736,7 @@ export default function MenuDonoWorkspace() {
                 }))
               : [],
             manualServiceValue: last.draft.manualServiceValue ?? null,
+            gifts,
             discounts: mergedDiscounts,
             // legado
             discountPercent: last.draft.discountPercent ?? null,
@@ -1167,6 +1296,105 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
+                      <div className="text-sm font-semibold text-gray-900">Brindes (R$ 0)</div>
+                      <div className="mt-2 text-[12px] text-gray-600">
+                        Brindes são itens gratuitos com período de ocupação. Eles <span className="font-semibold">não alteram o total</span>, mas aparecem no documento.
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {(draft.gifts || []).length === 0 ? (
+                          <div className="text-sm text-gray-600">Nenhum brinde adicionado.</div>
+                        ) : (
+                          (draft.gifts || []).map((g) => (
+                            <div key={g.id} className="rounded-xl border border-gray-200 px-3 py-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">
+                                    {g.scope === 'FACE' ? 'Face' : 'Ponto'}: {g.label || g.targetId}
+                                  </div>
+                                  <div className="mt-0.5 text-xs text-gray-600">
+                                    Período: {formatPeriod(g.duration)}
+                                  </div>
+                                </div>
+                                <Button variant="outline" size="sm" onClick={() => removeGift(g.id)} disabled={isLocked}>
+                                  Remover
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                        <div className="text-xs font-semibold text-gray-700">Adicionar brinde</div>
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-6 gap-2">
+                          <div>
+                            <div className="text-xs text-gray-500">Tipo</div>
+                            <select
+                              className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                              value={newGiftScope}
+                              onChange={(e) => setNewGiftScope(e.target.value as MenuGiftScope)}
+                              disabled={isLocked}
+                            >
+                              <option value="POINT">Por ponto</option>
+                              <option value="FACE">Por face</option>
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <div className="text-xs text-gray-500">Alvo</div>
+                            {newGiftScope === 'FACE' ? (
+                              <select
+                                className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                value={newGiftTargetId}
+                                onChange={(e) => setNewGiftTargetId(e.target.value)}
+                                disabled={isLocked || !faceOptions.length}
+                              >
+                                {faceOptions.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <select
+                                className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                value={newGiftTargetId}
+                                onChange={(e) => setNewGiftTargetId(e.target.value)}
+                                disabled={isLocked || !pointOptions.length}
+                              >
+                                {pointOptions.map((o) => (
+                                  <option key={o.id} value={o.id}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="text-xs text-gray-500">Anos (0–10)</div>
+                            <Input type="number" value={newGiftYears} onChange={(e) => setNewGiftYears(e.target.value)} placeholder="0" disabled={isLocked} />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500">Meses (0–24)</div>
+                            <Input type="number" value={newGiftMonths} onChange={(e) => setNewGiftMonths(e.target.value)} placeholder="0" disabled={isLocked} />
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500">Dias (0–31)</div>
+                            <Input type="number" value={newGiftDays} onChange={(e) => setNewGiftDays(e.target.value)} placeholder="30" disabled={isLocked} />
+                          </div>
+                        </div>
+
+                        <div className="mt-2">
+                          <Button className="w-full" variant="outline" onClick={addGift} disabled={isLocked}>
+                            Adicionar brinde
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator className="my-4" />
+
                       <div className="text-sm font-semibold text-gray-900">Resumo (preview)</div>
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
@@ -1198,6 +1426,22 @@ export default function MenuDonoWorkspace() {
                             ))}
                           </div>
                         </div>
+
+                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                          <div className="text-xs text-gray-500">Brindes (R$ 0)</div>
+                          <div className="text-sm font-semibold text-gray-900">{(draft.gifts || []).length} item(ns)</div>
+                          <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
+                            {(draft.gifts || []).slice(0, 3).map((g) => (
+                              <div key={g.id} className="truncate">
+                                {(g.scope === 'FACE' ? 'Face' : 'Ponto')}: {g.label || g.targetId} • {formatPeriod(g.duration)}
+                              </div>
+                            ))}
+                            {(draft.gifts || []).length > 3 ? (
+                              <div className="text-[11px] text-gray-400">+{(draft.gifts || []).length - 3} outro(s)</div>
+                            ) : null}
+                          </div>
+                        </div>
+
                         <div
                           className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
                           style={{ backgroundColor: "#111827", color: "#ffffff" }}

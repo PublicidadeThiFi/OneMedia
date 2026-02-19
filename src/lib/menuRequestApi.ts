@@ -113,6 +113,25 @@ export type MenuAppliedDiscountImpact = {
   meta?: Record<string, any>;
 };
 
+// Etapa 6 — Brindes (itens gratuitos com período)
+export type MenuGiftScope = 'FACE' | 'POINT';
+
+export type MenuGiftDuration = {
+  years: number;
+  months: number;
+  days: number;
+  totalDays: number;
+};
+
+export type MenuGift = {
+  id: string;
+  scope: MenuGiftScope;
+  targetId: string; // FACE: unitId | POINT: pointId
+  duration: MenuGiftDuration;
+  label?: string | null;
+  meta?: Record<string, any>;
+};
+
 export type MenuQuoteServiceLine = {
   name: string;
   value: number;
@@ -124,6 +143,9 @@ export type MenuQuoteDraft = {
   message?: string | null;
   services?: MenuQuoteServiceLine[];
   manualServiceValue?: number | null;
+
+  // Etapa 6 — Brindes (não soma no total; aparece no documento)
+  gifts?: MenuGift[];
 
   // Novo (Etapa 5)
   discounts?: MenuAppliedDiscount[];
