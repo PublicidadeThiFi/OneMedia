@@ -659,6 +659,20 @@ export default function MenuDonoWorkspace() {
       };
     }
 
+    // Etapa 8 — blindagem: páginas do responsável só via link assinado (t)
+    if (!String(t || '').trim()) {
+      setData(null);
+      setIsLoading(false);
+      setLoadError({
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso restrito',
+        description: 'Este workspace é exclusivo do responsável. Abra a partir do link enviado por e-mail.',
+      });
+      return () => {
+        alive = false;
+      };
+    }
+
     (async () => {
       try {
         setIsLoading(true);

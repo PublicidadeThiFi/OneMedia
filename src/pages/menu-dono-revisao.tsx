@@ -61,12 +61,28 @@ export default function MenuDonoRevisao() {
   }, [data]);
 
   const refresh = async () => {
+    if (!String(rid || '').trim() || !String(t || '').trim()) return;
     const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
     setData(res);
   };
 
   useEffect(() => {
     let alive = true;
+
+    // Etapa 8 — blindagem: páginas do responsável só via link assinado (t)
+    if (!String(rid || '').trim() || !String(t || '').trim()) {
+      setData(null);
+      setIsLoading(false);
+      setLoadError({
+        kind: 'MISSING_TOKEN',
+        title: 'Acesso restrito',
+        description: 'Esta página é exclusiva do responsável. Abra a partir do link enviado por e-mail.',
+      });
+      return () => {
+        alive = false;
+      };
+    }
+
     (async () => {
       try {
         setIsLoading(true);
