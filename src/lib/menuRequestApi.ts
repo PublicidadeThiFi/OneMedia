@@ -126,7 +126,7 @@ export type MenuGiftDuration = {
 export type MenuGift = {
   id: string;
   scope: MenuGiftScope;
-  targetId: string; // FACE: unitId | POINT: pointId
+  targetId: string; // FACE: unitId | POINT: pointId | "*" (qualquer elegível)
   duration: MenuGiftDuration;
   label?: string | null;
   meta?: Record<string, any>;
@@ -145,7 +145,7 @@ export type MenuItemCostScope = 'FACE' | 'POINT';
 export type MenuQuoteItemCostLine = {
   id: string;
   scope: MenuItemCostScope;
-  targetId: string; // FACE: unitId | POINT: pointId
+  targetId: string; // FACE: unitId | POINT: pointId | "*" (qualquer elegível)
   name: string;
   value: number;
   meta?: Record<string, any>;
@@ -216,6 +216,16 @@ export type MenuQuoteTotalsBreakdown = {
 
   appliedDiscounts: MenuAppliedDiscountImpact[];
   items?: MenuQuoteItemBreakdown[];
+  // Etapa 5 — brindes (itens gratuitos, valor R$0)
+  gifts?: Array<{
+    scope: MenuGiftScope;
+    targetId: string;
+    label: string;
+    durationLabel: string;
+    durationDays: number;
+    value: number;
+    meta?: Record<string, any>;
+  }>;
 };
 
 export type MenuQuoteTotals = {
@@ -342,6 +352,49 @@ export async function fetchMenuRequest(params: {
   );
   return resp.data;
 }
+
+// Etapa 5 — Brindes: buscar alvos no inventário (faces/pontos)
+export type MenuGiftTargetSuggestion = {
+  id: string;
+  scope: MenuGiftScope;
+  label: string;
+  meta?: Record<string, any>;
+};
+
+export async function listMenuGiftTargets(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  scope: MenuGiftScope;
+  q?: string;
+  limit?: number;
+  city?: string;
+  state?: string;
+  type?: string;
+}): Promise<{ items: MenuGiftTargetSuggestion[] }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const scope = params.scope;
+
+  const query: Record<string, string | undefined> = {
+    scope,
+    q: params.q ? String(params.q) : undefined,
+    limit: params.limit != null ? String(params.limit) : undefined,
+    city: params.city ? String(params.city) : undefined,
+    state: params.state ? String(params.state) : undefined,
+    type: params.type ? String(params.type) : undefined,
+  };
+  if (t) query.t = t;
+  else query.token = token;
+
+  const resp = await publicApiClient.get<{ items: MenuGiftTargetSuggestion[] }>(
+    `/public/menu/request/${encodeURIComponent(requestId)}/gift-targets`,
+    { params: query },
+  );
+  return resp.data;
+}
+
 
 export async function sendMenuQuote(params: {
   requestId: string;
