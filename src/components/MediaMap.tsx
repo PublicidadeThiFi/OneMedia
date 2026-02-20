@@ -18,6 +18,7 @@ import type {
   MediaMapDetails,
   MediaMapPoint,
   MediaMapSuggestion,
+  MediaPoint,
   MediaType,
   MediaUnitAvailabilityStatus,
 } from '../types';
@@ -31,10 +32,97 @@ import {
 } from '../hooks/useMediaMap';
 import { useNavigation } from '../App';
 
+import apiClient from '../lib/apiClient';
+import { reverseGeocodeOSM } from '../lib/geocode';
+import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+
 type BboxArr = [number, number, number, number];
 
 
 type LatLng = { lat: number; lng: number };
+
+function buildMovePinIcon() {
+  return L.divIcon({
+    html: `
+      <div style="
+        width:30px;
+        height:30px;
+        border-radius:999px;
+        background:rgba(37,99,235,0.96);
+        border:3px solid rgba(255,255,255,0.96);
+        box-shadow:0 8px 22px rgba(0,0,0,0.22);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      ">
+        <div style="
+          width:10px;
+          height:10px;
+          border-radius:999px;
+          background:rgba(255,255,255,0.95);
+        "></div>
+      </div>
+    `,
+    className: 'one-media-move-pin',
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+function MovePickEvents({ enabled, onPick }: { enabled: boolean; onPick: (p: LatLng) => void }) {
+  useMapEvents({
+    click(e) {
+      if (!enabled) return;
+      onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
+
+function LongPressCreateEvents({ enabled, onLongPress }: { enabled: boolean; onLongPress: (p: LatLng) => void }) {
+  const timerRef = useRef<number | null>(null);
+  const startRef = useRef<LatLng | null>(null);
+
+  const clear = () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+    startRef.current = null;
+  };
+
+  useMapEvents({
+    mousedown(e) {
+      if (!enabled) return;
+      clear();
+      startRef.current = { lat: e.latlng.lat, lng: e.latlng.lng };
+      timerRef.current = window.setTimeout(() => {
+        const p = startRef.current;
+        if (p) onLongPress(p);
+        clear();
+      }, 650);
+    },
+    mouseup() {
+      clear();
+    },
+    mouseout() {
+      clear();
+    },
+    // Mobile costuma disparar contextmenu no long press
+    contextmenu(e) {
+      if (!enabled) return;
+      try {
+        (e.originalEvent as any)?.preventDefault?.();
+      } catch {
+        // ignore
+      }
+      onLongPress({ lat: e.latlng.lat, lng: e.latlng.lng });
+      clear();
+    },
+  });
+
+  useEffect(() => clear, []);
+  return null;
+}
 
 // Usado para passar seleção do Mídia Map -> Propostas (Etapa 4)
 const MEDIA_MAP_SELECTION_STORAGE_KEY = 'ONE_MEDIA_MEDIAMAP_PRESELECT_POINT_IDS';
@@ -315,6 +403,24 @@ export function MediaMap() {
   const [details, setDetails] = useState<MediaMapDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
+
+  // =====================
+  // Etapa 6 — mover/excluir/criar rápido
+  // =====================
+  const [moveMode, setMoveMode] = useState(false);
+  const [movePos, setMovePos] = useState<LatLng | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const [createPromptOpen, setCreatePromptOpen] = useState(false);
+  const [createPos, setCreatePos] = useState<LatLng | null>(null);
+  const [createAddrLoading, setCreateAddrLoading] = useState(false);
+  const [createAddrPreview, setCreateAddrPreview] = useState<any | null>(null);
+
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createInitialData, setCreateInitialData] = useState<Partial<MediaPoint> | null>(null);
 
   const effectiveLayers = layers.length ? layers : undefined;
 
@@ -635,6 +741,168 @@ export function MediaMap() {
     setPanelOpen(false);
   };
 
+  const startMovePoint = () => {
+    if (!details?.point) return;
+    const lat = Number((details.point as any).latitude);
+    const lng = Number((details.point as any).longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      toast.error('Este ponto não possui coordenadas para mover.');
+      return;
+    }
+
+    setMoveMode(true);
+    setMovePos({ lat, lng });
+
+    // UX: centraliza e aproxima
+    try {
+      mapRef.current?.setView([lat, lng], Math.max(17, mapRef.current?.getZoom?.() ?? 17), { animate: true } as any);
+    } catch {
+      // ignore
+    }
+  };
+
+  const cancelMovePoint = () => {
+    setMoveMode(false);
+    setMovePos(null);
+  };
+
+  const confirmMovePoint = async () => {
+    if (!details?.point?.id || !movePos) return;
+    try {
+      setMoveBusy(true);
+
+      // Tenta auto-preencher endereço (best-effort)
+      let addr: any = null;
+      try {
+        addr = await reverseGeocodeOSM(movePos.lat, movePos.lng);
+      } catch {
+        // ignore
+      }
+
+      const payload: any = {
+        latitude: Number(movePos.lat.toFixed(6)),
+        longitude: Number(movePos.lng.toFixed(6)),
+      };
+
+      if (addr) {
+        if (addr.addressZipcode) payload.addressZipcode = addr.addressZipcode;
+        if (addr.addressStreet) payload.addressStreet = addr.addressStreet;
+        if (addr.addressNumber) payload.addressNumber = addr.addressNumber;
+        if (addr.addressDistrict) payload.addressDistrict = addr.addressDistrict;
+        if (addr.addressCity) payload.addressCity = addr.addressCity;
+        if (addr.addressState) payload.addressState = addr.addressState;
+        if (addr.addressCountry) payload.addressCountry = addr.addressCountry;
+      }
+
+      await apiClient.put(`/media-points/${details.point.id}`, payload);
+
+      toast.success('Ponto movido!');
+      cancelMovePoint();
+      invalidateMediaMapCaches();
+      await refetch(true);
+      // Recarrega detalhes
+      void openPointDetails(details.point.id, { center: false });
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      const message = Array.isArray(msg) ? msg.join(', ') : msg || 'Não foi possível mover o ponto.';
+      toast.error(String(message));
+    } finally {
+      setMoveBusy(false);
+    }
+  };
+
+  const requestDeletePoint = () => {
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeletePoint = async () => {
+    if (!details?.point?.id) return;
+    try {
+      setDeleteBusy(true);
+      await apiClient.delete(`/media-points/${details.point.id}`);
+      toast.success('Ponto excluído!');
+
+      setDeleteConfirmOpen(false);
+      setPanelOpen(false);
+      setDetails(null);
+      setSelectedPointId(null);
+      cancelMovePoint();
+
+      invalidateMediaMapCaches();
+      await refetch(true);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      const message = Array.isArray(msg) ? msg.join(', ') : msg || 'Não foi possível excluir o ponto.';
+      toast.error(String(message));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const openCreatePrompt = async (p: LatLng) => {
+    if (drawMode !== 'none') return;
+    if (moveMode) return;
+    setCreatePos(p);
+    setCreatePromptOpen(true);
+    setCreateAddrPreview(null);
+    setCreateAddrLoading(true);
+    try {
+      const addr = await reverseGeocodeOSM(p.lat, p.lng);
+      setCreateAddrPreview(addr);
+    } catch {
+      setCreateAddrPreview(null);
+    } finally {
+      setCreateAddrLoading(false);
+    }
+  };
+
+  const confirmCreateAtLocation = () => {
+    if (!createPos) return;
+    const base: Partial<MediaPoint> = {
+      type: (filterType === 'ALL' ? 'OOH' : (filterType as any)) as any,
+      latitude: Number(createPos.lat.toFixed(6)) as any,
+      longitude: Number(createPos.lng.toFixed(6)) as any,
+      addressCountry: 'Brasil',
+    };
+    const addr = createAddrPreview as any;
+    const merged: any = { ...base };
+    if (addr) {
+      if (addr.addressZipcode) merged.addressZipcode = addr.addressZipcode;
+      if (addr.addressStreet) merged.addressStreet = addr.addressStreet;
+      if (addr.addressNumber) merged.addressNumber = addr.addressNumber;
+      if (addr.addressDistrict) merged.addressDistrict = addr.addressDistrict;
+      if (addr.addressCity) merged.addressCity = addr.addressCity;
+      if (addr.addressState) merged.addressState = addr.addressState;
+      if (addr.addressCountry) merged.addressCountry = addr.addressCountry;
+    }
+
+    setCreateInitialData(merged);
+    setCreatePromptOpen(false);
+    setCreateDialogOpen(true);
+  };
+
+  const handleSavePointFromMap = async (data: Partial<MediaPoint>, imageFile?: File | null) => {
+    // Remove campos não aceitos/necessários pela API
+    const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
+
+    const response = await apiClient.post<MediaPoint>('/media-points', payload);
+    const saved = response.data;
+
+    if (imageFile && saved?.id) {
+      const fd = new FormData();
+      fd.append('file', imageFile);
+      await apiClient.post(`/media-points/${saved.id}/image`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      } as any);
+    }
+
+    invalidateMediaMapCaches();
+    await refetch(true);
+    void openPointDetails(saved.id, { center: true });
+    toast.success('Ponto criado!');
+    return saved;
+  };
+
   // Deep-link: /app/mediamap?pointId=...
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -651,6 +919,13 @@ export function MediaMap() {
     window.history.replaceState({}, '', url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady]);
+
+  // Se o painel fechar, cancela modo mover
+  useEffect(() => {
+    if (panelOpen) return;
+    setMoveMode(false);
+    setMovePos(null);
+  }, [panelOpen]);
 
   // =====================
   // Render
@@ -912,6 +1187,13 @@ export function MediaMap() {
 
         <MapEvents mapRef={mapRef} onViewportChange={handleViewportChange} />
 
+        {/* Etapa 6: press & hold (criar) + mover (click/drag) */}
+        <LongPressCreateEvents
+          enabled={drawMode === 'none' && !moveMode}
+          onLongPress={(p) => void openCreatePrompt(p)}
+        />
+        <MovePickEvents enabled={moveMode} onPick={(p) => setMovePos(p)} />
+
 
         <DrawEvents
           drawMode={drawMode}
@@ -921,6 +1203,21 @@ export function MediaMap() {
           onRectEnd={setRectEnd}
           onCompleteRectangle={completeRectangle}
         />
+
+        {moveMode && movePos ? (
+          <Marker
+            position={[movePos.lat, movePos.lng] as any}
+            icon={buildMovePinIcon()}
+            draggable
+            eventHandlers={{
+              dragend: (e: any) => {
+                const ll = e?.target?.getLatLng?.();
+                if (!ll) return;
+                setMovePos({ lat: ll.lat, lng: ll.lng });
+              },
+            }}
+          />
+        ) : null}
 
         {/* Overlays de desenho/seleção */}
         {selectionPolygon && selectionPolygon.length >= 3 ? (
@@ -969,6 +1266,7 @@ export function MediaMap() {
                 icon={buildClusterIcon(count)}
                 eventHandlers={{
                   click: () => {
+                    if (moveMode) return;
                     openClusterList(clusterId, count);
                     // opção UX: aproximar no cluster
                     const expansionZoom = Math.min(clusterIndex.getClusterExpansionZoom(clusterId), 20);
@@ -986,7 +1284,10 @@ export function MediaMap() {
               position={[p.latitude, p.longitude]}
               icon={buildPointIcon(p)}
               eventHandlers={{
-                click: () => void openPointDetails(p.id, { center: false }),
+                click: () => {
+                  if (moveMode) return;
+                  void openPointDetails(p.id, { center: false });
+                },
               }}
             />
           );
@@ -1189,6 +1490,7 @@ export function MediaMap() {
                           type="button"
                           size="sm"
                           className="gap-2 mm-indigo col-span-2"
+                          disabled={moveMode}
                           onClick={handleCreateProposal}
                         >
                           <Plus className="w-4 h-4" /> Criar proposta
@@ -1199,6 +1501,7 @@ export function MediaMap() {
                           size="sm"
                           variant="outline"
                           className="gap-2 col-span-2 sm:col-span-1"
+                          disabled={moveMode}
                           onClick={handleOpenInventory}
                         >
                           <ExternalLink className="w-4 h-4" /> Abrir no inventário
@@ -1209,6 +1512,7 @@ export function MediaMap() {
                           size="sm"
                           variant="outline"
                           className="gap-2 col-span-2 sm:col-span-1"
+                          disabled={moveMode}
                           onClick={handleToggleFavorite}
                         >
                           <Star className="w-4 h-4" /> {(details.point as any).isFavorite ? 'Desfavoritar' : 'Favoritar'}
@@ -1220,6 +1524,60 @@ export function MediaMap() {
                         <Button type="button" size="sm" variant="outline" className="gap-2" onClick={handleCopyCoords}>
                           <Copy className="w-4 h-4" /> Copiar coords
                         </Button>
+
+                        {moveMode ? (
+                          <div className="col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                            <div className="font-semibold">Modo mover ativo</div>
+                            <div className="mt-1">
+                              Clique no mapa ou arraste o pin azul. Depois, confirme ou cancele.
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {moveMode ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="gap-2 mm-indigo"
+                              disabled={moveBusy || !movePos}
+                              onClick={() => void confirmMovePoint()}
+                            >
+                              <Check className="w-4 h-4" /> {moveBusy ? 'Salvando...' : 'Confirmar'}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              disabled={moveBusy}
+                              onClick={cancelMovePoint}
+                            >
+                              <X className="w-4 h-4" /> Cancelar
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={startMovePoint}
+                            >
+                              <Pencil className="w-4 h-4" /> Mover
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-2 border-red-200 text-red-700 hover:bg-red-50"
+                              onClick={requestDeletePoint}
+                            >
+                              <Trash2 className="w-4 h-4" /> Excluir
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -1253,6 +1611,106 @@ export function MediaMap() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* Etapa 6 — Confirmar exclusão */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Excluir ponto</DialogTitle>
+            <DialogDescription>
+              Isso removerá o ponto e todas as faces/unidades vinculadas (quando não houver vínculos com propostas/campanhas/reservas).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="text-sm text-gray-700">
+            Tem certeza que deseja excluir <span className="font-semibold">{details?.point?.name ?? 'este ponto'}</span>?
+          </div>
+
+          <div className="mt-4 flex gap-2 justify-end">
+            <Button type="button" variant="outline" disabled={deleteBusy} onClick={() => setDeleteConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="mm-indigo"
+              disabled={deleteBusy}
+              onClick={() => void confirmDeletePoint()}
+            >
+              {deleteBusy ? 'Excluindo...' : 'Excluir'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Etapa 6 — Press & hold: criar ponto aqui */}
+      <Dialog
+        open={createPromptOpen}
+        onOpenChange={(open: boolean) => {
+          setCreatePromptOpen(open);
+          if (!open) {
+            setCreatePos(null);
+            setCreateAddrPreview(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar um ponto aqui</DialogTitle>
+            <DialogDescription>
+              Vamos pré-preencher latitude/longitude e tentar completar o endereço automaticamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 text-sm text-gray-700">
+            <div>
+              <span className="font-medium">Coordenadas:</span>{' '}
+              {createPos ? `${createPos.lat.toFixed(6)}, ${createPos.lng.toFixed(6)}` : '-'}
+            </div>
+
+            <div>
+              <span className="font-medium">Endereço:</span>{' '}
+              {createAddrLoading ? (
+                <span className="text-gray-500">buscando...</span>
+              ) : createAddrPreview ? (
+                <span>
+                  {[
+                    (createAddrPreview as any).addressStreet,
+                    (createAddrPreview as any).addressNumber,
+                    (createAddrPreview as any).addressDistrict,
+                    (createAddrPreview as any).addressCity,
+                    (createAddrPreview as any).addressState,
+                  ]
+                    .filter(Boolean)
+                    .join(', ') || '—'}
+                </span>
+              ) : (
+                <span className="text-gray-500">não foi possível preencher automaticamente</span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => setCreatePromptOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" className="mm-indigo" onClick={confirmCreateAtLocation}>
+              Criar um ponto aqui
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Form (reutiliza o mesmo do Inventário) */}
+      <MediaPointFormDialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) setCreateInitialData(null);
+        }}
+        mediaPoint={null}
+        initialData={createInitialData}
+        onSave={handleSavePointFromMap}
+      />
     </div>
   );
 }
