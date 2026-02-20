@@ -19,6 +19,7 @@ import {
 } from '../lib/menuCart';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion } from '../lib/menuPromotions';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -54,10 +55,12 @@ export default function MenuCarrinho() {
     };
   }, []);
 
-  const { data } = usePublicMediaKit({ token, ownerCompanyId });
+  const { data } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
   const isAgency = isAgencyFlow(flow);
   const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
+  const isPromotions = flow === 'promotions';
+
 
   const [cartVersion, setCartVersion] = useState(0);
   const cart = useMemo(() => readCart(), [cartVersion]);
@@ -116,8 +119,17 @@ export default function MenuCarrinho() {
       const baseMonth = item.snapshot?.priceMonth ?? unit?.priceMonth ?? p?.basePriceMonth ?? null;
       const baseWeek = item.snapshot?.priceWeek ?? unit?.priceWeek ?? p?.basePriceWeek ?? null;
 
+      const promo = isPromotions ? getEffectivePromotion(unit as any, p as any) : null;
+      const promoMonthRaw = promo ? buildPromoPrice(baseMonth, promo) : null;
+      const promoWeekRaw = promo ? buildPromoPrice(baseWeek, promo) : null;
+
       const priceMonth = isAgency ? applyAgencyMarkup(baseMonth, markupPct) : baseMonth;
       const priceWeek = isAgency ? applyAgencyMarkup(baseWeek, markupPct) : baseWeek;
+
+      const promoMonthFrom = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.from, markupPct) : null;
+      const promoMonthTo = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.to, markupPct) : null;
+      const promoWeekFrom = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.from, markupPct) : null;
+      const promoWeekTo = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.to, markupPct) : null;
 
       return {
         item,
@@ -127,6 +139,13 @@ export default function MenuCarrinho() {
         img,
         priceMonth,
         priceWeek,
+        promo,
+        promoMonthRaw,
+        promoWeekRaw,
+        promoMonthFrom,
+        promoMonthTo,
+        promoWeekFrom,
+        promoWeekTo,
       };
     });
   }, [cart.items, data?.points, isAgency, markupPct]);
@@ -222,7 +241,7 @@ export default function MenuCarrinho() {
             </Card>
 
             <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek }) => (
+              {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo }) => (
                 <Card key={item.id} className="hover:shadow-sm transition-shadow">
                   <CardContent className="py-4">
                     <div className="flex gap-4">
@@ -235,7 +254,14 @@ export default function MenuCarrinho() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-2">
                           <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
                             <div className="text-base font-semibold text-gray-900 truncate">{pointName}</div>
+                            {isPromotions && promo && (
+                              <Badge variant="secondary" className="rounded-full">
+                                {formatPromotionBadge(promo) || 'Promoção'}
+                              </Badge>
+                            )}
+                          </div>
                             {unitLabel && (
                               <div className="mt-1 text-xs text-gray-700">{unitLabel}</div>
                             )}
@@ -252,11 +278,25 @@ export default function MenuCarrinho() {
                         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-700">
                           <div>
                             <span className="text-gray-500">Mensal:</span>{' '}
-                            <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                            {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
+                              <>
+                                <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
+                                <span className="font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
+                              </>
+                            ) : (
+                              <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                            )}
                           </div>
                           <div>
                             <span className="text-gray-500">Semanal:</span>{' '}
-                            <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                            {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
+                              <>
+                                <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
+                                <span className="font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
+                              </>
+                            ) : (
+                              <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                            )}
                           </div>
                         </div>
 

@@ -20,9 +20,11 @@ export type UsePublicMediaKitState = {
 export function usePublicMediaKit(params: {
   token: string;
   ownerCompanyId?: string | null;
+  flow?: string | null;
 }): UsePublicMediaKitState {
   const token = useMemo(() => String(params.token ?? '').trim(), [params.token]);
   const ownerCompanyId = params.ownerCompanyId ?? null;
+  const flow = useMemo(() => String(params.flow ?? '').trim().toLowerCase(), [params.flow]);
 
   const [data, setData] = useState<PublicMediaKitResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,7 +45,7 @@ export function usePublicMediaKit(params: {
       try {
         setLoading(true);
         setError(null);
-        const resp = await fetchPublicMediaKit({ token, ownerCompanyId, force: nonce > 0 });
+        const resp = await fetchPublicMediaKit({ token, ownerCompanyId, flow, force: nonce > 0 });
         if (!alive) return;
         setData(resp);
       } catch (err: any) {
@@ -67,7 +69,7 @@ export function usePublicMediaKit(params: {
     return () => {
       alive = false;
     };
-  }, [token, ownerCompanyId, nonce]);
+  }, [token, ownerCompanyId, flow, nonce]);
 
   return { data, loading, error, reload };
 }

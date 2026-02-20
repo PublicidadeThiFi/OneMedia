@@ -13,6 +13,7 @@ import { addToCart, getCartCount, formatAddress } from '../lib/menuCart';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { MediaUnit } from '../types';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion } from '../lib/menuPromotions';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -48,10 +49,12 @@ export default function MenuFaces() {
     };
   }, []);
 
-  const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId });
+  const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
   const isAgency = isAgencyFlow(flow);
   const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
+  const isPromotions = flow === 'promotions';
+
 
   const point: PublicMediaKitPoint | null = useMemo(() => {
     const points = data?.points ?? [];
@@ -191,8 +194,23 @@ export default function MenuFaces() {
                   {units.length > 0 ? (
                     units.map((u) => {
                       const checked = !!selected[u.id];
-                      const priceMonth = applyAgencyMarkup(u.priceMonth ?? point.basePriceMonth, markupPct);
-                      const priceWeek = applyAgencyMarkup(u.priceWeek ?? point.basePriceWeek, markupPct);
+
+                      const baseMonthRaw = u.priceMonth ?? point.basePriceMonth;
+                      const baseWeekRaw = u.priceWeek ?? point.basePriceWeek;
+
+                      const promo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
+                      const promoMonthRaw = promo ? buildPromoPrice(baseMonthRaw, promo) : null;
+                      const promoWeekRaw = promo ? buildPromoPrice(baseWeekRaw, promo) : null;
+
+                      const priceMonth = applyAgencyMarkup(baseMonthRaw, markupPct);
+                      const priceWeek = applyAgencyMarkup(baseWeekRaw, markupPct);
+
+                      const promoMonthFrom = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.from, markupPct) : null;
+                      const promoMonthTo = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.to, markupPct) : null;
+                      const promoWeekFrom = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.from, markupPct) : null;
+                      const promoWeekTo = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.to, markupPct) : null;
+
+                      const promoBadge = formatPromotionBadge(promo);
                       return (
                         <div key={u.id} className="rounded-xl border border-gray-200 p-3">
                           <div className="flex items-start gap-3">
@@ -202,8 +220,13 @@ export default function MenuFaces() {
                               className="mt-1"
                             />
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-gray-900">
-                                {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
+                                </div>
+                                {isPromotions && promo && (
+                                  <Badge variant="secondary" className="rounded-full">{promoBadge || 'Promoção'}</Badge>
+                                )}
                               </div>
                               <div className="mt-1 text-xs text-gray-600">
                                 {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
@@ -212,11 +235,25 @@ export default function MenuFaces() {
                               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
                                 <div>
                                   <span className="text-gray-500">Mensal:</span>{' '}
-                                  <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                                  {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
+                                    <>
+                                      <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
+                                      <span className="font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
+                                    </>
+                                  ) : (
+                                    <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                                  )}
                                 </div>
                                 <div>
                                   <span className="text-gray-500">Semanal:</span>{' '}
-                                  <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                                  {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
+                                    <>
+                                      <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
+                                      <span className="font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
+                                    </>
+                                  ) : (
+                                    <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                                  )}
                                 </div>
                               </div>
                             </div>
