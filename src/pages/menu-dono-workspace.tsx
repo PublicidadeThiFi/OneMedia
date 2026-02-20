@@ -20,6 +20,8 @@ import {
   type MenuDiscountScope,
   type MenuGift,
   type MenuGiftScope,
+  type MenuItemCostScope,
+  type MenuQuoteItemCostLine,
   type MenuQuoteDraft,
   type MenuQuoteServiceLine,
   type MenuQuoteTotals,
@@ -78,6 +80,40 @@ function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null):
   return segs.join(', ');
 }
 
+function isPromoActiveNow(promo: any): boolean {
+  if (!promo) return false;
+  if (promo.showInMediaKit === false) return false;
+
+  const now = Date.now();
+  const s = promo.startsAt ? new Date(String(promo.startsAt)).getTime() : NaN;
+  const e = promo.endsAt ? new Date(String(promo.endsAt)).getTime() : NaN;
+  if (Number.isFinite(s) && now < s) return false;
+  if (Number.isFinite(e) && now > e) return false;
+  return true;
+}
+
+function readProductionCostsList(raw: any): Array<{ name: string; value: number }> {
+  if (!raw) return [];
+  const out: Array<{ name: string; value: number }> = [];
+
+  if (Array.isArray(raw)) {
+    for (const c of raw) {
+      const name = String(c?.name ?? c?.label ?? c?.type ?? 'Custo').trim() || 'Custo';
+      const value = Math.max(0, Number(c?.value || 0));
+      if (Number.isFinite(value) && value > 0) out.push({ name, value: Number(value.toFixed(2)) });
+    }
+    return out;
+  }
+
+  if (typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw)) {
+      const value = Math.max(0, Number(v || 0));
+      if (Number.isFinite(value) && value > 0) out.push({ name: String(k).trim() || 'Custo', value: Number(value.toFixed(2)) });
+    }
+  }
+  return out;
+}
+
 type ServiceOption = { name: string; defaultValue: number };
 
 const MOCK_SERVICES: ServiceOption[] = [
@@ -109,6 +145,7 @@ export default function MenuDonoWorkspace() {
     message: '',
     services: [],
     manualServiceValue: null,
+    itemCosts: [],
     gifts: [],
     discounts: [],
     // legado (mantido por compat)
@@ -468,6 +505,30 @@ export default function MenuDonoWorkspace() {
             })
             .filter(Boolean) as MenuGift[];
 
+          // Etapa 4 — custos no item
+          const loadedItemCosts0 = Array.isArray((last.draft as any)?.itemCosts)
+            ? (((last.draft as any).itemCosts as any) || [])
+            : [];
+
+          const itemCosts: MenuQuoteItemCostLine[] = loadedItemCosts0
+            .map((c: any) => {
+              const scopeRaw = String(c?.scope ?? c?.targetType ?? c?.type ?? '').trim().toUpperCase();
+              const scope: MenuItemCostScope = scopeRaw === 'POINT' || scopeRaw === 'PONTO' ? 'POINT' : 'FACE';
+              const targetId = String(c?.targetId ?? c?.target ?? c?.unitId ?? c?.pointId ?? '').trim();
+              const name = String(c?.name ?? c?.label ?? c?.title ?? '').trim();
+              const value = Math.max(0, Number(c?.value || 0));
+              if (!targetId || !name || !Number.isFinite(value) || value <= 0) return null;
+              return {
+                id: String(c?.id || `mic_legacy_${scope}_${targetId}_${name}`),
+                scope,
+                targetId,
+                name,
+                value: Number(value.toFixed(2)),
+                meta: c?.meta && typeof c.meta === 'object' ? c.meta : undefined,
+              } as MenuQuoteItemCostLine;
+            })
+            .filter(Boolean) as MenuQuoteItemCostLine[];
+
           const legacyPercent = Math.max(0, Number((last.draft as any)?.discountPercent || 0));
           const legacyFixed = Math.max(0, Number((last.draft as any)?.discountFixed || 0));
           const legacyApplyTo = ((String((last.draft as any)?.discountApplyTo || 'ALL').toUpperCase() as any) || 'ALL') as MenuDiscountAppliesTo;
@@ -500,6 +561,7 @@ export default function MenuDonoWorkspace() {
                 }))
               : [],
             manualServiceValue: last.draft.manualServiceValue ?? null,
+            itemCosts,
             gifts,
             discounts: mergedDiscounts,
             // legado
@@ -585,6 +647,64 @@ export default function MenuDonoWorkspace() {
       ...d,
       services: (d.services || []).map((s, i) => (i === idx ? { ...s, ...patch } : s)),
     }));
+  };
+
+  // Etapa 4 — custos no item (ponto/face)
+  const [itemCostInputs, setItemCostInputs] = useState<Record<string, { name: string; value: string }>>({});
+
+  const getItemScopeTarget = (it: any): { scope: MenuItemCostScope; targetId: string } | null => {
+    const unitId = String(it?.unitId ?? '').trim();
+    const pointId = String(it?.pointId ?? '').trim();
+    if (unitId) return { scope: 'FACE', targetId: unitId };
+    if (pointId) return { scope: 'POINT', targetId: pointId };
+    return null;
+  };
+
+  const removeItemCost = (id: string) => {
+    setDraft((d) => ({ ...d, itemCosts: (d.itemCosts || []).filter((c) => c.id !== id) }));
+  };
+
+  const addItemCost = (itemKey: string, it: any) => {
+    if (isLocked) return;
+
+    const st = getItemScopeTarget(it);
+    if (!st) {
+      toast.error('Não foi possível identificar o alvo do custo (ponto/face).');
+      return;
+    }
+
+    const current = itemCostInputs[itemKey] || { name: '', value: '' };
+    const name = String(current.name || '').trim();
+    const value = Math.max(0, Number(current.value || 0));
+
+    if (!name) {
+      toast.error('Informe o nome/descrição do custo.');
+      return;
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.error('Informe um valor válido para o custo.');
+      return;
+    }
+
+    const id = (() => {
+      try {
+        // @ts-ignore
+        return `mic_${crypto.randomUUID()}`;
+      } catch {
+        return `mic_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+    })();
+
+    const line: MenuQuoteItemCostLine = {
+      id,
+      scope: st.scope,
+      targetId: st.targetId,
+      name,
+      value: Number(value.toFixed(2)),
+    };
+
+    setDraft((d) => ({ ...d, itemCosts: [...(d.itemCosts || []), line] }));
+    setItemCostInputs((m) => ({ ...m, [itemKey]: { name: '', value: '' } }));
   };
 
 
@@ -787,6 +907,166 @@ export default function MenuDonoWorkspace() {
                     </div>
 
                     <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
+                      <div className="text-sm font-semibold text-gray-900">Itens (memória rápida)</div>
+                      <div className="mt-2 space-y-3">
+                        {(Array.isArray(data.items) ? data.items : []).map((it: any, idx: number) => {
+                          const snap = it?.snapshot || {};
+                          const itemKey = String(it?.id || `${idx}`);
+
+                          const unitLabel = String(snap?.unitLabel || snap?.mediaUnitLabel || '').trim();
+                          const pointName = String(snap?.pointName || snap?.mediaPointName || 'Ponto').trim();
+                          const title = unitLabel ? `${pointName} — ${unitLabel}` : pointName;
+
+                          const durationLabel = formatPeriod(it?.duration || { days: it?.durationDays || 30 });
+
+                          const unitMonth = Number(snap?.unitPriceMonth || 0);
+                          const unitWeek = Number(snap?.unitPriceWeek || 0);
+                          const origin = unitMonth > 0 || unitWeek > 0 ? 'Face' : 'Ponto';
+
+                          const priceMonth = Number(snap?.priceMonth || 0);
+                          const priceWeek = Number(snap?.priceWeek || 0);
+                          const baseSegs: string[] = [];
+                          if (priceMonth > 0) baseSegs.push(`Mês: ${formatMoneyBr(priceMonth)}`);
+                          if (priceWeek > 0) baseSegs.push(`Semana: ${formatMoneyBr(priceWeek)}`);
+
+                          const prodCosts = readProductionCostsList(snap?.productionCosts);
+                          const prodCostsSum = prodCosts.reduce((acc, c) => acc + Math.max(0, Number(c.value || 0)), 0);
+
+                          const st = getItemScopeTarget(it);
+                          const itemCosts = (draft.itemCosts || []).filter((c) =>
+                            st ? c.scope === st.scope && String(c.targetId) === String(st.targetId) : false,
+                          );
+                          const itemCostsSum = itemCosts.reduce((acc, c) => acc + Math.max(0, Number(c.value || 0)), 0);
+
+                          const flowIsPromotions = String((data as any)?.flow || '').toLowerCase() === 'promotions';
+                          const promo = snap?.effectivePromotion ?? snap?.promotion ?? null;
+                          const hasPromo = flowIsPromotions && isPromoActiveNow(promo);
+                          const promoType = String(promo?.discountType || '').toUpperCase();
+                          const promoValue = Math.max(0, Number(promo?.discountValue || 0));
+                          const promoLabel =
+                            !hasPromo || promoValue <= 0
+                              ? ''
+                              : promoType === 'PERCENT'
+                                ? `Promo: -${promoValue}%`
+                                : promoType === 'FIXED'
+                                  ? `Promo: -${formatMoneyBr(promoValue)}`
+                                  : 'Promo ativa';
+
+                          const relatedDiscounts: MenuAppliedDiscount[] = (draft.discounts || []).filter((d) => {
+                            const scope = String(d.scope || '').toUpperCase();
+                            const targetId = String(d.targetId || '').trim();
+                            if (scope === 'GENERAL') return true;
+                            if (scope === 'POINT') return targetId && targetId === String(it?.pointId || '');
+                            if (scope === 'FACE') return targetId && targetId === String(it?.unitId || '');
+                            return false;
+                          });
+
+                          const input = itemCostInputs[itemKey] || { name: '', value: '' };
+
+                          return (
+                            <div key={itemKey} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+                                  <div className="mt-1 text-xs text-gray-600">Período: <span className="font-semibold">{durationLabel}</span></div>
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    Base (origem: <span className="font-semibold">{origin}</span>)
+                                    {baseSegs.length ? <span className="ml-2">• {baseSegs.join(' • ')}</span> : null}
+                                  </div>
+
+                                  {(prodCosts.length > 0 || hasPromo || relatedDiscounts.length > 0) && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {prodCosts.length > 0 && (
+                                        <Badge variant="secondary" className="rounded-full">
+                                          Custos cadastrados: {formatMoneyBr(prodCostsSum)}
+                                        </Badge>
+                                      )}
+                                      {hasPromo && (
+                                        <Badge variant="secondary" className="rounded-full">{promoLabel}</Badge>
+                                      )}
+
+                                      {relatedDiscounts.slice(0, 3).map((d) => {
+                                        const pct = Math.max(0, Number((d as any)?.percent || 0));
+                                        const fix = Math.max(0, Number((d as any)?.fixed || 0));
+                                        const val = pct > 0 ? `-${pct}%` : fix > 0 ? `-${formatMoneyBr(fix)}` : '';
+                                        const label = String(d.label || '').trim() || (String(d.scope).toUpperCase() === 'GENERAL' ? 'Desconto geral' : 'Desconto');
+                                        return (
+                                          <Badge key={d.id} variant="secondary" className="rounded-full">
+                                            {label} {val}
+                                          </Badge>
+                                        );
+                                      })}
+                                      {relatedDiscounts.length > 3 && (
+                                        <Badge variant="secondary" className="rounded-full">+{relatedDiscounts.length - 3} descontos</Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="sm:text-right">
+                                  <div className="text-xs text-gray-500">Custos no item</div>
+                                  <div className="mt-0.5 text-sm font-bold text-gray-900">{formatMoneyBr(itemCostsSum)}</div>
+                                </div>
+                              </div>
+
+                              {prodCosts.length > 0 && (
+                                <div className="mt-2 text-xs text-gray-600">
+                                  {prodCosts.slice(0, 6).map((c) => (
+                                    <span key={c.name} className="mr-2 inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">
+                                      <span className="text-gray-500">{c.name}:</span> <span className="font-semibold">{formatMoneyBr(c.value)}</span>
+                                    </span>
+                                  ))}
+                                  {prodCosts.length > 6 && <span className="text-gray-500">+{prodCosts.length - 6}…</span>}
+                                </div>
+                              )}
+
+                              {itemCosts.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {itemCosts.map((c) => (
+                                    <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
+                                      <div className="min-w-0">
+                                        <div className="text-sm text-gray-900 truncate">{c.name}</div>
+                                        <div className="text-xs text-gray-500">{c.scope === 'FACE' ? 'Face' : 'Ponto'} • entra em “Custos”</div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(c.value)}</div>
+                                        <Button variant="outline" size="sm" onClick={() => removeItemCost(c.id)} disabled={isLocked}>
+                                          Remover
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <Input
+                                  value={input.name}
+                                  onChange={(e) => setItemCostInputs((m) => ({ ...m, [itemKey]: { ...(m[itemKey] || { name: '', value: '' }), name: e.target.value } }))}
+                                  placeholder="Descrição do custo"
+                                  disabled={isLocked}
+                                />
+                                <Input
+                                  type="number"
+                                  value={input.value}
+                                  onChange={(e) => setItemCostInputs((m) => ({ ...m, [itemKey]: { ...(m[itemKey] || { name: '', value: '' }), value: e.target.value } }))}
+                                  placeholder="Valor"
+                                  disabled={isLocked}
+                                />
+                                <Button variant="outline" onClick={() => addItemCost(itemKey, it)} disabled={isLocked}>
+                                  Adicionar custo no item
+                                </Button>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-500">
+                                Dica: use <span className="font-semibold">custo no item</span> para que entre no bloco de <span className="font-semibold">Custos</span> (descontável por descontos gerais quando aplicável). Para itens “por fora”, use <span className="font-semibold">Serviços</span>.
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <Separator className="my-4" />
+
                       <div className="text-xs text-gray-500">Mensagem (opcional)</div>
                       <div className="mt-2">
                         <Textarea

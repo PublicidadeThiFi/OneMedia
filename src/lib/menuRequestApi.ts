@@ -139,10 +139,25 @@ export type MenuQuoteServiceLine = {
   discountFixed?: number | null;
 };
 
+// Etapa 4 — custos “no item” (ponto/face)
+export type MenuItemCostScope = 'FACE' | 'POINT';
+
+export type MenuQuoteItemCostLine = {
+  id: string;
+  scope: MenuItemCostScope;
+  targetId: string; // FACE: unitId | POINT: pointId
+  name: string;
+  value: number;
+  meta?: Record<string, any>;
+};
+
 export type MenuQuoteDraft = {
   message?: string | null;
   services?: MenuQuoteServiceLine[];
   manualServiceValue?: number | null;
+
+  /** Etapa 4 — custos adicionados diretamente no item (ponto/face). */
+  itemCosts?: MenuQuoteItemCostLine[];
 
   // Etapa 6 — Brindes (não soma no total; aparece no documento)
   gifts?: MenuGift[];
@@ -172,6 +187,14 @@ export type MenuQuoteItemBreakdown = {
 
   costsGross?: number;
   costsNet?: number;
+
+  /** Etapa 4 — detalhamento de custos do item (produção + adicionados no item). */
+  costsParts?: Array<{
+    source: 'production' | 'item';
+    name: string;
+    gross: number;
+    net: number;
+  }>;
 };
 
 export type MenuQuoteTotalsBreakdown = {
