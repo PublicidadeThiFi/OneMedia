@@ -16,7 +16,6 @@ import {
   regenerateMenuLink,
   sendMenuQuote,
   type MenuAppliedDiscount,
-  type MenuAppliedDiscountImpact,
   type MenuDiscountAppliesTo,
   type MenuDiscountScope,
   type MenuGift,
@@ -87,325 +86,6 @@ const MOCK_SERVICES: ServiceOption[] = [
   { name: 'Criação/Arte', defaultValue: 800 },
   { name: 'Logística', defaultValue: 350 },
 ];
-
-function resolveItemDays(it: any): number {
-  const dd = Number(it?.durationDays);
-  if (Number.isFinite(dd) && dd > 0) return Math.max(1, Math.floor(dd));
-
-  const dur = it?.duration || {};
-  const totalDays = Number(dur?.totalDays);
-  if (Number.isFinite(totalDays) && totalDays > 0) return Math.max(1, Math.floor(totalDays));
-
-  const years = Math.max(0, Math.floor(Number(dur?.years) || 0));
-  const months = Math.max(0, Math.floor(Number(dur?.months) || 0));
-  const days = Math.max(0, Math.floor(Number(dur?.days) || 0));
-
-  const total = years * 365 + months * 30 + days;
-  return Math.max(1, Math.floor(Number.isFinite(total) && total > 0 ? total : 30));
-}
-
-function computeBaseByItemCents(items: any[]) {
-  const itemBaseFloats = (items || []).map((it) => {
-    const d = resolveItemDays(it);
-    const week = Number(it?.snapshot?.priceWeek || 0);
-    const month = Number(it?.snapshot?.priceMonth || 0);
-
-    let base = 0;
-    if (d <= 7 && week > 0) base = week;
-    else if (month > 0) base = month * Math.max(1, d / 30);
-    else if (week > 0) base = week * Math.max(1, d / 7);
-
-    return Number(base.toFixed(6));
-  });
-
-  const baseGross = Number(itemBaseFloats.reduce((acc, v) => acc + v, 0).toFixed(2));
-  const baseGrossCents = Math.round(baseGross * 100);
-
-  let itemCents = itemBaseFloats.map((v) => Math.round(v * 100));
-  const sumItem = itemCents.reduce((acc, v) => acc + v, 0);
-  if (itemCents.length && sumItem !== baseGrossCents) {
-    itemCents[itemCents.length - 1] += baseGrossCents - sumItem;
-  }
-
-  return { baseGrossCents, itemCents };
-}
-
-function computePreviewTotals(record: MenuRequestRecord | null, draft: MenuQuoteDraft) {
-  const money = (cents: number) => Number((Math.max(0, cents) / 100).toFixed(2));
-
-  const items = record?.items || [];
-  const { baseGrossCents, itemCents } = computeBaseByItemCents(items);
-
-  // Serviços (gross)
-  const manual = Math.max(0, Number(draft.manualServiceValue || 0));
-  const serviceLines = Array.isArray(draft.services) ? draft.services : [];
-  const servicesRaw = Number((serviceLines.reduce((acc, s) => acc + Number(s.value || 0), 0) + manual).toFixed(2));
-  const servicesRawCents = Math.round(servicesRaw * 100);
-
-  // Desconto por linha (serviços)
-  let servicesLineDiscountCents = 0;
-  for (const s of serviceLines) {
-    const value = Math.max(0, Number(s.value || 0));
-    if (value <= 0) continue;
-    const valueCents = Math.round(value * 100);
-    const pct = Math.max(0, Number((s as any)?.discountPercent || 0));
-    const fixedCents = Math.round(Math.max(0, Number((s as any)?.discountFixed || 0)) * 100);
-
-    const pctCents = Math.round(valueCents * (pct / 100));
-    const dCents = Math.min(valueCents, pctCents + fixedCents);
-    servicesLineDiscountCents += dCents;
-  }
-  servicesLineDiscountCents = Math.min(servicesRawCents, Math.max(0, servicesLineDiscountCents));
-  let servicesNetCents = Math.max(0, servicesRawCents - servicesLineDiscountCents);
-
-  // Descontos acumuláveis (Etapa 5)
-  let itemsNetCents = [...itemCents];
-
-  const rawDiscounts0 = Array.isArray((draft as any)?.discounts) ? ((draft as any).discounts as MenuAppliedDiscount[]) : [];
-
-  // Compat: se ainda vier no formato legado e não houver descontos novos, converte em 1 desconto "GENERAL"
-  let rawDiscounts: MenuAppliedDiscount[] = [...rawDiscounts0];
-  if (!rawDiscounts.length) {
-    const lp = Math.max(0, Number((draft as any)?.discountPercent || 0));
-    const lf = Math.max(0, Number((draft as any)?.discountFixed || 0));
-    const la = (String((draft as any)?.discountApplyTo || 'ALL').toUpperCase() as MenuDiscountAppliesTo) || 'ALL';
-
-    if (lp > 0 || lf > 0) {
-      rawDiscounts = [
-        {
-          id: 'legacy_general',
-          scope: 'GENERAL',
-          targetId: null,
-          percent: lp > 0 ? lp : null,
-          fixed: lf > 0 ? lf : null,
-          appliesTo: la,
-          label: 'Desconto geral',
-        },
-      ];
-    }
-  }
-
-  const scopeRank = (s: any) => {
-    const x = String(s || '').toUpperCase();
-    if (x === 'FACE') return 0;
-    if (x === 'POINT' || x === 'PONTO') return 1;
-    if (x === 'GENERAL' || x === 'GERAL') return 2;
-    return 9;
-  };
-
-  const discounts = rawDiscounts
-    .map((d: any, idx: number) => ({ ...(d || {}), __i: idx }))
-    .filter((d: any) => d && (Number(d?.percent || 0) > 0 || Number(d?.fixed || 0) > 0))
-    .sort((a: any, b: any) => scopeRank(a.scope) - scopeRank(b.scope) || a.__i - b.__i);
-
-  const reduceItems = (indexes: number[], amountCents: number) => {
-    const idxs = (indexes || []).filter((i) => Number.isFinite(i) && i >= 0 && i < itemsNetCents.length);
-    if (!idxs.length) return;
-
-    const baseSum = idxs.reduce((acc, i) => acc + Math.max(0, itemsNetCents[i]), 0);
-    if (baseSum <= 0) return;
-
-    const amount = Math.min(Math.max(0, amountCents), baseSum);
-
-    let allocated = 0;
-    for (let k = 0; k < idxs.length; k++) {
-      const i = idxs[k];
-      const current = Math.max(0, itemsNetCents[i]);
-      if (current <= 0) continue;
-
-      let share = k === idxs.length - 1 ? amount - allocated : Math.round((amount * current) / baseSum);
-      share = Math.min(current, Math.max(0, share));
-
-      itemsNetCents[i] = current - share;
-      allocated += share;
-      if (allocated >= amount) break;
-    }
-
-    let remaining = amount - allocated;
-    if (remaining > 0) {
-      for (let k = idxs.length - 1; k >= 0; k--) {
-        const i = idxs[k];
-        const current = Math.max(0, itemsNetCents[i]);
-        if (current <= 0) continue;
-        const take = Math.min(current, remaining);
-        itemsNetCents[i] = current - take;
-        remaining -= take;
-        if (remaining <= 0) break;
-      }
-    }
-  };
-
-  let baseDiscountCents = 0;
-  let servicesDiscountCents = 0;
-  const impacts: MenuAppliedDiscountImpact[] = [];
-
-  const sumBaseNetCents = () => itemsNetCents.reduce((acc, v) => acc + Math.max(0, v), 0);
-
-  for (const d of discounts as any[]) {
-    const scopeRaw = String(d?.scope || '').trim().toUpperCase();
-    const scope: MenuDiscountScope =
-      scopeRaw === 'FACE'
-        ? 'FACE'
-        : scopeRaw === 'POINT' || scopeRaw === 'PONTO'
-          ? 'POINT'
-          : scopeRaw === 'GENERAL' || scopeRaw === 'GERAL'
-            ? 'GENERAL'
-            : 'GENERAL';
-
-    const id = String(d?.id || '');
-    const targetId = (d?.targetId ?? null) as any;
-    const label = (d?.label ?? null) as any;
-
-    const pct = Math.max(0, Number(d?.percent || 0));
-    const fixedCents = Math.round(Math.max(0, Number(d?.fixed || 0)) * 100);
-
-    const appliesToRaw = String(d?.appliesTo ?? 'ALL').trim().toUpperCase();
-    const appliesTo: MenuDiscountAppliesTo =
-      appliesToRaw === 'BASE' ? 'BASE' : appliesToRaw === 'SERVICES' || appliesToRaw === 'SERVICE' ? 'SERVICES' : 'ALL';
-
-    if (pct <= 0 && fixedCents <= 0) continue;
-
-    const calcAmount = (baseCents: number) => {
-      const pctCents = Math.round(baseCents * (pct / 100));
-      return Math.min(Math.max(0, baseCents), Math.max(0, pctCents + fixedCents));
-    };
-
-    if (scope === 'FACE') {
-      const idxs = items
-        .map((it: any, idx: number) => (String(it?.unitId || '') === String(targetId || '') ? idx : -1))
-        .filter((i: number) => i >= 0);
-
-      const baseCents = idxs.reduce((acc: number, i: number) => acc + Math.max(0, itemsNetCents[i]), 0);
-      if (baseCents <= 0) continue;
-
-      const amountCents = calcAmount(baseCents);
-      if (amountCents <= 0) continue;
-
-      reduceItems(idxs, amountCents);
-      baseDiscountCents += amountCents;
-
-      impacts.push({
-        id,
-        scope,
-        targetId,
-        appliesTo: 'BASE',
-        label,
-        percent: pct,
-        fixed: money(fixedCents),
-        base: money(baseCents),
-        amount: money(amountCents),
-      });
-      continue;
-    }
-
-    if (scope === 'POINT') {
-      const idxs = items
-        .map((it: any, idx: number) => (String(it?.pointId || '') === String(targetId || '') ? idx : -1))
-        .filter((i: number) => i >= 0);
-
-      const baseCents = idxs.reduce((acc: number, i: number) => acc + Math.max(0, itemsNetCents[i]), 0);
-      if (baseCents <= 0) continue;
-
-      const amountCents = calcAmount(baseCents);
-      if (amountCents <= 0) continue;
-
-      reduceItems(idxs, amountCents);
-      baseDiscountCents += amountCents;
-
-      impacts.push({
-        id,
-        scope,
-        targetId,
-        appliesTo: 'BASE',
-        label,
-        percent: pct,
-        fixed: money(fixedCents),
-        base: money(baseCents),
-        amount: money(amountCents),
-      });
-      continue;
-    }
-
-    // GENERAL
-    const baseNetCents = sumBaseNetCents();
-    const totalNetCents = baseNetCents + servicesNetCents;
-
-    const baseCentsForCalc = appliesTo === 'BASE' ? baseNetCents : appliesTo === 'SERVICES' ? servicesNetCents : totalNetCents;
-    if (baseCentsForCalc <= 0) continue;
-
-    const amountCents = calcAmount(baseCentsForCalc);
-    if (amountCents <= 0) continue;
-
-    let basePart = 0;
-    let servicesPart = 0;
-
-    if (appliesTo === 'BASE') {
-      basePart = Math.min(baseNetCents, amountCents);
-    } else if (appliesTo === 'SERVICES') {
-      servicesPart = Math.min(servicesNetCents, amountCents);
-    } else {
-      const denom = Math.max(1, totalNetCents);
-      basePart = Math.round((amountCents * baseNetCents) / denom);
-      servicesPart = amountCents - basePart;
-
-      if (basePart > baseNetCents) {
-        const extra = basePart - baseNetCents;
-        basePart = baseNetCents;
-        servicesPart += extra;
-      }
-      if (servicesPart > servicesNetCents) {
-        const extra = servicesPart - servicesNetCents;
-        servicesPart = servicesNetCents;
-        basePart = Math.min(baseNetCents, basePart + extra);
-      }
-    }
-
-    if (basePart > 0) {
-      reduceItems(items.map((_: any, i: number) => i), basePart);
-      baseDiscountCents += basePart;
-    }
-    if (servicesPart > 0) {
-      const take = Math.min(servicesNetCents, servicesPart);
-      servicesNetCents -= take;
-      servicesDiscountCents += take;
-    }
-
-    impacts.push({
-      id,
-      scope: 'GENERAL',
-      targetId: null,
-      appliesTo,
-      label,
-      percent: pct,
-      fixed: money(fixedCents),
-      base: money(baseCentsForCalc),
-      amount: money(amountCents),
-      meta: appliesTo === 'ALL' ? { basePart: money(basePart), servicesPart: money(servicesPart) } : undefined,
-    });
-  }
-
-  const stackedDiscountCents = Math.max(0, baseDiscountCents + servicesDiscountCents);
-  const discountTotalCents = Math.min(baseGrossCents + servicesRawCents, Math.max(0, servicesLineDiscountCents + stackedDiscountCents));
-  const totalCents = Math.max(0, baseGrossCents + servicesRawCents - discountTotalCents);
-
-  return {
-    base: money(baseGrossCents),
-    services: money(servicesRawCents),
-    discount: money(discountTotalCents),
-    total: money(totalCents),
-    breakdown: {
-      baseGross: money(baseGrossCents),
-      baseNet: money(Math.max(0, baseGrossCents - baseDiscountCents)),
-      servicesGross: money(servicesRawCents),
-      servicesNet: money(Math.max(0, servicesRawCents - servicesLineDiscountCents - servicesDiscountCents)),
-      servicesLineDiscount: money(servicesLineDiscountCents),
-      baseDiscount: money(baseDiscountCents),
-      servicesDiscount: money(servicesDiscountCents),
-      appliedDiscounts: impacts,
-    },
-  };
-}
-
 
 export default function MenuDonoWorkspace() {
   const navigate = useNavigation();
@@ -659,9 +339,14 @@ export default function MenuDonoWorkspace() {
     // Após aprovação, usamos sempre os totais persistidos na versão atual.
     if (isLocked) {
       const locked = currentQuote?.totals;
-      if (locked) setPreviewTotals({ ...(locked as any), costs: (locked as any)?.costs ?? 0 });
-      else setPreviewTotals(computePreviewTotals(data, draft) as any);
-      setPreviewError(null);
+      if (locked) {
+        setPreviewTotals({ ...(locked as any), costs: (locked as any)?.costs ?? 0 });
+        setPreviewError(null);
+      } else {
+        // Sem fallback local: o backend é a fonte única.
+        setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0, breakdown: { items: [] } } as any);
+        setPreviewError('Não foi possível carregar os totais da versão atual.');
+      }
       setIsPreviewLoading(false);
       return () => {
         alive = false;
@@ -686,8 +371,7 @@ export default function MenuDonoWorkspace() {
           setPreviewTotals({ ...(resp?.totals as any), costs: (resp?.totals as any)?.costs ?? 0 });
         } catch (err: any) {
           if (!alive) return;
-          // Fallback local (não bloqueia o fluxo)
-          setPreviewTotals(computePreviewTotals(data, draft) as any);
+          setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0, breakdown: { items: [] } } as any);
           setPreviewError('Não foi possível atualizar o preview agora.');
         } finally {
           if (!alive) return;
@@ -1490,11 +1174,19 @@ export default function MenuDonoWorkspace() {
                           <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.services)}</div>
                         </div>
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
+                          <div className="text-xs text-gray-500">Custos de produção</div>
+                          <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.costs ?? 0)}</div>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 px-3 py-2">
                           <div className="text-xs text-gray-500">Descontos</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
                             {(previewTotals.breakdown?.servicesLineDiscount ?? 0) > 0 ? (
                               <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown?.servicesLineDiscount ?? 0)}</div>
+                            ) : null}
+
+                            {(previewTotals.breakdown?.costsLineDiscount ?? 0) > 0 ? (
+                              <div>Custos (linhas): - {formatMoneyBr(previewTotals.breakdown?.costsLineDiscount ?? 0)}</div>
                             ) : null}
 
                             {(previewTotals.breakdown?.appliedDiscounts || []).map((d) => (
@@ -1511,7 +1203,7 @@ export default function MenuDonoWorkspace() {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                        <div className="col-span-2 rounded-xl border border-gray-200 px-3 py-2">
                           <div className="text-xs text-gray-500">Brindes (R$ 0)</div>
                           <div className="text-sm font-semibold text-gray-900">{(draft.gifts || []).length} item(ns)</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
@@ -1527,7 +1219,7 @@ export default function MenuDonoWorkspace() {
                         </div>
 
                         <div
-                          className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
+                          className="col-span-2 rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
                           style={{ backgroundColor: "#111827", color: "#ffffff" }}
                         >
                           <div className="text-xs text-gray-300">Total</div>
