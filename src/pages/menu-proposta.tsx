@@ -293,11 +293,15 @@ export default function MenuProposta() {
                     <div className="mt-1 text-lg font-bold text-gray-900">{formatMoneyBr(currentQuote.totals.services)}</div>
                   </div>
                   <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <div className="text-xs text-gray-500">Custos de produção</div>
+                    <div className="mt-1 text-lg font-bold text-gray-900">{formatMoneyBr(currentQuote.totals.costs ?? 0)}</div>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
                     <div className="text-xs text-gray-500">Descontos</div>
                     <div className="mt-1 text-lg font-bold text-gray-900">- {formatMoneyBr(currentQuote.totals.discount)}</div>
                   </div>
                   <div
-                    className="rounded-xl border border-gray-900 bg-gray-900 px-4 py-3"
+                    className="col-span-1 sm:col-span-2 rounded-xl border border-gray-900 bg-gray-900 px-4 py-3"
                     style={{ backgroundColor: "#111827", color: "#ffffff" }}
                   >
                     <div className="text-xs text-gray-300">Total</div>

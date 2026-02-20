@@ -100,7 +100,7 @@ export function MediaPointImageCarousel({
   fallbackSrc,
 }: {
   point: MediaPoint;
-  normalizeUploadsUrl: (value?: string | null) => string;
+  normalizeUploadsUrl: (value?: string | null) => string | null;
   fallbackSrc: string;
 }) {
   const slides = useMemo<Slide[]>(() => {

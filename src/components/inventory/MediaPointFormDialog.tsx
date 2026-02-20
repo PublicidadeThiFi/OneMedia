@@ -1,4 +1,4 @@
-import { useState, useEffect, type ChangeEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -8,29 +8,67 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { X, ChevronDown, Package } from 'lucide-react';
+import { X, ChevronDown, Package, ExternalLink, MapPin } from 'lucide-react';
 import { MediaPoint, MediaType, ProductionCosts } from '../../types';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
 import apiClient from '../../lib/apiClient';
+import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
+
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import { reverseGeocodeOSM, type ReverseGeocodeAddress } from '../../lib/geocode';
+
+type LatLng = { lat: number; lng: number };
+
+function buildPinIcon() {
+  // Evita o ícone padrão do Leaflet (que costuma quebrar no bundler por falta de assets).
+  return L.divIcon({
+    html: `
+      <div style="
+        width:28px;
+        height:28px;
+        border-radius:999px;
+        background:rgba(79,70,229,0.96);
+        border:3px solid rgba(255,255,255,0.96);
+        box-shadow:0 8px 22px rgba(0,0,0,0.22);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      ">
+        <div style="
+          width:10px;
+          height:10px;
+          border-radius:999px;
+          background:rgba(255,255,255,0.95);
+        "></div>
+      </div>
+    `,
+    className: 'one-media-form-pin',
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
+function MapPickEvents({ enabled, onPick }: { enabled: boolean; onPick: (p: LatLng) => void }) {
+  useMapEvents({
+    click(e) {
+      if (!enabled) return;
+      onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
 
 interface MediaPointFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaPoint?: MediaPoint | null;
+  initialData?: Partial<MediaPoint> | null;
   onSave: (data: Partial<MediaPoint>, imageFile?: File | null) => Promise<any> | void;
 }
 
-export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }: MediaPointFormDialogProps) {
-  // Normaliza URLs antigas (absolutas) para caminho relativo em /uploads/...
-  // (permite servir via proxy/rewrite, ex.: Vercel)
-  const normalizeUploadsUrl = (value?: string | null) => {
-    if (!value) return value ?? null;
-    if (value.startsWith('/uploads/')) return value;
-    const idx = value.indexOf('/uploads/');
-    if (idx >= 0) return value.slice(idx);
-    return value;
-  };
+export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave }: MediaPointFormDialogProps) {
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
     type: MediaType.OOH,
@@ -43,6 +81,17 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // =====================
+  // Mapa (Etapa 6)
+  // =====================
+  const [mapMode, setMapMode] = useState<'map' | 'satellite'>('map');
+  const [pinPos, setPinPos] = useState<LatLng | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const lastAutoRef = useRef<ReverseGeocodeAddress | null>(null);
+  const geoAbortRef = useRef<AbortController | null>(null);
+  const geoTimerRef = useRef<number | null>(null);
 
     const { cities: metaCities, refetch: refetchMeta } = useMediaPointsMeta();
 
@@ -59,19 +108,36 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
       setFormData(mediaPoint);
       setType(mediaPoint.type);
       setImageFile(null);
-      setImagePreview(normalizeUploadsUrl(mediaPoint.mainImageUrl) || null);
+      setImagePreview(resolveUploadsUrl(mediaPoint.mainImageUrl) || null);
     } else {
-      setFormData({
+      const merged: Partial<MediaPoint> = {
         type: MediaType.OOH,
         showInMediaKit: false,
         addressCountry: 'Brasil',
         socialClasses: [],
-      });
+        ...(initialData ?? {}),
+      };
+      setFormData(merged);
       setType(MediaType.OOH);
       setImageFile(null);
       setImagePreview(null);
     }
-  }, [mediaPoint, open]);
+    // Reset do auto-fill quando abrir
+    lastAutoRef.current = null;
+    setGeoError(null);
+    setGeoLoading(false);
+  }, [mediaPoint, open, initialData]);
+
+  // Sincroniza pin com lat/lng do form
+  useEffect(() => {
+    const lat = Number((formData as any)?.latitude);
+    const lng = Number((formData as any)?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setPinPos((prev) => {
+      if (prev && Math.abs(prev.lat - lat) < 1e-8 && Math.abs(prev.lng - lng) < 1e-8) return prev;
+      return { lat, lng };
+    });
+  }, [formData.latitude, formData.longitude]);
 
   const handleTypeChange = (newType: MediaType) => {
     setType(newType);
@@ -104,6 +170,76 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const scheduleReverseGeocode = (lat: number, lng: number) => {
+    window.clearTimeout(geoTimerRef.current ?? undefined);
+    geoTimerRef.current = window.setTimeout(() => {
+      void reverseGeocodeAndApply(lat, lng);
+    }, 450);
+  };
+
+  const applyAutoField = (field: keyof MediaPoint, value?: string) => {
+    if (!value) return;
+    const current = String((formData as any)?.[field] ?? '').trim();
+    const prevAuto = String((lastAutoRef.current as any)?.[field] ?? '').trim();
+    // Só sobrescreve se estiver vazio ou se for o valor auto anterior
+    if (!current || current === prevAuto) {
+      updateField(field, value);
+    }
+  };
+
+  const reverseGeocodeAndApply = async (lat: number, lng: number) => {
+    try {
+      setGeoError(null);
+      setGeoLoading(true);
+      geoAbortRef.current?.abort();
+      const controller = new AbortController();
+      geoAbortRef.current = controller;
+
+      const addr = await reverseGeocodeOSM(lat, lng, controller.signal);
+      if (!addr) return;
+
+      // Atualiza last auto (para não sobrescrever manual)
+      lastAutoRef.current = { ...(lastAutoRef.current ?? {}), ...addr };
+
+      // Ordem importa (UF -> Cidade)
+      if (addr.addressState) {
+        applyAutoField('addressState', addr.addressState);
+      }
+
+      if (addr.addressCity) {
+        // Garante que a cidade apareça no Select atual
+        setCitiesForUf((prev) => {
+          const cityName = String(addr.addressCity ?? '').trim();
+          if (!cityName) return prev;
+          if (prev.includes(cityName)) return prev;
+          return [...prev, cityName].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        });
+        applyAutoField('addressCity', addr.addressCity);
+      }
+
+      applyAutoField('addressDistrict', addr.addressDistrict);
+      applyAutoField('addressStreet', addr.addressStreet);
+      applyAutoField('addressNumber', addr.addressNumber);
+      applyAutoField('addressZipcode', addr.addressZipcode);
+      applyAutoField('addressCountry', addr.addressCountry);
+    } catch (e: any) {
+      const msg = String(e?.message ?? '');
+      if (msg.includes('abort')) return;
+      setGeoError('Não foi possível preencher o endereço automaticamente.');
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
+  const applyPinPosition = (p: LatLng, opts?: { autoFill?: boolean }) => {
+    setPinPos(p);
+    updateField('latitude', Number(p.lat.toFixed(6)));
+    updateField('longitude', Number(p.lng.toFixed(6)));
+    if (opts?.autoFill !== false) {
+      scheduleReverseGeocode(p.lat, p.lng);
     }
   };
 
@@ -333,6 +469,93 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, onSave }:
                   onChange={(e) => updateField('description', e.target.value)}
                   rows={3}
                 />
+              </div>
+
+              {/* Mapa (Etapa 6) */}
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <Label className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" /> Mapa (pin arrastável)
+                  </Label>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={mapMode === 'map' ? 'default' : 'outline'}
+                      className={mapMode === 'map' ? 'mm-indigo h-8' : 'h-8'}
+                      onClick={() => setMapMode('map')}
+                    >
+                      Mapa
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={mapMode === 'satellite' ? 'default' : 'outline'}
+                      className={mapMode === 'satellite' ? 'mm-indigo h-8' : 'h-8'}
+                      onClick={() => setMapMode('satellite')}
+                    >
+                      Satélite
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-2 h-8"
+                      disabled={!(Number.isFinite(Number(formData.latitude)) && Number.isFinite(Number(formData.longitude)))}
+                      onClick={() => {
+                        const lat = Number(formData.latitude);
+                        const lng = Number(formData.longitude);
+                        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                        window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4" /> Street View
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="text-xs text-gray-600">
+                  Clique no mapa ou arraste o pin para definir a posição. Ao soltar, tentamos preencher endereço automaticamente.
+                </div>
+
+                <div className="border rounded-2xl overflow-hidden" style={{ height: 320 }}>
+                  <MapContainer
+                    center={pinPos ? ([pinPos.lat, pinPos.lng] as any) : ([-23.55052, -46.633308] as any)}
+                    zoom={pinPos ? 17 : 12}
+                    style={{ height: '100%', width: '100%' }}
+                    zoomControl
+                  >
+                    <TileLayer
+                      attribution={mapMode === 'satellite' ? 'Tiles &copy; Esri' : '&copy; OpenStreetMap contributors'}
+                      url={
+                        mapMode === 'satellite'
+                          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                          : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                      }
+                    />
+
+                    <MapPickEvents enabled={true} onPick={(p) => applyPinPosition(p)} />
+
+                    {pinPos ? (
+                      <Marker
+                        position={[pinPos.lat, pinPos.lng] as any}
+                        icon={buildPinIcon()}
+                        draggable
+                        eventHandlers={{
+                          dragend: (e: any) => {
+                            const ll = e?.target?.getLatLng?.();
+                            if (!ll) return;
+                            applyPinPosition({ lat: ll.lat, lng: ll.lng });
+                          },
+                        }}
+                      />
+                    ) : null}
+                  </MapContainer>
+                </div>
+
+                {geoLoading ? <div className="text-xs text-gray-600">Preenchendo endereço...</div> : null}
+                {geoError ? <div className="text-xs text-amber-700">{geoError}</div> : null}
               </div>
             </div>
 

@@ -56,8 +56,8 @@ type CacheEntry = {
 const cache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<PublicMediaKitResponse>>();
 
-function makeKey(token: string, ownerCompanyId?: string | null) {
-  return `${token}::${ownerCompanyId ?? ''}`;
+function makeKey(token: string, ownerCompanyId?: string | null, flow?: string | null) {
+  return `${token}::${ownerCompanyId ?? ''}::${String(flow ?? '').trim().toLowerCase()}`;
 }
 
 // Cache leve para navegação UF -> Cidade -> Pontos ficar instantânea.
@@ -67,16 +67,18 @@ const TTL_MS = 60 * 1000; // 1 minuto
 export async function fetchPublicMediaKit(params: {
   token: string;
   ownerCompanyId?: string | null;
+  flow?: string | null;
   force?: boolean;
 }): Promise<PublicMediaKitResponse> {
   const token = String(params.token ?? '').trim();
   const ownerCompanyId = params.ownerCompanyId ?? null;
+  const flow = String(params.flow ?? '').trim().toLowerCase();
 
   if (!token) {
     throw new Error('Token ausente. Abra o Cardápio a partir do link compartilhado.');
   }
 
-  const key = makeKey(token, ownerCompanyId);
+  const key = makeKey(token, ownerCompanyId, flow);
   const now = Date.now();
   const cached = cache.get(key);
 
@@ -95,6 +97,7 @@ export async function fetchPublicMediaKit(params: {
         params: {
           token,
           ownerCompanyId: ownerCompanyId || undefined,
+          flow: flow || undefined,
         },
       });
       cache.set(key, { data: resp.data, fetchedAt: Date.now() });

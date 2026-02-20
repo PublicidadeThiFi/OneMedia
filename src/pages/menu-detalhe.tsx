@@ -11,6 +11,7 @@ import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from "../lib/menuFlow";
+import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion, pickBestPromoForPoint } from '../lib/menuPromotions';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -97,16 +98,36 @@ export default function MenuDetalhe() {
     };
   }, []);
 
-  const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId });
-
-  const isAgency = isAgencyFlow(flow);
-  const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
-
-
+  const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId, flow });
   const point = useMemo(() => {
     const points = data?.points ?? [];
     return points.find((p) => String(p.id) === String(pointId)) ?? null;
   }, [data?.points, pointId]);
+
+
+  const isAgency = isAgencyFlow(flow);
+  const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
+  const isPromotions = flow === 'promotions';
+
+  const bestPromoPointMonth = useMemo(() => {
+    if (!point || !isPromotions) return null;
+    const promo = pickBestPromoForPoint(point as any, 'month');
+    if (!promo) return null;
+    const from = applyAgencyMarkup(promo.from, markupPct);
+    const to = applyAgencyMarkup(promo.to, markupPct);
+    if (from === null || to === null) return null;
+    return { from, to, promotion: promo.promotion };
+  }, [point, isPromotions, markupPct]);
+
+  const bestPromoPointWeek = useMemo(() => {
+    if (!point || !isPromotions) return null;
+    const promo = pickBestPromoForPoint(point as any, 'week');
+    if (!promo) return null;
+    const from = applyAgencyMarkup(promo.from, markupPct);
+    const to = applyAgencyMarkup(promo.to, markupPct);
+    if (from === null || to === null) return null;
+    return { from, to, promotion: promo.promotion };
+  }, [point, isPromotions, markupPct]);
 
   const [cartCount, setCartCount] = useState<number>(() => {
     try {
@@ -258,6 +279,11 @@ export default function MenuDetalhe() {
                       <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado'}</div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {mediaType && <Badge variant="secondary" className="rounded-full">{mediaType}</Badge>}
+                        {isPromotions && (bestPromoPointMonth || bestPromoPointWeek || (point as any)?.promotion) && (
+                          <Badge variant="secondary" className="rounded-full">
+                            {formatPromotionBadge((bestPromoPointMonth?.promotion || bestPromoPointWeek?.promotion || (point as any).promotion) as any) || 'Promoção'}
+                          </Badge>
+                        )}
                         {availability && (
                           <Badge
                             className={
@@ -277,33 +303,60 @@ export default function MenuDetalhe() {
                     </div>
 
                     <div className="flex flex-col gap-2 sm:items-end">
-                      <div className="text-sm text-gray-600">Preço base</div>
-                      <div className="text-lg font-bold text-gray-900">
-                        {formatCurrencyBRL(applyAgencyMarkup(point.basePriceMonth, markupPct))}
-                      </div>
+                      <div className="text-sm text-gray-600">Preço</div>
+                      {isPromotions && bestPromoPointMonth ? (
+                        <div className="text-lg font-bold text-gray-900">
+                          <span className="mr-2 text-gray-500 line-through">
+                            {formatCurrencyBRL(bestPromoPointMonth.from)}
+                          </span>
+                          {formatCurrencyBRL(bestPromoPointMonth.to)}
+                        </div>
+                      ) : (
+                        <div className="text-lg font-bold text-gray-900">
+                          {formatCurrencyBRL(applyAgencyMarkup(point.basePriceMonth, markupPct))}
+                        </div>
+                      )}
                       <div className="text-xs text-gray-600">
-                        Mensal • {formatCurrencyBRL(applyAgencyMarkup(point.basePriceWeek, markupPct))} semanal
+                        {isPromotions && bestPromoPointWeek ? (
+                          <>
+                            Semanal •{' '}
+                            <span className="mr-2 text-gray-500 line-through">
+                              {formatCurrencyBRL(bestPromoPointWeek.from)}
+                            </span>
+                            <span className="font-semibold text-gray-900">
+                              {formatCurrencyBRL(bestPromoPointWeek.to)}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            Semanal •{' '}
+                            <span className="font-semibold text-gray-900">
+                              {formatCurrencyBRL(applyAgencyMarkup(point.basePriceWeek, markupPct))}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <Separator className="my-5" />
-
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">Galeria</div>
-                    <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
-                      {gallery.length > 0 ? (
-                        gallery.map((url) => (
-                          <div key={url} className="h-40 w-64 flex-none overflow-hidden rounded-xl bg-gray-100">
-                            <ImageWithFallback src={url} alt={point.name} className="h-full w-full object-cover" />
+                  <div className="mt-5">
+                    {gallery.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {gallery.slice(0, 6).map((url, idx) => (
+                          <div key={`${url}-${idx}`} className="h-40 w-full overflow-hidden rounded-xl bg-gray-100">
+                            <ImageWithFallback
+                              src={url}
+                              alt={`${point.name} ${idx + 1}`}
+                              className="h-full w-full object-cover"
+                            />
                           </div>
-                        ))
-                      ) : (
-                        <div className="h-40 w-full rounded-xl bg-gray-100 flex items-center justify-center text-sm text-gray-500">
-                          Nenhuma imagem disponível
-                        </div>
-                      )}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="h-40 w-full rounded-xl bg-gray-100 flex items-center justify-center text-sm text-gray-500">
+                        Nenhuma imagem disponível
+                      </div>
+                    )}
                   </div>
 
                   <Separator className="my-5" />
@@ -386,34 +439,80 @@ export default function MenuDetalhe() {
                   <div className="text-sm font-semibold text-gray-900">Unidades</div>
                   <div className="mt-3 space-y-3">
                     {units.length > 0 ? (
-                      units.map((u) => (
-                        <div key={u.id} className="rounded-xl border border-gray-200 p-3">
-                          <div className="text-sm font-semibold text-gray-900">
-                            {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
-                          </div>
-                          <div className="mt-1 text-xs text-gray-600">
-                            {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
-                            {u.orientation ? ` • ${u.orientation}` : ''}
-                          </div>
-                          <div className="mt-2 text-xs text-gray-700">
-                            <span className="text-gray-500">Mensal:</span>{' '}
-                            <span className="font-semibold">
-                              {formatCurrencyBRL(applyAgencyMarkup(u.priceMonth ?? point.basePriceMonth, markupPct))}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-xs text-gray-700">
-                            <span className="text-gray-500">Semanal:</span>{' '}
-                            <span className="font-semibold">
-                              {formatCurrencyBRL(applyAgencyMarkup(u.priceWeek ?? point.basePriceWeek, markupPct))}
-                            </span>
-                          </div>
-                          {u.imageUrl && (
-                            <div className="mt-3 h-28 w-full overflow-hidden rounded-lg bg-gray-100">
-                              <ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover" />
+                      units.map((u) => {
+                        const unitPromo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
+                        const promoBadge = unitPromo ? formatPromotionBadge(unitPromo) : null;
+
+                        // Promo deve ser aplicada antes do markup de agência, para manter o "de/por" consistente.
+                        const promoMonthRaw = unitPromo
+                          ? buildPromoPrice((u as any).priceMonth ?? (point as any).basePriceMonth, unitPromo)
+                          : null;
+                        const promoWeekRaw = unitPromo
+                          ? buildPromoPrice((u as any).priceWeek ?? (point as any).basePriceWeek, unitPromo)
+                          : null;
+
+                        const promoMonth = promoMonthRaw
+                          ? { from: applyAgencyMarkup(promoMonthRaw.from, markupPct), to: applyAgencyMarkup(promoMonthRaw.to, markupPct) }
+                          : null;
+                        const promoWeek = promoWeekRaw
+                          ? { from: applyAgencyMarkup(promoWeekRaw.from, markupPct), to: applyAgencyMarkup(promoWeekRaw.to, markupPct) }
+                          : null;
+
+                        const baseMonth = applyAgencyMarkup((u as any).priceMonth ?? (point as any).basePriceMonth, markupPct);
+                        const baseWeek = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
+
+                        const promoMonthOk = promoMonth && promoMonth.from !== null && promoMonth.to !== null ? promoMonth : null;
+                        const promoWeekOk = promoWeek && promoWeek.from !== null && promoWeek.to !== null ? promoWeek : null;
+
+                        return (
+                          <div key={u.id} className="rounded-xl border border-gray-200 p-3">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-semibold text-gray-900">
+                                {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
+                              </div>
+                              {isPromotions && promoBadge && (
+                                <Badge variant="secondary" className="rounded-full">
+                                  {promoBadge}
+                                </Badge>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))
+                            <div className="mt-1 text-xs text-gray-600">
+                              {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
+                              {u.orientation ? ` • ${u.orientation}` : ''}
+                            </div>
+
+                            <div className="mt-2 text-xs text-gray-700">
+                              <span className="text-gray-500">Mensal:</span>{' '}
+                              {isPromotions && promoMonthOk ? (
+                                <>
+                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthOk.from)}</span>
+                                  <span className="font-semibold text-gray-900">{formatCurrencyBRL(promoMonthOk.to)}</span>
+                                </>
+                              ) : (
+                                <span className="font-semibold">{formatCurrencyBRL(baseMonth)}</span>
+                              )}
+                            </div>
+
+                            <div className="mt-1 text-xs text-gray-700">
+                              <span className="text-gray-500">Semanal:</span>{' '}
+                              {isPromotions && promoWeekOk ? (
+                                <>
+                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekOk.from)}</span>
+                                  <span className="font-semibold text-gray-900">{formatCurrencyBRL(promoWeekOk.to)}</span>
+                                </>
+                              ) : (
+                                <span className="font-semibold">{formatCurrencyBRL(baseWeek)}</span>
+                              )}
+                            </div>
+
+                            {u.imageUrl && (
+                              <div className="mt-3 h-28 w-full overflow-hidden rounded-lg bg-gray-100">
+                                <ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                     ) : (
                       <div className="text-sm text-gray-600">Nenhuma face/tela cadastrada neste ponto.</div>
                     )}

@@ -12,16 +12,21 @@ import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
 import {
   classifyMenuRequestError,
   fetchMenuRequest,
+  listMenuGiftTargets,
+  previewMenuQuoteTotals,
   regenerateMenuLink,
   sendMenuQuote,
   type MenuAppliedDiscount,
-  type MenuAppliedDiscountImpact,
   type MenuDiscountAppliesTo,
   type MenuDiscountScope,
   type MenuGift,
   type MenuGiftScope,
+  type MenuGiftTargetSuggestion,
+  type MenuItemCostScope,
+  type MenuQuoteItemCostLine,
   type MenuQuoteDraft,
   type MenuQuoteServiceLine,
+  type MenuQuoteTotals,
   type MenuQuoteVersionRecord,
   type MenuRequestRecord,
 } from '../lib/menuRequestApi';
@@ -77,6 +82,40 @@ function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null):
   return segs.join(', ');
 }
 
+function isPromoActiveNow(promo: any): boolean {
+  if (!promo) return false;
+  if (promo.showInMediaKit === false) return false;
+
+  const now = Date.now();
+  const s = promo.startsAt ? new Date(String(promo.startsAt)).getTime() : NaN;
+  const e = promo.endsAt ? new Date(String(promo.endsAt)).getTime() : NaN;
+  if (Number.isFinite(s) && now < s) return false;
+  if (Number.isFinite(e) && now > e) return false;
+  return true;
+}
+
+function readProductionCostsList(raw: any): Array<{ name: string; value: number }> {
+  if (!raw) return [];
+  const out: Array<{ name: string; value: number }> = [];
+
+  if (Array.isArray(raw)) {
+    for (const c of raw) {
+      const name = String(c?.name ?? c?.label ?? c?.type ?? 'Custo').trim() || 'Custo';
+      const value = Math.max(0, Number(c?.value || 0));
+      if (Number.isFinite(value) && value > 0) out.push({ name, value: Number(value.toFixed(2)) });
+    }
+    return out;
+  }
+
+  if (typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw)) {
+      const value = Math.max(0, Number(v || 0));
+      if (Number.isFinite(value) && value > 0) out.push({ name: String(k).trim() || 'Custo', value: Number(value.toFixed(2)) });
+    }
+  }
+  return out;
+}
+
 type ServiceOption = { name: string; defaultValue: number };
 
 const MOCK_SERVICES: ServiceOption[] = [
@@ -85,325 +124,6 @@ const MOCK_SERVICES: ServiceOption[] = [
   { name: 'Criação/Arte', defaultValue: 800 },
   { name: 'Logística', defaultValue: 350 },
 ];
-
-function resolveItemDays(it: any): number {
-  const dd = Number(it?.durationDays);
-  if (Number.isFinite(dd) && dd > 0) return Math.max(1, Math.floor(dd));
-
-  const dur = it?.duration || {};
-  const totalDays = Number(dur?.totalDays);
-  if (Number.isFinite(totalDays) && totalDays > 0) return Math.max(1, Math.floor(totalDays));
-
-  const years = Math.max(0, Math.floor(Number(dur?.years) || 0));
-  const months = Math.max(0, Math.floor(Number(dur?.months) || 0));
-  const days = Math.max(0, Math.floor(Number(dur?.days) || 0));
-
-  const total = years * 365 + months * 30 + days;
-  return Math.max(1, Math.floor(Number.isFinite(total) && total > 0 ? total : 30));
-}
-
-function computeBaseByItemCents(items: any[]) {
-  const itemBaseFloats = (items || []).map((it) => {
-    const d = resolveItemDays(it);
-    const week = Number(it?.snapshot?.priceWeek || 0);
-    const month = Number(it?.snapshot?.priceMonth || 0);
-
-    let base = 0;
-    if (d <= 7 && week > 0) base = week;
-    else if (month > 0) base = month * Math.max(1, d / 30);
-    else if (week > 0) base = week * Math.max(1, d / 7);
-
-    return Number(base.toFixed(6));
-  });
-
-  const baseGross = Number(itemBaseFloats.reduce((acc, v) => acc + v, 0).toFixed(2));
-  const baseGrossCents = Math.round(baseGross * 100);
-
-  let itemCents = itemBaseFloats.map((v) => Math.round(v * 100));
-  const sumItem = itemCents.reduce((acc, v) => acc + v, 0);
-  if (itemCents.length && sumItem !== baseGrossCents) {
-    itemCents[itemCents.length - 1] += baseGrossCents - sumItem;
-  }
-
-  return { baseGrossCents, itemCents };
-}
-
-function computePreviewTotals(record: MenuRequestRecord | null, draft: MenuQuoteDraft) {
-  const money = (cents: number) => Number((Math.max(0, cents) / 100).toFixed(2));
-
-  const items = record?.items || [];
-  const { baseGrossCents, itemCents } = computeBaseByItemCents(items);
-
-  // Serviços (gross)
-  const manual = Math.max(0, Number(draft.manualServiceValue || 0));
-  const serviceLines = Array.isArray(draft.services) ? draft.services : [];
-  const servicesRaw = Number((serviceLines.reduce((acc, s) => acc + Number(s.value || 0), 0) + manual).toFixed(2));
-  const servicesRawCents = Math.round(servicesRaw * 100);
-
-  // Desconto por linha (serviços)
-  let servicesLineDiscountCents = 0;
-  for (const s of serviceLines) {
-    const value = Math.max(0, Number(s.value || 0));
-    if (value <= 0) continue;
-    const valueCents = Math.round(value * 100);
-    const pct = Math.max(0, Number((s as any)?.discountPercent || 0));
-    const fixedCents = Math.round(Math.max(0, Number((s as any)?.discountFixed || 0)) * 100);
-
-    const pctCents = Math.round(valueCents * (pct / 100));
-    const dCents = Math.min(valueCents, pctCents + fixedCents);
-    servicesLineDiscountCents += dCents;
-  }
-  servicesLineDiscountCents = Math.min(servicesRawCents, Math.max(0, servicesLineDiscountCents));
-  let servicesNetCents = Math.max(0, servicesRawCents - servicesLineDiscountCents);
-
-  // Descontos acumuláveis (Etapa 5)
-  let itemsNetCents = [...itemCents];
-
-  const rawDiscounts0 = Array.isArray((draft as any)?.discounts) ? ((draft as any).discounts as MenuAppliedDiscount[]) : [];
-
-  // Compat: se ainda vier no formato legado e não houver descontos novos, converte em 1 desconto "GENERAL"
-  let rawDiscounts: MenuAppliedDiscount[] = [...rawDiscounts0];
-  if (!rawDiscounts.length) {
-    const lp = Math.max(0, Number((draft as any)?.discountPercent || 0));
-    const lf = Math.max(0, Number((draft as any)?.discountFixed || 0));
-    const la = (String((draft as any)?.discountApplyTo || 'ALL').toUpperCase() as MenuDiscountAppliesTo) || 'ALL';
-
-    if (lp > 0 || lf > 0) {
-      rawDiscounts = [
-        {
-          id: 'legacy_general',
-          scope: 'GENERAL',
-          targetId: null,
-          percent: lp > 0 ? lp : null,
-          fixed: lf > 0 ? lf : null,
-          appliesTo: la,
-          label: 'Desconto geral',
-        },
-      ];
-    }
-  }
-
-  const scopeRank = (s: any) => {
-    const x = String(s || '').toUpperCase();
-    if (x === 'FACE') return 0;
-    if (x === 'POINT' || x === 'PONTO') return 1;
-    if (x === 'GENERAL' || x === 'GERAL') return 2;
-    return 9;
-  };
-
-  const discounts = rawDiscounts
-    .map((d: any, idx: number) => ({ ...(d || {}), __i: idx }))
-    .filter((d: any) => d && (Number(d?.percent || 0) > 0 || Number(d?.fixed || 0) > 0))
-    .sort((a: any, b: any) => scopeRank(a.scope) - scopeRank(b.scope) || a.__i - b.__i);
-
-  const reduceItems = (indexes: number[], amountCents: number) => {
-    const idxs = (indexes || []).filter((i) => Number.isFinite(i) && i >= 0 && i < itemsNetCents.length);
-    if (!idxs.length) return;
-
-    const baseSum = idxs.reduce((acc, i) => acc + Math.max(0, itemsNetCents[i]), 0);
-    if (baseSum <= 0) return;
-
-    const amount = Math.min(Math.max(0, amountCents), baseSum);
-
-    let allocated = 0;
-    for (let k = 0; k < idxs.length; k++) {
-      const i = idxs[k];
-      const current = Math.max(0, itemsNetCents[i]);
-      if (current <= 0) continue;
-
-      let share = k === idxs.length - 1 ? amount - allocated : Math.round((amount * current) / baseSum);
-      share = Math.min(current, Math.max(0, share));
-
-      itemsNetCents[i] = current - share;
-      allocated += share;
-      if (allocated >= amount) break;
-    }
-
-    let remaining = amount - allocated;
-    if (remaining > 0) {
-      for (let k = idxs.length - 1; k >= 0; k--) {
-        const i = idxs[k];
-        const current = Math.max(0, itemsNetCents[i]);
-        if (current <= 0) continue;
-        const take = Math.min(current, remaining);
-        itemsNetCents[i] = current - take;
-        remaining -= take;
-        if (remaining <= 0) break;
-      }
-    }
-  };
-
-  let baseDiscountCents = 0;
-  let servicesDiscountCents = 0;
-  const impacts: MenuAppliedDiscountImpact[] = [];
-
-  const sumBaseNetCents = () => itemsNetCents.reduce((acc, v) => acc + Math.max(0, v), 0);
-
-  for (const d of discounts as any[]) {
-    const scopeRaw = String(d?.scope || '').trim().toUpperCase();
-    const scope: MenuDiscountScope =
-      scopeRaw === 'FACE'
-        ? 'FACE'
-        : scopeRaw === 'POINT' || scopeRaw === 'PONTO'
-          ? 'POINT'
-          : scopeRaw === 'GENERAL' || scopeRaw === 'GERAL'
-            ? 'GENERAL'
-            : 'GENERAL';
-
-    const id = String(d?.id || '');
-    const targetId = (d?.targetId ?? null) as any;
-    const label = (d?.label ?? null) as any;
-
-    const pct = Math.max(0, Number(d?.percent || 0));
-    const fixedCents = Math.round(Math.max(0, Number(d?.fixed || 0)) * 100);
-
-    const appliesToRaw = String(d?.appliesTo ?? 'ALL').trim().toUpperCase();
-    const appliesTo: MenuDiscountAppliesTo =
-      appliesToRaw === 'BASE' ? 'BASE' : appliesToRaw === 'SERVICES' || appliesToRaw === 'SERVICE' ? 'SERVICES' : 'ALL';
-
-    if (pct <= 0 && fixedCents <= 0) continue;
-
-    const calcAmount = (baseCents: number) => {
-      const pctCents = Math.round(baseCents * (pct / 100));
-      return Math.min(Math.max(0, baseCents), Math.max(0, pctCents + fixedCents));
-    };
-
-    if (scope === 'FACE') {
-      const idxs = items
-        .map((it: any, idx: number) => (String(it?.unitId || '') === String(targetId || '') ? idx : -1))
-        .filter((i: number) => i >= 0);
-
-      const baseCents = idxs.reduce((acc: number, i: number) => acc + Math.max(0, itemsNetCents[i]), 0);
-      if (baseCents <= 0) continue;
-
-      const amountCents = calcAmount(baseCents);
-      if (amountCents <= 0) continue;
-
-      reduceItems(idxs, amountCents);
-      baseDiscountCents += amountCents;
-
-      impacts.push({
-        id,
-        scope,
-        targetId,
-        appliesTo: 'BASE',
-        label,
-        percent: pct,
-        fixed: money(fixedCents),
-        base: money(baseCents),
-        amount: money(amountCents),
-      });
-      continue;
-    }
-
-    if (scope === 'POINT') {
-      const idxs = items
-        .map((it: any, idx: number) => (String(it?.pointId || '') === String(targetId || '') ? idx : -1))
-        .filter((i: number) => i >= 0);
-
-      const baseCents = idxs.reduce((acc: number, i: number) => acc + Math.max(0, itemsNetCents[i]), 0);
-      if (baseCents <= 0) continue;
-
-      const amountCents = calcAmount(baseCents);
-      if (amountCents <= 0) continue;
-
-      reduceItems(idxs, amountCents);
-      baseDiscountCents += amountCents;
-
-      impacts.push({
-        id,
-        scope,
-        targetId,
-        appliesTo: 'BASE',
-        label,
-        percent: pct,
-        fixed: money(fixedCents),
-        base: money(baseCents),
-        amount: money(amountCents),
-      });
-      continue;
-    }
-
-    // GENERAL
-    const baseNetCents = sumBaseNetCents();
-    const totalNetCents = baseNetCents + servicesNetCents;
-
-    const baseCentsForCalc = appliesTo === 'BASE' ? baseNetCents : appliesTo === 'SERVICES' ? servicesNetCents : totalNetCents;
-    if (baseCentsForCalc <= 0) continue;
-
-    const amountCents = calcAmount(baseCentsForCalc);
-    if (amountCents <= 0) continue;
-
-    let basePart = 0;
-    let servicesPart = 0;
-
-    if (appliesTo === 'BASE') {
-      basePart = Math.min(baseNetCents, amountCents);
-    } else if (appliesTo === 'SERVICES') {
-      servicesPart = Math.min(servicesNetCents, amountCents);
-    } else {
-      const denom = Math.max(1, totalNetCents);
-      basePart = Math.round((amountCents * baseNetCents) / denom);
-      servicesPart = amountCents - basePart;
-
-      if (basePart > baseNetCents) {
-        const extra = basePart - baseNetCents;
-        basePart = baseNetCents;
-        servicesPart += extra;
-      }
-      if (servicesPart > servicesNetCents) {
-        const extra = servicesPart - servicesNetCents;
-        servicesPart = servicesNetCents;
-        basePart = Math.min(baseNetCents, basePart + extra);
-      }
-    }
-
-    if (basePart > 0) {
-      reduceItems(items.map((_: any, i: number) => i), basePart);
-      baseDiscountCents += basePart;
-    }
-    if (servicesPart > 0) {
-      const take = Math.min(servicesNetCents, servicesPart);
-      servicesNetCents -= take;
-      servicesDiscountCents += take;
-    }
-
-    impacts.push({
-      id,
-      scope: 'GENERAL',
-      targetId: null,
-      appliesTo,
-      label,
-      percent: pct,
-      fixed: money(fixedCents),
-      base: money(baseCentsForCalc),
-      amount: money(amountCents),
-      meta: appliesTo === 'ALL' ? { basePart: money(basePart), servicesPart: money(servicesPart) } : undefined,
-    });
-  }
-
-  const stackedDiscountCents = Math.max(0, baseDiscountCents + servicesDiscountCents);
-  const discountTotalCents = Math.min(baseGrossCents + servicesRawCents, Math.max(0, servicesLineDiscountCents + stackedDiscountCents));
-  const totalCents = Math.max(0, baseGrossCents + servicesRawCents - discountTotalCents);
-
-  return {
-    base: money(baseGrossCents),
-    services: money(servicesRawCents),
-    discount: money(discountTotalCents),
-    total: money(totalCents),
-    breakdown: {
-      baseGross: money(baseGrossCents),
-      baseNet: money(Math.max(0, baseGrossCents - baseDiscountCents)),
-      servicesGross: money(servicesRawCents),
-      servicesNet: money(Math.max(0, servicesRawCents - servicesLineDiscountCents - servicesDiscountCents)),
-      servicesLineDiscount: money(servicesLineDiscountCents),
-      baseDiscount: money(baseDiscountCents),
-      servicesDiscount: money(servicesDiscountCents),
-      appliedDiscounts: impacts,
-    },
-  };
-}
-
 
 export default function MenuDonoWorkspace() {
   const navigate = useNavigation();
@@ -427,6 +147,7 @@ export default function MenuDonoWorkspace() {
     message: '',
     services: [],
     manualServiceValue: null,
+    itemCosts: [],
     gifts: [],
     discounts: [],
     // legado (mantido por compat)
@@ -471,25 +192,85 @@ export default function MenuDonoWorkspace() {
   const [newDiscountPercent, setNewDiscountPercent] = useState<string>('');
   const [newDiscountFixed, setNewDiscountFixed] = useState<string>('');
 
-  // Etapa 6 — Brindes
+  // Etapa 5 — Brindes
   const [newGiftScope, setNewGiftScope] = useState<MenuGiftScope>('POINT');
   const [newGiftTargetId, setNewGiftTargetId] = useState<string>('');
   const [newGiftYears, setNewGiftYears] = useState<string>('');
   const [newGiftMonths, setNewGiftMonths] = useState<string>('');
   const [newGiftDays, setNewGiftDays] = useState<string>('30');
 
+  const [giftTargetMode, setGiftTargetMode] = useState<'PROPOSAL' | 'INVENTORY' | 'ELIGIBLE'>('PROPOSAL');
+  const [giftSearch, setGiftSearch] = useState<string>('');
+  const [giftSearchLoading, setGiftSearchLoading] = useState<boolean>(false);
+  const [giftSearchOptions, setGiftSearchOptions] = useState<MenuGiftTargetSuggestion[]>([]);
+
+  const [giftCriteriaType, setGiftCriteriaType] = useState<string>('');
+  const [giftCriteriaCity, setGiftCriteriaCity] = useState<string>('');
+  const [giftCriteriaState, setGiftCriteriaState] = useState<string>('');
+
   useEffect(() => {
-    // Auto-select a valid default target when options arrive / scope changes
+    if (giftTargetMode !== 'INVENTORY') {
+      setGiftSearchOptions([]);
+      setGiftSearchLoading(false);
+      return;
+    }
+
+    // Busca no inventário exige link assinado de owner (t)
+    if (!t) return;
+
+    const q = String(giftSearch || '').trim();
+    if (q.length < 2) {
+      setGiftSearchOptions([]);
+      return;
+    }
+
+    const handle = setTimeout(async () => {
+      try {
+        setGiftSearchLoading(true);
+        const resp = await listMenuGiftTargets({
+          requestId: rid,
+          t,
+          scope: newGiftScope,
+          q,
+          limit: 20,
+        });
+        setGiftSearchOptions(Array.isArray(resp?.items) ? resp.items : []);
+      } catch (err) {
+        setGiftSearchOptions([]);
+      } finally {
+        setGiftSearchLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(handle);
+  }, [giftTargetMode, giftSearch, newGiftScope, rid, t]);
+
+  useEffect(() => {
+    // Auto-select / sync targetId conforme o modo
+    if (giftTargetMode === 'ELIGIBLE') {
+      if (newGiftTargetId !== '*') setNewGiftTargetId('*');
+      return;
+    }
+
+    if (giftTargetMode === 'INVENTORY') {
+      if (!newGiftTargetId || !giftSearchOptions.some((x) => x.id === newGiftTargetId)) {
+        setNewGiftTargetId(giftSearchOptions[0]?.id || '');
+      }
+      return;
+    }
+
+    // PROPOSAL
     if (newGiftScope === 'FACE') {
       if (!newGiftTargetId || !faceOptions.some((x) => x.id === newGiftTargetId)) {
         setNewGiftTargetId(faceOptions[0]?.id || '');
       }
       return;
     }
+
     if (!newGiftTargetId || !pointOptions.some((x) => x.id === newGiftTargetId)) {
       setNewGiftTargetId(pointOptions[0]?.id || '');
     }
-  }, [newGiftScope, newGiftTargetId, faceOptions, pointOptions]);
+  }, [giftTargetMode, newGiftScope, newGiftTargetId, faceOptions, pointOptions, giftSearchOptions]);
 
   const removeDiscount = (id: string) => {
     setDraft((d) => ({ ...d, discounts: (d.discounts || []).filter((x) => x.id !== id) }));
@@ -557,9 +338,74 @@ export default function MenuDonoWorkspace() {
   const addGift = () => {
     if (isLocked) return;
 
-    if ((newGiftScope === 'FACE' && !faceOptions.length) || (newGiftScope === 'POINT' && !pointOptions.length)) {
-      toast.error('Não há itens suficientes para este brinde.');
+    const years = clampInt(newGiftYears, 0, 10);
+    const months = clampInt(newGiftMonths, 0, 24);
+    const days = clampInt(newGiftDays, 0, 31);
+    let totalDays = years * 365 + months * 30 + days;
+    if (totalDays <= 0) totalDays = 30;
+
+    const norm = (v: string) => String(v || '').trim().toLowerCase();
+
+    const buildEligibleLabel = () => {
+      const base = newGiftScope === 'FACE' ? 'Qualquer face elegível' : 'Qualquer ponto elegível';
+      const parts: string[] = [];
+      const type = String(giftCriteriaType || '').trim().toUpperCase();
+      const city = String(giftCriteriaCity || '').trim();
+      const state = String(giftCriteriaState || '').trim().toUpperCase();
+      if (type) parts.push(type);
+      if (city || state) parts.push([city, state].filter(Boolean).join('/'));
+      return parts.length ? `${base} • ${parts.join(' • ')}` : base;
+    };
+
+    const makeId = () => {
+      try {
+        // @ts-ignore
+        return `mg_${crypto.randomUUID()}`;
+      } catch {
+        return `mg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+    };
+
+    if (giftTargetMode === 'ELIGIBLE') {
+      const signature = `ELIGIBLE|${newGiftScope}|${norm(giftCriteriaType)}|${norm(giftCriteriaCity)}|${norm(giftCriteriaState)}`;
+
+      const exists = (draft.gifts || []).some((g) => String(g?.meta?.signature || '') === signature);
+      if (exists) {
+        toast.error('Esse brinde (elegibilidade) já foi adicionado.');
+        return;
+      }
+
+      const gift: MenuGift = {
+        id: makeId(),
+        scope: newGiftScope,
+        targetId: '*',
+        duration: { years, months, days, totalDays },
+        label: buildEligibleLabel(),
+        meta: {
+          mode: 'ANY_ELIGIBLE',
+          criteria: {
+            type: String(giftCriteriaType || '').trim().toUpperCase() || undefined,
+            city: String(giftCriteriaCity || '').trim() || undefined,
+            state: String(giftCriteriaState || '').trim().toUpperCase() || undefined,
+          },
+          signature,
+        },
+      };
+
+      setDraft((d) => ({
+        ...d,
+        gifts: [...(d.gifts || []), gift],
+      }));
+
       return;
+    }
+
+    // SPECIFIC (PROPOSAL ou INVENTORY)
+    if (giftTargetMode === 'PROPOSAL') {
+      if ((newGiftScope === 'FACE' && !faceOptions.length) || (newGiftScope === 'POINT' && !pointOptions.length)) {
+        toast.error('Não há itens suficientes para este brinde na proposta.');
+        return;
+      }
     }
 
     const targetId = String(newGiftTargetId || '').trim();
@@ -568,38 +414,37 @@ export default function MenuDonoWorkspace() {
       return;
     }
 
-    const years = clampInt(newGiftYears, 0, 10);
-    const months = clampInt(newGiftMonths, 0, 24);
-    const days = clampInt(newGiftDays, 0, 31);
-    let totalDays = years * 365 + months * 30 + days;
-    if (totalDays <= 0) totalDays = 30;
-
-    const exists = (draft.gifts || []).some((g) => g.scope === newGiftScope && String(g.targetId) === String(targetId));
+    const signature = `SPECIFIC|${newGiftScope}|${targetId}`;
+    const exists = (draft.gifts || []).some((g) => {
+      const mode = String(g?.meta?.mode || '').toUpperCase();
+      if (mode === 'ANY_ELIGIBLE') return false;
+      return g.scope === newGiftScope && String(g.targetId) === String(targetId);
+    });
     if (exists) {
       toast.error('Esse brinde já foi adicionado para esse alvo.');
       return;
     }
 
-    const id = (() => {
-      try {
-        // @ts-ignore
-        return `mg_${crypto.randomUUID()}`;
-      } catch {
-        return `mg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const label = (() => {
+      if (giftTargetMode === 'INVENTORY') {
+        return giftSearchOptions.find((x) => x.id === targetId)?.label || (newGiftScope === 'FACE' ? 'Brinde por face' : 'Brinde por ponto');
       }
-    })();
-
-    const label =
-      newGiftScope === 'FACE'
+      return newGiftScope === 'FACE'
         ? faceOptions.find((x) => x.id === targetId)?.label || 'Brinde por face'
         : pointOptions.find((x) => x.id === targetId)?.label || 'Brinde por ponto';
+    })();
 
     const gift: MenuGift = {
-      id,
+      id: makeId(),
       scope: newGiftScope,
       targetId,
       duration: { years, months, days, totalDays },
       label,
+      meta: {
+        mode: 'SPECIFIC',
+        source: giftTargetMode,
+        signature,
+      },
     };
 
     setDraft((d) => ({
@@ -640,7 +485,75 @@ export default function MenuDonoWorkspace() {
   const status = String(data?.status || '').toUpperCase();
   const isLocked = status === 'APPROVED';
 
-  const previewTotals = useMemo(() => computePreviewTotals(data, draft), [data, draft]);
+  useEffect(() => {
+    let alive = true;
+    let timer: any = null;
+
+    if (!data) {
+      setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
+      setPreviewError(null);
+      setIsPreviewLoading(false);
+      return () => {
+        alive = false;
+        if (timer) clearTimeout(timer);
+      };
+    }
+
+    // Após aprovação, usamos sempre os totais persistidos na versão atual.
+    if (isLocked) {
+      const locked = currentQuote?.totals;
+      if (locked) {
+        setPreviewTotals({ ...(locked as any), costs: (locked as any)?.costs ?? 0 });
+        setPreviewError(null);
+      } else {
+        // Sem fallback local: o backend é a fonte única.
+        setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0, breakdown: { items: [] } } as any);
+        setPreviewError('Não foi possível carregar os totais da versão atual.');
+      }
+      setIsPreviewLoading(false);
+      return () => {
+        alive = false;
+        if (timer) clearTimeout(timer);
+      };
+    }
+
+    // Debounce (evita flood enquanto digita)
+    setIsPreviewLoading(true);
+    setPreviewError(null);
+
+    timer = setTimeout(() => {
+      (async () => {
+        try {
+          const resp = await previewMenuQuoteTotals({
+            requestId: String(data?.id || ''),
+            token: token || undefined,
+            t: t || undefined,
+            draft,
+          });
+          if (!alive) return;
+          setPreviewTotals({ ...(resp?.totals as any), costs: (resp?.totals as any)?.costs ?? 0 });
+        } catch (err: any) {
+          if (!alive) return;
+          setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0, breakdown: { items: [] } } as any);
+          setPreviewError('Não foi possível atualizar o preview agora.');
+        } finally {
+          if (!alive) return;
+          setIsPreviewLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [data, draft, token, t, isLocked, currentQuote]);
+
+
+  const [previewTotals, setPreviewTotals] = useState<MenuQuoteTotals>({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
 
   useEffect(() => {
     let alive = true;
@@ -718,6 +631,30 @@ export default function MenuDonoWorkspace() {
             })
             .filter(Boolean) as MenuGift[];
 
+          // Etapa 4 — custos no item
+          const loadedItemCosts0 = Array.isArray((last.draft as any)?.itemCosts)
+            ? (((last.draft as any).itemCosts as any) || [])
+            : [];
+
+          const itemCosts: MenuQuoteItemCostLine[] = loadedItemCosts0
+            .map((c: any) => {
+              const scopeRaw = String(c?.scope ?? c?.targetType ?? c?.type ?? '').trim().toUpperCase();
+              const scope: MenuItemCostScope = scopeRaw === 'POINT' || scopeRaw === 'PONTO' ? 'POINT' : 'FACE';
+              const targetId = String(c?.targetId ?? c?.target ?? c?.unitId ?? c?.pointId ?? '').trim();
+              const name = String(c?.name ?? c?.label ?? c?.title ?? '').trim();
+              const value = Math.max(0, Number(c?.value || 0));
+              if (!targetId || !name || !Number.isFinite(value) || value <= 0) return null;
+              return {
+                id: String(c?.id || `mic_legacy_${scope}_${targetId}_${name}`),
+                scope,
+                targetId,
+                name,
+                value: Number(value.toFixed(2)),
+                meta: c?.meta && typeof c.meta === 'object' ? c.meta : undefined,
+              } as MenuQuoteItemCostLine;
+            })
+            .filter(Boolean) as MenuQuoteItemCostLine[];
+
           const legacyPercent = Math.max(0, Number((last.draft as any)?.discountPercent || 0));
           const legacyFixed = Math.max(0, Number((last.draft as any)?.discountFixed || 0));
           const legacyApplyTo = ((String((last.draft as any)?.discountApplyTo || 'ALL').toUpperCase() as any) || 'ALL') as MenuDiscountAppliesTo;
@@ -750,6 +687,7 @@ export default function MenuDonoWorkspace() {
                 }))
               : [],
             manualServiceValue: last.draft.manualServiceValue ?? null,
+            itemCosts,
             gifts,
             discounts: mergedDiscounts,
             // legado
@@ -835,6 +773,64 @@ export default function MenuDonoWorkspace() {
       ...d,
       services: (d.services || []).map((s, i) => (i === idx ? { ...s, ...patch } : s)),
     }));
+  };
+
+  // Etapa 4 — custos no item (ponto/face)
+  const [itemCostInputs, setItemCostInputs] = useState<Record<string, { name: string; value: string }>>({});
+
+  const getItemScopeTarget = (it: any): { scope: MenuItemCostScope; targetId: string } | null => {
+    const unitId = String(it?.unitId ?? '').trim();
+    const pointId = String(it?.pointId ?? '').trim();
+    if (unitId) return { scope: 'FACE', targetId: unitId };
+    if (pointId) return { scope: 'POINT', targetId: pointId };
+    return null;
+  };
+
+  const removeItemCost = (id: string) => {
+    setDraft((d) => ({ ...d, itemCosts: (d.itemCosts || []).filter((c) => c.id !== id) }));
+  };
+
+  const addItemCost = (itemKey: string, it: any) => {
+    if (isLocked) return;
+
+    const st = getItemScopeTarget(it);
+    if (!st) {
+      toast.error('Não foi possível identificar o alvo do custo (ponto/face).');
+      return;
+    }
+
+    const current = itemCostInputs[itemKey] || { name: '', value: '' };
+    const name = String(current.name || '').trim();
+    const value = Math.max(0, Number(current.value || 0));
+
+    if (!name) {
+      toast.error('Informe o nome/descrição do custo.');
+      return;
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.error('Informe um valor válido para o custo.');
+      return;
+    }
+
+    const id = (() => {
+      try {
+        // @ts-ignore
+        return `mic_${crypto.randomUUID()}`;
+      } catch {
+        return `mic_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      }
+    })();
+
+    const line: MenuQuoteItemCostLine = {
+      id,
+      scope: st.scope,
+      targetId: st.targetId,
+      name,
+      value: Number(value.toFixed(2)),
+    };
+
+    setDraft((d) => ({ ...d, itemCosts: [...(d.itemCosts || []), line] }));
+    setItemCostInputs((m) => ({ ...m, [itemKey]: { name: '', value: '' } }));
   };
 
 
@@ -1037,6 +1033,166 @@ export default function MenuDonoWorkspace() {
                     </div>
 
                     <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
+                      <div className="text-sm font-semibold text-gray-900">Itens (memória rápida)</div>
+                      <div className="mt-2 space-y-3">
+                        {(Array.isArray(data.items) ? data.items : []).map((it: any, idx: number) => {
+                          const snap = it?.snapshot || {};
+                          const itemKey = String(it?.id || `${idx}`);
+
+                          const unitLabel = String(snap?.unitLabel || snap?.mediaUnitLabel || '').trim();
+                          const pointName = String(snap?.pointName || snap?.mediaPointName || 'Ponto').trim();
+                          const title = unitLabel ? `${pointName} — ${unitLabel}` : pointName;
+
+                          const durationLabel = formatPeriod(it?.duration || { days: it?.durationDays || 30 });
+
+                          const unitMonth = Number(snap?.unitPriceMonth || 0);
+                          const unitWeek = Number(snap?.unitPriceWeek || 0);
+                          const origin = unitMonth > 0 || unitWeek > 0 ? 'Face' : 'Ponto';
+
+                          const priceMonth = Number(snap?.priceMonth || 0);
+                          const priceWeek = Number(snap?.priceWeek || 0);
+                          const baseSegs: string[] = [];
+                          if (priceMonth > 0) baseSegs.push(`Mês: ${formatMoneyBr(priceMonth)}`);
+                          if (priceWeek > 0) baseSegs.push(`Semana: ${formatMoneyBr(priceWeek)}`);
+
+                          const prodCosts = readProductionCostsList(snap?.productionCosts);
+                          const prodCostsSum = prodCosts.reduce((acc, c) => acc + Math.max(0, Number(c.value || 0)), 0);
+
+                          const st = getItemScopeTarget(it);
+                          const itemCosts = (draft.itemCosts || []).filter((c) =>
+                            st ? c.scope === st.scope && String(c.targetId) === String(st.targetId) : false,
+                          );
+                          const itemCostsSum = itemCosts.reduce((acc, c) => acc + Math.max(0, Number(c.value || 0)), 0);
+
+                          const flowIsPromotions = String((data as any)?.flow || '').toLowerCase() === 'promotions';
+                          const promo = snap?.effectivePromotion ?? snap?.promotion ?? null;
+                          const hasPromo = flowIsPromotions && isPromoActiveNow(promo);
+                          const promoType = String(promo?.discountType || '').toUpperCase();
+                          const promoValue = Math.max(0, Number(promo?.discountValue || 0));
+                          const promoLabel =
+                            !hasPromo || promoValue <= 0
+                              ? ''
+                              : promoType === 'PERCENT'
+                                ? `Promo: -${promoValue}%`
+                                : promoType === 'FIXED'
+                                  ? `Promo: -${formatMoneyBr(promoValue)}`
+                                  : 'Promo ativa';
+
+                          const relatedDiscounts: MenuAppliedDiscount[] = (draft.discounts || []).filter((d) => {
+                            const scope = String(d.scope || '').toUpperCase();
+                            const targetId = String(d.targetId || '').trim();
+                            if (scope === 'GENERAL') return true;
+                            if (scope === 'POINT') return targetId && targetId === String(it?.pointId || '');
+                            if (scope === 'FACE') return targetId && targetId === String(it?.unitId || '');
+                            return false;
+                          });
+
+                          const input = itemCostInputs[itemKey] || { name: '', value: '' };
+
+                          return (
+                            <div key={itemKey} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+                                  <div className="mt-1 text-xs text-gray-600">Período: <span className="font-semibold">{durationLabel}</span></div>
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    Base (origem: <span className="font-semibold">{origin}</span>)
+                                    {baseSegs.length ? <span className="ml-2">• {baseSegs.join(' • ')}</span> : null}
+                                  </div>
+
+                                  {(prodCosts.length > 0 || hasPromo || relatedDiscounts.length > 0) && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {prodCosts.length > 0 && (
+                                        <Badge variant="secondary" className="rounded-full">
+                                          Custos cadastrados: {formatMoneyBr(prodCostsSum)}
+                                        </Badge>
+                                      )}
+                                      {hasPromo && (
+                                        <Badge variant="secondary" className="rounded-full">{promoLabel}</Badge>
+                                      )}
+
+                                      {relatedDiscounts.slice(0, 3).map((d) => {
+                                        const pct = Math.max(0, Number((d as any)?.percent || 0));
+                                        const fix = Math.max(0, Number((d as any)?.fixed || 0));
+                                        const val = pct > 0 ? `-${pct}%` : fix > 0 ? `-${formatMoneyBr(fix)}` : '';
+                                        const label = String(d.label || '').trim() || (String(d.scope).toUpperCase() === 'GENERAL' ? 'Desconto geral' : 'Desconto');
+                                        return (
+                                          <Badge key={d.id} variant="secondary" className="rounded-full">
+                                            {label} {val}
+                                          </Badge>
+                                        );
+                                      })}
+                                      {relatedDiscounts.length > 3 && (
+                                        <Badge variant="secondary" className="rounded-full">+{relatedDiscounts.length - 3} descontos</Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="sm:text-right">
+                                  <div className="text-xs text-gray-500">Custos no item</div>
+                                  <div className="mt-0.5 text-sm font-bold text-gray-900">{formatMoneyBr(itemCostsSum)}</div>
+                                </div>
+                              </div>
+
+                              {prodCosts.length > 0 && (
+                                <div className="mt-2 text-xs text-gray-600">
+                                  {prodCosts.slice(0, 6).map((c) => (
+                                    <span key={c.name} className="mr-2 inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5">
+                                      <span className="text-gray-500">{c.name}:</span> <span className="font-semibold">{formatMoneyBr(c.value)}</span>
+                                    </span>
+                                  ))}
+                                  {prodCosts.length > 6 && <span className="text-gray-500">+{prodCosts.length - 6}…</span>}
+                                </div>
+                              )}
+
+                              {itemCosts.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {itemCosts.map((c) => (
+                                    <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
+                                      <div className="min-w-0">
+                                        <div className="text-sm text-gray-900 truncate">{c.name}</div>
+                                        <div className="text-xs text-gray-500">{c.scope === 'FACE' ? 'Face' : 'Ponto'} • entra em “Custos”</div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(c.value)}</div>
+                                        <Button variant="outline" size="sm" onClick={() => removeItemCost(c.id)} disabled={isLocked}>
+                                          Remover
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <Input
+                                  value={input.name}
+                                  onChange={(e) => setItemCostInputs((m) => ({ ...m, [itemKey]: { ...(m[itemKey] || { name: '', value: '' }), name: e.target.value } }))}
+                                  placeholder="Descrição do custo"
+                                  disabled={isLocked}
+                                />
+                                <Input
+                                  type="number"
+                                  value={input.value}
+                                  onChange={(e) => setItemCostInputs((m) => ({ ...m, [itemKey]: { ...(m[itemKey] || { name: '', value: '' }), value: e.target.value } }))}
+                                  placeholder="Valor"
+                                  disabled={isLocked}
+                                />
+                                <Button variant="outline" onClick={() => addItemCost(itemKey, it)} disabled={isLocked}>
+                                  Adicionar custo no item
+                                </Button>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-500">
+                                Dica: use <span className="font-semibold">custo no item</span> para que entre no bloco de <span className="font-semibold">Custos</span> (descontável por descontos gerais quando aplicável). Para itens “por fora”, use <span className="font-semibold">Serviços</span>.
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <Separator className="my-4" />
+
                       <div className="text-xs text-gray-500">Mensagem (opcional)</div>
                       <div className="mt-2">
                         <Textarea
@@ -1341,8 +1497,8 @@ export default function MenuDonoWorkspace() {
 
                       <div className="mt-3 rounded-xl border border-gray-200 p-3">
                         <div className="text-xs font-semibold text-gray-700">Adicionar brinde</div>
-                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-6 gap-2">
-                          <div>
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-8 gap-2">
+                          <div className="sm:col-span-2">
                             <div className="text-xs text-gray-500">Tipo</div>
                             <select
                               className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
@@ -1356,34 +1512,107 @@ export default function MenuDonoWorkspace() {
                           </div>
 
                           <div className="sm:col-span-2">
-                            <div className="text-xs text-gray-500">Alvo</div>
-                            {newGiftScope === 'FACE' ? (
-                              <select
-                                className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
-                                value={newGiftTargetId}
-                                onChange={(e) => setNewGiftTargetId(e.target.value)}
-                                disabled={isLocked || !faceOptions.length}
-                              >
-                                {faceOptions.map((o) => (
-                                  <option key={o.id} value={o.id}>
-                                    {o.label}
-                                  </option>
-                                ))}
-                              </select>
+                            <div className="text-xs text-gray-500">Modo</div>
+                            <select
+                              className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                              value={giftTargetMode}
+                              onChange={(e) => setGiftTargetMode(e.target.value as any)}
+                              disabled={isLocked}
+                            >
+                              <option value="PROPOSAL">Itens da proposta</option>
+                              <option value="INVENTORY">Buscar no inventário</option>
+                              <option value="ELIGIBLE">Qualquer elegível (regra)</option>
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-3">
+                            <div className="text-xs text-gray-500">{giftTargetMode === 'ELIGIBLE' ? 'Elegibilidade' : 'Alvo'}</div>
+
+                            {giftTargetMode === 'ELIGIBLE' ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <Input
+                                  value={giftCriteriaType}
+                                  onChange={(e) => setGiftCriteriaType(e.target.value)}
+                                  placeholder="Tipo (OOH/DOOH)"
+                                  disabled={isLocked}
+                                />
+                                <Input
+                                  value={giftCriteriaCity}
+                                  onChange={(e) => setGiftCriteriaCity(e.target.value)}
+                                  placeholder="Cidade"
+                                  disabled={isLocked}
+                                />
+                                <Input
+                                  value={giftCriteriaState}
+                                  onChange={(e) => setGiftCriteriaState(e.target.value)}
+                                  placeholder="UF"
+                                  disabled={isLocked}
+                                />
+                              </div>
+                            ) : giftTargetMode === 'INVENTORY' ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={giftSearch}
+                                  onChange={(e) => setGiftSearch(e.target.value)}
+                                  placeholder="Buscar no inventário (mín. 2 letras)"
+                                  disabled={isLocked || !t}
+                                />
+                                <select
+                                  className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                  value={newGiftTargetId}
+                                  onChange={(e) => setNewGiftTargetId(e.target.value)}
+                                  disabled={isLocked || !t || giftSearchLoading || !giftSearchOptions.length}
+                                >
+                                  {(giftSearchOptions || []).map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {!t ? (
+                                  <div className="text-[11px] text-amber-600">
+                                    Para buscar no inventário, use o link do dono (t) gerado na área do proprietário.
+                                  </div>
+                                ) : null}
+                                {t && giftSearch && giftSearch.trim().length >= 2 && giftSearchLoading ? (
+                                  <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Buscando...
+                                  </div>
+                                ) : null}
+                              </div>
                             ) : (
                               <select
                                 className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
                                 value={newGiftTargetId}
                                 onChange={(e) => setNewGiftTargetId(e.target.value)}
-                                disabled={isLocked || !pointOptions.length}
+                                disabled={isLocked || (newGiftScope === 'FACE' ? !faceOptions.length : !pointOptions.length)}
                               >
-                                {pointOptions.map((o) => (
+                                {(newGiftScope === 'FACE' ? faceOptions : pointOptions).map((o) => (
                                   <option key={o.id} value={o.id}>
                                     {o.label}
                                   </option>
                                 ))}
                               </select>
                             )}
+
+                            {giftTargetMode === 'ELIGIBLE' ? (
+                              <div className="mt-2 text-[11px] text-gray-500">
+                                Será exibido como:{' '}
+                                <span className="font-semibold">
+                                  {(() => {
+                                    const base = newGiftScope === 'FACE' ? 'Qualquer face elegível' : 'Qualquer ponto elegível';
+                                    const parts: string[] = [];
+                                    const type = String(giftCriteriaType || '').trim().toUpperCase();
+                                    const city = String(giftCriteriaCity || '').trim();
+                                    const state = String(giftCriteriaState || '').trim().toUpperCase();
+                                    if (type) parts.push(type);
+                                    if (city || state) parts.push([city, state].filter(Boolean).join('/'));
+                                    return parts.length ? `${base} • ${parts.join(' • ')}` : base;
+                                  })()}
+                                </span>
+                              </div>
+                            ) : null}
                           </div>
 
                           <div>
@@ -1409,7 +1638,11 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
-                      <div className="text-sm font-semibold text-gray-900">Resumo (preview)</div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                        Resumo (preview)
+                        {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin text-gray-500" /> : null}
+                      </div>
+                      {previewError ? <div className="mt-1 text-xs text-amber-600">{previewError}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
                           <div className="text-xs text-gray-500">Base</div>
@@ -1420,11 +1653,19 @@ export default function MenuDonoWorkspace() {
                           <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.services)}</div>
                         </div>
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
+                          <div className="text-xs text-gray-500">Custos de produção</div>
+                          <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.costs ?? 0)}</div>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 px-3 py-2">
                           <div className="text-xs text-gray-500">Descontos</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
-                            {previewTotals.breakdown?.servicesLineDiscount > 0 ? (
-                              <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown.servicesLineDiscount)}</div>
+                            {(previewTotals.breakdown?.servicesLineDiscount ?? 0) > 0 ? (
+                              <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown?.servicesLineDiscount ?? 0)}</div>
+                            ) : null}
+
+                            {(previewTotals.breakdown?.costsLineDiscount ?? 0) > 0 ? (
+                              <div>Custos (linhas): - {formatMoneyBr(previewTotals.breakdown?.costsLineDiscount ?? 0)}</div>
                             ) : null}
 
                             {(previewTotals.breakdown?.appliedDiscounts || []).map((d) => (
@@ -1441,7 +1682,7 @@ export default function MenuDonoWorkspace() {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                        <div className="col-span-2 rounded-xl border border-gray-200 px-3 py-2">
                           <div className="text-xs text-gray-500">Brindes (R$ 0)</div>
                           <div className="text-sm font-semibold text-gray-900">{(draft.gifts || []).length} item(ns)</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
@@ -1457,7 +1698,7 @@ export default function MenuDonoWorkspace() {
                         </div>
 
                         <div
-                          className="rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
+                          className="col-span-2 rounded-xl border border-gray-900 bg-gray-900 px-3 py-2"
                           style={{ backgroundColor: "#111827", color: "#ffffff" }}
                         >
                           <div className="text-xs text-gray-300">Total</div>
