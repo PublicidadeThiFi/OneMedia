@@ -98,12 +98,12 @@ export function MobileFeatureTabs() {
   }, [slides.length]);
 
   return (
-    <section id="mobile-modulos" className="py-16">
-      <div className="max-w-3xl mx-auto px-4 sm:px-5 space-y-5">
+    <section id="mobile-modulos" className="py-16 md:py-20">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 space-y-5">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Fluxos na palma da mão</p>
-          <h2 className="text-2xl font-semibold text-gray-900">Escolha o módulo e veja o fluxo mobile</h2>
-          <p className="text-sm text-gray-600">Navegação simples, cartões claros e os mesmos dados do desktop, sem abrir mão da velocidade.</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Fluxos na palma da mão</p>
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Escolha o módulo e veja o fluxo mobile</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Navegação simples, cartões claros e os mesmos dados do desktop, sem abrir mão da velocidade.</p>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -113,8 +113,8 @@ export function MobileFeatureTabs() {
               onClick={() => goTo(item.key)}
               className={`flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold shadow-sm transition-colors ${
                 item.key === activeKey
-                  ? 'border-blue-600 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-blue-200'
+                  ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:border-blue-200 dark:hover:border-blue-700'
               }`}
             >
               <item.icon className="h-4 w-4" />
@@ -123,18 +123,18 @@ export function MobileFeatureTabs() {
           ))}
         </div>
 
-        <div className={`relative rounded-2xl border border-gray-100 bg-gradient-to-br ${selected.accent} p-4 shadow-sm space-y-4`}>
+        <div className={`relative rounded-2xl border border-gray-100 dark:border-gray-800 bg-gradient-to-br ${selected.accent} dark:from-gray-900 dark:to-gray-950 p-4 shadow-sm space-y-4`}>
           <div className="flex items-start gap-3">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-blue-600 shadow">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white dark:bg-gray-900 text-blue-600 dark:text-blue-300 shadow">
               <Icon className="h-5 w-5" />
             </span>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">{selected.title}</h3>
-              <p className="text-sm text-gray-600">{selected.description}</p>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{selected.title}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">{selected.description}</p>
             </div>
           </div>
 
-          <div className="rounded-xl bg-white border border-gray-100 p-3 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 p-3 shadow-sm relative overflow-hidden">
             <img
               key={selected.key}
               src={selected.image}
@@ -146,37 +146,37 @@ export function MobileFeatureTabs() {
               <button
                 aria-label="Anterior"
                 onClick={prevSlide}
-                className="rounded-full bg-white/80 border border-gray-200 p-2 shadow hover:bg-white"
+                className="rounded-full bg-white/80 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 p-2 shadow hover:bg-white dark:hover:bg-gray-900"
               >
-                <ChevronLeft className="h-5 w-5 text-gray-700" />
+                <ChevronLeft className="h-5 w-5 text-gray-700 dark:text-gray-200" />
               </button>
             </div>
             <div className="absolute inset-y-0 right-2 flex items-center">
               <button
                 aria-label="Próximo"
                 onClick={nextSlide}
-                className="rounded-full bg-white/80 border border-gray-200 p-2 shadow hover:bg-white"
+                className="rounded-full bg-white/80 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 p-2 shadow hover:bg-white dark:hover:bg-gray-900"
               >
-                <ChevronRight className="h-5 w-5 text-gray-700" />
+                <ChevronRight className="h-5 w-5 text-gray-700 dark:text-gray-200" />
               </button>
             </div>
           </div>
 
           <div className="space-y-2">
             {selected.bullets.map((bullet) => (
-              <div key={bullet} className="flex items-start gap-2 text-sm text-gray-700">
+              <div key={bullet} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
                 <Check className="h-4 w-4 text-green-600" />
                 <span>{bullet}</span>
               </div>
             ))}
           </div>
 
-          <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 border border-gray-100">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <div className="flex items-center justify-between rounded-xl bg-white dark:bg-gray-900 px-4 py-3 border border-gray-100 dark:border-gray-800">
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
               <ArrowRight className="h-4 w-4 text-blue-600" />
               Resultado direto no app
             </div>
-            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full">{selected.stat}</span>
+            <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 px-3 py-1 rounded-full">{selected.stat}</span>
           </div>
         </div>
       </div>

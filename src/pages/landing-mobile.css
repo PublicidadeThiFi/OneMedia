@@ -1,0 +1,28 @@
+.mobile-landing-page {
+  min-height: 100svh;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.mobile-landing-topbar {
+  padding-top: env(safe-area-inset-top);
+}
+
+.mobile-landing-main {
+  padding-top: calc(72px + env(safe-area-inset-top));
+  padding-bottom: max(4rem, env(safe-area-inset-bottom));
+}
+
+@supports not (height: 100svh) {
+  .mobile-landing-page {
+    min-height: 100vh;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .mobile-landing-main {
+    padding-top: calc(80px + env(safe-area-inset-top));
+    padding-bottom: max(5rem, env(safe-area-inset-bottom));
+  }
+}

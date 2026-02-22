@@ -8,17 +8,17 @@ export function MobileTopBar() {
   const { openWaitlist } = useWaitlist();
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
-      <div className="max-w-3xl mx-auto px-4 sm:px-5 py-2 flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="mobile-landing-topbar fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur border-b border-gray-100 dark:border-gray-800">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-2 flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <img src={imgOnemediaLogo} alt="OneMedia" className="h-8 w-auto" />
-          <span className="hidden sm:inline text-xs text-gray-600 whitespace-nowrap">Suite OOH/DOOH</span>
+          <span className="hidden sm:inline text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">Suite OOH/DOOH</span>
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
           <button
             onClick={() => navigate('/login')}
-            className="text-xs sm:text-sm text-gray-700 hover:text-blue-600 whitespace-nowrap"
+            className="text-xs sm:text-sm text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 whitespace-nowrap"
           >
             Entrar
           </button>
@@ -31,7 +31,7 @@ export function MobileTopBar() {
           </button>
           <button
             aria-label="Menu"
-            className="p-2 text-gray-700 hover:text-blue-600 lg:hidden"
+            className="p-2 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 lg:hidden"
           >
             <Menu className="h-5 w-5" />
           </button>
