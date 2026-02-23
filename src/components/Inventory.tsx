@@ -13,6 +13,7 @@ import { useMediaPoints } from '../hooks/useMediaPoints';
 import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
 import { useCompany } from '../contexts/CompanyContext';
 import apiClient from '../lib/apiClient';
+import { resolveUploadsUrl } from '../lib/format';
 import { toast } from 'sonner';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
 import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
@@ -23,17 +24,6 @@ import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
 
 export function Inventory() {
   const { refreshPointsUsed } = useCompany();
-  // Normaliza URLs antigas (absolutas) para caminho relativo em /uploads/...
-  // Isso permite servir os arquivos via rewrite/proxy (ex.: Vercel) sem depender de HTTPS/porta no backend.
-    const normalizeUploadsUrl = (value?: string | null) => {
-    if (!value) return value ?? '';
-    // ✅ valores antigos podem ter sido salvos como "uploads/..." (sem a barra inicial)
-    if (value.startsWith('uploads/')) return `/${value}`;
-    if (value.startsWith('/uploads/')) return value;
-    const idx = value.indexOf('/uploads/');
-    if (idx >= 0) return value.slice(idx);
-    return value;
-  };
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
@@ -371,7 +361,7 @@ export function Inventory() {
               <div className="aspect-video bg-gray-100 relative overflow-hidden rounded-t-xl">
                 <MediaPointImageCarousel
                   point={point}
-                  normalizeUploadsUrl={normalizeUploadsUrl}
+                  normalizeUploadsUrl={resolveUploadsUrl}
                   fallbackSrc="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800"
                 />
                 <Badge className="absolute top-3 left-3 bg-indigo-500">

@@ -61,10 +61,40 @@ export function formatBRLFromCents(cents?: unknown, fallback: string = 'R$ 0,00'
 export function resolveUploadsUrl(url?: string | null): string | null {
   if (!url) return null;
 
-  if (/^https?:\/\//i.test(url)) return url;
+  const raw = String(url).trim();
+  if (!raw) return null;
 
-  const uploadsIndex = url.indexOf('/uploads/');
-  const normalized = uploadsIndex >= 0 ? url.slice(uploadsIndex) : url;
+  // Mantém URLs absolutas (CDN, etc.), blob e data URLs
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('blob:') || raw.startsWith('data:')) return raw;
+
+  let normalized = raw;
+
+  // valores antigos podem ter sido salvos como "uploads/..." (sem a barra inicial)
+  if (normalized.startsWith('uploads/')) normalized = `/${normalized}`;
+
+  // se vier com domínio/host completo, cortamos para começar em "/uploads/..."
+  const uploadsIndex = normalized.indexOf('/uploads/');
+  if (uploadsIndex >= 0) {
+    normalized = normalized.slice(uploadsIndex);
+  } else if (normalized.startsWith('/uploads/')) {
+    // ok
+  } else if (!normalized.startsWith('/')) {
+    // key do bucket (ex: "media-points/..." )
+    normalized = `/uploads/${normalized.replace(/^\/+/, '')}`;
+  } else {
+    // Caminhos absolutos do app (ex: /images/...) não devem ser alterados.
+    // Só tratamos como uploads quando o caminho se parece com key do bucket.
+    const cleaned = normalized.replace(/^\/+/, '');
+    const looksLikeUploadKey =
+      cleaned.startsWith('media-points/') ||
+      cleaned.startsWith('media-units/') ||
+      cleaned.startsWith('companies/') ||
+      cleaned.startsWith('owner-companies/') ||
+      cleaned.startsWith('users/');
+
+    if (!looksLikeUploadKey) return normalized;
+    normalized = `/uploads/${cleaned}`;
+  }
 
   const base = String((apiClient.defaults as any)?.baseURL ?? '');
   // Base relativa: /api (Vercel rewrites / reverse proxy)

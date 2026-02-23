@@ -1,4 +1,5 @@
-import { MediaPoint, MediaType, MediaUnit, UnitType } from '../types';
+import { MediaPoint, MediaType, MediaUnit, PromotionPayload, ProductionCosts, UnitType } from '../types';
+import { getEffectivePromotion } from './menuPromotions';
 
 export const CART_STORAGE_KEY = 'menu_cart';
 
@@ -27,6 +28,20 @@ export type MenuCartItemSnapshot = {
   unitType?: UnitType;
   priceMonth?: number | null;
   priceWeek?: number | null;
+
+  /** Etapa 3: herança ponto->face (fallback) */
+  pointBasePriceMonth?: number | null;
+  pointBasePriceWeek?: number | null;
+  unitPriceMonth?: number | null;
+  unitPriceWeek?: number | null;
+
+  /** Etapa 3: custos de produção do item */
+  productionCosts?: ProductionCosts | null;
+
+  /** Etapa 3: promoção efetiva aplicada ao item (face > ponto), quando existir */
+  effectivePromotion?: PromotionPayload | null;
+  /** Alias compatível */
+  promotion?: PromotionPayload | null;
 };
 
 export type MenuCartItem = {
@@ -214,6 +229,15 @@ export function addToCart(input: {
     unitType: unit?.unitType,
     priceMonth: (unit?.priceMonth ?? point.basePriceMonth) ?? null,
     priceWeek: (unit?.priceWeek ?? point.basePriceWeek) ?? null,
+
+    pointBasePriceMonth: point.basePriceMonth ?? null,
+    pointBasePriceWeek: point.basePriceWeek ?? null,
+    unitPriceMonth: unit?.priceMonth ?? null,
+    unitPriceWeek: unit?.priceWeek ?? null,
+
+    productionCosts: point.productionCosts ?? null,
+    effectivePromotion: getEffectivePromotion(unit, point),
+    promotion: getEffectivePromotion(unit, point),
   };
 
   const pointId = point.id;

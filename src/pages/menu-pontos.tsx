@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { useNavigation } from '../contexts/NavigationContext';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
+import { formatPromotionBadge, pickBestPromoForPoint, pointHasAnyPromotion } from '../lib/menuPromotions';
 
 function formatCurrency(v: number | null | undefined) {
   if (v === null || v === undefined) return '—';
@@ -32,7 +33,7 @@ export default function MenuSelectPoints() {
   const [q, setQ] = useState('');
 
   const { token, flow, ownerCompanyId, uf, city } = useMemo(() => getMenuQueryParams(), []);
-  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId });
+  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
   const isAgency = isAgencyFlow(flow);
   const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
@@ -45,6 +46,8 @@ export default function MenuSelectPoints() {
       if (uf && pUf !== uf) return false;
       if (city && pCity !== city) return false;
 
+      if (flow === 'promotions' && !pointHasAnyPromotion(p as any)) return false;
+
       const query = q.trim().toLowerCase();
       if (!query) return true;
       return (
@@ -56,7 +59,7 @@ export default function MenuSelectPoints() {
     });
 
     return filtered.sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
-  }, [data?.points, uf, city, q]);
+  }, [data?.points, uf, city, q, flow]);
 
   return (
     <div className="min-h-screen w-full bg-gray-50">
@@ -133,8 +136,22 @@ export default function MenuSelectPoints() {
                 </Card>
               ))
             : points.map((p) => {
+                const isPromotions = flow === 'promotions';
+
+                const promoMonth = isPromotions ? pickBestPromoForPoint(p as any, 'month') : null;
+                const promoWeek = isPromotions ? pickBestPromoForPoint(p as any, 'week') : null;
+
                 const priceMonth = isAgency ? applyAgencyMarkup(p.basePriceMonth, markupPct) : p.basePriceMonth;
                 const priceWeek = isAgency ? applyAgencyMarkup(p.basePriceWeek, markupPct) : p.basePriceWeek;
+
+                const promoMonthFrom = promoMonth ? applyAgencyMarkup(promoMonth.from, markupPct) : null;
+                const promoMonthTo = promoMonth ? applyAgencyMarkup(promoMonth.to, markupPct) : null;
+                const promoWeekFrom = promoWeek ? applyAgencyMarkup(promoWeek.from, markupPct) : null;
+                const promoWeekTo = promoWeek ? applyAgencyMarkup(promoWeek.to, markupPct) : null;
+
+                const badgeText =
+                  formatPromotionBadge(promoMonth?.promotion || promoWeek?.promotion || (p as any).promotion) ||
+                  (isPromotions ? 'Promoção' : null);
 
                 return (
                   <Card
@@ -164,17 +181,40 @@ export default function MenuSelectPoints() {
                               </div>
                             </div>
 
-                            <Badge variant="outline" className="whitespace-nowrap">
-                              {p.type}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              {isPromotions && badgeText && (
+                                <Badge variant="secondary" className="whitespace-nowrap">
+                                  {badgeText}
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="whitespace-nowrap">
+                                {p.type}
+                              </Badge>
+                            </div>
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2 text-xs">
                             <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
-                              Mês: <b>{formatCurrency(priceMonth)}</b>
+                              Mês:{' '}
+                              {isPromotions && promoMonth && promoMonthFrom !== null && promoMonthTo !== null ? (
+                                <>
+                                  <span className="line-through text-gray-500">{formatCurrency(promoMonthFrom)}</span>{' '}
+                                  <b className="text-gray-900">{formatCurrency(promoMonthTo)}</b>
+                                </>
+                              ) : (
+                                <b>{formatCurrency(priceMonth)}</b>
+                              )}
                             </span>
                             <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
-                              Semana: <b>{formatCurrency(priceWeek)}</b>
+                              Semana:{' '}
+                              {isPromotions && promoWeek && promoWeekFrom !== null && promoWeekTo !== null ? (
+                                <>
+                                  <span className="line-through text-gray-500">{formatCurrency(promoWeekFrom)}</span>{' '}
+                                  <b className="text-gray-900">{formatCurrency(promoWeekTo)}</b>
+                                </>
+                              ) : (
+                                <b>{formatCurrency(priceWeek)}</b>
+                              )}
                             </span>
                           </div>
 

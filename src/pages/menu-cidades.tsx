@@ -28,7 +28,7 @@ export default function MenuSelectCity() {
   const [q, setQ] = useState('');
 
   const { token, flow, ownerCompanyId, uf } = useMemo(() => getMenuQueryParams(), []);
-  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId });
+  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
   const cities = useMemo<CityRow[]>(() => {
     const points = data?.points ?? [];

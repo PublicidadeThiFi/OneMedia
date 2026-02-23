@@ -31,7 +31,7 @@ export default function MenuSelectUF() {
   const [q, setQ] = useState('');
 
   const { token, flow, ownerCompanyId } = useMemo(() => getMenuQueryParams(), []);
-  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId });
+  const { data, loading, error, reload } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
   const ufs = useMemo<UfRow[]>(() => {
     const points = data?.points ?? [];

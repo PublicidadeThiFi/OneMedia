@@ -87,7 +87,7 @@ export type MenuQuoteDiscountApplyTo = 'SERVICES' | 'BASE' | 'ALL';
  * Nota: mantemos campos legados por compatibilidade, mas o preferencial é `draft.discounts`.
  */
 export type MenuDiscountScope = 'FACE' | 'POINT' | 'GENERAL' | 'CATEGORY';
-export type MenuDiscountAppliesTo = 'BASE' | 'SERVICES' | 'ALL';
+export type MenuDiscountAppliesTo = 'BASE' | 'SERVICES' | 'COSTS' | 'ALL';
 
 export type MenuAppliedDiscount = {
   id: string;
@@ -126,7 +126,7 @@ export type MenuGiftDuration = {
 export type MenuGift = {
   id: string;
   scope: MenuGiftScope;
-  targetId: string; // FACE: unitId | POINT: pointId
+  targetId: string; // FACE: unitId | POINT: pointId | "*" (qualquer elegível)
   duration: MenuGiftDuration;
   label?: string | null;
   meta?: Record<string, any>;
@@ -139,10 +139,25 @@ export type MenuQuoteServiceLine = {
   discountFixed?: number | null;
 };
 
+// Etapa 4 — custos “no item” (ponto/face)
+export type MenuItemCostScope = 'FACE' | 'POINT';
+
+export type MenuQuoteItemCostLine = {
+  id: string;
+  scope: MenuItemCostScope;
+  targetId: string; // FACE: unitId | POINT: pointId | "*" (qualquer elegível)
+  name: string;
+  value: number;
+  meta?: Record<string, any>;
+};
+
 export type MenuQuoteDraft = {
   message?: string | null;
   services?: MenuQuoteServiceLine[];
   manualServiceValue?: number | null;
+
+  /** Etapa 4 — custos adicionados diretamente no item (ponto/face). */
+  itemCosts?: MenuQuoteItemCostLine[];
 
   // Etapa 6 — Brindes (não soma no total; aparece no documento)
   gifts?: MenuGift[];
@@ -156,6 +171,32 @@ export type MenuQuoteDraft = {
   discountApplyTo?: MenuQuoteDiscountApplyTo | null;
 };
 
+export type MenuQuoteItemBreakdown = {
+  index: number;
+  pointId?: string | null;
+  unitId?: string | null;
+
+  title: string;
+  location?: string | null;
+
+  durationLabel: string;
+  durationDays: number;
+
+  baseGross: number;
+  baseNet: number;
+
+  costsGross?: number;
+  costsNet?: number;
+
+  /** Etapa 4 — detalhamento de custos do item (produção + adicionados no item). */
+  costsParts?: Array<{
+    source: 'production' | 'item';
+    name: string;
+    gross: number;
+    net: number;
+  }>;
+};
+
 export type MenuQuoteTotalsBreakdown = {
   baseGross: number;
   baseNet: number;
@@ -163,16 +204,34 @@ export type MenuQuoteTotalsBreakdown = {
   servicesGross: number;
   servicesNet: number;
 
+  costsGross?: number;
+  costsNet?: number;
+
   servicesLineDiscount: number;
+  costsLineDiscount?: number;
+
   baseDiscount: number;
   servicesDiscount: number;
+  costsDiscount?: number;
 
   appliedDiscounts: MenuAppliedDiscountImpact[];
+  items?: MenuQuoteItemBreakdown[];
+  // Etapa 5 — brindes (itens gratuitos, valor R$0)
+  gifts?: Array<{
+    scope: MenuGiftScope;
+    targetId: string;
+    label: string;
+    durationLabel: string;
+    durationDays: number;
+    value: number;
+    meta?: Record<string, any>;
+  }>;
 };
 
 export type MenuQuoteTotals = {
   base: number;
   services: number;
+  costs?: number;
   discount: number;
   total: number;
   breakdown?: MenuQuoteTotalsBreakdown;
@@ -294,6 +353,49 @@ export async function fetchMenuRequest(params: {
   return resp.data;
 }
 
+// Etapa 5 — Brindes: buscar alvos no inventário (faces/pontos)
+export type MenuGiftTargetSuggestion = {
+  id: string;
+  scope: MenuGiftScope;
+  label: string;
+  meta?: Record<string, any>;
+};
+
+export async function listMenuGiftTargets(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  scope: MenuGiftScope;
+  q?: string;
+  limit?: number;
+  city?: string;
+  state?: string;
+  type?: string;
+}): Promise<{ items: MenuGiftTargetSuggestion[] }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const scope = params.scope;
+
+  const query: Record<string, string | undefined> = {
+    scope,
+    q: params.q ? String(params.q) : undefined,
+    limit: params.limit != null ? String(params.limit) : undefined,
+    city: params.city ? String(params.city) : undefined,
+    state: params.state ? String(params.state) : undefined,
+    type: params.type ? String(params.type) : undefined,
+  };
+  if (t) query.t = t;
+  else query.token = token;
+
+  const resp = await publicApiClient.get<{ items: MenuGiftTargetSuggestion[] }>(
+    `/public/menu/request/${encodeURIComponent(requestId)}/gift-targets`,
+    { params: query },
+  );
+  return resp.data;
+}
+
+
 export async function sendMenuQuote(params: {
   requestId: string;
   token?: string;
@@ -305,6 +407,22 @@ export async function sendMenuQuote(params: {
   const t = String(params.t || '').trim();
   const resp = await publicApiClient.post<{ version: number; totals: MenuQuoteTotals }>(
     `/public/menu/quote/${encodeURIComponent(requestId)}/send`,
+    { token: token || undefined, t: t || undefined, draft: params.draft },
+  );
+  return resp.data;
+}
+
+export async function previewMenuQuoteTotals(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+  draft: MenuQuoteDraft;
+}): Promise<{ totals: MenuQuoteTotals }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const resp = await publicApiClient.post<{ totals: MenuQuoteTotals }>(
+    `/public/menu/quote/${encodeURIComponent(requestId)}/preview`,
     { token: token || undefined, t: t || undefined, draft: params.draft },
   );
   return resp.data;
