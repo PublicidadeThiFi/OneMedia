@@ -6,6 +6,7 @@ import { MobileCTA } from '../components/landing/mobile/MobileCTA';
 import { Footer } from '../components/landing/Footer';
 import './landing-mobile.css';
 
+
 export default function MobileLandingPage() {
   return (
     <div className="mobile-landing-page min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100 overflow-x-hidden">
