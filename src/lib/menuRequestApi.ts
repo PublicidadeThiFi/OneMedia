@@ -135,7 +135,7 @@ export type MenuGiftDuration = {
 export type MenuGift = {
   id: string;
   scope: MenuGiftScope;
-  targetId: string; // FACE: unitId | POINT: pointId | "*" (qualquer elegível)
+  targetId: string; // FACE: unitId | POINT: pointId
   duration: MenuGiftDuration;
   label?: string | null;
   meta?: Record<string, any>;
@@ -154,7 +154,7 @@ export type MenuItemCostScope = 'FACE' | 'POINT';
 export type MenuQuoteItemCostLine = {
   id: string;
   scope: MenuItemCostScope;
-  targetId: string; // FACE: unitId | POINT: pointId | "*" (qualquer elegível)
+  targetId: string; // FACE: unitId | POINT: pointId
   name: string;
   value: number;
   meta?: Record<string, any>;
