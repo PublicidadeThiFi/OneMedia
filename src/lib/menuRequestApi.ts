@@ -484,3 +484,75 @@ export async function regenerateMenuLink(params: {
   );
   return resp.data;
 }
+
+
+function ensureTrailingSlash(v: string): string {
+  const s = String(v || '').trim();
+  if (!s) return s;
+  return s.endsWith('/') ? s : `${s}/`;
+}
+
+/**
+ * Resolve a base URL do publicApiClient em formato absoluto.
+ * - Se o baseURL for relativo (ex.: "/api"), resolve com window.location.origin.
+ * - Mantém o path (ex.: "/api/") para que as rotas "/public/*" funcionem.
+ */
+export function resolvePublicApiBaseUrl(): string {
+  const rawBase = String((publicApiClient as any)?.defaults?.baseURL || '').trim();
+
+  // SSR/Node safety: se não houver window, devolve o baseURL como está.
+  if (typeof window === 'undefined') return ensureTrailingSlash(rawBase);
+
+  const origin = window.location.origin;
+  if (!rawBase) return ensureTrailingSlash(`${origin}/`);
+
+  try {
+    const u = new URL(rawBase, origin);
+    return ensureTrailingSlash(u.toString().replace(/\/+$/, ''));
+  } catch {
+    return ensureTrailingSlash(`${origin}/`);
+  }
+}
+
+/**
+ * Monta a URL de download do contrato (PDF) usando a mesma base do publicApiClient.
+ * Evita casos em que /api relativo cai no servidor do front e redireciona.
+ */
+export function buildMenuContractUrl(params: { requestId: string; token?: string; t?: string }): string {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+
+  const base = resolvePublicApiBaseUrl();
+  const url = new URL(`public/menu/quote/${encodeURIComponent(requestId)}/contract`, base);
+
+  if (t) url.searchParams.set('t', t);
+  else if (token) url.searchParams.set('token', token);
+
+  return url.toString();
+}
+
+export function extractFilenameFromContentDisposition(header: string | null | undefined, fallback: string): string {
+  const raw = String(header || '').trim();
+  if (!raw) return fallback;
+
+  // filename*=UTF-8''...
+  const utf8 = raw.match(/filename\*=(?:UTF-8'')?([^;]+)/i);
+  if (utf8 && utf8[1]) {
+    const v = utf8[1].trim().replace(/^"|"$/g, '');
+    try {
+      const decoded = decodeURIComponent(v);
+      if (decoded) return decoded;
+    } catch {
+      if (v) return v;
+    }
+  }
+
+  const m = raw.match(/filename=([^;]+)/i);
+  if (m && m[1]) {
+    const v = m[1].trim().replace(/^"|"$/g, '');
+    if (v) return v;
+  }
+
+  return fallback;
+}
