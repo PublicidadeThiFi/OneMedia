@@ -199,14 +199,10 @@ export default function MenuDonoWorkspace() {
   const [newGiftMonths, setNewGiftMonths] = useState<string>('');
   const [newGiftDays, setNewGiftDays] = useState<string>('30');
 
-  const [giftTargetMode, setGiftTargetMode] = useState<'PROPOSAL' | 'INVENTORY' | 'ELIGIBLE'>('PROPOSAL');
+  const [giftTargetMode, setGiftTargetMode] = useState<'PROPOSAL' | 'INVENTORY'>('PROPOSAL');
   const [giftSearch, setGiftSearch] = useState<string>('');
   const [giftSearchLoading, setGiftSearchLoading] = useState<boolean>(false);
   const [giftSearchOptions, setGiftSearchOptions] = useState<MenuGiftTargetSuggestion[]>([]);
-
-  const [giftCriteriaType, setGiftCriteriaType] = useState<string>('');
-  const [giftCriteriaCity, setGiftCriteriaCity] = useState<string>('');
-  const [giftCriteriaState, setGiftCriteriaState] = useState<string>('');
 
   useEffect(() => {
     if (giftTargetMode !== 'INVENTORY') {
@@ -215,8 +211,8 @@ export default function MenuDonoWorkspace() {
       return;
     }
 
-    // Busca no inventário exige link assinado de owner (t)
-    if (!t) return;
+    // Busca no inventário usa link assinado (t) ou token do dono
+    if (!t && !token) return;
 
     const q = String(giftSearch || '').trim();
     if (q.length < 2) {
@@ -229,6 +225,7 @@ export default function MenuDonoWorkspace() {
         setGiftSearchLoading(true);
         const resp = await listMenuGiftTargets({
           requestId: rid,
+          token,
           t,
           scope: newGiftScope,
           q,
@@ -243,14 +240,10 @@ export default function MenuDonoWorkspace() {
     }, 250);
 
     return () => clearTimeout(handle);
-  }, [giftTargetMode, giftSearch, newGiftScope, rid, t]);
+  }, [giftTargetMode, giftSearch, newGiftScope, rid, t, token]);
 
   useEffect(() => {
     // Auto-select / sync targetId conforme o modo
-    if (giftTargetMode === 'ELIGIBLE') {
-      if (newGiftTargetId !== '*') setNewGiftTargetId('*');
-      return;
-    }
 
     if (giftTargetMode === 'INVENTORY') {
       if (!newGiftTargetId || !giftSearchOptions.some((x) => x.id === newGiftTargetId)) {
@@ -344,19 +337,6 @@ export default function MenuDonoWorkspace() {
     let totalDays = years * 365 + months * 30 + days;
     if (totalDays <= 0) totalDays = 30;
 
-    const norm = (v: string) => String(v || '').trim().toLowerCase();
-
-    const buildEligibleLabel = () => {
-      const base = newGiftScope === 'FACE' ? 'Qualquer face elegível' : 'Qualquer ponto elegível';
-      const parts: string[] = [];
-      const type = String(giftCriteriaType || '').trim().toUpperCase();
-      const city = String(giftCriteriaCity || '').trim();
-      const state = String(giftCriteriaState || '').trim().toUpperCase();
-      if (type) parts.push(type);
-      if (city || state) parts.push([city, state].filter(Boolean).join('/'));
-      return parts.length ? `${base} • ${parts.join(' • ')}` : base;
-    };
-
     const makeId = () => {
       try {
         // @ts-ignore
@@ -365,40 +345,6 @@ export default function MenuDonoWorkspace() {
         return `mg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
       }
     };
-
-    if (giftTargetMode === 'ELIGIBLE') {
-      const signature = `ELIGIBLE|${newGiftScope}|${norm(giftCriteriaType)}|${norm(giftCriteriaCity)}|${norm(giftCriteriaState)}`;
-
-      const exists = (draft.gifts || []).some((g) => String(g?.meta?.signature || '') === signature);
-      if (exists) {
-        toast.error('Esse brinde (elegibilidade) já foi adicionado.');
-        return;
-      }
-
-      const gift: MenuGift = {
-        id: makeId(),
-        scope: newGiftScope,
-        targetId: '*',
-        duration: { years, months, days, totalDays },
-        label: buildEligibleLabel(),
-        meta: {
-          mode: 'ANY_ELIGIBLE',
-          criteria: {
-            type: String(giftCriteriaType || '').trim().toUpperCase() || undefined,
-            city: String(giftCriteriaCity || '').trim() || undefined,
-            state: String(giftCriteriaState || '').trim().toUpperCase() || undefined,
-          },
-          signature,
-        },
-      };
-
-      setDraft((d) => ({
-        ...d,
-        gifts: [...(d.gifts || []), gift],
-      }));
-
-      return;
-    }
 
     // SPECIFIC (PROPOSAL ou INVENTORY)
     if (giftTargetMode === 'PROPOSAL') {
@@ -414,12 +360,7 @@ export default function MenuDonoWorkspace() {
       return;
     }
 
-    const signature = `SPECIFIC|${newGiftScope}|${targetId}`;
-    const exists = (draft.gifts || []).some((g) => {
-      const mode = String(g?.meta?.mode || '').toUpperCase();
-      if (mode === 'ANY_ELIGIBLE') return false;
-      return g.scope === newGiftScope && String(g.targetId) === String(targetId);
-    });
+    const exists = (draft.gifts || []).some((g) => g.scope === newGiftScope && String(g.targetId) === String(targetId));
     if (exists) {
       toast.error('Esse brinde já foi adicionado para esse alvo.');
       return;
@@ -427,12 +368,17 @@ export default function MenuDonoWorkspace() {
 
     const label = (() => {
       if (giftTargetMode === 'INVENTORY') {
-        return giftSearchOptions.find((x) => x.id === targetId)?.label || (newGiftScope === 'FACE' ? 'Brinde por face' : 'Brinde por ponto');
+        return (
+          giftSearchOptions.find((x) => x.id === targetId)?.label ||
+          (newGiftScope === 'FACE' ? 'Brinde por face' : 'Brinde por ponto')
+        );
       }
       return newGiftScope === 'FACE'
         ? faceOptions.find((x) => x.id === targetId)?.label || 'Brinde por face'
         : pointOptions.find((x) => x.id === targetId)?.label || 'Brinde por ponto';
     })();
+
+    const signature = `SPECIFIC|${newGiftScope}|${targetId}`;
 
     const gift: MenuGift = {
       id: makeId(),
@@ -1555,47 +1501,25 @@ export default function MenuDonoWorkspace() {
                             >
                               <option value="PROPOSAL">Itens da proposta</option>
                               <option value="INVENTORY">Buscar no inventário</option>
-                              <option value="ELIGIBLE">Qualquer elegível (regra)</option>
                             </select>
                           </div>
 
                           <div className="sm:col-span-3">
-                            <div className="text-xs text-gray-500">{giftTargetMode === 'ELIGIBLE' ? 'Elegibilidade' : 'Alvo'}</div>
+                            <div className="text-xs text-gray-500">Alvo</div>
 
-                            {giftTargetMode === 'ELIGIBLE' ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <Input
-                                  value={giftCriteriaType}
-                                  onChange={(e) => setGiftCriteriaType(e.target.value)}
-                                  placeholder="Tipo (OOH/DOOH)"
-                                  disabled={isLocked}
-                                />
-                                <Input
-                                  value={giftCriteriaCity}
-                                  onChange={(e) => setGiftCriteriaCity(e.target.value)}
-                                  placeholder="Cidade"
-                                  disabled={isLocked}
-                                />
-                                <Input
-                                  value={giftCriteriaState}
-                                  onChange={(e) => setGiftCriteriaState(e.target.value)}
-                                  placeholder="UF"
-                                  disabled={isLocked}
-                                />
-                              </div>
-                            ) : giftTargetMode === 'INVENTORY' ? (
+                            {giftTargetMode === 'INVENTORY' ? (
                               <div className="space-y-2">
                                 <Input
                                   value={giftSearch}
                                   onChange={(e) => setGiftSearch(e.target.value)}
                                   placeholder="Buscar no inventário (mín. 2 letras)"
-                                  disabled={isLocked || !t}
+                                  disabled={isLocked || (!t && !token)}
                                 />
                                 <select
                                   className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
                                   value={newGiftTargetId}
                                   onChange={(e) => setNewGiftTargetId(e.target.value)}
-                                  disabled={isLocked || !t || giftSearchLoading || !giftSearchOptions.length}
+                                  disabled={isLocked || (!t && !token) || giftSearchLoading || !giftSearchOptions.length}
                                 >
                                   {(giftSearchOptions || []).map((o) => (
                                     <option key={o.id} value={o.id}>
@@ -1603,16 +1527,19 @@ export default function MenuDonoWorkspace() {
                                     </option>
                                   ))}
                                 </select>
-                                {!t ? (
+                                {!t && !token ? (
                                   <div className="text-[11px] text-amber-600">
-                                    Para buscar no inventário, use o link do dono (t) gerado na área do proprietário.
+                                    Para buscar no inventário, use um link do dono (t) ou um token do dono válido.
                                   </div>
                                 ) : null}
-                                {t && giftSearch && giftSearch.trim().length >= 2 && giftSearchLoading ? (
+                                {(t || token) && giftSearch && giftSearch.trim().length >= 2 && giftSearchLoading ? (
                                   <div className="flex items-center gap-2 text-[11px] text-gray-500">
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                     Buscando...
                                   </div>
+                                ) : null}
+                                {(t || token) && giftSearch && giftSearch.trim().length >= 2 && !giftSearchLoading && !giftSearchOptions.length ? (
+                                  <div className="text-[11px] text-gray-500">Nenhum resultado.</div>
                                 ) : null}
                               </div>
                             ) : (
@@ -1629,24 +1556,6 @@ export default function MenuDonoWorkspace() {
                                 ))}
                               </select>
                             )}
-
-                            {giftTargetMode === 'ELIGIBLE' ? (
-                              <div className="mt-2 text-[11px] text-gray-500">
-                                Será exibido como:{' '}
-                                <span className="font-semibold">
-                                  {(() => {
-                                    const base = newGiftScope === 'FACE' ? 'Qualquer face elegível' : 'Qualquer ponto elegível';
-                                    const parts: string[] = [];
-                                    const type = String(giftCriteriaType || '').trim().toUpperCase();
-                                    const city = String(giftCriteriaCity || '').trim();
-                                    const state = String(giftCriteriaState || '').trim().toUpperCase();
-                                    if (type) parts.push(type);
-                                    if (city || state) parts.push([city, state].filter(Boolean).join('/'));
-                                    return parts.length ? `${base} • ${parts.join(' • ')}` : base;
-                                  })()}
-                                </span>
-                              </div>
-                            ) : null}
                           </div>
 
                           <div>
