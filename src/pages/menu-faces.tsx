@@ -111,11 +111,6 @@ export default function MenuFaces() {
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          {isAgency && markupPct > 0 && (
-            <Badge variant="outline" className="rounded-full">
-              Agência +{markupPct}%
-            </Badge>
-          )}
           <div className="text-sm text-gray-600">Seleção de faces/telas</div>
 
           <div className="ml-auto flex items-center gap-2">

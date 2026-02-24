@@ -155,11 +155,6 @@ export default function MenuCarrinho() {
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          {isAgency && markupPct > 0 && (
-            <Badge variant="outline" className="rounded-full">
-              Agência +{markupPct}%
-            </Badge>
-          )}
           <div className="text-sm text-gray-600">Carrinho</div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -244,9 +239,9 @@ export default function MenuCarrinho() {
               {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo }) => (
                 <Card key={item.id} className="hover:shadow-sm transition-shadow">
                   <CardContent className="py-4">
-                    <div className="flex gap-4">
-                      <div className="w-28 sm:w-32">
-                        <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-gray-100">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="w-full sm:w-40 shrink-0">
+                        <div className="aspect-[16/10] w-full overflow-hidden rounded-xl bg-gray-100">
                           <ImageWithFallback src={img} alt={pointName} className="h-full w-full object-cover" />
                         </div>
                       </div>
@@ -254,20 +249,17 @@ export default function MenuCarrinho() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                            <div className="text-base font-semibold text-gray-900 truncate">{pointName}</div>
-                            {isPromotions && promo && (
-                              <Badge variant="secondary" className="rounded-full">
-                                {formatPromotionBadge(promo) || 'Promoção'}
-                              </Badge>
-                            )}
-                          </div>
-                            {unitLabel && (
-                              <div className="mt-1 text-xs text-gray-700">{unitLabel}</div>
-                            )}
-                            {address && (
-                              <div className="mt-1 text-xs text-gray-600 line-clamp-2">{address}</div>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-base font-semibold text-gray-900 break-words">{pointName}</div>
+                              {isPromotions && promo && (
+                                <Badge variant="secondary" className="rounded-full whitespace-nowrap">
+                                  {formatPromotionBadge(promo) || 'Promoção'}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {unitLabel && <div className="mt-1 text-xs text-gray-700">{unitLabel}</div>}
+                            {address && <div className="mt-1 text-xs text-gray-600 break-words">{address}</div>}
                           </div>
 
                           <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)} title="Remover">
@@ -275,37 +267,42 @@ export default function MenuCarrinho() {
                           </Button>
                         </div>
 
-                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                          <div>
-                            <span className="text-gray-500">Mensal:</span>{' '}
-                            {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
-                              <>
-                                <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
-                                <span className="font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
-                              </>
-                            ) : (
-                              <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
-                            )}
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="rounded-lg bg-gray-50 px-3 py-2">
+                            <div className="text-[11px] text-gray-500">Mensal</div>
+                            <div className="mt-0.5 text-sm text-gray-900">
+                              {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
+                                <>
+                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
+                                  <span className="font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
+                                </>
+                              ) : (
+                                <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-gray-500">Semanal:</span>{' '}
-                            {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
-                              <>
-                                <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
-                                <span className="font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
-                              </>
-                            ) : (
-                              <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
-                            )}
+
+                          <div className="rounded-lg bg-gray-50 px-3 py-2">
+                            <div className="text-[11px] text-gray-500">Semanal</div>
+                            <div className="mt-0.5 text-sm text-gray-900">
+                              {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
+                                <>
+                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
+                                  <span className="font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
+                                </>
+                              ) : (
+                                <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         <Separator className="my-3" />
 
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <div className="text-xs text-gray-600">Duração</div>
+                          <div className="text-xs text-gray-600 shrink-0">Duração</div>
 
-                          <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+                          <div className="grid grid-cols-3 gap-2 w-full sm:max-w-[420px]">
                             <Input
                               type="number"
                               min={0}
@@ -347,7 +344,7 @@ export default function MenuCarrinho() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+))}
             </div>
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
