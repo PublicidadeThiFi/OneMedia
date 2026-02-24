@@ -104,6 +104,7 @@ export default function MenuCheckout() {
         uf: uf || undefined,
         city: city || undefined,
         flow,
+        ownerCompanyId: ownerCompanyId || undefined,
       })) as { data?: Partial<CreateMenuRequestResponse> };
 
       const requestId = String(res?.data?.requestId || '').trim();
