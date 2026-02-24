@@ -1,5 +1,6 @@
 import { publicApiClient } from './apiClient';
 import { MediaPoint, MediaType } from '../types';
+import { normalizeMenuFlow } from './menuFlow';
 
 export type Availability = 'Disponível' | 'Parcial' | 'Ocupado';
 
@@ -56,8 +57,8 @@ type CacheEntry = {
 const cache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<PublicMediaKitResponse>>();
 
-function makeKey(token: string, ownerCompanyId?: string | null, flow?: string | null) {
-  return `${token}::${ownerCompanyId ?? ''}::${String(flow ?? '').trim().toLowerCase()}`;
+function makeKey(token: string, ownerCompanyId: string | null, flow: string) {
+  return `${token}::${ownerCompanyId ?? ''}::${flow}`;
 }
 
 // Cache leve para navegação UF -> Cidade -> Pontos ficar instantânea.
@@ -72,7 +73,7 @@ export async function fetchPublicMediaKit(params: {
 }): Promise<PublicMediaKitResponse> {
   const token = String(params.token ?? '').trim();
   const ownerCompanyId = params.ownerCompanyId ?? null;
-  const flow = String(params.flow ?? '').trim().toLowerCase();
+  const flow = normalizeMenuFlow(params.flow);
 
   if (!token) {
     throw new Error('Token ausente. Abra o Cardápio a partir do link compartilhado.');
@@ -97,7 +98,8 @@ export async function fetchPublicMediaKit(params: {
         params: {
           token,
           ownerCompanyId: ownerCompanyId || undefined,
-          flow: flow || undefined,
+          // Não envia flow quando é padrão (mantém compatibilidade e evita ruído na URL)
+          flow: flow === 'default' ? undefined : flow,
         },
       });
       cache.set(key, { data: resp.data, fetchedAt: Date.now() });

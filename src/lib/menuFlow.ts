@@ -10,10 +10,41 @@ export type MenuQueryParams = {
   pointId?: string | null;
 };
 
+function stripAccents(v: string): string {
+  try {
+    return v.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  } catch {
+    return v;
+  }
+}
+
 export function normalizeMenuFlow(raw?: string | null): MenuFlow {
-  const v = String(raw ?? '').trim().toLowerCase();
-  if (v === 'agency') return 'agency';
-  if (v === 'promotions') return 'promotions';
+  const v0 = String(raw ?? '').trim().toLowerCase();
+  if (!v0) return 'default';
+
+  const v = stripAccents(v0);
+
+  // Agency aliases
+  if (v === 'agency' || v === 'agencia' || v === 'ag\u00eancia' || v === 'agencies') return 'agency';
+
+  // Promotions aliases
+  if (
+    v === 'promotions' ||
+    v === 'promotion' ||
+    v === 'promo' ||
+    v === 'promos' ||
+    v === 'promocoes' ||
+    v === 'promocao' ||
+    v === 'promocaoes' ||
+    v === 'ofertas' ||
+    v === 'offers'
+  ) {
+    return 'promotions';
+  }
+
+  // Default aliases
+  if (v === 'default' || v === 'padrao' || v === 'cardapio' || v === 'catalogo' || v === 'menu') return 'default';
+
   return 'default';
 }
 
@@ -30,7 +61,9 @@ export function buildQueryString(params: Record<string, any>): string {
 export function getMenuQueryParams(search?: string): MenuQueryParams {
   const sp = new URLSearchParams(typeof search === 'string' ? search : window.location.search);
   const token = sp.get('token') || sp.get('t') || '';
-  const flow = normalizeMenuFlow(sp.get('flow'));
+
+  // Backward compat: algumas rotas antigas usavam `f`/`mode`.
+  const flow = normalizeMenuFlow(sp.get('flow') || sp.get('f') || sp.get('mode') || sp.get('m'));
 
   // Backward compat (aliases)
   const ownerCompanyId = (sp.get('ownerCompanyId') || sp.get('owner') || sp.get('oc') || '').trim() || null;

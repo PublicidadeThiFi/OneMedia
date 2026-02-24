@@ -161,7 +161,7 @@ export default function MenuFaces() {
               <div className="text-sm font-semibold text-gray-900">Ponto não encontrado</div>
               <div className="mt-1 text-sm text-gray-600">Volte e selecione outro ponto.</div>
               <div className="mt-4">
-                <Button variant="outline" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city })}`)}>
+                <Button variant="outline" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
                   Voltar para a lista
                 </Button>
               </div>

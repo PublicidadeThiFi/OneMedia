@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchPublicMediaKit, PublicMediaKitResponse } from '../lib/publicMediaKit';
+import { normalizeMenuFlow } from '../lib/menuFlow';
 
 function isRequestCanceled(err: any): boolean {
   return Boolean(
@@ -24,7 +25,7 @@ export function usePublicMediaKit(params: {
 }): UsePublicMediaKitState {
   const token = useMemo(() => String(params.token ?? '').trim(), [params.token]);
   const ownerCompanyId = params.ownerCompanyId ?? null;
-  const flow = useMemo(() => String(params.flow ?? '').trim().toLowerCase(), [params.flow]);
+  const flow = useMemo(() => normalizeMenuFlow(params.flow), [params.flow]);
 
   const [data, setData] = useState<PublicMediaKitResponse | null>(null);
   const [loading, setLoading] = useState(false);

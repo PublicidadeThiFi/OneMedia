@@ -147,7 +147,7 @@ export default function MenuCheckout() {
               <div className="text-sm font-semibold text-gray-900">Seu carrinho está vazio</div>
               <div className="mt-1 text-sm text-gray-600">Volte para a lista de pontos e adicione itens.</div>
               <div className="mt-5">
-                <Button onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city })}`)}>
+                <Button onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
                   Ver pontos
                 </Button>
               </div>
