@@ -485,6 +485,12 @@ export default function MenuDonoWorkspace() {
   const status = String(data?.status || '').toUpperCase();
   const isLocked = status === 'APPROVED';
 
+  const [previewTotals, setPreviewTotals] = useState<MenuQuoteTotals>({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewUpdatedAt, setPreviewUpdatedAt] = useState<string | null>(null);
+  const [previewNonce, setPreviewNonce] = useState(0);
+
   useEffect(() => {
     let alive = true;
     let timer: any = null;
@@ -492,6 +498,7 @@ export default function MenuDonoWorkspace() {
     if (!data) {
       setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
       setPreviewError(null);
+      setPreviewUpdatedAt(null);
       setIsPreviewLoading(false);
       return () => {
         alive = false;
@@ -505,10 +512,12 @@ export default function MenuDonoWorkspace() {
       if (locked) {
         setPreviewTotals({ ...(locked as any), costs: (locked as any)?.costs ?? 0 });
         setPreviewError(null);
+        setPreviewUpdatedAt(currentQuote?.createdAt || data?.updatedAt || data?.createdAt || null);
       } else {
         // Sem fallback local: o backend é a fonte única.
         setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0, breakdown: { items: [] } } as any);
         setPreviewError('Não foi possível carregar os totais da versão atual.');
+        setPreviewUpdatedAt(null);
       }
       setIsPreviewLoading(false);
       return () => {
@@ -532,10 +541,28 @@ export default function MenuDonoWorkspace() {
           });
           if (!alive) return;
           setPreviewTotals({ ...(resp?.totals as any), costs: (resp?.totals as any)?.costs ?? 0 });
+          setPreviewError(null);
+          setPreviewUpdatedAt(new Date().toISOString());
         } catch (err: any) {
           if (!alive) return;
-          setPreviewTotals({ base: 0, services: 0, costs: 0, discount: 0, total: 0, breakdown: { items: [] } } as any);
-          setPreviewError('Não foi possível atualizar o preview agora.');
+          const status = Number(err?.response?.status || 0);
+          const rawMsg = String(err?.response?.data?.message || err?.response?.data?.error || err?.message || '').trim();
+          const msg = rawMsg.toLowerCase();
+
+          // B1: tornar o erro acionável. Mantemos o último preview válido (B2).
+          if ([401, 403, 410].includes(status)) {
+            if (msg.includes('expir')) {
+              setPreviewError('Link expirado. Gere um novo link do dono para continuar editando.');
+            } else if (msg.includes('inválid') || msg.includes('inval') || msg.includes('revog')) {
+              setPreviewError('Link inválido ou revogado. Gere um novo link do dono.');
+            } else {
+              setPreviewError('Acesso negado. Use o link do dono (t) para atualizar o preview.');
+            }
+          } else if (status === 0) {
+            setPreviewError('Falha de rede ao atualizar o preview. Mantendo o último valor válido.');
+          } else {
+            setPreviewError(rawMsg || 'Não foi possível atualizar o preview agora. Mantendo o último valor válido.');
+          }
         } finally {
           if (!alive) return;
           setIsPreviewLoading(false);
@@ -547,12 +574,7 @@ export default function MenuDonoWorkspace() {
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [data, draft, token, t, isLocked, currentQuote]);
-
-
-  const [previewTotals, setPreviewTotals] = useState<MenuQuoteTotals>({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  }, [data, draft, token, t, isLocked, currentQuote, previewNonce]);
 
 
   useEffect(() => {
@@ -1638,10 +1660,28 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
-                      <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                        Resumo (preview)
-                        {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin text-gray-500" /> : null}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                          Resumo (preview)
+                          {isPreviewLoading ? <Loader2 className="h-4 w-4 animate-spin text-gray-500" /> : null}
+                        </div>
+                        {!isLocked ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2"
+                            onClick={() => setPreviewNonce((n) => n + 1)}
+                            disabled={isPreviewLoading}
+                            title="Atualizar preview"
+                          >
+                            <RotateCw className="h-4 w-4" />
+                          </Button>
+                        ) : null}
                       </div>
+                      {previewUpdatedAt ? (
+                        <div className="mt-1 text-[11px] text-gray-500">Última atualização: {formatDateTimeBr(previewUpdatedAt)}</div>
+                      ) : null}
                       {previewError ? <div className="mt-1 text-xs text-amber-600">{previewError}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-gray-200 px-3 py-2">
