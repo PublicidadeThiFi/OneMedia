@@ -8,7 +8,7 @@ import { ArrowLeft, ExternalLink, MapPin, ShoppingCart, Layers } from 'lucide-re
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
-import { normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
+import { computePointPriceSummary, normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from "../lib/menuFlow";
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion, pickBestPromoForPoint } from '../lib/menuPromotions';
@@ -128,6 +128,21 @@ export default function MenuDetalhe() {
     if (from === null || to === null) return null;
     return { from, to, promotion: promo.promotion };
   }, [point, isPromotions, markupPct]);
+
+  const priceMonthSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'month') : null), [point]);
+  const priceWeekSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'week') : null), [point]);
+
+  const showStartingFrom = !!priceMonthSummary?.isStartingFrom && !isPromotions;
+  const priceLabel = (isPromotions || showStartingFrom) ? 'A partir de' : 'Preço';
+
+  const displayMonthRaw = priceMonthSummary ? (priceMonthSummary.isStartingFrom ? priceMonthSummary.startingFrom : priceMonthSummary.base) : null;
+  const displayWeekRaw = priceWeekSummary ? (priceWeekSummary.isStartingFrom ? priceWeekSummary.startingFrom : priceWeekSummary.base) : null;
+
+  const displayMonth = applyAgencyMarkup(displayMonthRaw, markupPct);
+  const displayWeek = applyAgencyMarkup(displayWeekRaw, markupPct);
+
+  const baseMonth = applyAgencyMarkup(priceMonthSummary?.base, markupPct);
+  const baseWeek = applyAgencyMarkup(priceWeekSummary?.base, markupPct);
 
   const [cartCount, setCartCount] = useState<number>(() => {
     try {
@@ -298,7 +313,7 @@ export default function MenuDetalhe() {
                     </div>
 
                     <div className="flex flex-col gap-2 sm:items-end">
-                      <div className="text-sm text-gray-600">Preço</div>
+                      <div className="text-sm text-gray-600">{priceLabel}</div>
                       {isPromotions && bestPromoPointMonth ? (
                         <div className="text-lg font-bold text-gray-900">
                           <span className="mr-2 text-gray-500 line-through">
@@ -308,7 +323,7 @@ export default function MenuDetalhe() {
                         </div>
                       ) : (
                         <div className="text-lg font-bold text-gray-900">
-                          {formatCurrencyBRL(applyAgencyMarkup(point.basePriceMonth, markupPct))}
+                          {formatCurrencyBRL(displayMonth)}
                         </div>
                       )}
                       <div className="text-xs text-gray-600">
@@ -326,11 +341,21 @@ export default function MenuDetalhe() {
                           <>
                             Semanal •{' '}
                             <span className="font-semibold text-gray-900">
-                              {formatCurrencyBRL(applyAgencyMarkup(point.basePriceWeek, markupPct))}
+                              {formatCurrencyBRL(displayWeek)}
                             </span>
                           </>
                         )}
                       </div>
+                      {showStartingFrom && baseMonth !== null && baseMonth !== undefined && (
+                        <div className="text-xs text-gray-500">
+                          Preço padrão do ponto: <span className="font-semibold text-gray-700">{formatCurrencyBRL(baseMonth)}</span>
+                          {baseWeek !== null && baseWeek !== undefined && (
+                            <>
+                              {' '}• semanal <span className="font-semibold text-gray-700">{formatCurrencyBRL(baseWeek)}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

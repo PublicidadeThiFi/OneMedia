@@ -133,3 +133,83 @@ export function normalizeMediaType(value?: string | null): MediaType | null {
   if (t === MediaType.DOOH) return MediaType.DOOH;
   return null;
 }
+
+// =====================
+// Pricing helpers (UX)
+// =====================
+
+export type PriceKind = 'month' | 'week' | 'day';
+
+export type PointPriceSummary = {
+  kind: PriceKind;
+  /** Preço padrão do ponto (basePrice* do MediaPoint) */
+  base: number | null;
+  /** Menor preço possível considerando faces/telas (price* da unidade ou fallback no preço do ponto) */
+  startingFrom: number | null;
+  /** Se true: existe ao menos 1 face com preço menor que o preço padrão do ponto */
+  isStartingFrom: boolean;
+  unitsCount: number;
+};
+
+function safeNumber(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getPointBasePrice(point: Pick<MediaPoint, 'basePriceMonth' | 'basePriceWeek' | 'basePriceDay'>, kind: PriceKind): number | null {
+  if (kind === 'week') return safeNumber((point as any).basePriceWeek);
+  if (kind === 'day') return safeNumber((point as any).basePriceDay);
+  return safeNumber((point as any).basePriceMonth);
+}
+
+function getUnitPriceRaw(unit: any, kind: PriceKind): number | null {
+  if (!unit) return null;
+  if (kind === 'week') return safeNumber(unit.priceWeek);
+  if (kind === 'day') return safeNumber(unit.priceDay);
+  return safeNumber(unit.priceMonth);
+}
+
+/**
+ * Regra de produto (Etapa H):
+ * - "Preço padrão do ponto" = basePrice* do MediaPoint.
+ * - "A partir de" = menor preço efetivo entre as faces/telas (price* da unidade; se nulo, cai no preço do ponto).
+ * - Só exibimos "A partir de" quando existir conflito real (min < base) ou quando não houver base mas existirem unidades com preço.
+ */
+export function computePointPriceSummary(
+  point: Pick<MediaPoint, 'basePriceMonth' | 'basePriceWeek' | 'basePriceDay'> & { units?: any[] },
+  kind: PriceKind,
+): PointPriceSummary {
+  const base = getPointBasePrice(point, kind);
+  const units = Array.isArray((point as any).units)
+    ? ((point as any).units as any[]).filter((u) => u && u.isActive !== false)
+    : [];
+
+  let min: number | null = null;
+  for (const u of units) {
+    const unitRaw = getUnitPriceRaw(u, kind);
+    const effective = unitRaw !== null ? unitRaw : base;
+    if (effective === null) continue;
+    if (min === null || effective < min) min = effective;
+  }
+
+  // Se não tem unidades, o menor preço é o próprio preço do ponto.
+  const startingFrom = min !== null ? min : base;
+
+  const isStartingFrom =
+    startingFrom !== null &&
+    (
+      // conflito real
+      (base !== null && startingFrom < base) ||
+      // não existe base mas temos unidade com preço
+      (base === null && units.length > 0)
+    );
+
+  return {
+    kind,
+    base,
+    startingFrom,
+    isStartingFrom,
+    unitsCount: units.length,
+  };
+}

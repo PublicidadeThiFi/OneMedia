@@ -8,7 +8,7 @@ import { Separator } from '../components/ui/separator';
 import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
-import { PublicMediaKitPoint } from '../lib/publicMediaKit';
+import { computePointPriceSummary, PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, getCartCount, formatAddress } from '../lib/menuCart';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { MediaUnit } from '../types';
@@ -65,6 +65,16 @@ export default function MenuFaces() {
     const list = Array.isArray(point?.units) ? point!.units!.filter((u) => u?.isActive !== false) : [];
     return list;
   }, [point]);
+
+  const monthSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'month') : null), [point]);
+  const weekSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'week') : null), [point]);
+
+  const baseMonth = applyAgencyMarkup(monthSummary?.base, markupPct);
+  const baseWeek = applyAgencyMarkup(weekSummary?.base, markupPct);
+  const startingMonth = applyAgencyMarkup(monthSummary?.startingFrom, markupPct);
+  const startingWeek = applyAgencyMarkup(weekSummary?.startingFrom, markupPct);
+
+  const hasStartingFrom = !!monthSummary?.isStartingFrom;
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
@@ -172,6 +182,31 @@ export default function MenuFaces() {
                   <div className="flex-1 min-w-0">
                     <div className="text-lg font-bold text-gray-900">{point.name}</div>
                     <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado'}</div>
+
+                    {baseMonth !== null && baseMonth !== undefined && (
+                      <div className="mt-2 text-xs text-gray-600">
+                        Preço padrão do ponto:{' '}
+                        <span className="font-semibold text-gray-900">{formatCurrencyBRL(baseMonth)}</span>
+                        {baseWeek !== null && baseWeek !== undefined && (
+                          <>
+                            {' '}• semanal <span className="font-semibold text-gray-900">{formatCurrencyBRL(baseWeek)}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {hasStartingFrom && startingMonth !== null && startingMonth !== undefined && (
+                      <div className="mt-1 text-xs text-gray-500">
+                        Algumas faces têm preço menor. A partir de{' '}
+                        <span className="font-semibold text-gray-700">{formatCurrencyBRL(startingMonth)}</span>
+                        {startingWeek !== null && startingWeek !== undefined && (
+                          <>
+                            {' '}• semanal <span className="font-semibold text-gray-700">{formatCurrencyBRL(startingWeek)}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-3 text-xs text-gray-600">
                       Selecione as faces/telas que deseja incluir no carrinho.
                     </div>

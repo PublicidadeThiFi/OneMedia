@@ -134,8 +134,46 @@ export default function MenuSelectPoints() {
                 const promoMonth = isPromotions ? pickBestPromoForPoint(p as any, 'month') : null;
                 const promoWeek = isPromotions ? pickBestPromoForPoint(p as any, 'week') : null;
 
-                const priceMonth = isAgency ? applyAgencyMarkup(p.basePriceMonth, markupPct) : p.basePriceMonth;
-                const priceWeek = isAgency ? applyAgencyMarkup(p.basePriceWeek, markupPct) : p.basePriceWeek;
+                // Etapa H — "Preço do ponto" vs "a partir de"
+                // Preço padrão do ponto: basePriceMonth/basePriceWeek
+                // "A partir de": menor preço entre faces ativas (units) quando existir e for menor que o base.
+                const baseMonthRaw = (p as any)?.basePriceMonth ?? null;
+                const baseWeekRaw = (p as any)?.basePriceWeek ?? null;
+
+                const units: any[] = Array.isArray((p as any)?.units) ? (p as any).units : [];
+                const activeUnits = units.filter((u) => u && u.isActive !== false);
+
+                const minUnitMonthRaw = activeUnits.reduce((min: number | null, u: any) => {
+                  const val = u?.priceMonth;
+                  if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) return min;
+                  if (min === null) return val;
+                  return Math.min(min, val);
+                }, null);
+
+                const minUnitWeekRaw = activeUnits.reduce((min: number | null, u: any) => {
+                  const val = u?.priceWeek;
+                  if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) return min;
+                  if (min === null) return val;
+                  return Math.min(min, val);
+                }, null);
+
+                const startingFromMonthRaw =
+                  minUnitMonthRaw !== null && (baseMonthRaw === null || minUnitMonthRaw < baseMonthRaw);
+                const startingFromWeekRaw =
+                  minUnitWeekRaw !== null && (baseWeekRaw === null || minUnitWeekRaw < baseWeekRaw);
+
+                const displayMonthRaw = startingFromMonthRaw ? minUnitMonthRaw : baseMonthRaw ?? minUnitMonthRaw;
+                const displayWeekRaw = startingFromWeekRaw ? minUnitWeekRaw : baseWeekRaw ?? minUnitWeekRaw;
+
+                const showStartingFromMonth = Boolean(startingFromMonthRaw && displayMonthRaw !== null);
+                const showStartingFromWeek = Boolean(startingFromWeekRaw && displayWeekRaw !== null);
+
+                // Markup do fluxo agência deve impactar o que é exibido
+                const baseMonth = baseMonthRaw !== null ? applyAgencyMarkup(baseMonthRaw, markupPct) : null;
+                const baseWeek = baseWeekRaw !== null ? applyAgencyMarkup(baseWeekRaw, markupPct) : null;
+                const displayMonth = displayMonthRaw !== null ? applyAgencyMarkup(displayMonthRaw, markupPct) : null;
+                const displayWeek = displayWeekRaw !== null ? applyAgencyMarkup(displayWeekRaw, markupPct) : null;
+
 
                 const promoMonthFrom = promoMonth ? applyAgencyMarkup(promoMonth.from, markupPct) : null;
                 const promoMonthTo = promoMonth ? applyAgencyMarkup(promoMonth.to, markupPct) : null;
@@ -195,7 +233,15 @@ export default function MenuSelectPoints() {
                                   <b className="text-gray-900">{formatCurrency(promoMonthTo)}</b>
                                 </>
                               ) : (
-                                <b>{formatCurrency(priceMonth)}</b>
+                                <>
+                                  <b className="text-gray-900">
+                                    {showStartingFromMonth ? 'A partir de ' : ''}
+                                    {formatCurrency(displayMonth)}
+                                  </b>
+                                  {showStartingFromMonth && baseMonth !== null && baseMonth !== undefined && (
+                                    <span className="ml-1 text-gray-500">• padrão {formatCurrency(baseMonth)}</span>
+                                  )}
+                                </>
                               )}
                             </span>
                             <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
@@ -206,7 +252,15 @@ export default function MenuSelectPoints() {
                                   <b className="text-gray-900">{formatCurrency(promoWeekTo)}</b>
                                 </>
                               ) : (
-                                <b>{formatCurrency(priceWeek)}</b>
+                                <>
+                                  <b className="text-gray-900">
+                                    {showStartingFromWeek ? 'A partir de ' : ''}
+                                    {formatCurrency(displayWeek)}
+                                  </b>
+                                  {showStartingFromWeek && baseWeek !== null && baseWeek !== undefined && (
+                                    <span className="ml-1 text-gray-500">• padrão {formatCurrency(baseWeek)}</span>
+                                  )}
+                                </>
                               )}
                             </span>
                           </div>
