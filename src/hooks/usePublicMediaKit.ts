@@ -42,7 +42,7 @@ export function usePublicMediaKit(params: {
         setError('Token ausente. Abra o Cardápio a partir do link compartilhado.');
         return;
       }
-
+ 
       try {
         setLoading(true);
         setError(null);
