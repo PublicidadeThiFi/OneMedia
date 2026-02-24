@@ -15,6 +15,7 @@ import {
   rejectMenuQuote,
   buildMenuContractUrl,
   extractFilenameFromContentDisposition,
+  type MenuQuoteServiceLine,
   type MenuQuoteVersionRecord,
   type MenuRequestRecord,
 } from '../lib/menuRequestApi';
@@ -155,6 +156,30 @@ export default function MenuProposta() {
     if (!String(rid || '').trim()) return '';
     return buildMenuContractUrl({ requestId: rid, token, t });
   }, [rid, token, t]);
+
+  // Etapa F — Serviços/Descontos
+  // F1) "serviço manual" deve aparecer na lista de serviços.
+  // F2) Separar visualmente desconto em serviços (por linha) vs descontos gerais.
+  const quoteBreakdown = currentQuote?.totals?.breakdown as any;
+
+  const servicesIncluded = useMemo(() => {
+    const out: Array<MenuQuoteServiceLine & { __manual?: boolean }> = [];
+
+    const lines = Array.isArray(currentQuote?.draft?.services) ? (currentQuote!.draft!.services as MenuQuoteServiceLine[]) : [];
+    for (const s of lines) {
+      const name = String((s as any)?.name || '').trim();
+      const value = Math.max(0, Number((s as any)?.value || 0));
+      if (!name || !Number.isFinite(value) || value <= 0) continue;
+      out.push({ ...(s as any), name, value: Number(value.toFixed(2)) });
+    }
+
+    const manualValue = Math.max(0, Number((currentQuote as any)?.draft?.manualServiceValue || 0));
+    if (Number.isFinite(manualValue) && manualValue > 0) {
+      out.push({ name: 'Serviço manual', value: Number(manualValue.toFixed(2)), __manual: true } as any);
+    }
+
+    return out;
+  }, [currentQuote?.draft?.services, (currentQuote as any)?.draft?.manualServiceValue]);
 
   const onApprove = async () => {
     try {
@@ -343,6 +368,27 @@ export default function MenuProposta() {
                   <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
                     <div className="text-xs text-gray-500">Descontos</div>
                     <div className="mt-1 text-lg font-bold text-gray-900">- {formatMoneyBr(currentQuote.totals.discount)}</div>
+                    {quoteBreakdown ? (
+                      <div className="mt-2 space-y-0.5 text-xs text-gray-500">
+                        {(quoteBreakdown?.servicesLineDiscount ?? 0) > 0 ? (
+                          <div>Em serviços: - {formatMoneyBr(quoteBreakdown?.servicesLineDiscount ?? 0)}</div>
+                        ) : null}
+                        {(quoteBreakdown?.costsLineDiscount ?? 0) > 0 ? (
+                          <div>Em custos: - {formatMoneyBr(quoteBreakdown?.costsLineDiscount ?? 0)}</div>
+                        ) : null}
+
+                        {Array.isArray(quoteBreakdown?.appliedDiscounts) && quoteBreakdown.appliedDiscounts.length > 0 ? (
+                          <div className="mt-1 space-y-0.5">
+                            {quoteBreakdown.appliedDiscounts.map((d: any, idx: number) => (
+                              <div key={String(d?.id || `ad_${idx}`)} className="truncate">
+                                {(d?.label || (d?.scope === 'FACE' ? 'Face' : d?.scope === 'POINT' ? 'Ponto' : 'Geral'))}:
+                                {' '} - {formatMoneyBr(Number(d?.amount || 0))}
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div
                     className="col-span-1 sm:col-span-2 rounded-xl border border-gray-900 bg-gray-900 px-4 py-3"
@@ -353,18 +399,33 @@ export default function MenuProposta() {
                   </div>
                 </div>
 
-                {Array.isArray(currentQuote.draft?.services) && currentQuote.draft.services.length > 0 && (
+                {servicesIncluded.length > 0 && (
                   <>
                     <Separator className="my-5" />
                     <div>
                       <div className="text-sm font-semibold text-gray-900">Serviços incluídos</div>
                       <div className="mt-3 space-y-2">
-                        {currentQuote.draft.services.map((s, idx) => (
-                          <div key={`${s.name}-${idx}`} className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
-                            <div className="text-sm text-gray-900">{s.name}</div>
-                            <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(s.value)}</div>
-                          </div>
-                        ))}
+                        {servicesIncluded.map((s: any, idx: number) => {
+                          const value = Math.max(0, Number(s?.value || 0));
+                          const dp = s?.__manual ? 0 : Math.max(0, Number(s?.discountPercent || 0));
+                          const df = s?.__manual ? 0 : Math.max(0, Number(s?.discountFixed || 0));
+                          const lineDiscount = Number(Math.min(value, value * (dp / 100) + df).toFixed(2));
+                          const hasLineDiscount = lineDiscount > 0;
+
+                          return (
+                            <div key={`${String(s.name)}-${idx}`} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">{s.name}</div>
+                                  {hasLineDiscount ? (
+                                    <div className="mt-0.5 text-xs text-gray-600">Desconto do serviço: - {formatMoneyBr(lineDiscount)}</div>
+                                  ) : null}
+                                </div>
+                                <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(value)}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </>

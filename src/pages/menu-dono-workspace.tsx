@@ -1249,7 +1249,7 @@ export default function MenuDonoWorkspace() {
                         <Button variant="outline" onClick={addServiceLine} disabled={isLocked}>Adicionar</Button>
                       </div>
 
-                      {(draft.services || []).length > 0 && (
+                      {((draft.services || []).length > 0 || Math.max(0, Number(draft.manualServiceValue || 0)) > 0) && (
                         <div className="mt-3 space-y-2">
                           {(draft.services || []).map((s, idx) => {
                             const value = Math.max(0, Number(s?.value || 0));
@@ -1304,6 +1304,16 @@ export default function MenuDonoWorkspace() {
                               </div>
                             );
                           })}
+
+                          {Math.max(0, Number(draft.manualServiceValue || 0)) > 0 ? (
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm text-gray-900">Serviço manual</div>
+                                <div className="mt-1 text-xs text-gray-500">Incluído no bloco de Serviços</div>
+                              </div>
+                              <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(Number(draft.manualServiceValue || 0))}</div>
+                            </div>
+                          ) : null}
                         </div>
                       )}
 
@@ -1340,7 +1350,9 @@ export default function MenuDonoWorkspace() {
                                                         ? 'Base'
                                                         : d.appliesTo === 'SERVICES'
                                                           ? 'Serviços'
-                                                          : 'Tudo'
+                                                          : d.appliesTo === 'COSTS'
+                                                            ? 'Custos'
+                                                            : 'Tudo'
                                                       : 'Base';
                                                   const valueParts = [
                                                     d.percent ? `${d.percent}%` : null,
@@ -1701,11 +1713,11 @@ export default function MenuDonoWorkspace() {
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
                             {(previewTotals.breakdown?.servicesLineDiscount ?? 0) > 0 ? (
-                              <div>Serviços (linhas): - {formatMoneyBr(previewTotals.breakdown?.servicesLineDiscount ?? 0)}</div>
+                              <div>Desconto em serviços: - {formatMoneyBr(previewTotals.breakdown?.servicesLineDiscount ?? 0)}</div>
                             ) : null}
 
                             {(previewTotals.breakdown?.costsLineDiscount ?? 0) > 0 ? (
-                              <div>Custos (linhas): - {formatMoneyBr(previewTotals.breakdown?.costsLineDiscount ?? 0)}</div>
+                              <div>Desconto em custos: - {formatMoneyBr(previewTotals.breakdown?.costsLineDiscount ?? 0)}</div>
                             ) : null}
 
                             {(previewTotals.breakdown?.appliedDiscounts || []).map((d) => (
