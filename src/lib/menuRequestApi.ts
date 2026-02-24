@@ -16,6 +16,10 @@ export type CreateMenuRequestInput = {
   // Context (helps owner understand what client was browsing)
   uf?: string;
   city?: string;
+
+  // Etapa 3 — fluxo do cardápio e empresa responsável selecionada
+  flow?: 'default' | 'promotions' | 'agency';
+  ownerCompanyId?: string;
 };
 
 export type CreateMenuRequestResponse = {
@@ -38,6 +42,11 @@ export type MenuRequestRecord = {
 
   uf?: string | null;
   city?: string | null;
+
+  // Etapa 3 — fluxo do cardápio e empresa responsável selecionada
+  ownerCompanyId?: string | null;
+  flow?: 'default' | 'promotions' | 'agency' | null;
+  agencyMarkupPercentApplied?: number | null;
 
   items: MenuCartItem[];
 
@@ -324,6 +333,8 @@ export async function createMenuRequest(input: CreateMenuRequestInput): Promise<
     notes: String(input.notes || '').trim() || undefined,
     uf: String(input.uf || '').trim().toUpperCase() || undefined,
     city: String(input.city || '').trim() || undefined,
+    flow: (String((input as any).flow || '').trim().toLowerCase() as any) || undefined,
+    ownerCompanyId: String((input as any).ownerCompanyId || '').trim() || undefined,
     items: Array.isArray(input.items) ? input.items : [],
   };
 
