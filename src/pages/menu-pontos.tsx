@@ -71,13 +71,6 @@ export default function MenuSelectPoints() {
           <div className="text-sm text-gray-600">
             {uf || '—'} / {city || '—'} → Pontos
           </div>
-
-          {isAgency && markupPct > 0 && (
-            <Badge className="ml-1" variant="outline">
-              Sou Agência: +{markupPct}%
-            </Badge>
-          )}
-
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant="ghost"
