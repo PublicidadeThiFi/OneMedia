@@ -13,6 +13,8 @@ import {
   approveMenuQuote,
   fetchMenuRequest,
   rejectMenuQuote,
+  buildMenuContractUrl,
+  extractFilenameFromContentDisposition,
   type MenuQuoteVersionRecord,
   type MenuRequestRecord,
 } from '../lib/menuRequestApi';
@@ -84,6 +86,7 @@ export default function MenuProposta() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [isDownloadingContract, setIsDownloadingContract] = useState(false);
 
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -150,10 +153,8 @@ export default function MenuProposta() {
 
   const contractDownloadUrl = useMemo(() => {
     if (!String(rid || '').trim()) return '';
-    const base = `/api/public/menu/quote/${encodeURIComponent(rid)}/contract`;
-    const qs = buildQuery(t ? { t } : { token });
-    return `${base}${qs}`;
-  }, [rid, t, token]);
+    return buildMenuContractUrl({ requestId: rid, token, t });
+  }, [rid, token, t]);
 
   const onApprove = async () => {
     try {
@@ -184,6 +185,49 @@ export default function MenuProposta() {
       toast.error('Não foi possível solicitar revisão', { description: String(msg) });
     } finally {
       setIsActing(false);
+    }
+  };
+
+  const onDownloadContract = async () => {
+    if (!String(contractDownloadUrl || '').trim()) return;
+
+    try {
+      setIsDownloadingContract(true);
+
+      // Tentativa 1: download via fetch (permite salvar com nome correto).
+      // Pode falhar por CORS em produção, então temos fallback.
+      const resp = await fetch(contractDownloadUrl, { method: 'GET' });
+      if (!resp.ok) {
+        const msg = await resp.text().catch(() => '');
+        throw new Error(msg || `HTTP ${resp.status}`);
+      }
+
+      const blob = await resp.blob();
+      const fallbackName = `contrato-${rid || 'cardapio'}.pdf`;
+      const fileName = extractFilenameFromContentDisposition(resp.headers.get('content-disposition'), fallbackName);
+
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+
+      toast.success('Download iniciado');
+    } catch (err: any) {
+      // Fallback: abre em nova aba (funciona mesmo sem CORS; depende do header do back).
+      try {
+        window.open(contractDownloadUrl, '_blank', 'noopener,noreferrer');
+      } catch {
+        // ignore
+      }
+      const msg = err?.message ? String(err.message) : 'Falha ao baixar.';
+      toast.error('Não foi possível baixar automaticamente', { description: msg });
+    } finally {
+      setIsDownloadingContract(false);
     }
   };
 
@@ -389,9 +433,14 @@ export default function MenuProposta() {
                       type="button"
                       variant="secondary"
                       className="gap-2"
-                      onClick={() => window.open(contractDownloadUrl, '_blank', 'noopener,noreferrer')}
+                      disabled={isDownloadingContract}
+                      onClick={onDownloadContract}
                     >
-                      <FileText className="h-4 w-4" />
+                      {isDownloadingContract ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
                       Baixar contrato
                     </Button>
                   )}
