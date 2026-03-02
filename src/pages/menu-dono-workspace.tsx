@@ -203,26 +203,28 @@ export default function MenuDonoWorkspace() {
   const [giftSearch, setGiftSearch] = useState<string>('');
   const [giftSearchLoading, setGiftSearchLoading] = useState<boolean>(false);
   const [giftSearchOptions, setGiftSearchOptions] = useState<MenuGiftTargetSuggestion[]>([]);
+  const [giftSearchHasFetched, setGiftSearchHasFetched] = useState<boolean>(false);
 
   useEffect(() => {
     if (giftTargetMode !== 'INVENTORY') {
       setGiftSearchOptions([]);
       setGiftSearchLoading(false);
+      setGiftSearchHasFetched(false);
       return;
     }
 
     // Busca no inventário usa link assinado (t) ou token do dono
     if (!t && !token) return;
 
-    const q = String(giftSearch || '').trim();
-    if (q.length < 2) {
-      setGiftSearchOptions([]);
-      return;
-    }
+    const qRaw = String(giftSearch || '').trim();
+    // UX: lista deve aparecer mesmo sem digitar nada.
+    // Performance: só aplicamos filtro (contains) quando houver pelo menos 2 caracteres.
+    const q = qRaw.length >= 2 ? qRaw : undefined;
 
     const handle = setTimeout(async () => {
       try {
         setGiftSearchLoading(true);
+        setGiftSearchHasFetched(true);
         const resp = await listMenuGiftTargets({
           requestId: rid,
           token,
@@ -1512,7 +1514,7 @@ export default function MenuDonoWorkspace() {
                                 <Input
                                   value={giftSearch}
                                   onChange={(e) => setGiftSearch(e.target.value)}
-                                  placeholder="Buscar no inventário (mín. 2 letras)"
+                                  placeholder="Buscar no inventário (opcional)"
                                   disabled={isLocked || (!t && !token)}
                                 />
                                 <select
@@ -1532,13 +1534,13 @@ export default function MenuDonoWorkspace() {
                                     Para buscar no inventário, use um link do dono (t) ou um token do dono válido.
                                   </div>
                                 ) : null}
-                                {(t || token) && giftSearch && giftSearch.trim().length >= 2 && giftSearchLoading ? (
+                                {(t || token) && giftSearchLoading ? (
                                   <div className="flex items-center gap-2 text-[11px] text-gray-500">
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                     Buscando...
                                   </div>
                                 ) : null}
-                                {(t || token) && giftSearch && giftSearch.trim().length >= 2 && !giftSearchLoading && !giftSearchOptions.length ? (
+                                {(t || token) && giftSearchHasFetched && !giftSearchLoading && !giftSearchOptions.length ? (
                                   <div className="text-[11px] text-gray-500">Nenhum resultado.</div>
                                 ) : null}
                               </div>
