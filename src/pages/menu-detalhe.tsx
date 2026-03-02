@@ -12,6 +12,7 @@ import { computePointPriceSummary, normalizeAvailability, normalizeMediaType, Pu
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from "../lib/menuFlow";
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion, pickBestPromoForPoint } from '../lib/menuPromotions';
+import { formatBRL } from '../lib/format';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -24,12 +25,7 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 }
 
 function formatCurrencyBRL(value?: number | null): string {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  }).format(Number(value));
+  return formatBRL(value, '—');
 }
 
 function parseCoord(value: any): number | null {
