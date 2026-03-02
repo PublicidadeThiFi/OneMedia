@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -74,12 +74,13 @@ function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null):
 export default function MenuProposta() {
   const navigate = useNavigation();
 
-  const { token, t, rid } = useMemo(() => {
+  const { token, t, rid, download } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
       token: sp.get('token') || '',
       t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
+      download: sp.get('download') || sp.get('dl') || sp.get('downloadContract') || '',
     };
   }, []);
 
@@ -88,6 +89,7 @@ export default function MenuProposta() {
   const [loadError, setLoadError] = useState<ReturnType<typeof classifyMenuRequestError> | null>(null);
   const [isActing, setIsActing] = useState(false);
   const [isDownloadingContract, setIsDownloadingContract] = useState(false);
+  const [autoDownloadDone, setAutoDownloadDone] = useState(false);
 
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -157,6 +159,11 @@ export default function MenuProposta() {
     return buildMenuContractUrl({ requestId: rid, token, t });
   }, [rid, token, t]);
 
+  const shouldAutoDownloadContract = useMemo(() => {
+    const v = String(download || '').trim().toLowerCase();
+    return v === 'contract' || v === 'pdf' || v === '1' || v === 'true';
+  }, [download]);
+
   // Etapa F — Serviços/Descontos
   // F1) "serviço manual" deve aparecer na lista de serviços.
   // F2) Separar visualmente desconto em serviços (por linha) vs descontos gerais.
@@ -213,7 +220,7 @@ export default function MenuProposta() {
     }
   };
 
-  const onDownloadContract = async () => {
+  const onDownloadContract = useCallback(async () => {
     if (!String(contractDownloadUrl || '').trim()) return;
 
     try {
@@ -254,7 +261,21 @@ export default function MenuProposta() {
     } finally {
       setIsDownloadingContract(false);
     }
-  };
+  }, [contractDownloadUrl, rid]);
+
+  // Etapa 1 — Link do e-mail (GitHub Pages) não pode apontar direto para /api.
+  // Então o e-mail aponta para /menu/proposta?...&download=contract e o front inicia o download.
+  useEffect(() => {
+    if (autoDownloadDone) return;
+    if (!shouldAutoDownloadContract) return;
+    if (isLoading) return;
+    if (!isApproved) return;
+    if (!String(contractDownloadUrl || '').trim()) return;
+
+    setAutoDownloadDone(true);
+    // best-effort: inicia download e mantém a tela caso o usuário queira tentar manualmente
+    void onDownloadContract();
+  }, [autoDownloadDone, shouldAutoDownloadContract, isLoading, isApproved, contractDownloadUrl, onDownloadContract]);
 
   return (
     <div className="min-h-screen w-full bg-gray-50">
