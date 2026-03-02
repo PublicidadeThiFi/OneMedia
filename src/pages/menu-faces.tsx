@@ -14,6 +14,7 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { MediaUnit } from '../types';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion } from '../lib/menuPromotions';
+import { formatBRL } from '../lib/format';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -26,12 +27,7 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 }
 
 function formatCurrencyBRL(value?: number | null): string {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    maximumFractionDigits: 0,
-  }).format(Number(value));
+  return formatBRL(value, '—');
 }
 
 export default function MenuFaces() {

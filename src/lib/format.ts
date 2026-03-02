@@ -30,12 +30,17 @@ export function formatBRL(value?: unknown, fallback: string = 'R$ 0,00') {
           : Number(value);
 
   if (!Number.isFinite(n)) return fallback;
+
+  // Padroniza para 2 casas decimais (moeda) antes de formatar.
+  // Evita diferenças visuais por imprecisão de ponto flutuante (ex.: 4887.4999999).
+  const rounded = Math.round(n * 100) / 100;
+
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(n);
+  }).format(rounded);
 }
 
 export function formatBRLFromCents(cents?: unknown, fallback: string = 'R$ 0,00') {

@@ -8,14 +8,10 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { formatPromotionBadge, pickBestPromoForPoint, pointHasAnyPromotion } from '../lib/menuPromotions';
+import { formatBRL } from '../lib/format';
 
 function formatCurrency(v: number | null | undefined) {
-  if (v === null || v === undefined) return '—';
-  try {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(v);
-  } catch {
-    return `R$ ${Math.round(v)}`;
-  }
+  return formatBRL(v, '—');
 }
 
 function buildQuery(params: Record<string, string | undefined | null>) {
