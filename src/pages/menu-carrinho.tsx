@@ -240,7 +240,17 @@ export default function MenuCarrinho() {
                 <Card key={item.id} className="hover:shadow-sm transition-shadow">
                   <CardContent className="py-4">
                     <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="w-full sm:w-40 shrink-0">
+                      {/*
+                        IMPORTANTE:
+                        No carrinho, o card estava exibindo o texto "espremido" (uma palavra por linha)
+                        em telas desktop. Isso acontecia porque o bloco da imagem, em alguns builds,
+                        acabava ficando com largura 100% mesmo no layout em linha, e como ele não encolhia,
+                        roubava todo o espaço do texto.
+
+                        Para tornar o layout resiliente, usamos flex-basis fixo no breakpoint (sm+),
+                        que tem prioridade no cálculo do flexbox (independente de width).
+                      */}
+                      <div className="w-full sm:flex-[0_0_16rem] lg:flex-[0_0_18rem]">
                         <div className="aspect-[16/10] w-full overflow-hidden rounded-xl bg-gray-100">
                           <ImageWithFallback src={img} alt={pointName} className="h-full w-full object-cover" />
                         </div>
