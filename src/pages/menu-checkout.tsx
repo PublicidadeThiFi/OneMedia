@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 import { clearCart, formatDurationParts, readCart } from '../lib/menuCart';
 import { publicApiClient } from '../lib/apiClient';
 import { getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import { TurnstileWidget } from '../components/turnstile/TurnstileWidget';
+import { formatCpfCnpjDisplay, getCpfCnpjErrorMessage } from '../lib/validators';
 
 type CreateMenuRequestResponse = { requestId: string };
 
@@ -33,6 +35,8 @@ function isValidEmail(email: string): boolean {
 function normalizePhone(raw: string): string {
   return String(raw || '').replace(/\D+/g, '');
 }
+
+const TURNSTILE_SITE_KEY = ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
 
 export default function MenuCheckout() {
   const navigate = useNavigation();
@@ -59,8 +63,10 @@ export default function MenuCheckout() {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerCompanyName, setCustomerCompanyName] = useState('');
   const [customerCnpj, setCustomerCnpj] = useState('');
+  const [customerDocError, setCustomerDocError] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const onSubmit = async () => {
     const name = String(customerName || '').trim();
@@ -90,6 +96,19 @@ export default function MenuCheckout() {
       return;
     }
 
+    const docErr = getCpfCnpjErrorMessage(customerCnpj);
+    if (docErr) {
+      setCustomerDocError(docErr);
+      toast.error(docErr);
+      return;
+    }
+
+    // Captcha only when configured
+    if (TURNSTILE_SITE_KEY && !String(captchaToken || '').trim()) {
+      toast.error('Confirme o captcha para continuar.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = (await publicApiClient.post('/public/menu/request', {
@@ -99,6 +118,7 @@ export default function MenuCheckout() {
         customerPhone: customerPhone,
         customerCompanyName: customerCompanyName || undefined,
         customerCnpj: customerCnpj || undefined,
+        captchaToken: TURNSTILE_SITE_KEY ? (captchaToken || undefined) : undefined,
         notes: notes || undefined,
         items: cart.items,
         uf: uf || undefined,
@@ -247,9 +267,18 @@ export default function MenuCheckout() {
                 <Label>CNPJ (opcional)</Label>
                 <Input
                   value={customerCnpj}
-                  onChange={(e) => setCustomerCnpj(e.target.value)}
-                  placeholder="00.000.000/0000-00"
+                  onChange={(e) => {
+                    const next = formatCpfCnpjDisplay(e.target.value);
+                    setCustomerCnpj(next);
+                    setCustomerDocError(getCpfCnpjErrorMessage(next));
+                  }}
+                  onBlur={() => setCustomerDocError(getCpfCnpjErrorMessage(customerCnpj))}
+                  placeholder="CPF ou CNPJ (opcional)"
+                  aria-invalid={!!customerDocError}
                 />
+                {customerDocError ? (
+                  <div className="text-xs text-red-600">{customerDocError}</div>
+                ) : null}
               </div>
 
               <div className="space-y-2 sm:col-span-2">
@@ -261,6 +290,20 @@ export default function MenuCheckout() {
                   className="min-h-[110px]"
                 />
               </div>
+
+              {TURNSTILE_SITE_KEY ? (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Confirmação</Label>
+                  <TurnstileWidget
+                    siteKey={TURNSTILE_SITE_KEY}
+                    onToken={(t) => setCaptchaToken(String(t || ''))}
+                    className="pt-1"
+                  />
+                  <div className="text-xs text-gray-600">
+                    Confirme que você não é um robô para enviar a solicitação.
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 flex flex-col sm:flex-row gap-3">
