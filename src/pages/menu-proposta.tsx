@@ -192,7 +192,7 @@ export default function MenuProposta() {
     try {
       setIsActing(true);
       await approveMenuQuote({ requestId: rid, token, t });
-      toast.success('Aprovada!', { description: 'Registramos sua aprovação (protótipo).' });
+      toast.success('Aprovado ✅', { description: 'Registramos sua aprovação.' });
       await refresh();
       navigate(backUrl);
     } catch (err: any) {
@@ -207,7 +207,7 @@ export default function MenuProposta() {
     try {
       setIsActing(true);
       await rejectMenuQuote({ requestId: rid, token, t, reason: rejectReason });
-      toast.success('Revisão solicitada', { description: 'Enviamos o pedido de revisão ao responsável (protótipo).' });
+      toast.success('Ajustes solicitados', { description: 'Enviamos seu pedido de ajuste ao responsável.' });
       setShowReject(false);
       setRejectReason('');
       await refresh();
@@ -248,7 +248,7 @@ export default function MenuProposta() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
 
-      toast.success('Download iniciado');
+      toast.success('Baixando contrato…');
     } catch (err: any) {
       // Fallback: abre em nova aba (funciona mesmo sem CORS; depende do header do back).
       try {
@@ -324,7 +324,7 @@ export default function MenuProposta() {
                     <FileText className="h-5 w-5 text-gray-700" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-gray-900">Ainda não há proposta</div>
+                    <div className="text-sm font-semibold text-gray-900">Ainda não tem proposta por aqui</div>
                     <div className="mt-1 text-sm text-gray-600">
                       O responsável ainda não enviou a proposta. Você pode acompanhar pelo status.
                     </div>
@@ -355,7 +355,7 @@ export default function MenuProposta() {
                       <CheckCircle2 className="h-4 w-4" />
                       Proposta aprovada
                     </div>
-                    <div className="mt-1 text-xs text-green-800">Esta versão está travada (protótipo).</div>
+                    <div className="mt-1 text-xs text-green-800">Esta versão está travada (não dá para editar).</div>
                   </div>
                 )}
 
@@ -363,7 +363,7 @@ export default function MenuProposta() {
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     <div className="flex items-center gap-2 font-semibold">
                       <XCircle className="h-4 w-4" />
-                      Revisão solicitada
+                      Ajustes solicitados
                     </div>
                     {currentQuote.rejectReason && (
                       <div className="mt-1 text-xs text-amber-800 whitespace-pre-wrap">{currentQuote.rejectReason}</div>
@@ -483,7 +483,7 @@ export default function MenuProposta() {
                   <>
                     <Separator className="my-5" />
                     <div>
-                      <div className="text-sm font-semibold text-gray-900">Mensagem do responsável</div>
+                      <div className="text-sm font-semibold text-gray-900">Recado do responsável</div>
                       <div className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{currentQuote.draft.message}</div>
                     </div>
                   </>
@@ -523,7 +523,7 @@ export default function MenuProposta() {
                       ) : (
                         <FileText className="h-4 w-4" />
                       )}
-                      Baixar contrato
+                      Baixar contrato (PDF)
                     </Button>
                   )}
                 </div>

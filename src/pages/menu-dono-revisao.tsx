@@ -167,7 +167,7 @@ export default function MenuDonoRevisao() {
                         <div className="mt-1">Status: <span className="font-semibold">{currentQuote.status}</span></div>
                         {currentQuote.rejectReason && (
                           <div className="mt-3">
-                            <div className="text-xs text-gray-500">Mensagem do cliente</div>
+                            <div className="text-xs text-gray-500">Recado do cliente</div>
                             <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 whitespace-pre-wrap">{currentQuote.rejectReason}</div>
                           </div>
                         )}

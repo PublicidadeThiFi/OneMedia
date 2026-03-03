@@ -156,7 +156,7 @@ export default function MenuDonoAprovada() {
                   </div>
                   <div>
                     <div className="text-sm font-semibold">Proposta aprovada e travada</div>
-                    <div className="mt-1 text-xs text-gray-200">Este estado representa o fim do ciclo no protótipo.</div>
+                    <div className="mt-1 text-xs text-gray-200">Este ciclo foi finalizado.</div>
                   </div>
                 </div>
 

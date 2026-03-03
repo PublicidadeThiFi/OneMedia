@@ -88,7 +88,7 @@ export default function MenuFaces() {
     if (!point) return;
     const ids = Object.keys(selected).filter((k) => selected[k]);
     if (ids.length === 0) {
-      toast.info('Selecione pelo menos uma face/tela.');
+      toast.info('Escolha pelo menos uma face/tela para continuar.');
       return;
     }
 
@@ -100,11 +100,11 @@ export default function MenuFaces() {
     });
 
     if (addedCount > 0) {
-      toast.success('Adicionado ao carrinho', {
+      toast.success('Adicionado no carrinho', {
         description: `${addedCount} item(ns) adicionado(s).`,
       });
     } else {
-      toast.info('Esses itens já estavam no carrinho.');
+      toast.info('Esses itens já estavam no seu carrinho.');
     }
 
     navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`);
@@ -204,7 +204,7 @@ export default function MenuFaces() {
                     )}
 
                     <div className="mt-3 text-xs text-gray-600">
-                      Selecione as faces/telas que deseja incluir no carrinho.
+                      Escolha as faces/telas que deseja incluir no carrinho.
                     </div>
                   </div>
 

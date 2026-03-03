@@ -87,13 +87,13 @@ export default function MenuCarrinho() {
     };
     applyDurationToAllParts(parts);
     setCartVersion((v) => v + 1);
-    toast.success('Duração aplicada para todos os itens', { description: formatDurationParts(parts) });
+    toast.success('Duração aplicada em todos os itens', { description: formatDurationParts(parts) });
   };
 
   const onRemove = (itemId: string) => {
     removeFromCart(itemId);
     setCartVersion((v) => v + 1);
-    toast.success('Item removido do carrinho');
+    toast.success('Item removido');
   };
 
   const onClear = () => {
@@ -163,9 +163,9 @@ export default function MenuCarrinho() {
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Sua seleção</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Seu carrinho</h1>
             <p className="mt-1 text-sm text-gray-600">
-              Itens salvos neste navegador. Na próxima etapa, este carrinho vira uma solicitação de proposta.
+              Seu carrinho fica salvo neste dispositivo. No próximo passo, você envia o pedido de proposta.
             </p>
           </div>
 
@@ -188,12 +188,12 @@ export default function MenuCarrinho() {
                 </div>
                 <div>
                   <div className="text-sm font-semibold text-gray-900">Seu carrinho está vazio</div>
-                  <div className="mt-1 text-sm text-gray-600">Volte para a lista de pontos e adicione itens.</div>
+                  <div className="mt-1 text-sm text-gray-600">Volte para a lista e escolha pelo menos um item.</div>
                 </div>
               </div>
               <div className="mt-5">
                 <Button onClick={() => navigate(backUrl)}>
-                  Ver pontos
+                  Escolher pontos
                 </Button>
               </div>
             </CardContent>
@@ -224,7 +224,7 @@ export default function MenuCarrinho() {
                     </div>
 
                     <Button variant="outline" onClick={onApplyAll}>
-                      Aplicar para todos
+                      Aplicar em todos
                     </Button>
                   </div>
                 </div>
@@ -350,13 +350,13 @@ export default function MenuCarrinho() {
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <Button onClick={() => navigate(backUrl)} variant="outline">
-                Adicionar mais pontos
+                Adicionar mais itens
               </Button>
               <Button
                 onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
                 className="gap-2"
               >
-                Continuar
+                Ir para o checkout
               </Button>
             </div>
           </>

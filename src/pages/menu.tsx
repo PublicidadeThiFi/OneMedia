@@ -39,8 +39,8 @@ export default function MenuHome() {
           <div className="flex items-center gap-3">
             <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-9 w-9" />
             <div className="flex flex-col">
-              <div className="text-sm font-semibold text-gray-900">Cardápio de Outdoor</div>
-              <div className="text-xs text-gray-600">Protótipo (sem login)</div>
+              <div className="text-sm font-semibold text-gray-900">Cardápio de Mídia</div>
+              <div className="text-xs text-gray-600">Sem login • é só seguir o passo a passo</div>
             </div>
             <div className="ml-auto">
               <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
@@ -50,10 +50,10 @@ export default function MenuHome() {
           {/* Intro */}
           <div className="mt-7">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              Monte sua seleção do jeito certo
+              Escolha como você quer montar sua proposta
             </h1>
             <p className="mt-2 text-sm sm:text-base text-gray-600 max-w-2xl">
-              Escolha o modo de navegação e siga por UF → Cidade → Pontos até enviar sua solicitação.
+              Você escolhe o caminho e vai avançando: Estado → Cidade → Ponto → Face. No fim, você envia o pedido e recebe um link pra acompanhar.
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export default function MenuHome() {
                 </div>
 
                 <p className="mt-3 text-sm text-gray-600">
-                  Explore todo o inventário e monte sua seleção sem filtros especiais.
+                  Veja tudo que está disponível e escolha com calma.
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -82,7 +82,7 @@ export default function MenuHome() {
                 </div>
 
                 <Button className="mt-5 w-full gap-2" onClick={() => goToUF('default')}>
-                  Começar
+                  Ver tudo
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
@@ -101,7 +101,7 @@ export default function MenuHome() {
                 </div>
 
                 <p className="mt-3 text-sm text-gray-600">
-                  Navegue focado em oportunidades. Ideal para aproveitar condições promocionais.
+                  Aqui aparecem só os itens com desconto ativo — perfeito pra aproveitar oportunidades.
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -111,7 +111,7 @@ export default function MenuHome() {
                 </div>
 
                 <Button className="mt-5 w-full gap-2" onClick={() => goToUF('promotions')}>
-                  Ver promoções
+                  Ver descontos
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
@@ -130,7 +130,7 @@ export default function MenuHome() {
                 </div>
 
                 <p className="mt-3 text-sm text-gray-600">
-                  Use o fluxo com precificação de agência (markup configurável no Super Admin).
+                  Valores com acréscimo de agência. O percentual é aplicado automaticamente.
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -140,7 +140,7 @@ export default function MenuHome() {
                 </div>
 
                 <Button className="mt-5 w-full gap-2" onClick={() => goToUF('agency')}>
-                  Entrar como agência
+                  Continuar como agência
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </CardContent>
@@ -154,7 +154,7 @@ export default function MenuHome() {
               className="w-full sm:w-auto"
               onClick={() => navigate(`/mk${buildQueryString({ token, ownerCompanyId: ownerCompanyId ?? undefined })}`)}
             >
-              Voltar para o Mídia Kit
+              Voltar ao Mídia Kit
             </Button>
           </div>
 
@@ -163,7 +163,7 @@ export default function MenuHome() {
               <CardContent className="py-4">
                 <div className="text-sm font-semibold text-amber-900">Atenção</div>
                 <div className="mt-1 text-sm text-amber-800">
-                  Este protótipo funciona melhor quando aberto a partir do link compartilhado (com token).
+                  Abra pelo link que você recebeu (com a chave de acesso). Sem isso, alguns itens podem não aparecer.
                 </div>
               </CardContent>
             </Card>

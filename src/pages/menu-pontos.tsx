@@ -90,24 +90,24 @@ export default function MenuSelectPoints() {
 
         <div className="mt-4 flex items-start gap-3">
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Selecione o Ponto</h1>
-            <p className="mt-1 text-sm text-gray-600">Clique em um ponto para ver detalhes e faces disponíveis.</p>
+            <h1 className="text-2xl font-bold text-gray-900">Escolha um ponto</h1>
+            <p className="mt-1 text-sm text-gray-600">Toque em um ponto para ver fotos, localização e faces/telas disponíveis.</p>
           </div>
 
           <Button variant="outline" className="gap-2" onClick={reload} disabled={loading}>
             <RefreshCcw className="h-4 w-4" />
-            Atualizar
+            Atualizar lista
           </Button>
         </div>
 
         <div className="mt-5">
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar ponto, bairro, rua..." />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, bairro ou rua..." />
         </div>
 
         {error && (
           <Card className="mt-5 border-amber-200 bg-amber-50">
             <CardContent className="py-4">
-              <div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div>
+              <div className="text-sm font-semibold text-amber-900">Ops! Não consegui carregar agora</div>
               <div className="mt-1 text-sm text-amber-800">{error}</div>
             </CardContent>
           </Card>
@@ -222,7 +222,7 @@ export default function MenuSelectPoints() {
 
                           <div className="mt-3 flex flex-wrap gap-2 text-xs">
                             <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
-                              Mês:{' '}
+                              Mensal:{' '}
                               {isPromotions && promoMonth && promoMonthFrom !== null && promoMonthTo !== null ? (
                                 <>
                                   <span className="line-through text-gray-500">{formatCurrency(promoMonthFrom)}</span>{' '}
@@ -241,7 +241,7 @@ export default function MenuSelectPoints() {
                               )}
                             </span>
                             <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
-                              Semana:{' '}
+                              Semanal:{' '}
                               {isPromotions && promoWeek && promoWeekFrom !== null && promoWeekTo !== null ? (
                                 <>
                                   <span className="line-through text-gray-500">{formatCurrency(promoWeekFrom)}</span>{' '}
@@ -275,7 +275,7 @@ export default function MenuSelectPoints() {
         </div>
 
         {!loading && !error && points.length === 0 && (
-          <div className="mt-6 text-sm text-gray-600">Nenhum ponto encontrado.</div>
+          <div className="mt-6 text-sm text-gray-600">Nenhum ponto encontrado. Tente ajustar a busca ou voltar e escolher outra cidade.</div>
         )}
       </div>
     </div>
