@@ -179,7 +179,7 @@ export function isValidEmail(email: string): boolean {
 }
 
 // ========================================
-// CNPJ Validation & Formatting
+// CPF / CNPJ Validation & Formatting
 // ========================================
 
 /**
@@ -199,9 +199,89 @@ export function formatCNPJDisplay(value: string): string {
 }
 
 /**
- * Validates CNPJ format (14 digits)
+ * Format CPF for display
+ * Example: 12345678901 → 123.456.789-01
+ */
+export function formatCPFDisplay(value: string): string {
+  const numbers = onlyDigits(value);
+
+  if (numbers.length <= 3) return numbers;
+  if (numbers.length <= 6) return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+  if (numbers.length <= 9) return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+  return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
+}
+
+/**
+ * Formats a document as CPF (<= 11 digits) or CNPJ (> 11 digits)
+ */
+export function formatCpfCnpjDisplay(value: string): string {
+  const numbers = onlyDigits(value);
+  if (numbers.length <= 11) return formatCPFDisplay(numbers);
+  return formatCNPJDisplay(numbers);
+}
+
+/**
+ * Validates CPF (11 digits + check digits)
+ */
+export function isValidCPF(value: string): boolean {
+  const numbers = onlyDigits(value);
+  if (numbers.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(numbers)) return false; // reject all-equal
+
+  const digits = numbers.split('').map((d) => Number(d));
+  const calc = (len: number) => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) {
+      sum += digits[i] * (len + 1 - i);
+    }
+    const mod = sum % 11;
+    return mod < 2 ? 0 : 11 - mod;
+  };
+
+  const d1 = calc(9);
+  const d2 = calc(10);
+  return digits[9] === d1 && digits[10] === d2;
+}
+
+/**
+ * Validates CNPJ (14 digits + check digits)
  */
 export function isValidCNPJ(value: string): boolean {
   const numbers = onlyDigits(value);
-  return numbers.length === 14;
+  if (numbers.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(numbers)) return false; // reject all-equal
+
+  const digits = numbers.split('').map((d) => Number(d));
+  const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+  const calc = (baseDigits: number[], weights: number[]) => {
+    let sum = 0;
+    for (let i = 0; i < weights.length; i++) {
+      sum += baseDigits[i] * weights[i];
+    }
+    const mod = sum % 11;
+    const res = 11 - mod;
+    return res >= 10 ? 0 : res;
+  };
+
+  const d1 = calc(digits, weights1);
+  const d2 = calc([...digits.slice(0, 12), d1], weights2);
+
+  return digits[12] === d1 && digits[13] === d2;
+}
+
+/**
+ * Returns a human-friendly error for CPF/CNPJ.
+ * - null means "no error" (including empty input)
+ */
+export function getCpfCnpjErrorMessage(value: string): string | null {
+  const numbers = onlyDigits(value);
+  if (!numbers) return null; // optional
+  if (numbers.length !== 11 && numbers.length !== 14) {
+    return 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).';
+  }
+  if (numbers.length === 11 && !isValidCPF(numbers)) return 'CPF inválido.';
+  if (numbers.length === 14 && !isValidCNPJ(numbers)) return 'CNPJ inválido.';
+  return null;
 }
