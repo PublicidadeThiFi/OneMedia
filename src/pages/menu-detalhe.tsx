@@ -220,7 +220,7 @@ export default function MenuDetalhe() {
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Detalhe do ponto</div>
+          <div className="text-sm text-gray-600">Detalhes</div>
 
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
@@ -263,11 +263,11 @@ export default function MenuDetalhe() {
         {!loading && !error && !point && (
           <Card className="mt-5">
             <CardContent className="py-6">
-              <div className="text-sm font-semibold text-gray-900">Ponto não encontrado</div>
-              <div className="mt-1 text-sm text-gray-600">Volte para a lista e selecione outro ponto.</div>
+              <div className="text-sm font-semibold text-gray-900">Não achei esse ponto</div>
+              <div className="mt-1 text-sm text-gray-600">Volte para a lista e escolha outro ponto.</div>
               <div className="mt-4">
                 <Button variant="outline" onClick={() => navigate(backUrl)}>
-                  Voltar para a lista
+                  Voltar para os pontos
                 </Button>
               </div>
             </CardContent>
@@ -282,7 +282,7 @@ export default function MenuDetalhe() {
                   <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                     <div className="flex-1 min-w-0">
                       <h1 className="text-2xl font-bold text-gray-900">{point.name}</h1>
-                      <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado'}</div>
+                      <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado ainda'}</div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {mediaType && <Badge variant="secondary" className="rounded-full">{mediaType}</Badge>}
                         {isPromotions && (bestPromoPointMonth || bestPromoPointWeek || (point as any)?.promotion) && (
@@ -408,7 +408,7 @@ export default function MenuDetalhe() {
                           rel="noreferrer"
                           className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800"
                         >
-                          Abrir no Google Maps
+                          Abrir no Maps
                           <ExternalLink className="h-4 w-4" />
                         </a>
                       </div>
@@ -418,10 +418,10 @@ export default function MenuDetalhe() {
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
                     <Button className="gap-2" onClick={onAdd}>
                       <ShoppingCart className="h-4 w-4" />
-                      {units.length > 1 ? 'Selecionar faces/telas' : 'Adicionar ao carrinho'}
+                      {units.length > 1 ? 'Escolher faces/telas' : 'Adicionar no carrinho'}
                     </Button>
                     <Button variant="outline" onClick={() => navigate(backUrl)}>
-                      Voltar para a lista
+                      Voltar para os pontos
                     </Button>
                   </div>
                 </CardContent>
@@ -429,7 +429,7 @@ export default function MenuDetalhe() {
 
               <Card className="mt-4">
                 <CardContent className="py-6">
-                  <div className="text-sm font-semibold text-gray-900">Mapa (preview)</div>
+                  <div className="text-sm font-semibold text-gray-900">Mapa (visualização)</div>
                   <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
                     {mapsEmbed ? (
                       <iframe
@@ -441,7 +441,7 @@ export default function MenuDetalhe() {
                       />
                     ) : (
                       <div className="h-64 w-full flex items-center justify-center text-sm text-gray-600">
-                        Coordenadas não informadas — use o botão “Abrir no Google Maps”.
+                        Coordenadas não informadas — use o botão “Abrir no Maps”.
                       </div>
                     )}
                   </div>

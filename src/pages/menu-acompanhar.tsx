@@ -70,8 +70,8 @@ export default function MenuAcompanhar() {
       setIsLoading(false);
       setLoadError({
         kind: 'MISSING_TOKEN',
-        title: 'Acesso inválido',
-        description: 'O link está incompleto. Abra o acompanhamento a partir do link enviado.',
+        title: 'Link inválido',
+        description: 'Esse link parece incompleto. Abra pelo link que você recebeu.',
       });
       return () => {
         alive = false;
@@ -111,37 +111,37 @@ export default function MenuAcompanhar() {
       {
         key: 'REQUEST_SUBMITTED',
         title: 'Solicitação enviada',
-        desc: 'Recebemos sua solicitação e enviamos ao responsável.',
+        desc: 'Recebemos seu pedido e enviamos ao responsável.',
         at: getAt('REQUEST_SUBMITTED'),
       },
       {
         key: 'OWNER_OPENED',
         title: 'Em análise',
-        desc: 'O responsável está avaliando os itens e condições.',
+        desc: 'O responsável está analisando seu pedido.',
         at: getAt('OWNER_OPENED'),
       },
       {
         key: 'QUOTE_SENT',
         title: 'Proposta enviada',
-        desc: 'Uma versão da proposta foi enviada para você visualizar.',
+        desc: 'A proposta já foi enviada e está pronta pra você ver.',
         at: getAt('QUOTE_SENT'),
       },
       {
         key: 'QUOTE_OPENED',
         title: 'Proposta visualizada',
-        desc: 'Registramos a abertura do link (protótipo).',
+        desc: 'Você abriu a proposta.',
         at: getAt('QUOTE_OPENED'),
       },
       {
         key: 'QUOTE_REJECTED',
         title: 'Revisão solicitada',
-        desc: 'Você solicitou revisão/ajuste na proposta.',
+        desc: 'Você pediu ajustes na proposta.',
         at: getAt('QUOTE_REJECTED'),
       },
       {
         key: 'QUOTE_APPROVED',
         title: 'Aprovada',
-        desc: 'A proposta foi aprovada e ficou travada.',
+        desc: 'Proposta aprovada. O contrato fica disponível pra baixar.',
         at: getAt('QUOTE_APPROVED'),
       },
     ];
@@ -164,7 +164,7 @@ export default function MenuAcompanhar() {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Acompanhar proposta</div>
+          <div className="text-sm text-gray-600">Acompanhar andamento</div>
 
           <div className="ml-auto">
             <Button variant="ghost" className="gap-2" onClick={() => navigate(backToSent)}>
@@ -179,7 +179,7 @@ export default function MenuAcompanhar() {
             {isLoading ? (
               <div className="flex items-center gap-3 text-sm text-gray-600">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando...
+                Carregando informações…
               </div>
             ) : !data ? (
               <MenuRequestErrorCard
@@ -215,7 +215,7 @@ export default function MenuAcompanhar() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-sm font-semibold text-gray-900">Status</div>
+                    <div className="text-sm font-semibold text-gray-900">Status atual</div>
                     <div className="mt-2 flex items-start gap-3">
                       <CircleDot className="h-5 w-5 text-blue-600 mt-0.5" />
                       <div>
@@ -233,7 +233,7 @@ export default function MenuAcompanhar() {
                         onClick={() => navigate(propostaUrl)}
                       >
                         <FileText className="h-4 w-4" />
-                        Ver proposta
+                        Abrir proposta
                       </Button>
                     </div>
                   </div>

@@ -809,7 +809,7 @@ export default function MenuDonoWorkspace() {
       if (isLocked) return;
       setIsSending(true);
       await sendMenuQuote({ requestId: rid, token, t, draft });
-      toast.success('Proposta enviada', { description: 'Versão criada e vinculada ao request (protótipo).' });
+      toast.success('Versão enviada ✅', { description: 'Versão criada e enviada para o cliente.' });
       navigate(o4Url);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao enviar.';
@@ -830,7 +830,7 @@ export default function MenuDonoWorkspace() {
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Workspace do responsável</div>
+          <div className="text-sm text-gray-600">Área do responsável</div>
 
           <div className="ml-auto flex gap-2">
             <Button variant="outline" className="gap-2" onClick={() => navigate(backUrl)}>
@@ -938,14 +938,14 @@ export default function MenuDonoWorkspace() {
                       <Lock className="h-4 w-4" />
                       Proposta aprovada (travada)
                     </div>
-                    <div className="mt-1 text-xs text-gray-200">Você não pode gerar novas versões após aprovação.</div>
+                    <div className="mt-1 text-xs text-gray-200">Depois que o cliente aprova, não dá pra criar novas versões.</div>
                   </div>
                 )}
 
                 {status === 'REVISION_REQUESTED' && (
                   <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     <div className="font-semibold">Revisão solicitada pelo cliente</div>
-                    <div className="mt-1 text-xs text-amber-800">Abra a tela de revisão para ver a mensagem do cliente.</div>
+                    <div className="mt-1 text-xs text-amber-800">Abra a tela de revisão para ver o recado do cliente.</div>
                     <div className="mt-3">
                       <Button variant="outline" onClick={() => navigate(o5Url)}>Ver revisão</Button>
                     </div>
@@ -972,10 +972,10 @@ export default function MenuDonoWorkspace() {
                       )}
                     </div>
 
-                    <div className="mt-5 text-sm font-semibold text-gray-900">Histórico de versões</div>
+                    <div className="mt-5 text-sm font-semibold text-gray-900">Versões enviadas</div>
                     <div className="mt-3 space-y-2">
                       {(Array.isArray(data.quotes) ? data.quotes : []).length === 0 ? (
-                        <div className="text-sm text-gray-600">Nenhuma versão enviada ainda.</div>
+                        <div className="text-sm text-gray-600">Nenhuma versão enviada ainda. Quando você enviar, ela aparece aqui.</div>
                       ) : (
                         (data.quotes || []).slice().reverse().map((q) => (
                           <div key={q.version} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
@@ -995,7 +995,7 @@ export default function MenuDonoWorkspace() {
 
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-gray-900">Documento editável (mock)</div>
+                      <div className="text-sm font-semibold text-gray-900">Documento (prévia)</div>
                       <Button variant="outline" className="gap-2" onClick={() => navigate(propostaUrl)}>
                         <ExternalLink className="h-4 w-4" />
                         Ver como cliente
@@ -1003,7 +1003,7 @@ export default function MenuDonoWorkspace() {
                     </div>
 
                     <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4">
-                      <div className="text-sm font-semibold text-gray-900">Itens (memória rápida)</div>
+                      <div className="text-sm font-semibold text-gray-900">Itens da solicitação</div>
                       <div className="mt-2 space-y-3">
                         {(Array.isArray(data.items) ? data.items : []).map((it: any, idx: number) => {
                           const snap = it?.snapshot || {};
@@ -1163,7 +1163,7 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
-                      <div className="text-xs text-gray-500">Mensagem (opcional)</div>
+                      <div className="text-xs text-gray-500">Mensagem pro cliente (opcional)</div>
                       <div className="mt-2">
                         <Textarea
                           value={String(draft.message ?? '')}
@@ -1256,8 +1256,8 @@ export default function MenuDonoWorkspace() {
                           {Math.max(0, Number(draft.manualServiceValue || 0)) > 0 ? (
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
                               <div className="min-w-0 flex-1">
-                                <div className="text-sm text-gray-900">Serviço manual</div>
-                                <div className="mt-1 text-xs text-gray-500">Incluído no bloco de Serviços</div>
+                                <div className="text-sm text-gray-900">Serviço manual (extra)</div>
+                                <div className="mt-1 text-xs text-gray-500">Entra no total como “Serviços”</div>
                               </div>
                               <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(Number(draft.manualServiceValue || 0))}</div>
                             </div>
@@ -1267,7 +1267,7 @@ export default function MenuDonoWorkspace() {
 
                       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
-                          <div className="text-xs text-gray-500">Serviço manual (R$)</div>
+                          <div className="text-xs text-gray-500">Serviço manual (extra) (R$)</div>
                           <Input
                             type="number"
                             value={draft.manualServiceValue == null ? '' : String(draft.manualServiceValue)}
@@ -1448,14 +1448,14 @@ export default function MenuDonoWorkspace() {
 
                       <Separator className="my-4" />
 
-                      <div className="text-sm font-semibold text-gray-900">Brindes (R$ 0)</div>
+                      <div className="text-sm font-semibold text-gray-900">Brindes (sem custo)</div>
                       <div className="mt-2 text-[12px] text-gray-600">
                         Brindes são itens gratuitos com período de ocupação. Eles <span className="font-semibold">não alteram o total</span>, mas aparecem no documento.
                       </div>
 
                       <div className="mt-3 space-y-2">
                         {(draft.gifts || []).length === 0 ? (
-                          <div className="text-sm text-gray-600">Nenhum brinde adicionado.</div>
+                          <div className="text-sm text-gray-600">Nenhum brinde adicionado ainda.</div>
                         ) : (
                           (draft.gifts || []).map((g) => (
                             <div key={g.id} className="rounded-xl border border-gray-200 px-3 py-2">
@@ -1646,7 +1646,7 @@ export default function MenuDonoWorkspace() {
                         </div>
 
                         <div className="col-span-2 rounded-xl border border-gray-200 px-3 py-2">
-                          <div className="text-xs text-gray-500">Brindes (R$ 0)</div>
+                          <div className="text-xs text-gray-500">Brindes (sem custo)</div>
                           <div className="text-sm font-semibold text-gray-900">{(draft.gifts || []).length} item(ns)</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
                             {(draft.gifts || []).slice(0, 3).map((g) => (

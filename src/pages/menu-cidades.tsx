@@ -58,7 +58,7 @@ export default function MenuSelectCity() {
           <Badge variant="secondary" className="rounded-full">
             Protótipo
           </Badge>
-          <div className="text-sm text-gray-600">UF: <b>{uf || '—'}</b> → Cidade</div>
+          <div className="text-sm text-gray-600">Estado: <b>{uf || '—'}</b> → Cidade</div>
           <div className="ml-auto flex items-center gap-2">
             <Button
               variant="ghost"
@@ -73,23 +73,23 @@ export default function MenuSelectCity() {
 
         <div className="mt-4 flex items-start gap-3">
           <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Selecione a Cidade</h1>
-            <p className="mt-1 text-sm text-gray-600">As cidades abaixo são derivadas do inventário real do Mídia Kit público.</p>
+            <h1 className="text-2xl font-bold text-gray-900">Agora escolha a cidade</h1>
+            <p className="mt-1 text-sm text-gray-600">Mostramos só as cidades que têm pontos disponíveis nesse estado.</p>
           </div>
           <Button variant="outline" className="gap-2" onClick={reload} disabled={loading}>
             <RefreshCcw className="h-4 w-4" />
-            Atualizar
+            Atualizar lista
           </Button>
         </div>
 
         <div className="mt-5">
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cidade..." />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cidade — ex.: Águas Claras..." />
         </div>
 
         {error && (
           <Card className="mt-5 border-amber-200 bg-amber-50">
             <CardContent className="py-4">
-              <div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div>
+              <div className="text-sm font-semibold text-amber-900">Ops! Não consegui carregar agora</div>
               <div className="mt-1 text-sm text-amber-800">{error}</div>
             </CardContent>
           </Card>
@@ -139,7 +139,7 @@ export default function MenuSelectCity() {
 
         {!loading && !error && cities.length === 0 && (
           <div className="mt-6 text-sm text-gray-600">
-            Nenhuma cidade encontrada para a UF <b>{uf || '—'}</b>.
+            Não encontramos cidades para o estado <b>{uf || '—'}</b>. Volte e escolha outro estado.
           </div>
         )}
       </div>

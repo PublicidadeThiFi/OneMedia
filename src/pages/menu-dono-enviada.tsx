@@ -128,9 +128,9 @@ export default function MenuDonoEnviada() {
   const copy = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Copiado');
+      toast.success('Copiado ✅');
     } catch {
-      toast.error('Não foi possível copiar');
+      toast.error('Não consegui copiar');
     }
   };
 
@@ -139,10 +139,10 @@ export default function MenuDonoEnviada() {
       setIsRegenerating(true);
       await regenerateMenuLink({ requestId: rid, aud: 'client', token, t });
       await refresh();
-      toast.success('Link regenerado', { description: 'O link anterior foi invalidado e um novo foi gerado.' });
+      toast.success('Link regenerado ✅', { description: 'O link anterior foi desativado e um novo foi criado.' });
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao regenerar.';
-      toast.error('Não foi possível regenerar', { description: String(msg) });
+      toast.error('Não consegui regenerar', { description: String(msg) });
     } finally {
       setIsRegenerating(false);
     }

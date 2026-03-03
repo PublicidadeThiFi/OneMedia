@@ -48,10 +48,10 @@ export default function MenuEnviado() {
     try {
       await navigator.clipboard.writeText(fullAcompanhamentoUrl);
       setCopied(true);
-      toast.success('Link copiado');
+      toast.success('Link copiado ✅');
       setTimeout(() => setCopied(false), 1200);
     } catch {
-      toast.error('Não foi possível copiar o link');
+      toast.error('Não consegui copiar o link');
     }
   };
 
@@ -62,7 +62,7 @@ export default function MenuEnviado() {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Confirmação</div>
+          <div className="text-sm text-gray-600">Tudo certo</div>
 
           <div className="ml-auto">
             <Button variant="ghost" className="gap-2" onClick={() => navigate(backToMenu)}>
@@ -79,9 +79,9 @@ export default function MenuEnviado() {
                 <CheckCircle2 className="h-6 w-6 text-green-600" />
               </div>
               <div className="flex-1">
-                <h1 className="text-xl font-bold text-gray-900">Solicitação enviada</h1>
+                <h1 className="text-xl font-bold text-gray-900">Pedido enviado ✅</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                  O responsável já recebeu sua solicitação por e-mail. Assim que responder, você segue com a proposta.
+                  O responsável já recebeu seu pedido. Assim que ele enviar a proposta, você consegue ver e decidir por aqui.
                 </p>
 
                 {rid && (
@@ -94,17 +94,17 @@ export default function MenuEnviado() {
                 <div className="mt-5 flex flex-col sm:flex-row gap-3">
                   <Button className="gap-2" onClick={() => navigate(acompanhamentoUrl)}>
                     <Activity className="h-4 w-4" />
-                    Acompanhar proposta
+                    Acompanhar andamento
                   </Button>
 
                   <Button variant="outline" className="gap-2" onClick={onCopy}>
                     <Copy className="h-4 w-4" />
-                    {copied ? 'Copiado!' : 'Copiar link de acompanhamento'}
+                    {copied ? 'Copiado!' : 'Copiar link pra acompanhar'}
                   </Button>
                 </div>
 
                 <div className="mt-6 text-xs text-gray-500">
-                  * Nesta etapa do protótipo, o acompanhamento mostra o status básico do envio.
+                  * Dica: guarde este link. Ele é o jeito mais fácil de acompanhar o status.
                 </div>
               </div>
             </div>

@@ -38,7 +38,7 @@ function normalizePhone(raw: string): string {
 
 const TURNSTILE_SITE_KEY = ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
 
-export default function MenuCheckout() {
+export default function MenuFinalizar() {
   const navigate = useNavigation();
 
   const { token, uf, city, flow, ownerCompanyId } = useMemo(() => {
@@ -75,7 +75,7 @@ export default function MenuCheckout() {
     const t = String(token || '').trim();
 
     if (!t) {
-      toast.error('Token ausente. Abra o Cardápio a partir do link compartilhado.');
+      toast.error('Não consegui validar seu acesso. Abra o cardápio pelo link que você recebeu.');
       return;
     }
     if (!cart.items.length) {
@@ -84,15 +84,15 @@ export default function MenuCheckout() {
       return;
     }
     if (!name) {
-      toast.error('Informe seu nome.');
+      toast.error('Digite seu nome para continuar.');
       return;
     }
     if (!phoneDigits || phoneDigits.length < 10) {
-      toast.error('Informe um WhatsApp/telefone válido.');
+      toast.error('Digite um WhatsApp/telefone válido (com DDD).');
       return;
     }
     if (!isValidEmail(email)) {
-      toast.error('Informe um e-mail válido.');
+      toast.error('Digite um e-mail válido.');
       return;
     }
 
@@ -105,7 +105,7 @@ export default function MenuCheckout() {
 
     // Captcha only when configured
     if (TURNSTILE_SITE_KEY && !String(captchaToken || '').trim()) {
-      toast.error('Confirme o captcha para continuar.');
+      toast.error('Só falta confirmar o captcha para continuar.');
       return;
     }
 
@@ -133,10 +133,10 @@ export default function MenuCheckout() {
       }
 
       clearCart();
-      toast.success('Solicitação enviada!');
+      toast.success('Pronto! Pedido enviado.');
       navigate(`/menu/enviado${buildQuery({ token: t, rid: requestId, uf, city, flow, ownerCompanyId })}`);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Falha ao enviar solicitação.';
+      const msg = err?.response?.data?.message || err?.message || 'Não consegui enviar agora.';
       toast.error('Não foi possível enviar', { description: String(msg) });
     } finally {
       setIsSubmitting(false);
@@ -152,7 +152,7 @@ export default function MenuCheckout() {
             {isAgencyFlow(flow) && (
               <Badge variant="outline" className="rounded-full">Agência</Badge>
             )}
-            <div className="text-sm text-gray-600">Checkout</div>
+            <div className="text-sm text-gray-600">Finalizar</div>
 
             <div className="ml-auto">
               <Button variant="ghost" className="gap-2" onClick={() => navigate(backUrl)}>
@@ -183,7 +183,7 @@ export default function MenuCheckout() {
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Checkout</div>
+          <div className="text-sm text-gray-600">Finalizar</div>
 
           <div className="ml-auto">
             <Button variant="ghost" className="gap-2" onClick={() => navigate(backUrl)}>
@@ -194,15 +194,15 @@ export default function MenuCheckout() {
         </div>
 
         <div className="mt-4">
-          <h1 className="text-2xl font-bold text-gray-900">Enviar solicitação de proposta</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Finalizar e pedir proposta</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Preencha seus dados e envie. O responsável receberá por e-mail automaticamente.
+            Preencha seus dados. A gente envia tudo para o responsável e você recebe um link pra acompanhar.
           </p>
         </div>
 
         <Card className="mt-5">
           <CardContent className="py-5">
-            <div className="text-sm font-semibold text-gray-900">Resumo do carrinho</div>
+            <div className="text-sm font-semibold text-gray-900">O que você escolheu</div>
             <div className="mt-2 space-y-2">
               {cart.items.map((it) => (
                 <div key={it.id} className="flex items-start justify-between gap-3 text-sm">
@@ -227,17 +227,17 @@ export default function MenuCheckout() {
 
         <Card className="mt-4">
           <CardContent className="py-5">
-            <div className="text-sm font-semibold text-gray-900">Seus dados</div>
+            <div className="text-sm font-semibold text-gray-900">Seus dados (pra contato)</div>
             <Separator className="my-4" />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nome *</Label>
+                <Label>Seu nome *</Label>
                 <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Seu nome" />
               </div>
 
               <div className="space-y-2">
-                <Label>WhatsApp/Telefone *</Label>
+                <Label>WhatsApp *</Label>
                 <Input
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
@@ -264,7 +264,7 @@ export default function MenuCheckout() {
               </div>
 
               <div className="space-y-2">
-                <Label>CNPJ (opcional)</Label>
+                <Label>Digite CPF (11) ou CNPJ (14)</Label>
                 <Input
                   value={customerCnpj}
                   onChange={(e) => {
@@ -273,7 +273,7 @@ export default function MenuCheckout() {
                     setCustomerDocError(getCpfCnpjErrorMessage(next));
                   }}
                   onBlur={() => setCustomerDocError(getCpfCnpjErrorMessage(customerCnpj))}
-                  placeholder="CPF ou CNPJ (opcional)"
+                  placeholder="CPF ou Digite CPF (11) ou CNPJ (14)"
                   aria-invalid={!!customerDocError}
                 />
                 {customerDocError ? (
@@ -286,7 +286,7 @@ export default function MenuCheckout() {
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ex.: preferência de bairros, datas desejadas, briefing, etc."
+                  placeholder="Ex.: datas desejadas, bairros preferidos, briefing da campanha…"
                   className="min-h-[110px]"
                 />
               </div>
@@ -300,7 +300,7 @@ export default function MenuCheckout() {
                     className="pt-1"
                   />
                   <div className="text-xs text-gray-600">
-                    Confirme que você não é um robô para enviar a solicitação.
+                    É rapidinho — só pra garantir que é uma pessoa de verdade 🙂
                   </div>
                 </div>
               ) : null}
@@ -308,11 +308,11 @@ export default function MenuCheckout() {
 
             <div className="mt-5 flex flex-col sm:flex-row gap-3">
               <Button variant="outline" onClick={() => navigate(backUrl)}>
-                Voltar ao carrinho
+                Voltar pro carrinho
               </Button>
               <Button onClick={onSubmit} disabled={isSubmitting} className="gap-2">
                 <Mail className="h-4 w-4" />
-                {isSubmitting ? 'Enviando...' : 'Enviar solicitação'}
+                {isSubmitting ? 'Enviando…' : 'Enviar pedido'}
               </Button>
             </div>
           </CardContent>
