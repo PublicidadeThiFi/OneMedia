@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -36,7 +36,15 @@ function normalizePhone(raw: string): string {
   return String(raw || '').replace(/\D+/g, '');
 }
 
-const TURNSTILE_SITE_KEY = ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
+const ENV_TURNSTILE_SITE_KEY = ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
+
+type PublicMenuConfigResponse = {
+  captcha?: {
+    provider?: string;
+    enabled?: boolean;
+    siteKey?: string | null;
+  };
+};
 
 export default function MenuFinalizar() {
   const navigate = useNavigation();
@@ -67,6 +75,57 @@ export default function MenuFinalizar() {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
+
+  // Captcha config can come from:
+  // - Vite env (build-time)
+  // - Backend runtime config (so prod can change without rebuilding the frontend)
+  const [captchaRequired, setCaptchaRequired] = useState<boolean>(!!String(ENV_TURNSTILE_SITE_KEY || '').trim());
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string>(String(ENV_TURNSTILE_SITE_KEY || '').trim());
+  const [captchaLoadError, setCaptchaLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadConfig = async () => {
+      try {
+        const res = await publicApiClient.get('/public/menu/config');
+        const data = (res?.data ?? {}) as PublicMenuConfigResponse;
+
+        const enabled = !!data?.captcha?.enabled;
+        const key = String(data?.captcha?.siteKey ?? '').trim();
+
+        if (cancelled) return;
+
+        // Backend decides if captcha is required.
+        // If the backend says enabled but doesn't provide a site key,
+        // we keep the env key (if any) and show an inline warning.
+        setCaptchaRequired(enabled || !!turnstileSiteKey);
+
+        if (!turnstileSiteKey && key) {
+          setTurnstileSiteKey(key);
+        }
+
+        if ((enabled || !!turnstileSiteKey) && !String(key || turnstileSiteKey).trim()) {
+          setCaptchaLoadError('Captcha habilitado, mas a chave do site não foi configurada.');
+        } else {
+          setCaptchaLoadError(null);
+        }
+      } catch (e: any) {
+        if (cancelled) return;
+        // If config fails, we still can work with the env key.
+        if (!String(turnstileSiteKey || '').trim()) {
+          setCaptchaLoadError('Não consegui carregar a configuração do captcha.');
+        }
+      }
+    };
+
+    loadConfig();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async () => {
     const name = String(customerName || '').trim();
@@ -103,10 +162,16 @@ export default function MenuFinalizar() {
       return;
     }
 
-    // Captcha only when configured
-    if (TURNSTILE_SITE_KEY && !String(captchaToken || '').trim()) {
-      toast.error('Só falta confirmar o captcha para continuar.');
-      return;
+    // Captcha (when enabled in backend config)
+    if (captchaRequired) {
+      if (!String(turnstileSiteKey || '').trim()) {
+        toast.error('Captcha habilitado, mas não está configurado.');
+        return;
+      }
+      if (!String(captchaToken || '').trim()) {
+        toast.error('Só falta confirmar o captcha para continuar.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -118,7 +183,7 @@ export default function MenuFinalizar() {
         customerPhone: customerPhone,
         customerCompanyName: customerCompanyName || undefined,
         customerCnpj: customerCnpj || undefined,
-        captchaToken: TURNSTILE_SITE_KEY ? (captchaToken || undefined) : undefined,
+        captchaToken: captchaRequired ? (captchaToken || undefined) : undefined,
         notes: notes || undefined,
         items: cart.items,
         uf: uf || undefined,
@@ -291,17 +356,23 @@ export default function MenuFinalizar() {
                 />
               </div>
 
-              {TURNSTILE_SITE_KEY ? (
+              {captchaRequired ? (
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Confirmação</Label>
-                  <TurnstileWidget
-                    siteKey={TURNSTILE_SITE_KEY}
-                    onToken={(t) => setCaptchaToken(String(t || ''))}
-                    className="pt-1"
-                  />
-                  <div className="text-xs text-gray-600">
-                    É rapidinho — só pra garantir que é uma pessoa de verdade 🙂
-                  </div>
+                  {turnstileSiteKey ? (
+                    <TurnstileWidget
+                      siteKey={turnstileSiteKey}
+                      onToken={(t) => setCaptchaToken(String(t || ''))}
+                      className="pt-1"
+                    />
+                  ) : null}
+                  {captchaLoadError ? (
+                    <div className="text-xs text-red-600">{captchaLoadError}</div>
+                  ) : (
+                    <div className="text-xs text-gray-600">
+                      É rapidinho — só pra garantir que é uma pessoa de verdade 🙂
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
