@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -82,6 +82,12 @@ export default function MenuFinalizar() {
   const [captchaRequired, setCaptchaRequired] = useState<boolean>(!!String(ENV_TURNSTILE_SITE_KEY || '').trim());
   const [turnstileSiteKey, setTurnstileSiteKey] = useState<string>(String(ENV_TURNSTILE_SITE_KEY || '').trim());
   const [captchaLoadError, setCaptchaLoadError] = useState<string | null>(null);
+
+  // Keep the Turnstile callback stable; otherwise the widget can re-initialize on every re-render
+  // (e.g. while typing), which looks like "piscando"/recarregando.
+  const handleCaptchaToken = useCallback((t?: string | null) => {
+    setCaptchaToken(String(t || ''));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -362,7 +368,7 @@ export default function MenuFinalizar() {
                   {turnstileSiteKey ? (
                     <TurnstileWidget
                       siteKey={turnstileSiteKey}
-                      onToken={(t) => setCaptchaToken(String(t || ''))}
+                      onToken={handleCaptchaToken}
                       className="pt-1"
                     />
                   ) : null}
