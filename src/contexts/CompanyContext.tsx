@@ -25,6 +25,8 @@ import {
   PlatformPlan,
   PlatformSubscriptionStatus,
   CompanySubscriptionStatus,
+  PlatformSubscriptionEntitlementsResponse,
+  PlatformSubscriptionAddonCode,
 } from '../types';
 import {
   AccessBlockReason,
@@ -54,6 +56,9 @@ interface CompanyContextValue {
   subscription: PlatformSubscription | null;
   plan: PlatformPlan | null;
 
+  // Media entitlements (storage/traffic/file limits + usage)
+  entitlements: PlatformSubscriptionEntitlementsResponse | null;
+
   // Computed values
   isTrialActive: boolean;
   daysRemainingInTrial: number | null;
@@ -70,8 +75,10 @@ interface CompanyContextValue {
   // Actions
   updateCompanyData: (updates: Partial<Company>) => Promise<void>;
   updateSubscriptionData: (updates: Partial<PlatformSubscription>) => Promise<void>;
+  purchaseMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
   refreshCompanyData: () => Promise<void>;
   refreshPointsUsed: () => Promise<void>;
+  refreshEntitlements: () => Promise<void>;
 
   // Loading state
   isLoading: boolean;
@@ -152,6 +159,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [company, setCompany] = useState<Company | null>(null);
   const [subscription, setSubscription] = useState<PlatformSubscription | null>(null);
   const [plan, setPlan] = useState<PlatformPlan | null>(null);
+  const [entitlements, setEntitlements] = useState<PlatformSubscriptionEntitlementsResponse | null>(null);
   const [pointsUsed, setPointsUsed] = useState(0);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -179,6 +187,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       setCompany(null);
       setSubscription(null);
       setPlan(null);
+      setEntitlements(null);
       setPointsUsed(0);
       clearAccessState();
       setIsLoading(false);
@@ -194,6 +203,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setCompany(null);
         setSubscription(null);
         setPlan(null);
+        setEntitlements(null);
         setIsLoading(false);
         return;
       }
@@ -207,6 +217,14 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       const subResp = await apiClient.get<PlatformSubscription>('/platform-subscription');
       const subscriptionData = subResp.data;
       setSubscription(subscriptionData);
+
+      // Media entitlements (limits + usage)
+      try {
+        const entResp = await apiClient.get<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/entitlements');
+        setEntitlements(entResp.data);
+      } catch {
+        setEntitlements(null);
+      }
 
       // Plan (optional)
       if (subscriptionData?.planId) {
@@ -314,6 +332,25 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     await loadCompanyData();
   };
 
+  const refreshEntitlements = async () => {
+    try {
+      const entResp = await apiClient.get<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/entitlements');
+      setEntitlements(entResp.data);
+    } catch {
+      setEntitlements(null);
+    }
+  };
+
+  const purchaseMediaAddon = async (code: PlatformSubscriptionAddonCode, quantity: number) => {
+    const q = Math.max(1, Math.floor(quantity || 1));
+    const resp = await apiClient.post<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/addons', {
+      code,
+      quantity: q,
+    });
+    // Backend returns updated entitlements.
+    setEntitlements(resp.data);
+  };
+
   const refreshCompanyData = async () => {
     await loadCompanyData();
   };
@@ -330,6 +367,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     company,
     subscription,
     plan,
+    entitlements,
 
     isTrialActive,
     daysRemainingInTrial,
@@ -344,8 +382,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
     updateCompanyData,
     updateSubscriptionData,
+    purchaseMediaAddon,
     refreshCompanyData,
     refreshPointsUsed,
+    refreshEntitlements,
 
     isLoading,
     error,

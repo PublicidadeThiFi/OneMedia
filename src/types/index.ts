@@ -146,6 +146,51 @@ export enum PlatformSubscriptionStatus {
   EM_ATRASO = 'EM_ATRASO',
   CANCELADA = 'CANCELADA',
 }
+
+// Media quota/add-ons (source of truth from backend)
+export type PlatformSubscriptionAddonCode = 'MEDIA_P' | 'MEDIA_M' | 'MEDIA_G' | 'MEDIA_GG';
+export type MediaTier = 'SOLO_CORE' | 'START' | 'PRO' | 'PRO_2000';
+
+export interface PlatformSubscriptionAddonLine {
+  code: PlatformSubscriptionAddonCode;
+  quantity: number;
+}
+
+export interface PlatformSubscriptionEntitlementLimits {
+  tier: MediaTier;
+  kTrafficPerStorage: number;
+  baseStorageGb: number;
+  addonStorageGb: number;
+  totalStorageGb: number;
+  totalTrafficGbPerMonth: number;
+  file: {
+    maxVideoMb: number;
+    maxVideoSeconds: number;
+    maxImageMb: number;
+    maxPdfMb: number;
+  };
+}
+
+export interface PlatformSubscriptionEntitlementUsage {
+  storageUsedBytes: string;
+  trafficUsedBytesThisMonth: string;
+  year: number;
+  month: number;
+}
+
+export interface PlatformSubscriptionEntitlementRemaining {
+  storageRemainingBytes: string;
+  trafficRemainingBytes: string;
+}
+
+export interface PlatformSubscriptionEntitlementsResponse {
+  subscription: PlatformSubscription | null;
+  pointsLimit: number | null;
+  addons: PlatformSubscriptionAddonLine[];
+  limits: PlatformSubscriptionEntitlementLimits;
+  usage: PlatformSubscriptionEntitlementUsage;
+  remaining: PlatformSubscriptionEntitlementRemaining;
+}
 // NO SCHEMA.PRISMA FALTA CAMPOS DE OwnerRegime (OUTRO)
 export enum OwnerRegime {
   DER = 'DER',
