@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigation } from '../App';
 import { SignupStepper } from '../components/signup/SignupStepper';
 import { Step1Plan } from '../components/signup/Step1Plan';
@@ -11,6 +11,7 @@ import {
   SignupCompanyStep,
   SignupUserStep,
   SignupRequestDto,
+  CompleteOAuthSignupRequestDto,
   PlanRange,
   PLAN_DEFINITIONS,
 } from '../types/signup';
@@ -23,13 +24,20 @@ import {
   validatePasswordRequirements 
 } from '../lib/validators';
 
-import { publicApiClient } from '../lib/apiClient';
+import apiClient, { publicApiClient } from '../lib/apiClient';
+import { useAuth } from '../contexts/AuthContext';
+import { SocialAuthButtons } from '../components/auth/SocialAuthButtons';
 
 export default function Cadastro() {
   const navigate = useNavigation();
+  const { user, isAuthenticated, authReady, refreshMe } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const isOAuthOnboarding = useMemo(() => {
+    return !!isAuthenticated && !!user && user.onboardingCompleted === false;
+  }, [isAuthenticated, user]);
 
   // Captcha (Turnstile Managed)
   const [captchaSiteKey, setCaptchaSiteKey] = useState<string>(() => {
@@ -84,6 +92,27 @@ export default function Cadastro() {
       });
     }
   }, []);
+
+  // If user is already authenticated and onboarding is complete, go to app.
+  useEffect(() => {
+    if (!authReady) return;
+    if (isAuthenticated && user?.onboardingCompleted !== false) {
+      navigate('/app/');
+    }
+  }, [authReady, isAuthenticated, user, navigate]);
+
+  // Prefill step 3 with SSO user data when onboarding is pending.
+  useEffect(() => {
+    if (!isOAuthOnboarding || !user) return;
+
+    setStep3Data((prev) => ({
+      ...prev,
+      name: prev.name || user.name || '',
+      email: user.email || prev.email,
+      // keep phone empty if not provided
+      phone: prev.phone || (user.phone ? onlyDigits(user.phone) : ''),
+    }));
+  }, [isOAuthOnboarding, user]);
 
   // Prefer getting siteKey from the public config endpoint (same approach used in checkout).
   // Fallback: VITE_TURNSTILE_SITE_KEY.
@@ -168,30 +197,52 @@ export default function Cadastro() {
       errors.phone = 'Telefone deve ter 10 ou 11 dígitos (com DDD)';
     }
 
-    // Strong password validation
-    if (!step3Data.password) {
-      errors.password = 'Senha é obrigatória';
-    } else {
-      const passwordReqs = validatePasswordRequirements(step3Data.password);
-      if (!passwordReqs.isValid) {
-        const missing: string[] = [];
-        if (!passwordReqs.minLength) missing.push('8 caracteres');
-        if (!passwordReqs.hasUpperCase) missing.push('1 letra maiúscula');
-        if (!passwordReqs.hasNumber) missing.push('1 número');
-        if (!passwordReqs.hasSpecialChar) missing.push('1 caractere especial');
-        errors.password = `A senha deve conter: ${missing.join(', ')}`;
+    // Password rules:
+    // - email signup: required + strong
+    // - OAuth signup: optional; if provided, must be strong and match
+    const isOAuth = isOAuthOnboarding;
+    if (!isOAuth) {
+      if (!step3Data.password) {
+        errors.password = 'Senha é obrigatória';
+      } else {
+        const passwordReqs = validatePasswordRequirements(step3Data.password);
+        if (!passwordReqs.isValid) {
+          const missing: string[] = [];
+          if (!passwordReqs.minLength) missing.push('8 caracteres');
+          if (!passwordReqs.hasUpperCase) missing.push('1 letra maiúscula');
+          if (!passwordReqs.hasNumber) missing.push('1 número');
+          if (!passwordReqs.hasSpecialChar) missing.push('1 caractere especial');
+          errors.password = `A senha deve conter: ${missing.join(', ')}`;
+        }
       }
-    }
-
-    if (step3Data.password !== step3Data.confirmPassword) {
-      errors.confirmPassword = 'As senhas não coincidem';
+      if (step3Data.password !== step3Data.confirmPassword) {
+        errors.confirmPassword = 'As senhas não coincidem';
+      }
+    } else {
+      if (step3Data.password) {
+        const passwordReqs = validatePasswordRequirements(step3Data.password);
+        if (!passwordReqs.isValid) {
+          const missing: string[] = [];
+          if (!passwordReqs.minLength) missing.push('8 caracteres');
+          if (!passwordReqs.hasUpperCase) missing.push('1 letra maiúscula');
+          if (!passwordReqs.hasNumber) missing.push('1 número');
+          if (!passwordReqs.hasSpecialChar) missing.push('1 caractere especial');
+          errors.password = `A senha deve conter: ${missing.join(', ')}`;
+        }
+        if (step3Data.password !== step3Data.confirmPassword) {
+          errors.confirmPassword = 'As senhas não coincidem';
+        }
+      } else if (step3Data.confirmPassword) {
+        errors.confirmPassword = 'Confirmação de senha deve ficar vazia se você não definiu uma senha.';
+      }
     }
 
     if (!step3Data.acceptedTerms) {
       errors.acceptedTerms = 'Você deve aceitar os termos para continuar';
     }
 
-    if (captchaSiteKey && !captchaToken) {
+    // Captcha only for email signup (OAuth uses provider + PKCE/state)
+    if (!isOAuthOnboarding && captchaSiteKey && !captchaToken) {
       errors.captcha = 'Valide o captcha para continuar';
     }
 
@@ -233,34 +284,66 @@ export default function Cadastro() {
         ? Number(onlyDigits(step2Data.estimatedUsers))
         : undefined;
 
-      const dto: SignupRequestDto = {
-        planId: step1Data.selectedPlatformPlanId,
-        companyName: step2Data.fantasyName,
-        cnpj: step2Data.cnpj ? onlyDigits(step2Data.cnpj) : undefined,
-        companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
-        site: step2Data.website || undefined,
-        addressCity: step2Data.city || undefined,
-        addressState: step2Data.state || undefined,
-        addressCountry: step2Data.country || undefined,
-        estimatedUsers:
-          typeof estimatedUsers === 'number' && !Number.isNaN(estimatedUsers)
-            ? estimatedUsers
-            : undefined,
+      if (isOAuthOnboarding) {
+        const dto: CompleteOAuthSignupRequestDto = {
+          planId: step1Data.selectedPlatformPlanId,
+          companyName: step2Data.fantasyName,
+          cnpj: step2Data.cnpj ? onlyDigits(step2Data.cnpj) : undefined,
+          companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
+          site: step2Data.website || undefined,
+          addressCity: step2Data.city || undefined,
+          addressState: step2Data.state || undefined,
+          addressCountry: step2Data.country || undefined,
+          estimatedUsers:
+            typeof estimatedUsers === 'number' && !Number.isNaN(estimatedUsers)
+              ? estimatedUsers
+              : undefined,
 
-        adminName: step3Data.name,
-        adminEmail: normalizeEmailInput(step3Data.email),
-        adminPhone: step3Data.phone ? onlyDigits(step3Data.phone) : undefined,
-        adminPassword: step3Data.password,
-        adminPasswordConfirmation: step3Data.confirmPassword,
+          adminName: step3Data.name,
+          adminEmail: normalizeEmailInput(step3Data.email),
+          adminPhone: step3Data.phone ? onlyDigits(step3Data.phone) : undefined,
+          // Optional: only send when filled
+          ...(step3Data.password
+            ? {
+                adminPassword: step3Data.password,
+                adminPasswordConfirmation: step3Data.confirmPassword,
+              }
+            : {}),
+          acceptTerms: !!step3Data.acceptedTerms,
+        };
 
-        acceptTerms: !!step3Data.acceptedTerms,
+        await apiClient.post('/signup/oauth/complete', dto);
+        await refreshMe();
+        navigate('/app/');
+      } else {
+        const dto: SignupRequestDto = {
+          planId: step1Data.selectedPlatformPlanId,
+          companyName: step2Data.fantasyName,
+          cnpj: step2Data.cnpj ? onlyDigits(step2Data.cnpj) : undefined,
+          companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
+          site: step2Data.website || undefined,
+          addressCity: step2Data.city || undefined,
+          addressState: step2Data.state || undefined,
+          addressCountry: step2Data.country || undefined,
+          estimatedUsers:
+            typeof estimatedUsers === 'number' && !Number.isNaN(estimatedUsers)
+              ? estimatedUsers
+              : undefined,
 
-        captchaToken: captchaSiteKey ? captchaToken : undefined,
-      };
+          adminName: step3Data.name,
+          adminEmail: normalizeEmailInput(step3Data.email),
+          adminPhone: step3Data.phone ? onlyDigits(step3Data.phone) : undefined,
+          adminPassword: step3Data.password,
+          adminPasswordConfirmation: step3Data.confirmPassword,
 
-      await publicApiClient.post('/signup', dto);
+          acceptTerms: !!step3Data.acceptedTerms,
 
-      setIsSuccess(true);
+          captchaToken: captchaSiteKey ? captchaToken : undefined,
+        };
+
+        await publicApiClient.post('/signup', dto);
+        setIsSuccess(true);
+      }
     } catch (err: any) {
       const apiMessage = err?.response?.data?.message;
       const message = Array.isArray(apiMessage)
@@ -311,12 +394,28 @@ export default function Cadastro() {
             {/* Step Content */}
             <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-4 sm:p-10 mt-5 sm:mt-8">
               {currentStep === 1 && (
-                <Step1Plan
-                  data={step1Data}
-                  onChange={setStep1Data}
-                  onNext={handleStep1Next}
-                  error={step1Error}
-                />
+                <>
+                  {!isAuthenticated ? (
+                    <div className="mb-6">
+                      <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                        <p className="text-sm text-gray-700 font-medium mb-3">Continuar com</p>
+                        <SocialAuthButtons next="/cadastro" />
+                        <div className="my-4 flex items-center gap-3">
+                          <div className="h-px flex-1 bg-gray-200" />
+                          <span className="text-xs text-gray-500">ou</span>
+                          <div className="h-px flex-1 bg-gray-200" />
+                        </div>
+                        <p className="text-xs text-gray-500">Você também pode criar uma conta com e-mail e senha preenchendo os passos abaixo.</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  <Step1Plan
+                    data={step1Data}
+                    onChange={setStep1Data}
+                    onNext={handleStep1Next}
+                    error={step1Error}
+                  />
+                </>
               )}
 
               {currentStep === 2 && (
@@ -337,7 +436,8 @@ export default function Cadastro() {
                   onBack={() => setCurrentStep(2)}
                   errors={step3Errors}
                   isLoading={isLoading}
-                  captchaSiteKey={captchaSiteKey}
+                  isOAuth={isOAuthOnboarding}
+                  captchaSiteKey={isOAuthOnboarding ? '' : captchaSiteKey}
                   captchaToken={captchaToken}
                   onCaptchaToken={setCaptchaToken}
                 />

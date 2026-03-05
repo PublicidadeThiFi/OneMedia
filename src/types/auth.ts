@@ -24,6 +24,8 @@ export interface AuthUser {
   companyId: string | null;
   name: string;
   email: string;
+  /** Optional phone, may be null. */
+  phone?: string | null;
   isSuperAdmin: boolean;
   status: UserStatus;
   twoFactorEnabled: boolean;

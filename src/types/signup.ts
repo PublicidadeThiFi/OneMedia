@@ -90,3 +90,35 @@ export interface SignupRequestDto {
   /** Cloudflare Turnstile token (Managed). */
   captchaToken?: string;
 };
+
+/**
+ * Completa o onboarding de um usuário autenticado via OAuth/OIDC.
+ * Mesmos campos do signup, mas:
+ * - sem captcha
+ * - senha é opcional (usuário pode continuar apenas com Google/Outlook)
+ */
+export interface CompleteOAuthSignupRequestDto {
+  planId: string;
+
+  companyName: string;
+  companyEmail?: string;
+  cnpj?: string;
+  companyPhone?: string;
+  site?: string;
+  addressZipcode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressCountry?: string;
+  estimatedUsers?: number;
+
+  adminName: string;
+  adminEmail: string;
+  adminPhone?: string;
+  adminPassword?: string;
+  adminPasswordConfirmation?: string;
+
+  acceptTerms: boolean;
+}

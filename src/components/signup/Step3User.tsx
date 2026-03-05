@@ -17,6 +17,8 @@ type Step3UserProps = {
   onBack: () => void;
   errors: Record<string, string>;
   isLoading: boolean;
+  /** True when the user is completing onboarding after SSO (Google/Outlook). */
+  isOAuth?: boolean;
   captchaSiteKey?: string;
   captchaToken?: string;
   onCaptchaToken?: (token: string) => void;
@@ -29,6 +31,7 @@ export function Step3User({
   onBack,
   errors,
   isLoading,
+  isOAuth,
   captchaSiteKey,
   captchaToken,
   onCaptchaToken,
@@ -50,6 +53,7 @@ export function Step3User({
 
   // Password requirements validation
   const passwordReqs = validatePasswordRequirements(data.password);
+  const oauth = !!isOAuth;
 
   return (
     <div>
@@ -96,14 +100,23 @@ export function Step3User({
             type="email"
             value={data.email}
             onChange={(e) => handleChange('email', normalizeEmailInput(e.target.value))}
+            readOnly={oauth}
+            disabled={oauth}
             placeholder="seu.email@empresa.com.br"
             className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
-              errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+              oauth
+                ? 'border-gray-200 bg-gray-100 text-gray-600 cursor-not-allowed'
+                : errors.email
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-gray-200 bg-gray-50'
             }`}
           />
           {errors.email && (
             <p className="mt-2 text-sm text-red-600">{errors.email}</p>
           )}
+          {oauth ? (
+            <p className="mt-2 text-xs text-gray-500">Esse e-mail vem do Google/Outlook e não pode ser alterado.</p>
+          ) : null}
         </div>
 
         {/* Telefone */}
@@ -131,14 +144,19 @@ export function Step3User({
         {/* Senha */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Senha <span className="text-red-600">*</span>
+            {oauth ? 'Senha (opcional)' : (
+              <>Senha <span className="text-red-600">*</span></>
+            )}
           </label>
+          {oauth ? (
+            <p className="text-xs text-gray-500 mb-2">Opcional: crie uma senha para também entrar sem Google/Outlook.</p>
+          ) : null}
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               value={data.password}
               onChange={(e) => handleChange('password', e.target.value)}
-              placeholder="Crie uma senha forte"
+              placeholder={oauth ? 'Crie uma senha (opcional)' : 'Crie uma senha forte'}
               className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
                 errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
               }`}
@@ -207,32 +225,36 @@ export function Step3User({
         </div>
 
         {/* Confirmar Senha */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Confirmar senha <span className="text-red-600">*</span>
-          </label>
-          <div className="relative">
-            <input
-              type={showConfirmPassword ? 'text' : 'password'}
-              value={data.confirmPassword}
-              onChange={(e) => handleChange('confirmPassword', e.target.value)}
-              placeholder="Digite a senha novamente"
-              className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
-                errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
+        {!oauth || data.password || data.confirmPassword || errors.confirmPassword ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {oauth ? 'Confirmar senha (opcional)' : (
+                <>Confirmar senha <span className="text-red-600">*</span></>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={data.confirmPassword}
+                onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                placeholder="Digite a senha novamente"
+                className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                  errors.confirmPassword ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            {errors.confirmPassword && (
+              <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>
+            )}
           </div>
-          {errors.confirmPassword && (
-            <p className="mt-2 text-sm text-red-600">{errors.confirmPassword}</p>
-          )}
-        </div>
+        ) : null}
 
         {/* Aceite de Termos */}
         <div>
@@ -261,7 +283,7 @@ export function Step3User({
         </div>
       </div>
 
-      {captchaSiteKey ? (
+      {!oauth && captchaSiteKey ? (
         <div className="mb-8">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Confirme que você não é um robô <span className="text-red-600">*</span>
@@ -289,16 +311,16 @@ export function Step3User({
         </button>
         <button
           onClick={onSubmit}
-          disabled={isLoading || (captchaSiteKey ? !captchaToken : false)}
+          disabled={isLoading || (!oauth && (captchaSiteKey ? !captchaToken : false))}
           className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-10 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-500/30 font-medium"
         >
           {isLoading ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Criando conta...
+              {oauth ? 'Finalizando...' : 'Criando conta...'}
             </>
           ) : (
-            'Concluir cadastro'
+            oauth ? 'Finalizar cadastro' : 'Concluir cadastro'
           )}
         </button>
       </div>
