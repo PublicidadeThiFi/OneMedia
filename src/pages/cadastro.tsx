@@ -17,7 +17,6 @@ import {
 import { 
   onlyDigits, 
   isValidPhone, 
-  isValidCNPJ,
   isValidEmail,
   getEmailErrorMessage,
   normalizeEmailInput,
@@ -131,9 +130,12 @@ export default function Cadastro() {
       errors.fantasyName = 'Nome fantasia é obrigatório';
     }
 
-    if (!step2Data.cnpj.trim()) {
+    const cnpjDigits = onlyDigits(step2Data.cnpj);
+    if (!cnpjDigits) {
       errors.cnpj = 'CNPJ é obrigatório';
-    } else if (!isValidCNPJ(step2Data.cnpj)) {
+    } else if (cnpjDigits.length !== 14) {
+      // We validate only the length here to reduce signup friction.
+      // (Backend does not enforce check digits.)
       errors.cnpj = 'CNPJ deve ter 14 dígitos';
     }
 

@@ -881,7 +881,7 @@ export function MediaMap() {
     setCreateDialogOpen(true);
   };
 
-  const handleSavePointFromMap = async (data: Partial<MediaPoint>, imageFile?: File | null) => {
+  const handleSavePointFromMap = async (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => {
     // Remove campos não aceitos/necessários pela API
     const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
 
@@ -892,6 +892,14 @@ export function MediaMap() {
       const fd = new FormData();
       fd.append('file', imageFile);
       await apiClient.post(`/media-points/${saved.id}/image`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      } as any);
+    }
+
+    if (videoFile && saved?.id) {
+      const fd = new FormData();
+      fd.append('file', videoFile);
+      await apiClient.post(`/media-points/${saved.id}/video`, fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       } as any);
     }

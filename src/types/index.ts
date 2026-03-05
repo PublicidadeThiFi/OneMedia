@@ -315,6 +315,7 @@ export interface MediaPoint {
   basePriceWeek?: number;
   basePriceDay?: number;
   mainImageUrl?: string;
+  mainVideoUrl?: string;
   productionCosts?: ProductionCosts; // custos de produção OOH
   promotion?: PromotionPayload | null;
   createdAt: Date;
@@ -346,6 +347,7 @@ export interface MediaUnit {
   priceWeek?: number;
   priceDay?: number;
   imageUrl?: string | null; // imagem específica da face/tela
+  videoUrl?: string | null; // vídeo específico da face/tela
   promotion?: PromotionPayload | null;
   effectivePromotion?: PromotionPayload | null;
   isActive: boolean;
