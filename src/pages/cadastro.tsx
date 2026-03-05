@@ -93,6 +93,35 @@ export default function Cadastro() {
     }
   }, []);
 
+  // Optional: show social login error (if the flow redirects back here)
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const code = p.get('oauth_error') || p.get('error');
+      const desc = p.get('oauth_error_description') || p.get('error_description');
+      if (!code) return;
+
+      const c = String(code);
+      const friendly =
+        c === 'OAUTH_ACCESS_DENIED'
+          ? 'Você cancelou o login social.'
+          : c === 'OAUTH_PROVIDER_CONFLICT'
+            ? 'Essa conta do provedor já está vinculada a outra conta. Use o mesmo Google/Outlook utilizado anteriormente.'
+            : c === 'OAUTH_EMAIL_ALREADY_IN_USE'
+              ? 'Este e-mail já está em uso por outra conta.'
+              : c === 'OAUTH_ID_TOKEN_INVALID'
+                ? 'Não foi possível validar o login social. Tente novamente.'
+                : c === 'OAUTH_SESSION_INVALID'
+                  ? 'Sessão do login social expirou. Tente novamente.'
+                  : 'Não foi possível autenticar com Google/Outlook.';
+
+      setStep1Error(desc ? `${friendly}\n${desc}` : friendly);
+      setCurrentStep(1);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // If user is already authenticated and onboarding is complete, go to app.
   useEffect(() => {
     if (!authReady) return;
