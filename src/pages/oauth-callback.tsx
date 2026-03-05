@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigation } from '../App';
+import { useAuth } from '../contexts/AuthContext';
+import { parseOAuthCallbackParams } from '../lib/oauth';
 
 /**
  * OAuth Callback Page
@@ -12,44 +14,48 @@ import { useNavigation } from '../App';
  */
 export default function OAuthCallback() {
   const navigate = useNavigation();
+  const { completeOAuthLogin } = useAuth();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    let cancelled = false;
+    (async () => {
+      const { accessToken, refreshToken, error, next } = parseOAuthCallbackParams();
 
-    // Suporta tokens no query string ou no hash (ex.: #access_token=XXX&refresh_token=YYY)
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      if (error) {
+        setErrorMsg(decodeURIComponent(error));
+        return;
+      }
 
-    const accessToken =
-      params.get('access_token') ??
-      params.get('token') ??
-      hashParams.get('access_token') ??
-      hashParams.get('token');
+      if (!accessToken || !refreshToken) {
+        setErrorMsg('Tokens de autenticação não encontrados na resposta do servidor.');
+        return;
+      }
 
-    const refreshToken =
-      params.get('refresh_token') ?? hashParams.get('refresh_token');
+      try {
+        const me = await completeOAuthLogin({ accessToken, refreshToken });
+        if (cancelled) return;
 
-    const error = params.get('error') ?? hashParams.get('error');
+        // Remove tokens/params da URL para evitar vazamentos em histórico.
+        window.history.replaceState(null, '', '/oauth-callback');
 
-    if (error) {
-      setErrorMsg(decodeURIComponent(error));
-      return;
-    }
+        // If onboarding isn't completed, force the flow.
+        if (me?.onboardingCompleted === false) {
+          navigate('/cadastro');
+          return;
+        }
 
-    if (!accessToken) {
-      setErrorMsg('Token de acesso não encontrado na resposta do servidor.');
-      return;
-    }
+        // Normal path: honor 'next' param.
+        navigate(next || '/app/');
+      } catch (e: any) {
+        const msg = e?.message ? String(e.message) : 'Falha ao finalizar autenticação.';
+        setErrorMsg(msg);
+      }
+    })();
 
-    // Salva tokens — AuthContext os lê no mount via localStorage
-    localStorage.setItem('access_token', accessToken);
-    if (refreshToken) {
-      localStorage.setItem('refresh_token', refreshToken);
-    }
-
-    // Limpa a URL e manda para o app
-    window.history.replaceState(null, '', '/oauth-callback');
-    navigate('/app');
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (errorMsg) {

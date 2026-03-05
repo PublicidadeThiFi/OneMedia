@@ -128,8 +128,15 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
   // to bootstrap /auth/me using tokens from localStorage.
   // While authReady=false we must NOT redirect yet.
   useEffect(() => {
-    if (authReady && !user) {
+    if (!authReady) return;
+    if (!user) {
       navigate('/login');
+      return;
+    }
+
+    // New SSO users may have no company yet. Force onboarding flow.
+    if (user.onboardingCompleted === false) {
+      navigate('/cadastro');
     }
   }, [authReady, user, navigate]);
 

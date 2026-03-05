@@ -35,6 +35,13 @@ interface AuthContextValue {
   loading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   verifyTwoFactor: (payload: TwoFactorPayload) => Promise<void>;
+  /**
+   * Used by /oauth-callback. Stores tokens, fetches /auth/me and updates state.
+   * Does NOT perform navigation.
+   */
+  completeOAuthLogin: (tokens: AuthTokens) => Promise<AuthUser>;
+  /** Refresh /auth/me and update user state (keeps current tokens). */
+  refreshMe: () => Promise<AuthUser | null>;
   logout: () => void;
 }
 
@@ -63,7 +70,7 @@ type AuthResponse = {
     id: string;
     email: string;
     name: string;
-    companyId: string;
+    companyId: string | null;
     isSuperAdmin?: boolean;
     twoFactorEnabled?: boolean;
   };
@@ -86,6 +93,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [authReady, setAuthReady] = useState(false);
 
+  const fetchMe = async (): Promise<AuthUser> => {
+    const response = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
+    return response.data;
+  };
+
+  const setSessionFromTokens = async (newTokens: AuthTokens): Promise<AuthUser> => {
+    clearAccessState();
+
+    localStorage.setItem('access_token', newTokens.accessToken);
+    localStorage.setItem('refresh_token', newTokens.refreshToken);
+
+    setTokens(newTokens);
+    const me = await fetchMe();
+    setUser(me);
+    setRequiresTwoFactor(false);
+    setPendingEmail(null);
+    setAuthReady(true);
+    return me;
+  };
+
   // Tenta carregar usuário atual ao montar, se houver tokens no localStorage
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
@@ -99,8 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fetchCurrentUser = async () => {
       try {
         setLoading(true);
-        const response = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
-        const me = response.data;
+        const me = await fetchMe();
         setUser(me);
         setTokens({
           accessToken: accessToken || '',
@@ -172,17 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Salva tokens no localStorage
-      localStorage.setItem('access_token', extracted.accessToken);
-      localStorage.setItem('refresh_token', extracted.refreshToken);
-
-      setTokens(extracted);
-
-      // Carrega usuário completo
-      const meResponse = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
-      setUser(meResponse.data);
-      setRequiresTwoFactor(false);
-      setPendingEmail(null);
-      setAuthReady(true);
+      await setSessionFromTokens(extracted);
 
         // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
         // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
@@ -210,19 +226,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      localStorage.setItem('access_token', extracted.accessToken);
-      localStorage.setItem('refresh_token', extracted.refreshToken);
-
-      setTokens(extracted);
-
-      const meResponse = await apiClient.get<AuthUser>('/auth/me', { params: { _ts: Date.now() } });
-      setUser(meResponse.data);
-      setRequiresTwoFactor(false);
-      setPendingEmail(null);
-      setAuthReady(true);
+      await setSessionFromTokens(extracted);
         // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
         // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
         navigate('/app/');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeOAuthLogin = async (newTokens: AuthTokens) => {
+    setLoading(true);
+    try {
+      return await setSessionFromTokens(newTokens);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshMe = async () => {
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (!accessToken && !refreshToken) {
+      setUser(null);
+      setTokens(null);
+      setAuthReady(true);
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const me = await fetchMe();
+      setUser(me);
+      setTokens({ accessToken: accessToken || '', refreshToken: refreshToken || '' });
+      setAuthReady(true);
+      return me;
+    } catch {
+      setUser(null);
+      setTokens(null);
+      setAuthReady(true);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -255,6 +298,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     login,
     verifyTwoFactor,
+    completeOAuthLogin,
+    refreshMe,
     logout,
   };
 
