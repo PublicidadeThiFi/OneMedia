@@ -95,6 +95,27 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     return response.data;
   };
 
+  const uploadMediaPointVideo = async (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<MediaPoint>(
+      `/media-points/${id}/video`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+
+    setMediaPoints((prev: MediaPoint[]) =>
+      prev.map((p: MediaPoint) =>
+        p.id === id ? { ...p, mainVideoUrl: response.data.mainVideoUrl } : p
+      )
+    );
+
+    return response.data;
+  };
+
   useEffect(() => {
     fetchMediaPoints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,5 +139,6 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     updateMediaPoint,
     deleteMediaPoint,
     uploadMediaPointImage,
+    uploadMediaPointVideo,
   };
 }

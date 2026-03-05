@@ -92,6 +92,27 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     return response.data;
   };
 
+  const uploadUnitVideo = async (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<{ videoUrl: string }>(
+      `/media-units/${id}/video`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }
+    );
+
+    setUnits((prev: MediaUnit[]) =>
+      prev.map((u: MediaUnit) =>
+        u.id === id ? { ...u, videoUrl: response.data.videoUrl } : u
+      )
+    );
+
+    return response.data;
+  };
+
   useEffect(() => {
     fetchUnits();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,5 +127,6 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     updateUnit,
     deleteUnit,
     uploadUnitImage,
+    uploadUnitVideo,
   };
 }

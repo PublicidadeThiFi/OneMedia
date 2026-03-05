@@ -53,7 +53,7 @@ export function MediaUnitsDialog({
   mediaPointName,
   mediaPointType,
 }: MediaUnitsDialogProps) {
-  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadUnitImage } =
+  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadUnitImage, uploadUnitVideo } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
   const { entitlements } = useCompany();
@@ -190,6 +190,15 @@ export function MediaUnitsDialog({
                               <span>Imagem disponível</span>
                             </div>
                           )}
+
+                          {unit.videoUrl && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                              <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-gray-100 text-gray-700 text-[10px]">
+                                ▶
+                              </span>
+                              <span>Vídeo disponível</span>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex gap-2">
@@ -238,7 +247,7 @@ export function MediaUnitsDialog({
               unit={editingUnit}
               mediaPointType={mediaPointType}
               entitlements={entitlements}
-              onSave={async (data, imageFile) => {
+              onSave={async (data, imageFile, videoFile) => {
                 try {
                   const clean = sanitizeUnitPayload(data);
 
@@ -246,6 +255,9 @@ export function MediaUnitsDialog({
                     await updateUnit(editingUnit.id, clean);
                     if (imageFile) {
                       await uploadUnitImage(editingUnit.id, imageFile);
+                    }
+                    if (videoFile) {
+                      await uploadUnitVideo(editingUnit.id, videoFile);
                     }
                     setEditingUnit(null);
                   } else {
@@ -256,6 +268,9 @@ export function MediaUnitsDialog({
                     } as any);
                     if (imageFile) {
                       await uploadUnitImage(created.id, imageFile);
+                    }
+                    if (videoFile) {
+                      await uploadUnitVideo(created.id, videoFile);
                     }
                     setIsAdding(false);
                   }
@@ -283,7 +298,7 @@ export function MediaUnitsDialog({
 interface UnitFormProps {
   unit: MediaUnit | null;
   mediaPointType: MediaType;
-  onSave: (data: UnitFormPayload, imageFile?: File | null) => void;
+  onSave: (data: UnitFormPayload, imageFile?: File | null, videoFile?: File | null) => void;
   onCancel: () => void;
   entitlements: any;
 }
@@ -310,6 +325,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(unit?.imageUrl ?? null);
 
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(unit?.videoUrl ?? null);
+
+  const fileLimits = entitlements?.limits?.file;
+
   // Quando alterna de "nova unidade" para "editar" (ou troca a unidade sendo editada),
   // precisamos sincronizar o estado interno do formulário com a prop `unit`.
   useEffect(() => {
@@ -327,10 +347,16 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
       });
       setImageFile(null);
       setImagePreview(unit.imageUrl ?? null);
+
+      setVideoFile(null);
+      setVideoPreview(unit.videoUrl ?? null);
     } else {
       setFormData({ label: '' });
       setImageFile(null);
       setImagePreview(null);
+
+      setVideoFile(null);
+      setVideoPreview(null);
     }
   }, [unit]);
 
@@ -364,13 +390,42 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
     setImagePreview(url);
   };
 
+  const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) {
+      setVideoFile(null);
+      return;
+    }
+
+    const err = await validateFileAgainstEntitlements(file, 'video', entitlements);
+    if (err) {
+      toast.error(err);
+      try {
+        (e.target as any).value = '';
+      } catch {
+        // ignore
+      }
+      setVideoFile(null);
+      setVideoPreview(null);
+      return;
+    }
+
+    setVideoFile(file);
+    const url = URL.createObjectURL(file);
+    setVideoPreview(url);
+  };
+
   useEffect(() => {
     return () => {
       if (imagePreview && imagePreview.startsWith('blob:')) {
         URL.revokeObjectURL(imagePreview);
       }
+
+      if (videoPreview && videoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(videoPreview);
+      }
     };
-  }, [imagePreview]);
+  }, [imagePreview, videoPreview]);
 
   return (
     <Card className="border-2 border-indigo-200">
@@ -402,7 +457,27 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
             )}
           </div>
           <p className="text-xs text-gray-500">
-            JPG, PNG ou GIF (máx. 4MB).
+            JPG, PNG ou GIF (máx. {fileLimits?.maxImageMb ?? 4}MB).
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Vídeo da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'} (opcional)</Label>
+          <div className="flex items-center gap-4">
+            <Input
+              type="file"
+              accept="video/*"
+              onChange={handleVideoChange}
+              className="flex-1"
+            />
+            {videoPreview && (
+              <div className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
+                <video src={videoPreview} className="w-full h-full object-cover" controls muted />
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            MP4/WebM/MOV (máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s). O upload será feito ao salvar.
           </p>
         </div>
 
@@ -549,7 +624,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
           <Button variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button onClick={() => onSave(formData, imageFile)} disabled={!formData.label?.trim()}>
+          <Button onClick={() => onSave(formData, imageFile, videoFile)} disabled={!formData.label?.trim()}>
             {unit ? 'Salvar Alterações' : 'Adicionar'}
           </Button>
         </div>

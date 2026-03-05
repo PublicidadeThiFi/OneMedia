@@ -68,11 +68,12 @@ interface MediaPointFormDialogProps {
   onOpenChange: (open: boolean) => void;
   mediaPoint?: MediaPoint | null;
   initialData?: Partial<MediaPoint> | null;
-  onSave: (data: Partial<MediaPoint>, imageFile?: File | null) => Promise<any> | void;
+  onSave: (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => Promise<any> | void;
 }
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave }: MediaPointFormDialogProps) {
   const { entitlements } = useCompany();
+  const fileLimits = (entitlements as any)?.limits?.file;
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
     type: MediaType.OOH,
@@ -85,6 +86,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
 
   // =====================
   // Mapa (Etapa 6)
@@ -113,6 +117,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setType(mediaPoint.type);
       setImageFile(null);
       setImagePreview(resolveUploadsUrl(mediaPoint.mainImageUrl) || null);
+
+      setVideoFile(null);
+      setVideoPreview(resolveUploadsUrl(mediaPoint.mainVideoUrl) || null);
     } else {
       const merged: Partial<MediaPoint> = {
         type: MediaType.OOH,
@@ -125,6 +132,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setType(MediaType.OOH);
       setImageFile(null);
       setImagePreview(null);
+
+      setVideoFile(null);
+      setVideoPreview(null);
     }
     // Reset do auto-fill quando abrir
     lastAutoRef.current = null;
@@ -178,13 +188,43 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     // Se quiser "remover imagem", isso deve ser uma ação explícita.
   };
 
+  const handleVideoChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+
+    if (file) {
+      const err = await validateFileAgainstEntitlements(file, 'video', entitlements);
+      if (err) {
+        toast.error(err);
+        try {
+          (e.target as any).value = '';
+        } catch {
+          // ignore
+        }
+        setVideoFile(null);
+        setVideoPreview(null);
+        return;
+      }
+
+      setVideoFile(file);
+      const url = URL.createObjectURL(file);
+      setVideoPreview(url);
+      return;
+    }
+
+    setVideoFile(null);
+  };
+
   useEffect(() => {
     return () => {
       if (imagePreview && imagePreview.startsWith('blob:')) {
         URL.revokeObjectURL(imagePreview);
       }
+
+      if (videoPreview && videoPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(videoPreview);
+      }
     };
-  }, [imagePreview]);
+  }, [imagePreview, videoPreview]);
 
   const updateField = (field: keyof MediaPoint, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -383,7 +423,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
           ...payload,
           type,
         },
-        imageFile
+        imageFile,
+        videoFile
       );
 
       // Só fecha se a operação foi concluída sem erro.
@@ -406,6 +447,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     });
     setErrors({});
     setSubmitError(null);
+    setImageFile(null);
+    setVideoFile(null);
     onOpenChange(false);
   };
 
@@ -477,7 +520,25 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   </div>
                 )}
                 <p className="text-xs text-gray-500">
-                  Selecione uma imagem (PNG/JPG). O upload será feito ao salvar.
+                  Selecione uma imagem (PNG/JPG). O upload será feito ao salvar. Máx. {fileLimits?.maxImageMb ?? 5}MB.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vídeo principal (opcional)</Label>
+                <Input type="file" accept="video/*" onChange={handleVideoChange} />
+                {videoPreview && (
+                  <div className="mt-2 w-full max-w-sm h-40 bg-gray-100 rounded overflow-hidden">
+                    <video
+                      src={videoPreview}
+                      controls
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">
+                  Vídeo (MP4/WebM/MOV). O upload será feito ao salvar. Máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s.
                 </p>
               </div>
 
