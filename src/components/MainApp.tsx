@@ -167,6 +167,16 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
     );
   }
 
+  // Avoid rendering the internal shell when onboarding is pending.
+  // The redirect effect will take the user to /cadastro.
+  if (user.onboardingCompleted === false) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-sm text-gray-500">Redirecionando para concluir o cadastro…</div>
+      </div>
+    );
+  }
+
   const goToSubscriptionSettings = () => {
     setCurrentPage('settings');
     setIsMobileMenuOpen(false);
