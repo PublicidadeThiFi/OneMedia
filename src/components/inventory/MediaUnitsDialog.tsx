@@ -11,6 +11,7 @@ import { MediaType, MediaUnit, UnitType, Orientation } from '../../types';
 import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
 import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
+import { resolveUploadsUrl } from '../../lib/format';
 import { toast } from 'sonner';
 
 interface MediaUnitsDialogProps {
@@ -253,12 +254,28 @@ export function MediaUnitsDialog({
 
                   if (editingUnit) {
                     await updateUnit(editingUnit.id, clean);
-                    if (imageFile) {
-                      await uploadUnitImage(editingUnit.id, imageFile);
-                    }
-                    if (videoFile) {
-                      await uploadUnitVideo(editingUnit.id, videoFile);
-                    }
+	                    if (imageFile) {
+	                      try {
+	                        await uploadUnitImage(editingUnit.id, imageFile);
+	                        toast.success('Imagem da unidade enviada!');
+	                      } catch (e: any) {
+	                        const raw = e?.response?.data?.message;
+	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar imagem da unidade';
+	                        toast.error(msg);
+	                        throw new Error(msg);
+	                      }
+	                    }
+	                    if (videoFile) {
+	                      try {
+	                        await uploadUnitVideo(editingUnit.id, videoFile);
+	                        toast.success('Vídeo da unidade enviado!');
+	                      } catch (e: any) {
+	                        const raw = e?.response?.data?.message;
+	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar vídeo da unidade';
+	                        toast.error(msg);
+	                        throw new Error(msg);
+	                      }
+	                    }
                     setEditingUnit(null);
                   } else {
                     const created = await createUnit({
@@ -266,17 +283,34 @@ export function MediaUnitsDialog({
                       unitType: unitTypeForPoint,
                       label: (clean.label ?? '').toString(),
                     } as any);
-                    if (imageFile) {
-                      await uploadUnitImage(created.id, imageFile);
-                    }
-                    if (videoFile) {
-                      await uploadUnitVideo(created.id, videoFile);
-                    }
+	                    if (imageFile) {
+	                      try {
+	                        await uploadUnitImage(created.id, imageFile);
+	                        toast.success('Imagem da unidade enviada!');
+	                      } catch (e: any) {
+	                        const raw = e?.response?.data?.message;
+	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar imagem da unidade';
+	                        toast.error(msg);
+	                        throw new Error(msg);
+	                      }
+	                    }
+	                    if (videoFile) {
+	                      try {
+	                        await uploadUnitVideo(created.id, videoFile);
+	                        toast.success('Vídeo da unidade enviado!');
+	                      } catch (e: any) {
+	                        const raw = e?.response?.data?.message;
+	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar vídeo da unidade';
+	                        toast.error(msg);
+	                        throw new Error(msg);
+	                      }
+	                    }
                     setIsAdding(false);
                   }
-                } catch (e) {
-                  console.error(e);
-                  alert('Erro ao salvar unidade.');
+	                } catch (e: any) {
+	                  console.error(e);
+	                  const msg = e?.message || 'Erro ao salvar unidade.';
+	                  toast.error(msg);
                 }
               }}
               onCancel={() => {
@@ -323,10 +357,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
   );
 
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(unit?.imageUrl ?? null);
+	const [imagePreview, setImagePreview] = useState<string | null>(resolveUploadsUrl(unit?.imageUrl) || null);
 
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string | null>(unit?.videoUrl ?? null);
+	const [videoPreview, setVideoPreview] = useState<string | null>(resolveUploadsUrl(unit?.videoUrl) || null);
 
   const fileLimits = entitlements?.limits?.file;
 
@@ -346,10 +380,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
         priceWeek: unit.priceWeek,
       });
       setImageFile(null);
-      setImagePreview(unit.imageUrl ?? null);
+		setImagePreview(resolveUploadsUrl(unit.imageUrl) || null);
 
       setVideoFile(null);
-      setVideoPreview(unit.videoUrl ?? null);
+		setVideoPreview(resolveUploadsUrl(unit.videoUrl) || null);
     } else {
       setFormData({ label: '' });
       setImageFile(null);

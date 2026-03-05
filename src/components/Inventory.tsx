@@ -34,7 +34,7 @@ export function Inventory() {
     setPage(1);
   }, [searchQuery, typeFilter, cityFilter]);
 
-  const { mediaPoints, total, loading, error, refetch, uploadMediaPointImage } = useMediaPoints({
+  const { mediaPoints, total, loading, error, refetch, uploadMediaPointImage, uploadMediaPointVideo } = useMediaPoints({
     search: searchQuery || undefined,
     type: typeFilter === 'all' ? undefined : typeFilter,
     city: cityFilter === 'all' ? undefined : cityFilter,
@@ -76,7 +76,7 @@ export function Inventory() {
   const filteredPoints = mediaPoints;
 
   // Handlers
-  const handleSavePoint = async (data: Partial<MediaPoint>, imageFile?: File | null) => {
+  const handleSavePoint = async (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => {
     try {
       // Remove campos não aceitos/necessários pela API
       const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
@@ -98,6 +98,18 @@ export function Inventory() {
           toast.success('Imagem do ponto enviada!');
         } catch (e: any) {
           const message = e?.response?.data?.message || 'Erro ao enviar imagem do ponto';
+          toast.error(message);
+        }
+      }
+
+      // ✅ Upload do vídeo do ponto (não deve anular nem sobrescrever o vídeo da face)
+      if (videoFile && saved?.id) {
+        try {
+          await uploadMediaPointVideo(saved.id, videoFile);
+          toast.success('Vídeo do ponto enviado!');
+        } catch (e: any) {
+          const raw = e?.response?.data?.message;
+          const message = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar vídeo do ponto';
           toast.error(message);
         }
       }
