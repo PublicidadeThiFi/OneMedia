@@ -25,9 +25,41 @@ export default function Login() {
   const [resendInfo, setResendInfo] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
 
+  // Captcha (Turnstile Managed)
+  const [captchaSiteKey, setCaptchaSiteKey] = useState<string>(() => {
+    return ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
+  });
+
   // Safety: some users can arrive here with a stale persisted "blocked" state.
   useEffect(() => {
     clearAccessState();
+  }, []);
+
+  // Prefer getting siteKey from the public config endpoint (same approach used in checkout).
+  // Fallback: VITE_TURNSTILE_SITE_KEY.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await publicApiClient.get('/public/menu/config');
+        const data = resp?.data as any;
+        const key =
+          data?.captcha?.siteKey ||
+          data?.turnstile?.siteKey ||
+          data?.siteKey ||
+          data?.captchaSiteKey;
+
+        if (!cancelled && typeof key === 'string' && key.trim()) {
+          setCaptchaSiteKey(key.trim());
+        }
+      } catch {
+        // Ignore: env fallback may be used.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Rescue when ACCOUNT_BLOCKED might be stale
@@ -186,6 +218,7 @@ export default function Login() {
               onSubmit={handleLogin}
               isLoading={isLoading}
               error={error}
+              captchaSiteKey={captchaSiteKey}
               errorAction={
                 emailNotVerified && currentEmail ? (
                   <div className="space-y-2">

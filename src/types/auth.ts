@@ -9,6 +9,8 @@ export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe: boolean;
+  /** Cloudflare Turnstile token (Managed). */
+  captchaToken?: string;
 }
 
 export interface TwoFactorPayload {

@@ -3,21 +3,24 @@ import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useNavigation } from '../../App';
 import { LoginCredentials } from '../../types/auth';
 import { useWaitlist } from '../../contexts/WaitlistContext';
+import { TurnstileWidget } from '../turnstile/TurnstileWidget';
 
 type LoginFormProps = {
   onSubmit: (credentials: LoginCredentials) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   errorAction?: React.ReactNode;
+  captchaSiteKey?: string;
 };
 
-export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginFormProps) {
+export function LoginForm({ onSubmit, isLoading, error, errorAction, captchaSiteKey }: LoginFormProps) {
   const navigate = useNavigation();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [captchaToken, setCaptchaToken] = useState<string>('');
   const { openWaitlist } = useWaitlist();
 
   const validateForm = (): boolean => {
@@ -33,6 +36,10 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
       newErrors.password = 'Senha é obrigatória';
     }
 
+    if (captchaSiteKey && !captchaToken) {
+      newErrors.captcha = 'Valide o captcha para continuar';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -44,7 +51,7 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
       return;
     }
 
-    await onSubmit({ email, password, rememberMe });
+    await onSubmit({ email, password, rememberMe, captchaToken: captchaSiteKey ? captchaToken : undefined });
   };
 
   const handleForgotPassword = () => {
@@ -147,9 +154,31 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction }: LoginForm
       </div>
 
       {/* Submit Button */}
+      {captchaSiteKey ? (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Confirme que você não é um robô <span className="text-red-600">*</span>
+          </label>
+          <TurnstileWidget
+            siteKey={captchaSiteKey}
+            onToken={(t) => {
+              setCaptchaToken(t);
+              setErrors((prev) => {
+                if (!prev.captcha) return prev;
+                const next = { ...prev };
+                delete next.captcha;
+                return next;
+              });
+            }}
+            className="rounded-xl border border-gray-200 bg-gray-50 p-3"
+          />
+          {errors.captcha ? <p className="mt-2 text-sm text-red-600">{errors.captcha}</p> : null}
+        </div>
+      ) : null}
+
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={isLoading || (captchaSiteKey ? !captchaToken : false)}
         className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 font-medium"
       >
         {isLoading ? (

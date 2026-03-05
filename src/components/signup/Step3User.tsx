@@ -1,6 +1,7 @@
 import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { useState } from 'react';
 import { SignupUserStep } from '../../types/signup';
+import { TurnstileWidget } from '../turnstile/TurnstileWidget';
 import {
   onlyDigits,
   formatPhoneDisplay,
@@ -16,9 +17,22 @@ type Step3UserProps = {
   onBack: () => void;
   errors: Record<string, string>;
   isLoading: boolean;
+  captchaSiteKey?: string;
+  captchaToken?: string;
+  onCaptchaToken?: (token: string) => void;
 };
 
-export function Step3User({ data, onChange, onSubmit, onBack, errors, isLoading }: Step3UserProps) {
+export function Step3User({
+  data,
+  onChange,
+  onSubmit,
+  onBack,
+  errors,
+  isLoading,
+  captchaSiteKey,
+  captchaToken,
+  onCaptchaToken,
+}: Step3UserProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [phoneDigits, setPhoneDigits] = useState(onlyDigits(data.phone));
@@ -247,6 +261,23 @@ export function Step3User({ data, onChange, onSubmit, onBack, errors, isLoading 
         </div>
       </div>
 
+      {captchaSiteKey ? (
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Confirme que você não é um robô <span className="text-red-600">*</span>
+          </label>
+          <TurnstileWidget
+            siteKey={captchaSiteKey}
+            onToken={(t) => onCaptchaToken?.(t)}
+            className="rounded-xl border border-gray-200 bg-gray-50 p-3"
+          />
+          {errors.captcha ? <p className="mt-2 text-sm text-red-600">{errors.captcha}</p> : null}
+          {captchaToken ? null : (
+            <p className="mt-2 text-xs text-gray-500">O captcha pode validar automaticamente (modo Managed).</p>
+          )}
+        </div>
+      ) : null}
+
       {/* Buttons */}
       <div className="flex justify-between">
         <button
@@ -258,7 +289,7 @@ export function Step3User({ data, onChange, onSubmit, onBack, errors, isLoading 
         </button>
         <button
           onClick={onSubmit}
-          disabled={isLoading}
+          disabled={isLoading || (captchaSiteKey ? !captchaToken : false)}
           className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-10 py-3.5 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-blue-500/30 font-medium"
         >
           {isLoading ? (
