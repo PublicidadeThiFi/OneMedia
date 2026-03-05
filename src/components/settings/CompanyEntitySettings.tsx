@@ -17,6 +17,8 @@ import { toast } from 'sonner';
 import apiClient from '../../lib/apiClient';
 import { Company, OwnerCompany } from '../../types';
 import { CompanySettings } from './CompanySettings';
+import { useCompany } from '../../contexts/CompanyContext';
+import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
 
 type Target =
   | { type: 'company' }
@@ -40,6 +42,7 @@ export function CompanyEntitySettings({
   onUpdateCompany,
   onRefreshCompany,
 }: CompanyEntitySettingsProps) {
+  const { entitlements } = useCompany();
   const [target, setTarget] = useState<Target>({ type: 'company' });
   const [ownerCompanies, setOwnerCompanies] = useState<OwnerCompany[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
@@ -140,6 +143,7 @@ export function CompanyEntitySettings({
           key={target.id}
           ownerCompany={selectedOwnerCompany}
           onReload={fetchOwnerCompanies}
+          entitlements={entitlements}
         />
       )}
     </div>
@@ -149,9 +153,11 @@ export function CompanyEntitySettings({
 function OwnerCompanyEditor({
   ownerCompany,
   onReload,
+  entitlements,
 }: {
   ownerCompany: OwnerCompany | null;
   onReload: () => Promise<void>;
+  entitlements: any;
 }) {
   const [name, setName] = useState(ownerCompany?.name ?? '');
   const [document, setDocument] = useState(ownerCompany?.document ?? '');
@@ -209,7 +215,7 @@ function OwnerCompanyEditor({
 
   const canSave = name.trim().length >= 2;
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -218,9 +224,9 @@ function OwnerCompanyEditor({
       return;
     }
 
-    const maxMb = 5;
-    if (file.size > maxMb * 1024 * 1024) {
-      toast.error(`A imagem deve ter no máximo ${maxMb}MB.`);
+    const err = await validateFileAgainstEntitlements(file, 'image', entitlements);
+    if (err) {
+      toast.error(err);
       return;
     }
 

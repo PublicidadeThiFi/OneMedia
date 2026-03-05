@@ -6,6 +6,8 @@ import { Label } from '../ui/label';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
 import { BillingInvoice, BillingInvoiceType, BillingStatus, Campaign } from '../../types';
+import { useCompany } from '../../contexts/CompanyContext';
+import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
 import { formatBRL, formatDateBR, safeDate } from '../../lib/format';
 
 type UnitRow = {
@@ -40,6 +42,7 @@ interface CampaignCheckInDialogProps {
 }
 
 export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInComplete }: CampaignCheckInDialogProps) {
+  const { entitlements } = useCompany();
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const [status, setStatus] = useState<CheckInStatusResponse | null>(null);
@@ -411,7 +414,21 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
                             <input
                               type="file"
                               accept="image/*"
-                              onChange={(e) => setFile(u.mediaUnitId, e.target.files?.[0] || null)}
+                              onChange={async (e) => {
+                              const f = e.target.files?.[0] || null;
+                              if (!f) {
+                                setFile(u.mediaUnitId, null);
+                                return;
+                              }
+                              const err = await validateFileAgainstEntitlements(f, 'image', entitlements);
+                              if (err) {
+                                toast.error(err);
+                                try { (e.target as any).value = ''; } catch {}
+                                setFile(u.mediaUnitId, null);
+                                return;
+                              }
+                              setFile(u.mediaUnitId, f);
+                            }}
                             />
                             {uploaded ? (
                               <a

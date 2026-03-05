@@ -9,6 +9,9 @@ import { Badge } from '../ui/badge';
 import { Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
 import { MediaType, MediaUnit, UnitType, Orientation } from '../../types';
 import { useMediaUnits } from '../../hooks/useMediaUnits';
+import { useCompany } from '../../contexts/CompanyContext';
+import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
+import { toast } from 'sonner';
 
 interface MediaUnitsDialogProps {
   open: boolean;
@@ -53,6 +56,7 @@ export function MediaUnitsDialog({
   const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadUnitImage } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
+  const { entitlements } = useCompany();
   const [isAdding, setIsAdding] = useState(false);
   const [editingUnit, setEditingUnit] = useState<MediaUnit | null>(null);
 
@@ -233,6 +237,7 @@ export function MediaUnitsDialog({
             <UnitForm
               unit={editingUnit}
               mediaPointType={mediaPointType}
+              entitlements={entitlements}
               onSave={async (data, imageFile) => {
                 try {
                   const clean = sanitizeUnitPayload(data);
@@ -280,9 +285,10 @@ interface UnitFormProps {
   mediaPointType: MediaType;
   onSave: (data: UnitFormPayload, imageFile?: File | null) => void;
   onCancel: () => void;
+  entitlements: any;
 }
 
-function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
+function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: UnitFormProps) {
   const [formData, setFormData] = useState<UnitFormPayload>(
     unit
       ? {
@@ -333,14 +339,29 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    setImageFile(file);
-
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setImagePreview(url);
+    if (!file) {
+      setImageFile(null);
+      return;
     }
+
+    const err = await validateFileAgainstEntitlements(file, 'image', entitlements);
+    if (err) {
+      toast.error(err);
+      try {
+        (e.target as any).value = '';
+      } catch {
+        // ignore
+      }
+      setImageFile(null);
+      setImagePreview(null);
+      return;
+    }
+
+    setImageFile(file);
+    const url = URL.createObjectURL(file);
+    setImagePreview(url);
   };
 
   useEffect(() => {
@@ -349,8 +370,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel }: UnitFormProps) {
         URL.revokeObjectURL(imagePreview);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [imagePreview]);
 
   return (
     <Card className="border-2 border-indigo-200">

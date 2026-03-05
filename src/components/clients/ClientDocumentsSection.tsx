@@ -7,6 +7,8 @@ import { Label } from '../ui/label';
 import { ClientDocument } from '../../types';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
+import { useCompany } from '../../contexts/CompanyContext';
+import { detectKind, validateFileAgainstEntitlements } from '../../lib/mediaValidation';
 import { useClientOwners } from '../../hooks/useClientOwners';
 
 interface ClientDocumentsSectionProps {
@@ -18,6 +20,7 @@ export function ClientDocumentsSection({
   clientId,
   onDocumentAdded,
 }: ClientDocumentsSectionProps) {
+  const { entitlements } = useCompany();
   const [documents, setDocuments] = useState<ClientDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -56,7 +59,26 @@ export function ClientDocumentsSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
-  const handleFileChange = (file: File | null) => {
+  const handleFileChange = async (file: File | null) => {
+    if (!file) {
+      setUploadFormData((prev) => ({ ...prev, file: null }));
+      return;
+    }
+
+    const kind = detectKind(file);
+    if (!kind) {
+      toast.error('Somente PDF, imagem ou vídeo são suportados neste momento.');
+      setUploadFormData((prev) => ({ ...prev, file: null }));
+      return;
+    }
+
+    const err = await validateFileAgainstEntitlements(file, kind, entitlements);
+    if (err) {
+      toast.error(err);
+      setUploadFormData((prev) => ({ ...prev, file: null }));
+      return;
+    }
+
     setUploadFormData((prev) => ({ ...prev, file }));
   };
 
@@ -253,8 +275,8 @@ export function ClientDocumentsSection({
               <Input
                 id="file"
                 type="file"
-                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                onChange={(e) => { void handleFileChange(e.target.files?.[0] || null); }}
+                accept="application/pdf,image/*,video/*"
               />
               <p className="text-xs text-gray-500">
                 Formatos aceitos: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG

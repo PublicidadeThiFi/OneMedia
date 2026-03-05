@@ -1,4 +1,4 @@
-export type AccessBlockReason = 'TRIAL_EXPIRED' | 'PAST_DUE' | 'CANCELED' | 'UNKNOWN';
+export type AccessBlockReason = 'TRIAL_EXPIRED' | 'PAST_DUE' | 'CANCELED' | 'STORAGE_EXCEEDED' | 'TRAFFIC_EXCEEDED' | 'UNKNOWN';
 
 export interface AccessState {
   isBlocked: boolean;
@@ -108,6 +108,11 @@ export function defaultBlockMessage(reason?: AccessBlockReason): string {
     case 'PAST_DUE':
       return 'Não identificamos o pagamento da renovação. Para continuar usando a plataforma, regularize a assinatura.';
     case 'CANCELED':
+      return 'Sua assinatura não está ativa. Para continuar usando a plataforma, assine um plano.';
+    case 'STORAGE_EXCEEDED':
+      return 'Você atingiu o limite de armazenamento do seu plano. Para continuar enviando arquivos, adicione Mídia extra.';
+    case 'TRAFFIC_EXCEEDED':
+      return 'Você atingiu o limite de tráfego do seu plano neste mês. Para continuar acessando mídias, adicione Mídia extra.';
       return 'Sua assinatura não está ativa. Para continuar usando a plataforma, assine um plano.';
     default:
       return 'Sua conta está com acesso restrito. Para continuar, regularize sua assinatura.';

@@ -9,7 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { X, ChevronDown, Package, ExternalLink, MapPin } from 'lucide-react';
+import { toast } from 'sonner';
 import { MediaPoint, MediaType, ProductionCosts } from '../../types';
+import { useCompany } from '../../contexts/CompanyContext';
+import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
 import apiClient from '../../lib/apiClient';
 import { resolveUploadsUrl } from '../../lib/format';
@@ -69,6 +72,7 @@ interface MediaPointFormDialogProps {
 }
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave }: MediaPointFormDialogProps) {
+  const { entitlements } = useCompany();
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
     type: MediaType.OOH,
@@ -145,17 +149,33 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   };
 
 
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    setImageFile(file);
 
     if (file) {
+      const err = await validateFileAgainstEntitlements(file, 'image', entitlements);
+      if (err) {
+        toast.error(err);
+        // reset input selection
+        try {
+          (e.target as any).value = '';
+        } catch {
+          // ignore
+        }
+        setImageFile(null);
+        setImagePreview(null);
+        return;
+      }
+
+      setImageFile(file);
       const url = URL.createObjectURL(file);
       setImagePreview(url);
-    } else {
-      // Mantém o preview atual (ex.: imagem já salva) quando limpar o input.
-      // Se quiser "remover imagem", isso deve ser uma ação explícita.
+      return;
     }
+
+    setImageFile(null);
+    // Mantém o preview atual (ex.: imagem já salva) quando limpar o input.
+    // Se quiser "remover imagem", isso deve ser uma ação explícita.
   };
 
   useEffect(() => {
