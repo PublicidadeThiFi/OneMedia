@@ -103,7 +103,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
   const { user, logout, authReady } = useAuth();
   const navigate = useNavigation();
 
-  const { isBlocked, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
+  const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
 
 
   const pastDueGraceDaysLeft = useMemo(() => {
@@ -347,7 +347,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
                       : 'bg-amber-600 text-white hover:opacity-95')
                   }
                 >
-                  {isBlocked ? 'Regularizar assinatura' : 'Ver planos'}
+                  {isBlocked ? (blockReason === 'STORAGE_EXCEEDED' || blockReason === 'TRAFFIC_EXCEEDED' ? 'Comprar mídia extra' : 'Regularizar assinatura') : 'Ver planos'}
                 </button>
               </div>
             </div>

@@ -4,9 +4,18 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Progress } from '../ui/progress';
-import { AlertCircle, CheckCircle2, Crown, Info, Loader2 } from 'lucide-react';
-import { Company, PlatformPlan, PlatformSubscription, PlatformSubscriptionStatus } from '../../types';
+import { AlertCircle, CheckCircle2, Crown, Info, Loader2, HardDrive, Wifi } from 'lucide-react';
+import {
+  Company,
+  PlatformPlan,
+  PlatformSubscription,
+  PlatformSubscriptionStatus,
+  PlatformSubscriptionAddonCode,
+} from '../../types';
+import { useCompany } from '../../contexts/CompanyContext';
 import { getMultiOwnerPlanPrice, getMultiOwnerPlanName, getMultiOwnerPriceCents } from '../../lib/plans';
+import { buildMediaUsageSummary, formatBytes } from '../../lib/mediaValidation';
+import { toast } from 'sonner';
 
 interface SubscriptionSettingsProps {
   company: Company;
@@ -37,6 +46,25 @@ function statusLabel(status: PlatformSubscriptionStatus) {
   }
 }
 
+const MEDIA_ADDONS: Array<{
+  code: PlatformSubscriptionAddonCode;
+  title: string;
+  subtitle: string;
+  priceBrl: number;
+  addStorageGb: number;
+  addTrafficGb: number;
+}> = [
+  { code: 'MEDIA_P', title: 'Mídia extra P', subtitle: '+10 GB storage • +50 GB tráfego/mês', priceBrl: 99, addStorageGb: 10, addTrafficGb: 50 },
+  { code: 'MEDIA_M', title: 'Mídia extra M', subtitle: '+25 GB storage • +125 GB tráfego/mês', priceBrl: 199, addStorageGb: 25, addTrafficGb: 125 },
+  { code: 'MEDIA_G', title: 'Mídia extra G', subtitle: '+50 GB storage • +250 GB tráfego/mês', priceBrl: 349, addStorageGb: 50, addTrafficGb: 250 },
+  { code: 'MEDIA_GG', title: 'Mídia extra GG', subtitle: '+100 GB storage • +500 GB tráfego/mês', priceBrl: 599, addStorageGb: 100, addTrafficGb: 500 },
+];
+
+function addonCount(addons: { code: PlatformSubscriptionAddonCode; quantity: number }[] | undefined, code: PlatformSubscriptionAddonCode): number {
+  const line = (addons || []).find((a) => a.code === code);
+  return Math.max(0, Math.floor(line?.quantity ?? 0));
+}
+
 export function SubscriptionSettings({
   company,
   subscription,
@@ -45,6 +73,8 @@ export function SubscriptionSettings({
   pointsUsed,
   onUpdateSubscription,
 }: SubscriptionSettingsProps) {
+  const { entitlements, purchaseMediaAddon, refreshEntitlements, blockReason } = useCompany();
+
   const currentPlan = useMemo(
     () => plans.find((p) => p.id === subscription.planId) || null,
     [plans, subscription.planId]
@@ -53,6 +83,8 @@ export function SubscriptionSettings({
   const [selectedPlanId, setSelectedPlanId] = useState(subscription.planId);
   const [selectedMaxOwners, setSelectedMaxOwners] = useState(subscription.maxOwnersPerMediaPoint || 1);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
 
   const selectedPlan = useMemo(
     () => plans.find((p) => p.id === selectedPlanId) || null,
@@ -94,6 +126,7 @@ export function SubscriptionSettings({
       setIsUpdating(true);
       await onUpdateSubscription({ planId: selectedPlanId, maxOwnersPerMediaPoint: selectedMaxOwners });
       alert('Assinatura atualizada com sucesso.');
+      await refreshEntitlements();
     } catch (e: any) {
       alert(e?.response?.data?.message || 'Erro ao atualizar assinatura.');
     } finally {
@@ -103,6 +136,47 @@ export function SubscriptionSettings({
 
   const status = subscription.status;
   const isActive = status === PlatformSubscriptionStatus.ATIVA || status === PlatformSubscriptionStatus.TESTE;
+
+  const mediaSummary = useMemo(() => buildMediaUsageSummary(entitlements), [entitlements]);
+
+  const storagePct = useMemo(() => {
+    if (!mediaSummary || mediaSummary.storageLimitBytes <= 0) return 0;
+    return Math.min(100, Math.round((mediaSummary.storageUsedBytes / mediaSummary.storageLimitBytes) * 100));
+  }, [mediaSummary]);
+
+  const trafficPct = useMemo(() => {
+    if (!mediaSummary || mediaSummary.trafficLimitBytes <= 0) return 0;
+    return Math.min(100, Math.round((mediaSummary.trafficUsedBytes / mediaSummary.trafficLimitBytes) * 100));
+  }, [mediaSummary]);
+
+  const monthLabel = useMemo(() => {
+    const y = entitlements?.usage?.year;
+    const m = entitlements?.usage?.month;
+    if (!y || !m) return null;
+    const mm = String(m).padStart(2, '0');
+    return `${mm}/${y}`;
+  }, [entitlements?.usage?.year, entitlements?.usage?.month]);
+
+  const buyAddon = async (code: PlatformSubscriptionAddonCode) => {
+    const addon = MEDIA_ADDONS.find((a) => a.code === code);
+    if (!addon) return;
+
+    const ok = window.confirm(
+      `Adicionar ${addon.title}?\n\nInclui: ${addon.subtitle}\nValor: ${formatCurrency(addon.priceBrl)} / mês\n\n(Fluxo de pagamento ainda não integrado — isto apenas registra o add-on no sistema.)`
+    );
+    if (!ok) return;
+
+    try {
+      setAddonLoading(code);
+      await purchaseMediaAddon(code, 1);
+      toast.success('Add-on registrado com sucesso.');
+      await refreshEntitlements();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Erro ao adicionar add-on.');
+    } finally {
+      setAddonLoading(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -134,9 +208,7 @@ export function SubscriptionSettings({
 
             <div className="text-right">
               <div className="text-sm text-gray-600">Plano atual</div>
-              <div className="font-medium">
-                {currentPlan?.name || '—'}
-              </div>
+              <div className="font-medium">{currentPlan?.name || '—'}</div>
             </div>
           </div>
 
@@ -155,6 +227,134 @@ export function SubscriptionSettings({
               <div className="text-xs text-gray-500">
                 O limite de pontos é sempre da <b>conta</b>, independentemente da quantidade de proprietários.
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Media quotas */}
+          <Card className={(blockReason === 'STORAGE_EXCEEDED' || blockReason === 'TRAFFIC_EXCEEDED') ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <HardDrive className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm font-medium">Mídia (Storage + Tráfego)</span>
+                </div>
+                <Button variant="outline" size="sm" onClick={refreshEntitlements}>
+                  Atualizar
+                </Button>
+              </div>
+
+              {!entitlements ? (
+                <div className="text-sm text-gray-600">
+                  Não foi possível carregar os limites de mídia. Clique em <b>Atualizar</b>.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Storage */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <HardDrive className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Armazenamento</span>
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        {formatBytes(mediaSummary?.storageUsedBytes ?? 0)} / {entitlements.limits.totalStorageGb} GB
+                      </span>
+                    </div>
+                    <Progress value={storagePct} />
+                    <div className="text-xs text-gray-500">
+                      Se atingir 100%, novos uploads serão bloqueados.
+                    </div>
+                  </div>
+
+                  {/* Traffic */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wifi className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm font-medium">Tráfego mensal</span>
+                      </div>
+                      <span className="text-sm text-gray-600">
+                        {formatBytes(mediaSummary?.trafficUsedBytes ?? 0)} / {entitlements.limits.totalTrafficGbPerMonth} GB
+                        {monthLabel ? ` • ${monthLabel}` : ''}
+                      </span>
+                    </div>
+                    <Progress value={trafficPct} />
+                    <div className="text-xs text-gray-500">
+                      Se atingir 100%, o acesso a mídias (uploads/downloads) pode ser bloqueado até comprar Mídia extra.
+                    </div>
+                  </div>
+
+                  {/* File limits */}
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                    <div className="text-sm font-medium">Limites por arquivo (seu plano)</div>
+                    <div className="text-xs text-gray-600 grid grid-cols-1 md:grid-cols-3 gap-2">
+                      <div>
+                        <b>Vídeo:</b> até {entitlements.limits.file.maxVideoMb}MB e {entitlements.limits.file.maxVideoSeconds}s
+                      </div>
+                      <div>
+                        <b>Imagem:</b> até {entitlements.limits.file.maxImageMb}MB
+                      </div>
+                      <div>
+                        <b>PDF:</b> até {entitlements.limits.file.maxPdfMb}MB
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Current addons */}
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Add-ons ativos</div>
+                    <div className="flex flex-wrap gap-2">
+                      {MEDIA_ADDONS.map((a) => {
+                        const qty = addonCount(entitlements.addons, a.code);
+                        if (!qty) return null;
+                        return (
+                          <Badge key={a.code} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
+                            {a.title} ×{qty}
+                          </Badge>
+                        );
+                      })}
+                      {(!entitlements.addons || entitlements.addons.length === 0) && (
+                        <span className="text-xs text-gray-500">Nenhum add-on ativo.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Buy addons */}
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Comprar Mídia extra</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {MEDIA_ADDONS.map((a) => (
+                        <div key={a.code} className="rounded-lg border border-gray-200 bg-white p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-medium">{a.title}</div>
+                              <div className="text-xs text-gray-600">{a.subtitle}</div>
+                              <div className="text-sm font-semibold mt-1">{formatCurrency(a.priceBrl)}</div>
+                            </div>
+                            <Button
+                              onClick={() => buyAddon(a.code)}
+                              disabled={addonLoading != null}
+                              className={blockReason === 'STORAGE_EXCEEDED' || blockReason === 'TRAFFIC_EXCEEDED' ? 'bg-red-600 hover:opacity-95' : undefined}
+                            >
+                              {addonLoading === a.code ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Processando...
+                                </>
+                              ) : (
+                                'Adicionar'
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      O add-on aumenta seu <b>storage</b> e automaticamente aumenta o <b>tráfego mensal</b> (k=5).
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -227,9 +427,7 @@ export function SubscriptionSettings({
             <div>
               <div className="text-sm text-gray-600">Total mensal (estimado)</div>
               <div className="text-lg font-semibold">{formatCurrency(baseMonthlyPrice, priceIsCents)}</div>
-              <div className="text-xs text-gray-500">
-                Plano de pontos + assinatura multi-proprietários.
-              </div>
+              <div className="text-xs text-gray-500">Plano de pontos + assinatura multi-proprietários.</div>
             </div>
 
             <Button onClick={handleSave} disabled={!hasChanges || isUpdating || !!plansLoading}>

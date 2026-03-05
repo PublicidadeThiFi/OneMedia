@@ -6,6 +6,8 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Building2, Loader2 } from 'lucide-react';
 import { Company } from '../../types';
+import { useCompany } from '../../contexts/CompanyContext';
+import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
 import { toast } from 'sonner';
 import apiClient from '../../lib/apiClient';
 
@@ -16,6 +18,8 @@ interface CompanySettingsProps {
 }
 
 export function CompanySettings({ company, onUpdateCompany, onRefreshCompany }: CompanySettingsProps) {
+  const { entitlements } = useCompany();
+
   const [name, setName] = useState(company.name);
   const [cnpj, setCnpj] = useState(company.cnpj || '');
   const [phone, setPhone] = useState(company.phone || '');
@@ -74,7 +78,7 @@ export function CompanySettings({ company, onUpdateCompany, onRefreshCompany }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.id, company.updatedAt]);
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
@@ -82,9 +86,9 @@ export function CompanySettings({ company, onUpdateCompany, onRefreshCompany }: 
         return;
       }
 
-      const maxMb = 5;
-      if (file.size > maxMb * 1024 * 1024) {
-        toast.error(`A imagem deve ter no máximo ${maxMb}MB.`);
+      const err = await validateFileAgainstEntitlements(file, 'image', entitlements);
+      if (err) {
+        toast.error(err);
         return;
       }
 

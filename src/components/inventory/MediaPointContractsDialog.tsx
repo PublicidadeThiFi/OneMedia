@@ -7,6 +7,9 @@ import { Card, CardContent } from '../ui/card';
 import { FileText, Download, Trash2, Upload } from 'lucide-react';
 import apiClient from '../../lib/apiClient';
 import { MediaPointContract } from '../../types';
+import { useCompany } from '../../contexts/CompanyContext';
+import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
+import { toast } from 'sonner';
 
 interface MediaPointContractsDialogProps {
   open: boolean;
@@ -23,6 +26,7 @@ export function MediaPointContractsDialog({
   mediaPointId,
   mediaPointName,
 }: MediaPointContractsDialogProps) {
+  const { entitlements } = useCompany();
   const [contracts, setContracts] = useState<ContractApi[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -220,6 +224,7 @@ export function MediaPointContractsDialog({
                 }
               }}
               onCancel={() => setIsAdding(false)}
+              entitlements={entitlements}
             />
           )}
         </div>
@@ -235,9 +240,10 @@ export function MediaPointContractsDialog({
 interface ContractFormProps {
   onSave: (data: { file: File; signedAt?: string; expiresAt?: string }) => void;
   onCancel: () => void;
+  entitlements: any;
 }
 
-function ContractForm({ onSave, onCancel }: ContractFormProps) {
+function ContractForm({ onSave, onCancel, entitlements }: ContractFormProps) {
   const [file, setFile] = useState<File | null>(null);
   const [signedAt, setSignedAt] = useState<string>('');
   const [expiresAt, setExpiresAt] = useState<string>('');
@@ -252,7 +258,21 @@ function ContractForm({ onSave, onCancel }: ContractFormProps) {
           <Input
             type="file"
             accept="application/pdf"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={async (e) => {
+              const f = e.target.files?.[0] ?? null;
+              if (!f) {
+                setFile(null);
+                return;
+              }
+              const err = await validateFileAgainstEntitlements(f, 'pdf', entitlements);
+              if (err) {
+                toast.error(err);
+                try { (e.target as any).value = ''; } catch {}
+                setFile(null);
+                return;
+              }
+              setFile(f);
+            }}
           />
           <p className="text-xs text-gray-500">Somente PDF.</p>
         </div>

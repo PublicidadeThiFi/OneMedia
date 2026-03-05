@@ -349,6 +349,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     });
     // Backend returns updated entitlements.
     setEntitlements(resp.data);
+
+    // If the account was blocked due to quota (402), a successful add-on purchase
+    // should immediately unlock the UI. If limits are still exceeded, the next
+    // protected request will re-trigger the 402.
+    clearAccessState();
   };
 
   const refreshCompanyData = async () => {
