@@ -86,4 +86,7 @@ export interface SignupRequestDto {
   adminPasswordConfirmation: string;
 
   acceptTerms: boolean;
+
+  /** Cloudflare Turnstile token (Managed). */
+  captchaToken?: string;
 };

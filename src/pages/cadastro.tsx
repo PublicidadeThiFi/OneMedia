@@ -32,6 +32,12 @@ export default function Cadastro() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Captcha (Turnstile Managed)
+  const [captchaSiteKey, setCaptchaSiteKey] = useState<string>(() => {
+    return ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
+  });
+  const [captchaToken, setCaptchaToken] = useState<string>('');
+
   // Step data
   const [step1Data, setStep1Data] = useState<SignupPlanStep>({
     estimatedPoints: null,
@@ -78,6 +84,33 @@ export default function Cadastro() {
         selectedPlatformPlanId: plan.id,
       });
     }
+  }, []);
+
+  // Prefer getting siteKey from the public config endpoint (same approach used in checkout).
+  // Fallback: VITE_TURNSTILE_SITE_KEY.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await publicApiClient.get('/public/menu/config');
+        const data = resp?.data as any;
+        const key =
+          data?.captcha?.siteKey ||
+          data?.turnstile?.siteKey ||
+          data?.siteKey ||
+          data?.captchaSiteKey;
+
+        if (!cancelled && typeof key === 'string' && key.trim()) {
+          setCaptchaSiteKey(key.trim());
+        }
+      } catch {
+        // Ignore: env fallback may be used.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Step 1 validation
@@ -156,6 +189,10 @@ export default function Cadastro() {
       errors.acceptedTerms = 'Você deve aceitar os termos para continuar';
     }
 
+    if (captchaSiteKey && !captchaToken) {
+      errors.captcha = 'Valide o captcha para continuar';
+    }
+
     setStep3Errors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -215,6 +252,8 @@ export default function Cadastro() {
         adminPasswordConfirmation: step3Data.confirmPassword,
 
         acceptTerms: !!step3Data.acceptedTerms,
+
+        captchaToken: captchaSiteKey ? captchaToken : undefined,
       };
 
       await publicApiClient.post('/signup', dto);
@@ -296,6 +335,9 @@ export default function Cadastro() {
                   onBack={() => setCurrentStep(2)}
                   errors={step3Errors}
                   isLoading={isLoading}
+                  captchaSiteKey={captchaSiteKey}
+                  captchaToken={captchaToken}
+                  onCaptchaToken={setCaptchaToken}
                 />
               )}
             </div>

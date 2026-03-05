@@ -51,7 +51,14 @@ function ensureTurnstileScript(): Promise<void> {
 export function TurnstileWidget({ siteKey, onToken, className }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const onTokenRef = useRef(onToken);
   const [error, setError] = useState<string | null>(null);
+
+  // Avoid re-mounting the widget when the parent re-renders (e.g. typing in inputs).
+  // Using a ref keeps the latest callback without re-triggering the render effect.
+  useEffect(() => {
+    onTokenRef.current = onToken;
+  }, [onToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,27 +78,31 @@ export function TurnstileWidget({ siteKey, onToken, className }: TurnstileProps)
         const el = containerRef.current;
         if (!el) return;
 
-        // Clear previous widget
-        el.innerHTML = '';
+        // Clear previous widget (only when we are explicitly re-mounting, i.e. siteKey change).
         if (widgetIdRef.current && typeof turnstile.remove === 'function') {
           try {
             turnstile.remove(widgetIdRef.current);
           } catch {
             // ignore
           }
+          widgetIdRef.current = null;
         }
+
+        // Some Turnstile implementations may leave DOM nodes behind; clear container once.
+        // This prevents stacking multiple widgets when navigating back/forward.
+        el.innerHTML = '';
 
         const id = turnstile.render(el, {
           sitekey: siteKey,
           theme: 'light',
           callback: (token: string) => {
-            onToken(String(token || ''));
+            onTokenRef.current(String(token || ''));
           },
           'expired-callback': () => {
-            onToken('');
+            onTokenRef.current('');
           },
           'error-callback': () => {
-            onToken('');
+            onTokenRef.current('');
             setError('Não foi possível validar o captcha. Tente novamente.');
           },
         });
@@ -116,7 +127,7 @@ export function TurnstileWidget({ siteKey, onToken, className }: TurnstileProps)
       }
       widgetIdRef.current = null;
     };
-  }, [siteKey, onToken]);
+  }, [siteKey]);
 
   if (!siteKey) return null;
 
