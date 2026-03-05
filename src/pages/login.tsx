@@ -26,6 +26,34 @@ export default function Login() {
   const [resendInfo, setResendInfo] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState<number>(0);
 
+  // OAuth errors can be redirected back to /login (depending on the /oauth-callback behavior).
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      const code = p.get('oauth_error') || p.get('error');
+      const desc = p.get('oauth_error_description') || p.get('error_description');
+      if (!code) return;
+
+      const c = String(code);
+      const friendly =
+        c === 'OAUTH_ACCESS_DENIED'
+          ? 'Você cancelou o login social.'
+          : c === 'OAUTH_PROVIDER_CONFLICT'
+            ? 'Essa conta do provedor já está vinculada a outra conta. Use o mesmo Google/Outlook utilizado anteriormente.'
+            : c === 'OAUTH_EMAIL_ALREADY_IN_USE'
+              ? 'Este e-mail já está em uso por outra conta.'
+              : c === 'OAUTH_ID_TOKEN_INVALID'
+                ? 'Não foi possível validar o login social. Tente novamente.'
+                : c === 'OAUTH_SESSION_INVALID'
+                  ? 'Sessão do login social expirou. Tente novamente.'
+                  : 'Não foi possível autenticar com Google/Outlook.';
+
+      setError((prev) => prev || (desc ? `${friendly}\n${desc}` : friendly));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Captcha (Turnstile Managed)
   const [captchaSiteKey, setCaptchaSiteKey] = useState<string>(() => {
     return ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
