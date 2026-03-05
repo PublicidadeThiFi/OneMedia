@@ -14,6 +14,7 @@ import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
 import { useCompany } from '../contexts/CompanyContext';
 import apiClient from '../lib/apiClient';
 import { resolveUploadsUrl } from '../lib/format';
+import { getUploadErrorMessage } from '../lib/httpErrorMessage';
 import { toast } from 'sonner';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
 import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
@@ -23,7 +24,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
 
 export function Inventory() {
-  const { refreshPointsUsed } = useCompany();
+  const company = useCompany() as any;
+  const refreshPointsUsed = company?.refreshPointsUsed;
+  const refreshEntitlements = company?.refreshEntitlements;
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
@@ -97,8 +100,7 @@ export function Inventory() {
           await uploadMediaPointImage(saved.id, imageFile);
           toast.success('Imagem do ponto enviada!');
         } catch (e: any) {
-          const message = e?.response?.data?.message || 'Erro ao enviar imagem do ponto';
-          toast.error(message);
+          toast.error(getUploadErrorMessage(e, 'Erro ao enviar imagem do ponto'));
         }
       }
 
@@ -108,9 +110,7 @@ export function Inventory() {
           await uploadMediaPointVideo(saved.id, videoFile);
           toast.success('Vídeo do ponto enviado!');
         } catch (e: any) {
-          const raw = e?.response?.data?.message;
-          const message = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar vídeo do ponto';
-          toast.error(message);
+          toast.error(getUploadErrorMessage(e, 'Erro ao enviar vídeo do ponto'));
         }
       }
 
@@ -118,7 +118,10 @@ export function Inventory() {
       setEditingPoint(null);
       refetch();
       // Mantém o valor de pontos usados sincronizado em Configurações (Sem precisar dar F5)
-      await refreshPointsUsed();
+      await refreshPointsUsed?.();
+
+      // Atualiza consumo/limites (storage/tráfego) se o contexto expuser este método.
+      await refreshEntitlements?.();
       return saved;
     } catch (err: any) {
       const rawMessage = err?.response?.data?.message;

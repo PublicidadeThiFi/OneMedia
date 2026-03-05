@@ -12,6 +12,7 @@ import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
 import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
 import { resolveUploadsUrl } from '../../lib/format';
+import { getUploadErrorMessage } from '../../lib/httpErrorMessage';
 import { toast } from 'sonner';
 
 interface MediaUnitsDialogProps {
@@ -57,7 +58,9 @@ export function MediaUnitsDialog({
   const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadUnitImage, uploadUnitVideo } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
-  const { entitlements } = useCompany();
+  const company = useCompany() as any;
+  const entitlements = company?.entitlements;
+  const refreshEntitlements = company?.refreshEntitlements;
   const [isAdding, setIsAdding] = useState(false);
   const [editingUnit, setEditingUnit] = useState<MediaUnit | null>(null);
 
@@ -254,26 +257,26 @@ export function MediaUnitsDialog({
 
                   if (editingUnit) {
                     await updateUnit(editingUnit.id, clean);
-	                    if (imageFile) {
+                    if (imageFile) {
 	                      try {
 	                        await uploadUnitImage(editingUnit.id, imageFile);
 	                        toast.success('Imagem da unidade enviada!');
+                        await refreshEntitlements?.();
 	                      } catch (e: any) {
-	                        const raw = e?.response?.data?.message;
-	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar imagem da unidade';
-	                        toast.error(msg);
-	                        throw new Error(msg);
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagem da unidade');
+                        toast.error(msg);
+                        throw new Error(msg);
 	                      }
 	                    }
 	                    if (videoFile) {
 	                      try {
 	                        await uploadUnitVideo(editingUnit.id, videoFile);
 	                        toast.success('Vídeo da unidade enviado!');
+                        await refreshEntitlements?.();
 	                      } catch (e: any) {
-	                        const raw = e?.response?.data?.message;
-	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar vídeo da unidade';
-	                        toast.error(msg);
-	                        throw new Error(msg);
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeo da unidade');
+                        toast.error(msg);
+                        throw new Error(msg);
 	                      }
 	                    }
                     setEditingUnit(null);
@@ -283,26 +286,26 @@ export function MediaUnitsDialog({
                       unitType: unitTypeForPoint,
                       label: (clean.label ?? '').toString(),
                     } as any);
-	                    if (imageFile) {
+                    if (imageFile) {
 	                      try {
 	                        await uploadUnitImage(created.id, imageFile);
 	                        toast.success('Imagem da unidade enviada!');
+                        await refreshEntitlements?.();
 	                      } catch (e: any) {
-	                        const raw = e?.response?.data?.message;
-	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar imagem da unidade';
-	                        toast.error(msg);
-	                        throw new Error(msg);
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagem da unidade');
+                        toast.error(msg);
+                        throw new Error(msg);
 	                      }
 	                    }
 	                    if (videoFile) {
 	                      try {
 	                        await uploadUnitVideo(created.id, videoFile);
 	                        toast.success('Vídeo da unidade enviado!');
+                        await refreshEntitlements?.();
 	                      } catch (e: any) {
-	                        const raw = e?.response?.data?.message;
-	                        const msg = Array.isArray(raw) ? raw.join(', ') : raw || 'Erro ao enviar vídeo da unidade';
-	                        toast.error(msg);
-	                        throw new Error(msg);
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeo da unidade');
+                        toast.error(msg);
+                        throw new Error(msg);
 	                      }
 	                    }
                     setIsAdding(false);
