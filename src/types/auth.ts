@@ -20,13 +20,24 @@ export interface TwoFactorPayload {
 
 export interface AuthUser {
   id: string;
-  companyId: string;
+  /** Can be null for new SSO users before completing onboarding. */
+  companyId: string | null;
   name: string;
   email: string;
   isSuperAdmin: boolean;
   status: UserStatus;
   twoFactorEnabled: boolean;
   twoFactorType: TwoFactorType | null;
+
+  /**
+   * True when the user has completed the required onboarding steps
+   * (Plano -> Empresa -> Acesso).
+   */
+  onboardingCompleted?: boolean;
+  /** Step index (1..3) when onboarding is pending. */
+  onboardingStep?: number;
+  /** Linked SSO providers returned by /auth/me (e.g. ['google','microsoft']). */
+  providers?: Array<'google' | 'microsoft'>;
 }
 
 export interface AuthTokens {
