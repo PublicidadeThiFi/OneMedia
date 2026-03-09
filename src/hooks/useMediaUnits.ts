@@ -92,6 +92,22 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     return response.data;
   };
 
+  const uploadManyUnitImages = async (id: string, files: File[]) => {
+    let lastResponse: MediaUnit | null = null;
+    for (const file of files) {
+      lastResponse = await uploadUnitImage(id, file);
+    }
+    return lastResponse;
+  };
+
+  const uploadManyUnitVideos = async (id: string, files: File[]) => {
+    let lastResponse: MediaUnit | null = null;
+    for (const file of files) {
+      lastResponse = await uploadUnitVideo(id, file);
+    }
+    return lastResponse;
+  };
+
   const uploadUnitVideo = async (id: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -128,5 +144,7 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     deleteUnit,
     uploadUnitImage,
     uploadUnitVideo,
+    uploadManyUnitImages,
+    uploadManyUnitVideos,
   };
 }

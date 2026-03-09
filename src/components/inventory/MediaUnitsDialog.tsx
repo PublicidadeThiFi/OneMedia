@@ -10,7 +10,7 @@ import { Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
 import { MediaType, MediaUnit, UnitType, Orientation } from '../../types';
 import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
-import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
+import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { resolveUploadsUrl } from '../../lib/format';
 import { getUploadErrorMessage } from '../../lib/httpErrorMessage';
 import { toast } from 'sonner';
@@ -55,7 +55,7 @@ export function MediaUnitsDialog({
   mediaPointName,
   mediaPointType,
 }: MediaUnitsDialogProps) {
-  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadUnitImage, uploadUnitVideo } =
+  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
   const company = useCompany() as any;
@@ -251,34 +251,35 @@ export function MediaUnitsDialog({
               unit={editingUnit}
               mediaPointType={mediaPointType}
               entitlements={entitlements}
-              onSave={async (data, imageFile, videoFile) => {
+              onSave={async (data, imageFiles = [], videoFiles = []) => {
                 try {
                   const clean = sanitizeUnitPayload(data);
 
                   if (editingUnit) {
                     await updateUnit(editingUnit.id, clean);
-                    if (imageFile) {
-	                      try {
-	                        await uploadUnitImage(editingUnit.id, imageFile);
-	                        toast.success('Imagem da unidade enviada!');
-                        await refreshEntitlements?.();
-	                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagem da unidade');
+                    if (imageFiles.length) {
+                      try {
+                        await uploadManyUnitImages(editingUnit.id, imageFiles);
+                        toast.success(`${imageFiles.length} imagem(ns) da unidade enviada(s)!`);
+                      } catch (e: any) {
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagens da unidade');
                         toast.error(msg);
                         throw new Error(msg);
-	                      }
-	                    }
-	                    if (videoFile) {
-	                      try {
-	                        await uploadUnitVideo(editingUnit.id, videoFile);
-	                        toast.success('Vídeo da unidade enviado!');
-                        await refreshEntitlements?.();
-	                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeo da unidade');
+                      }
+                    }
+                    if (videoFiles.length) {
+                      try {
+                        await uploadManyUnitVideos(editingUnit.id, videoFiles);
+                        toast.success(`${videoFiles.length} vídeo(s) da unidade enviado(s)!`);
+                      } catch (e: any) {
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeos da unidade');
                         toast.error(msg);
                         throw new Error(msg);
-	                      }
-	                    }
+                      }
+                    }
+                    if (imageFiles.length || videoFiles.length) {
+                      await refreshEntitlements?.();
+                    }
                     setEditingUnit(null);
                   } else {
                     const created = await createUnit({
@@ -286,28 +287,29 @@ export function MediaUnitsDialog({
                       unitType: unitTypeForPoint,
                       label: (clean.label ?? '').toString(),
                     } as any);
-                    if (imageFile) {
-	                      try {
-	                        await uploadUnitImage(created.id, imageFile);
-	                        toast.success('Imagem da unidade enviada!');
-                        await refreshEntitlements?.();
-	                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagem da unidade');
+                    if (imageFiles.length) {
+                      try {
+                        await uploadManyUnitImages(created.id, imageFiles);
+                        toast.success(`${imageFiles.length} imagem(ns) da unidade enviada(s)!`);
+                      } catch (e: any) {
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagens da unidade');
                         toast.error(msg);
                         throw new Error(msg);
-	                      }
-	                    }
-	                    if (videoFile) {
-	                      try {
-	                        await uploadUnitVideo(created.id, videoFile);
-	                        toast.success('Vídeo da unidade enviado!');
-                        await refreshEntitlements?.();
-	                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeo da unidade');
+                      }
+                    }
+                    if (videoFiles.length) {
+                      try {
+                        await uploadManyUnitVideos(created.id, videoFiles);
+                        toast.success(`${videoFiles.length} vídeo(s) da unidade enviado(s)!`);
+                      } catch (e: any) {
+                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeos da unidade');
                         toast.error(msg);
                         throw new Error(msg);
-	                      }
-	                    }
+                      }
+                    }
+                    if (imageFiles.length || videoFiles.length) {
+                      await refreshEntitlements?.();
+                    }
                     setIsAdding(false);
                   }
 	                } catch (e: any) {
@@ -335,7 +337,7 @@ export function MediaUnitsDialog({
 interface UnitFormProps {
   unit: MediaUnit | null;
   mediaPointType: MediaType;
-  onSave: (data: UnitFormPayload, imageFile?: File | null, videoFile?: File | null) => void;
+  onSave: (data: UnitFormPayload, imageFiles?: File[], videoFiles?: File[]) => void;
   onCancel: () => void;
   entitlements: any;
 }
@@ -359,11 +361,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
       }
   );
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
-	const [imagePreview, setImagePreview] = useState<string | null>(resolveUploadsUrl(unit?.imageUrl) || null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>(Array.isArray((unit as any)?.galleryImages) && (unit as any).galleryImages.length ? (unit as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit?.imageUrl) ? [resolveUploadsUrl(unit?.imageUrl)!] : []));
 
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-	const [videoPreview, setVideoPreview] = useState<string | null>(resolveUploadsUrl(unit?.videoUrl) || null);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const [videoPreviews, setVideoPreviews] = useState<string[]>(Array.isArray((unit as any)?.galleryVideos) && (unit as any).galleryVideos.length ? (unit as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit?.videoUrl) ? [resolveUploadsUrl(unit?.videoUrl)!] : []));
 
   const fileLimits = entitlements?.limits?.file;
 
@@ -382,18 +384,18 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
         priceMonth: unit.priceMonth,
         priceWeek: unit.priceWeek,
       });
-      setImageFile(null);
-		setImagePreview(resolveUploadsUrl(unit.imageUrl) || null);
+      setImageFiles([]);
+      setImagePreviews(Array.isArray((unit as any)?.galleryImages) && (unit as any).galleryImages.length ? (unit as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit.imageUrl) ? [resolveUploadsUrl(unit.imageUrl)!] : []));
 
-      setVideoFile(null);
-		setVideoPreview(resolveUploadsUrl(unit.videoUrl) || null);
+      setVideoFiles([]);
+      setVideoPreviews(Array.isArray((unit as any)?.galleryVideos) && (unit as any).galleryVideos.length ? (unit as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit.videoUrl) ? [resolveUploadsUrl(unit.videoUrl)!] : []));
     } else {
       setFormData({ label: '' });
-      setImageFile(null);
-      setImagePreview(null);
+      setImageFiles([]);
+      setImagePreviews([]);
 
-      setVideoFile(null);
-      setVideoPreview(null);
+      setVideoFiles([]);
+      setVideoPreviews([]);
     }
   }, [unit]);
 
@@ -403,66 +405,59 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) {
-      setImageFile(null);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) {
+      setImageFiles([]);
       return;
     }
 
-    const err = await validateFileAgainstEntitlements(file, 'image', entitlements);
+    const err = await validateUploadBatchAgainstEntitlements([
+      ...files.map((file) => ({ file, kind: 'image' as const })),
+      ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
+    ], entitlements);
     if (err) {
       toast.error(err);
-      try {
-        (e.target as any).value = '';
-      } catch {
-        // ignore
-      }
-      setImageFile(null);
-      setImagePreview(null);
+      try { (e.target as any).value = ''; } catch {}
+      setImageFiles([]);
       return;
     }
 
-    setImageFile(file);
-    const url = URL.createObjectURL(file);
-    setImagePreview(url);
+    setImageFiles(files);
+    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
   };
 
   const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) {
-      setVideoFile(null);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) {
+      setVideoFiles([]);
       return;
     }
 
-    const err = await validateFileAgainstEntitlements(file, 'video', entitlements);
+    const err = await validateUploadBatchAgainstEntitlements([
+      ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
+      ...files.map((file) => ({ file, kind: 'video' as const })),
+    ], entitlements);
     if (err) {
       toast.error(err);
-      try {
-        (e.target as any).value = '';
-      } catch {
-        // ignore
-      }
-      setVideoFile(null);
-      setVideoPreview(null);
+      try { (e.target as any).value = ''; } catch {}
+      setVideoFiles([]);
       return;
     }
 
-    setVideoFile(file);
-    const url = URL.createObjectURL(file);
-    setVideoPreview(url);
+    setVideoFiles(files);
+    setVideoPreviews(files.map((file) => URL.createObjectURL(file)));
   };
 
   useEffect(() => {
     return () => {
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      for (const src of imagePreviews) {
+        if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
       }
-
-      if (videoPreview && videoPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(videoPreview);
+      for (const src of videoPreviews) {
+        if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
       }
     };
-  }, [imagePreview, videoPreview]);
+  }, [imagePreviews, videoPreviews]);
 
   return (
     <Card className="border-2 border-indigo-200">
@@ -484,17 +479,22 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
             <Input
               type="file"
               accept="image/jpeg,image/png,image/gif"
+              multiple
               onChange={handleImageChange}
               className="flex-1"
             />
-            {imagePreview && (
-              <div className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
-                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+            {imagePreviews.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {imagePreviews.map((src, idx) => (
+                  <div key={`img-${idx}`} className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
+                    <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                  </div>
+                ))}
               </div>
             )}
           </div>
           <p className="text-xs text-gray-500">
-            JPG, PNG ou GIF (máx. {fileLimits?.maxImageMb ?? 4}MB).
+            JPG, PNG ou GIF (máx. {fileLimits?.maxImageMb ?? 4}MB por arquivo, respeitando o armazenamento restante do plano).
           </p>
         </div>
 
@@ -504,17 +504,22 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
             <Input
               type="file"
               accept="video/*"
+              multiple
               onChange={handleVideoChange}
               className="flex-1"
             />
-            {videoPreview && (
-              <div className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
-                <video src={videoPreview} className="w-full h-full object-cover" controls muted />
+            {videoPreviews.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {videoPreviews.map((src, idx) => (
+                  <div key={`video-${idx}`} className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
+                    <video src={src} className="w-full h-full object-cover" controls muted />
+                  </div>
+                ))}
               </div>
             )}
           </div>
           <p className="text-xs text-gray-500">
-            MP4/WebM/MOV (máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s). O upload será feito ao salvar.
+            MP4/WebM/MOV (máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s por arquivo). O upload será feito ao salvar, respeitando o armazenamento restante do plano.
           </p>
         </div>
 
@@ -661,7 +666,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
           <Button variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button onClick={() => onSave(formData, imageFile, videoFile)} disabled={!formData.label?.trim()}>
+          <Button onClick={() => onSave(formData, imageFiles, videoFiles)} disabled={!formData.label?.trim()}>
             {unit ? 'Salvar Alterações' : 'Adicionar'}
           </Button>
         </div>

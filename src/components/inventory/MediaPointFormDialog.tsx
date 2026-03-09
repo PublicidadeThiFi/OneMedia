@@ -12,9 +12,10 @@ import { X, ChevronDown, Package, ExternalLink, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaPoint, MediaType, ProductionCosts } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
-import { validateFileAgainstEntitlements } from '../../lib/mediaValidation';
+import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
 import apiClient from '../../lib/apiClient';
+import { getUploadErrorMessage } from '../../lib/httpErrorMessage';
 import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
 
@@ -72,7 +73,9 @@ interface MediaPointFormDialogProps {
 }
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave }: MediaPointFormDialogProps) {
-  const { entitlements } = useCompany();
+  const company = useCompany() as any;
+  const entitlements = company?.entitlements;
+  const refreshEntitlements = company?.refreshEntitlements;
   const fileLimits = (entitlements as any)?.limits?.file;
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
@@ -84,11 +87,11 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
 
   // =====================
   // Mapa (Etapa 6)
@@ -115,11 +118,11 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     if (mediaPoint) {
       setFormData(mediaPoint);
       setType(mediaPoint.type);
-      setImageFile(null);
-      setImagePreview(resolveUploadsUrl(mediaPoint.mainImageUrl) || null);
+      setImageFiles([]);
+      setImagePreviews(Array.isArray((mediaPoint as any)?.galleryImages) && (mediaPoint as any).galleryImages.length ? (mediaPoint as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint.mainImageUrl) ? [resolveUploadsUrl(mediaPoint.mainImageUrl)!] : []));
 
-      setVideoFile(null);
-      setVideoPreview(resolveUploadsUrl(mediaPoint.mainVideoUrl) || null);
+      setVideoFiles([]);
+      setVideoPreviews(Array.isArray((mediaPoint as any)?.galleryVideos) && (mediaPoint as any).galleryVideos.length ? (mediaPoint as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint.mainVideoUrl) ? [resolveUploadsUrl(mediaPoint.mainVideoUrl)!] : []));
     } else {
       const merged: Partial<MediaPoint> = {
         type: MediaType.OOH,
@@ -130,11 +133,11 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       };
       setFormData(merged);
       setType(MediaType.OOH);
-      setImageFile(null);
-      setImagePreview(null);
+      setImageFiles([]);
+      setImagePreviews([]);
 
-      setVideoFile(null);
-      setVideoPreview(null);
+      setVideoFiles([]);
+      setVideoPreviews([]);
     }
     // Reset do auto-fill quando abrir
     lastAutoRef.current = null;
@@ -160,71 +163,73 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
 
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
+    const files = Array.from(e.target.files ?? []);
 
-    if (file) {
-      const err = await validateFileAgainstEntitlements(file, 'image', entitlements);
-      if (err) {
-        toast.error(err);
-        // reset input selection
-        try {
-          (e.target as any).value = '';
-        } catch {
-          // ignore
-        }
-        setImageFile(null);
-        setImagePreview(null);
-        return;
-      }
-
-      setImageFile(file);
-      const url = URL.createObjectURL(file);
-      setImagePreview(url);
+    if (!files.length) {
+      setImageFiles([]);
+      setImagePreviews(Array.isArray((mediaPoint as any)?.galleryImages) && (mediaPoint as any).galleryImages.length ? (mediaPoint as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint?.mainImageUrl) ? [resolveUploadsUrl(mediaPoint?.mainImageUrl)!] : []));
       return;
     }
 
-    setImageFile(null);
-    // Mantém o preview atual (ex.: imagem já salva) quando limpar o input.
-    // Se quiser "remover imagem", isso deve ser uma ação explícita.
+    const err = await validateUploadBatchAgainstEntitlements(
+      [
+        ...files.map((file) => ({ file, kind: 'image' as const })),
+        ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
+      ],
+      entitlements
+    );
+    if (err) {
+      toast.error(err);
+      try {
+        (e.target as any).value = '';
+      } catch {}
+      setImageFiles([]);
+      return;
+    }
+
+    setImageFiles(files);
+    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
   };
 
   const handleVideoChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
+    const files = Array.from(e.target.files ?? []);
 
-    if (file) {
-      const err = await validateFileAgainstEntitlements(file, 'video', entitlements);
-      if (err) {
-        toast.error(err);
-        try {
-          (e.target as any).value = '';
-        } catch {
-          // ignore
-        }
-        setVideoFile(null);
-        setVideoPreview(null);
-        return;
-      }
-
-      setVideoFile(file);
-      const url = URL.createObjectURL(file);
-      setVideoPreview(url);
+    if (!files.length) {
+      setVideoFiles([]);
+      setVideoPreviews(Array.isArray((mediaPoint as any)?.galleryVideos) && (mediaPoint as any).galleryVideos.length ? (mediaPoint as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint?.mainVideoUrl) ? [resolveUploadsUrl(mediaPoint?.mainVideoUrl)!] : []));
       return;
     }
 
-    setVideoFile(null);
+    const err = await validateUploadBatchAgainstEntitlements(
+      [
+        ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
+        ...files.map((file) => ({ file, kind: 'video' as const })),
+      ],
+      entitlements
+    );
+    if (err) {
+      toast.error(err);
+      try {
+        (e.target as any).value = '';
+      } catch {}
+      setVideoFiles([]);
+      return;
+    }
+
+    setVideoFiles(files);
+    setVideoPreviews(files.map((file) => URL.createObjectURL(file)));
   };
 
   useEffect(() => {
     return () => {
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      for (const src of imagePreviews) {
+        if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
       }
-
-      if (videoPreview && videoPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(videoPreview);
+      for (const src of videoPreviews) {
+        if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
       }
     };
-  }, [imagePreview, videoPreview]);
+  }, [imagePreviews, videoPreviews]);
 
   const updateField = (field: keyof MediaPoint, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -418,14 +423,39 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     delete (payload as any).basePriceDay;
 
     try {
-      await onSave(
+      const result = await onSave(
         {
           ...payload,
           type,
         },
-        imageFile,
-        videoFile
+        null,
+        null
       );
+
+      const targetId = result?.id ?? mediaPoint?.id;
+      if ((imageFiles.length || videoFiles.length) && !targetId) {
+        throw new Error('O ponto foi salvo, mas o retorno não trouxe o ID para enviar as mídias.');
+      }
+
+      for (const file of imageFiles) {
+        try {
+          await apiClient.post(`/media-points/${targetId}/image`, (() => { const fd = new FormData(); fd.append('file', file); return fd; })());
+        } catch (e: any) {
+          throw new Error(getUploadErrorMessage(e, `Erro ao enviar imagem ${file.name}`));
+        }
+      }
+
+      for (const file of videoFiles) {
+        try {
+          await apiClient.post(`/media-points/${targetId}/video`, (() => { const fd = new FormData(); fd.append('file', file); return fd; })());
+        } catch (e: any) {
+          throw new Error(getUploadErrorMessage(e, `Erro ao enviar vídeo ${file.name}`));
+        }
+      }
+
+      if (imageFiles.length || videoFiles.length) {
+        await refreshEntitlements?.();
+      }
 
       // Só fecha se a operação foi concluída sem erro.
       onOpenChange(false);
@@ -447,8 +477,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     });
     setErrors({});
     setSubmitError(null);
-    setImageFile(null);
-    setVideoFile(null);
+    setImageFiles([]);
+    setVideoFiles([]);
+    setImagePreviews([]);
+    setVideoPreviews([]);
     onOpenChange(false);
   };
 
@@ -512,33 +544,36 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
               </div>
 
               <div className="space-y-2">
-                <Label>Imagem principal</Label>
-                <Input type="file" accept="image/*" onChange={handleImageChange} />
-                {imagePreview && (
-                  <div className="mt-2 w-full max-w-sm h-40 bg-gray-100 rounded overflow-hidden">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                <Label>Imagens do ponto</Label>
+                <Input type="file" accept="image/*" multiple onChange={handleImageChange} />
+                {imagePreviews.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-2 w-full max-w-2xl">
+                    {imagePreviews.map((src, idx) => (
+                      <div key={`img-${idx}`} className="h-32 bg-gray-100 rounded overflow-hidden">
+                        <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
                   </div>
                 )}
                 <p className="text-xs text-gray-500">
-                  Selecione uma imagem (PNG/JPG). O upload será feito ao salvar. Máx. {fileLimits?.maxImageMb ?? 5}MB.
+                  Selecione uma ou mais imagens. O upload será feito ao salvar. Máx. {fileLimits?.maxImageMb ?? 5}MB por arquivo e respeitando o armazenamento restante do plano.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label>Vídeo principal (opcional)</Label>
-                <Input type="file" accept="video/*" onChange={handleVideoChange} />
-                {videoPreview && (
-                  <div className="mt-2 w-full max-w-sm h-40 bg-gray-100 rounded overflow-hidden">
-                    <video
-                      src={videoPreview}
-                      controls
-                      muted
-                      className="w-full h-full object-cover"
-                    />
+                <Label>Vídeos do ponto (opcional)</Label>
+                <Input type="file" accept="video/*" multiple onChange={handleVideoChange} />
+                {videoPreviews.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 gap-2 w-full max-w-2xl">
+                    {videoPreviews.map((src, idx) => (
+                      <div key={`video-${idx}`} className="h-32 bg-gray-100 rounded overflow-hidden">
+                        <video src={src} controls muted className="w-full h-full object-cover" />
+                      </div>
+                    ))}
                   </div>
                 )}
                 <p className="text-xs text-gray-500">
-                  Vídeo (MP4/WebM/MOV). O upload será feito ao salvar. Máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s.
+                  Selecione um ou mais vídeos. O upload será feito ao salvar. Máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s por arquivo, respeitando o armazenamento restante do plano.
                 </p>
               </div>
 

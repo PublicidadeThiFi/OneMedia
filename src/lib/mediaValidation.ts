@@ -149,3 +149,27 @@ export function buildMediaUsageSummary(entitlements: PlatformSubscriptionEntitle
     trafficLimitBytes,
   };
 }
+
+export async function validateUploadBatchAgainstEntitlements(
+  entries: Array<{ file: File; kind: MediaUploadKind }>,
+  entitlements: PlatformSubscriptionEntitlementsResponse | null | undefined
+): Promise<string | null> {
+  if (!entries.length) return null;
+
+  for (const entry of entries) {
+    const err = await validateFileAgainstEntitlements(entry.file, entry.kind, entitlements);
+    if (err) return err;
+  }
+
+  const usage = buildMediaUsageSummary(entitlements);
+  if (!usage) return null;
+
+  const totalSelectedBytes = entries.reduce((sum, entry) => sum + Math.max(0, entry.file.size || 0), 0);
+  const remainingBytes = Math.max(0, usage.storageLimitBytes - usage.storageUsedBytes);
+
+  if (totalSelectedBytes > remainingBytes) {
+    return `Os arquivos selecionados somam ${formatBytes(totalSelectedBytes)}, mas restam apenas ${formatBytes(remainingBytes)} no seu plano.`;
+  }
+
+  return null;
+}
