@@ -96,6 +96,22 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     return response.data;
   };
 
+  const uploadManyMediaPointImages = async (id: string, files: File[]) => {
+    let lastResponse: MediaPoint | null = null;
+    for (const file of files) {
+      lastResponse = await uploadMediaPointImage(id, file);
+    }
+    return lastResponse;
+  };
+
+  const uploadManyMediaPointVideos = async (id: string, files: File[]) => {
+    let lastResponse: MediaPoint | null = null;
+    for (const file of files) {
+      lastResponse = await uploadMediaPointVideo(id, file);
+    }
+    return lastResponse;
+  };
+
   const uploadMediaPointVideo = async (id: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -142,5 +158,7 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     deleteMediaPoint,
     uploadMediaPointImage,
     uploadMediaPointVideo,
+    uploadManyMediaPointImages,
+    uploadManyMediaPointVideos,
   };
 }

@@ -6,8 +6,15 @@ export function getUploadErrorMessage(err: any, fallback: string): string {
   const status: number | undefined = err?.response?.status;
   const data = err?.response?.data;
 
-  // Nginx/Proxy: Request Entity Too Large
+  // Backend plan validation (JSON) or Nginx/Proxy (HTML)
   if (status === 413) {
+    if (data?.code === 'FILE_TOO_LARGE') {
+      const maxBytes = Number.parseInt(String(data?.maxBytes ?? '0'), 10);
+      const maxMb = Number.isFinite(maxBytes) && maxBytes > 0 ? Math.round((maxBytes / 1024 / 1024) * 10) / 10 : null;
+      const label = data?.kind === 'VIDEO' ? 'vídeo' : data?.kind === 'PDF' ? 'PDF' : 'imagem';
+      return maxMb ? `O ${label} excede o tamanho máximo permitido pelo seu plano (${maxMb} MB).` : `O arquivo excede o tamanho máximo permitido pelo seu plano.`;
+    }
+
     return (
       'Arquivo grande demais para o servidor (413). ' +
       'Isso geralmente é limite do Nginx/proxy (client_max_body_size). ' +

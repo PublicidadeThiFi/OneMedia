@@ -237,6 +237,19 @@ export enum ActivityResourceType {
 
 // Interfaces baseadas nos modelos Prisma
 
+export type MediaAssetKind = 'IMAGE' | 'VIDEO' | 'PDF' | 'OTHER';
+
+export interface MediaAsset {
+  id: string;
+  kind: MediaAssetKind;
+  url: string;
+  mimeType?: string | null;
+  bytes?: string | number;
+  sortOrder?: number;
+  isPrimary?: boolean;
+  createdAt?: Date | string;
+}
+
 export interface Company {
   id: string;
   name: string;
@@ -318,6 +331,9 @@ export interface MediaPoint {
   imageUrl?: string | null;
   mainVideoUrl?: string;
   videoUrl?: string | null;
+  mediaAssets?: MediaAsset[];
+  galleryImages?: string[];
+  galleryVideos?: string[];
   productionCosts?: ProductionCosts; // custos de produção OOH
   promotion?: PromotionPayload | null;
   createdAt: Date;

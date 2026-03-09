@@ -126,21 +126,29 @@ export function MediaPointImageCarousel({
       list.push(slide);
     };
 
-    const pointImageSrc = normalizeUploadsUrl(point.mainImageUrl);
-    if (pointImageSrc) {
+    const pointGalleryImages = Array.isArray((point as any).galleryImages) && (point as any).galleryImages.length
+      ? (point as any).galleryImages
+      : [point.mainImageUrl].filter(Boolean);
+    for (const [idx, srcValue] of pointGalleryImages.entries()) {
+      const pointImageSrc = normalizeUploadsUrl(srcValue);
+      if (!pointImageSrc) continue;
       pushSlide({
         src: pointImageSrc,
-        label: 'Imagem do ponto',
+        label: idx === 0 ? 'Imagem do ponto' : `Imagem do ponto ${idx + 1}`,
         alt: point.name,
         kind: 'image',
       });
     }
 
-    const pointVideoSrc = normalizeUploadsUrl(point.mainVideoUrl);
-    if (pointVideoSrc) {
+    const pointGalleryVideos = Array.isArray((point as any).galleryVideos) && (point as any).galleryVideos.length
+      ? (point as any).galleryVideos
+      : [point.mainVideoUrl].filter(Boolean);
+    for (const [idx, srcValue] of pointGalleryVideos.entries()) {
+      const pointVideoSrc = normalizeUploadsUrl(srcValue);
+      if (!pointVideoSrc) continue;
       pushSlide({
         src: pointVideoSrc,
-        label: 'Vídeo do ponto',
+        label: idx === 0 ? 'Vídeo do ponto' : `Vídeo do ponto ${idx + 1}`,
         alt: `${point.name} - vídeo`,
         kind: 'video',
       });
@@ -151,21 +159,41 @@ export function MediaPointImageCarousel({
       const kind = u.unitType === UnitType.SCREEN ? 'tela' : 'face';
       const unitLabel = u.label?.trim();
 
-      const unitImageSrc = normalizeUploadsUrl(u.imageUrl);
-      if (unitImageSrc) {
+      const unitGalleryImages = Array.isArray((u as any).galleryImages) && (u as any).galleryImages.length
+        ? (u as any).galleryImages
+        : [u.imageUrl].filter(Boolean);
+      for (const [idx, srcValue] of unitGalleryImages.entries()) {
+        const unitImageSrc = normalizeUploadsUrl(srcValue);
+        if (!unitImageSrc) continue;
         pushSlide({
           src: unitImageSrc,
-          label: unitLabel ? `Imagem da ${kind}: ${unitLabel}` : `Imagem da ${kind}`,
+          label: unitLabel
+            ? idx === 0
+              ? `Imagem da ${kind}: ${unitLabel}`
+              : `Imagem ${idx + 1} da ${kind}: ${unitLabel}`
+            : idx === 0
+              ? `Imagem da ${kind}`
+              : `Imagem ${idx + 1} da ${kind}`,
           alt: unitLabel ? `${point.name} - ${unitLabel}` : `${point.name} - ${kind}`,
           kind: 'image',
         });
       }
 
-      const unitVideoSrc = normalizeUploadsUrl(u.videoUrl);
-      if (unitVideoSrc) {
+      const unitGalleryVideos = Array.isArray((u as any).galleryVideos) && (u as any).galleryVideos.length
+        ? (u as any).galleryVideos
+        : [u.videoUrl].filter(Boolean);
+      for (const [idx, srcValue] of unitGalleryVideos.entries()) {
+        const unitVideoSrc = normalizeUploadsUrl(srcValue);
+        if (!unitVideoSrc) continue;
         pushSlide({
           src: unitVideoSrc,
-          label: unitLabel ? `Vídeo da ${kind}: ${unitLabel}` : `Vídeo da ${kind}`,
+          label: unitLabel
+            ? idx === 0
+              ? `Vídeo da ${kind}: ${unitLabel}`
+              : `Vídeo ${idx + 1} da ${kind}: ${unitLabel}`
+            : idx === 0
+              ? `Vídeo da ${kind}`
+              : `Vídeo ${idx + 1} da ${kind}`,
           alt: unitLabel ? `${point.name} - vídeo - ${unitLabel}` : `${point.name} - vídeo - ${kind}`,
           kind: 'video',
         });
