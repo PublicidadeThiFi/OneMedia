@@ -1,62 +1,54 @@
-import { buildOAuthStartUrl, type SocialProvider } from '../../lib/oauth';
+import React from 'react';
+import { buildOAuthStartUrl } from '../../lib/oauth';
 
 type Props = {
+  /** internal path to go after auth (e.g. "/cadastro" or "/app/") */
   next?: string;
-  className?: string;
   disabled?: boolean;
+  /** Set true only when Microsoft is configured/enabled */
+  showOutlook?: boolean;
 };
 
-export function SocialAuthButtons({ next = '/app/', className, disabled }: Props) {
-  const go = (provider: SocialProvider) => {
-    const url = buildOAuthStartUrl(provider, { next });
+/**
+ * Social auth buttons.
+ *
+ * Observação: por decisão do projeto, o botão do Outlook fica oculto por padrão
+ * (o backend pode estar sem as variáveis MICROSOFT_* configuradas).
+ */
+export function SocialAuthButtons({ next, disabled, showOutlook = false }: Props) {
+  const handle = (provider: 'google' | 'outlook') => {
+    if (disabled) return;
+    const url = buildOAuthStartUrl(provider, { next: next ?? '/app/' });
     window.location.assign(url);
   };
 
   return (
-    <div className={className ?? ''}>
+    <div className="space-y-2">
       <button
         type="button"
-        onClick={() => go('google')}
+        onClick={() => handle('google')}
         disabled={disabled}
-        className="w-full rounded-xl px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors flex items-center justify-center gap-3 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 shrink-0" role="img">
-          <path
-            fill="#EA4335"
-            d="M23.5 12.3c0-.8-.1-1.6-.3-2.3H12v4.4h6.5c-.3 1.4-1 2.6-2.1 3.4v2.8h3.3c1.9-1.7 3-4.2 3-7.3z"
-          />
-          <path
-            fill="#34A853"
-            d="M12 24c2.7 0 5-.9 6.6-2.5l-3.3-2.8c-.9.6-2 1-3.3 1-2.6 0-4.7-1.7-5.5-4H3.1v2.5C4.6 21.8 7.5 24 12 24z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M6.5 14.7c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V8.2H3.1C2.4 9.5 2 11 2 12.7s.4 3.2 1.1 4.5l3.4-2.5z"
-          />
-          <path
-            fill="#4285F4"
-            d="M12 7.5c1.5 0 2.8.5 3.8 1.5l2.9-2.9C17 3.8 14.7 2.7 12 2.7 8.5 2.7 5.6 4.9 4.2 8.2l3.4 2.5c.8-2.3 2.9-3.9 5.4-3.9z"
-          />
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.72 1.22 9.22 3.23l6.88-6.88C35.9 2.11 30.36 0 24 0 14.64 0 6.61 5.38 2.66 13.22l8.02 6.23C12.5 13.2 17.8 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.1 24.5c0-1.64-.14-2.83-.44-4.07H24v7.7h12.74c-.26 2.08-1.68 5.22-4.86 7.32l7.45 5.77c4.44-4.1 6.77-10.14 6.77-14.72z"/>
+          <path fill="#FBBC05" d="M10.68 28.45A14.5 14.5 0 0 1 9.9 24c0-1.55.28-3.05.76-4.45l-8.02-6.23A23.94 23.94 0 0 0 0 24c0 3.86.92 7.51 2.55 10.78l8.13-6.33z"/>
+          <path fill="#34A853" d="M24 48c6.36 0 11.7-2.09 15.6-5.68l-7.45-5.77c-2 1.4-4.7 2.38-8.15 2.38-6.2 0-11.5-3.7-13.33-8.95l-8.13 6.33C6.61 42.62 14.64 48 24 48z"/>
         </svg>
         Entrar com Google
       </button>
-      {/*
-      <button
-        type="button"
-        onClick={() => go('outlook')}
-        disabled={disabled}
-        className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors flex items-center justify-center gap-3 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        <svg aria-hidden viewBox="0 0 48 48" className="h-5 w-5 shrink-0" role="img">
-          <rect x="6" y="6" width="36" height="36" rx="4" fill="#0078D4" />
-          <path
-            fill="#ffffff"
-            d="M13 14h10c4.4 0 7 2.4 7 6.5 0 4.4-2.9 7-7.5 7H16v6.5H13V14zm3 11h6.3c2.8 0 4.4-1.4 4.4-4s-1.5-4-4.3-4H16v8z"
-          />
-        </svg>
-        Entrar com Outlook
-      </button>
-      */}
+
+      {showOutlook ? (
+        <button
+          type="button"
+          onClick={() => handle('outlook')}
+          disabled={disabled}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          Entrar com Outlook
+        </button>
+      ) : null}
     </div>
   );
 }

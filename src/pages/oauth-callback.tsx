@@ -20,10 +20,23 @@ export default function OAuthCallback() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { accessToken, refreshToken, error, next } = parseOAuthCallbackParams();
+      const { accessToken, refreshToken, error, errorDescription, next } = parseOAuthCallbackParams();
 
       if (error) {
-        setErrorMsg(decodeURIComponent(error));
+        const code = String(error);
+        const friendly =
+          code === 'OAUTH_ACCESS_DENIED'
+            ? 'Você cancelou o login com o Google.'
+            : code === 'OAUTH_SESSION_INVALID'
+              ? 'Sessão expirada. Tente novamente.'
+              : code === 'OAUTH_PROVIDER_DISABLED'
+                ? 'Este método de login está desativado no momento.'
+                : code === 'OAUTH_PROVIDER_CONFLICT'
+                  ? 'Esta conta já está vinculada a outro login social.'
+                  : 'Falha ao autenticar com o provedor.';
+
+        const extra = errorDescription ? `\n${String(errorDescription)}` : '';
+        setErrorMsg(`${friendly}${extra}`);
         return;
       }
 

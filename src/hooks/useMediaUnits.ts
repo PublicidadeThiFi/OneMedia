@@ -75,17 +75,17 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<{ imageUrl: string }>(
-      `/media-units/${id}/image`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
+    const response = await apiClient.post<MediaUnit>(`/media-units/${id}/image`, formData);
 
     setUnits((prev: MediaUnit[]) =>
       prev.map((u: MediaUnit) =>
-        u.id === id ? { ...u, imageUrl: response.data.imageUrl } : u
+        u.id === id
+          ? {
+              ...u,
+              ...response.data,
+              imageUrl: response.data.imageUrl ?? u.imageUrl,
+            }
+          : u
       )
     );
 
@@ -96,17 +96,17 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<{ videoUrl: string }>(
-      `/media-units/${id}/video`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
+    const response = await apiClient.post<MediaUnit>(`/media-units/${id}/video`, formData);
 
     setUnits((prev: MediaUnit[]) =>
       prev.map((u: MediaUnit) =>
-        u.id === id ? { ...u, videoUrl: response.data.videoUrl } : u
+        u.id === id
+          ? {
+              ...u,
+              ...response.data,
+              videoUrl: response.data.videoUrl ?? u.videoUrl,
+            }
+          : u
       )
     );
 

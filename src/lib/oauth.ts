@@ -46,12 +46,14 @@ export function parseOAuthCallbackParams(loc: Location = window.location) {
 
   const refreshToken = qs.get('refresh_token') ?? hs.get('refresh_token');
   const error = qs.get('error') ?? hs.get('error');
+  const errorDescription = qs.get('error_description') ?? hs.get('error_description');
   const next = qs.get('next') ?? hs.get('next');
 
   return {
     accessToken: accessToken || null,
     refreshToken: refreshToken || null,
     error: error || null,
+    errorDescription: errorDescription || null,
     next: safeInternalNext(next),
   };
 }
