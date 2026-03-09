@@ -147,7 +147,18 @@ function normalizeContentType(config: any) {
     return;
   }
 
-  // For body methods, ensure JSON content-type unless explicitly set.
+  // IMPORTANT:
+  // For FormData uploads, never force Content-Type here.
+  // The browser must generate the multipart boundary automatically.
+  const data = config?.data;
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  if (isFormData) {
+    delete (config.headers as any)['Content-Type'];
+    delete (config.headers as any)['content-type'];
+    return;
+  }
+
+  // For non-FormData body methods, ensure JSON content-type unless explicitly set.
   const ct = (config.headers as any)['Content-Type'] ?? (config.headers as any)['content-type'];
   if (!ct) {
     (config.headers as any)['Content-Type'] = 'application/json';

@@ -78,17 +78,18 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<MediaPoint>(
-      `/media-points/${id}/image`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
+    const response = await apiClient.post<MediaPoint>(`/media-points/${id}/image`, formData);
 
     setMediaPoints((prev: MediaPoint[]) =>
       prev.map((p: MediaPoint) =>
-        p.id === id ? { ...p, mainImageUrl: response.data.mainImageUrl } : p
+        p.id === id
+          ? {
+              ...p,
+              ...response.data,
+              mainImageUrl: response.data.mainImageUrl ?? response.data.imageUrl ?? p.mainImageUrl,
+              imageUrl: response.data.imageUrl ?? response.data.mainImageUrl ?? (p as any).imageUrl,
+            }
+          : p
       )
     );
 
@@ -99,17 +100,18 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<MediaPoint>(
-      `/media-points/${id}/video`,
-      formData,
-      {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      }
-    );
+    const response = await apiClient.post<MediaPoint>(`/media-points/${id}/video`, formData);
 
     setMediaPoints((prev: MediaPoint[]) =>
       prev.map((p: MediaPoint) =>
-        p.id === id ? { ...p, mainVideoUrl: response.data.mainVideoUrl } : p
+        p.id === id
+          ? {
+              ...p,
+              ...response.data,
+              mainVideoUrl: response.data.mainVideoUrl ?? response.data.videoUrl ?? p.mainVideoUrl,
+              videoUrl: response.data.videoUrl ?? response.data.mainVideoUrl ?? (p as any).videoUrl,
+            }
+          : p
       )
     );
 

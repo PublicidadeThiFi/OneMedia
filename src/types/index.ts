@@ -315,7 +315,9 @@ export interface MediaPoint {
   basePriceWeek?: number;
   basePriceDay?: number;
   mainImageUrl?: string;
+  imageUrl?: string | null;
   mainVideoUrl?: string;
+  videoUrl?: string | null;
   productionCosts?: ProductionCosts; // custos de produção OOH
   promotion?: PromotionPayload | null;
   createdAt: Date;
