@@ -39,14 +39,14 @@ export default function Login() {
         c === 'OAUTH_ACCESS_DENIED'
           ? 'Você cancelou o login social.'
           : c === 'OAUTH_PROVIDER_CONFLICT'
-            ? 'Essa conta do provedor já está vinculada a outra conta. Use o mesmo Google/Outlook utilizado anteriormente.'
+            ? 'Essa conta do provedor já está vinculada a outra conta. Use o mesmo Google utilizado anteriormente.'
             : c === 'OAUTH_EMAIL_ALREADY_IN_USE'
               ? 'Este e-mail já está em uso por outra conta.'
               : c === 'OAUTH_ID_TOKEN_INVALID'
                 ? 'Não foi possível validar o login social. Tente novamente.'
                 : c === 'OAUTH_SESSION_INVALID'
                   ? 'Sessão do login social expirou. Tente novamente.'
-                  : 'Não foi possível autenticar com Google/Outlook.';
+                  : 'Não foi possível autenticar com Google.';
 
       setError((prev) => prev || (desc ? `${friendly}\n${desc}` : friendly));
     } catch {

@@ -17,7 +17,7 @@ type Step3UserProps = {
   onBack: () => void;
   errors: Record<string, string>;
   isLoading: boolean;
-  /** True when the user is completing onboarding after SSO (Google/Outlook). */
+  /** True when the user is completing onboarding after SSO (Google). */
   isOAuth?: boolean;
   captchaSiteKey?: string;
   captchaToken?: string;
@@ -115,7 +115,7 @@ export function Step3User({
             <p className="mt-2 text-sm text-red-600">{errors.email}</p>
           )}
           {oauth ? (
-            <p className="mt-2 text-xs text-gray-500">Esse e-mail vem do Google/Outlook e não pode ser alterado.</p>
+            <p className="mt-2 text-xs text-gray-500">Esse e-mail vem do Google e não pode ser alterado.</p>
           ) : null}
         </div>
 
@@ -149,7 +149,7 @@ export function Step3User({
             )}
           </label>
           {oauth ? (
-            <p className="text-xs text-gray-500 mb-2">Opcional: crie uma senha para também entrar sem Google/Outlook.</p>
+            <p className="text-xs text-gray-500 mb-2">Opcional: crie uma senha para também entrar sem Google.</p>
           ) : null}
           <div className="relative">
             <input

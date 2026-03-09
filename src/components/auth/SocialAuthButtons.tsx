@@ -40,7 +40,7 @@ export function SocialAuthButtons({ next = '/app/', className, disabled }: Props
         </svg>
         Entrar com Google
       </button>
-
+      {/*
       <button
         type="button"
         onClick={() => go('outlook')}
@@ -56,6 +56,7 @@ export function SocialAuthButtons({ next = '/app/', className, disabled }: Props
         </svg>
         Entrar com Outlook
       </button>
+      */}
     </div>
   );
 }

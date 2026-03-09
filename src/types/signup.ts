@@ -95,7 +95,7 @@ export interface SignupRequestDto {
  * Completa o onboarding de um usuário autenticado via OAuth/OIDC.
  * Mesmos campos do signup, mas:
  * - sem captcha
- * - senha é opcional (usuário pode continuar apenas com Google/Outlook)
+ * - senha é opcional (usuário pode continuar apenas com Google)
  */
 export interface CompleteOAuthSignupRequestDto {
   planId: string;

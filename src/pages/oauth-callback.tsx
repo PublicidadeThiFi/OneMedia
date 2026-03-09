@@ -6,7 +6,7 @@ import { parseOAuthCallbackParams } from '../lib/oauth';
 /**
  * OAuth Callback Page
  *
- * O backend redireciona para esta rota após autenticação via Google/Outlook:
+ * O backend redireciona para esta rota após autenticação via Google:
  *   /oauth-callback?access_token=XXX&refresh_token=YYY
  *
  * Em caso de erro:
