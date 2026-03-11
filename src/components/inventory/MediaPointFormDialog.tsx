@@ -329,7 +329,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         const lat = Number(first?.lat);
         const lng = Number(first?.lon);
         if (!active || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        applyPinPosition({ lat, lng }, { autoFill: false });
+        applyPinPosition({ lat, lng }, { autoFill: false, forceAddressRefresh: false });
       } catch {
         if (active) setPinPos(BRAZILIA_CENTER);
       }
@@ -458,24 +458,24 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     }
   };
 
-  const scheduleReverseGeocode = (lat: number, lng: number) => {
+  const scheduleReverseGeocode = (lat: number, lng: number, force = false) => {
     window.clearTimeout(geoTimerRef.current ?? undefined);
     geoTimerRef.current = window.setTimeout(() => {
-      void reverseGeocodeAndApply(lat, lng);
+      void reverseGeocodeAndApply(lat, lng, { force });
     }, 450);
   };
 
-  const applyAutoField = (field: keyof MediaPoint, value: string | undefined, previousAuto?: ReverseGeocodeAddress | null) => {
+  const applyAutoField = (field: keyof MediaPoint, value: string | undefined, previousAuto?: ReverseGeocodeAddress | null, force = false) => {
     const current = String((formDataRef.current as any)?.[field] ?? '').trim();
     const prevAuto = String((previousAuto as any)?.[field] ?? '').trim();
     const normalizedValue = String(value ?? '').trim();
 
-    if (!current || current === prevAuto) {
+    if (force || !current || current === prevAuto) {
       updateField(field, normalizedValue || '');
     }
   };
 
-  const reverseGeocodeAndApply = async (lat: number, lng: number) => {
+  const reverseGeocodeAndApply = async (lat: number, lng: number, options?: { force?: boolean }) => {
     try {
       setGeoError(null);
       setGeoLoading(true);
@@ -497,27 +497,24 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         addressCountry: addr.addressCountry,
       };
 
+      const force = options?.force === true;
+
       // Ordem importa (UF -> Cidade)
-      if (addr.addressState) {
-        applyAutoField('addressState', addr.addressState, previousAuto);
-      }
+      applyAutoField('addressState', addr.addressState, previousAuto, force);
 
-      if (addr.addressCity) {
-        // Garante que a cidade apareça no Select atual
-        setCitiesForUf((prev) => {
-          const cityName = String(addr.addressCity ?? '').trim();
-          if (!cityName) return prev;
-          if (prev.includes(cityName)) return prev;
-          return [...prev, cityName].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-        });
-        applyAutoField('addressCity', addr.addressCity, previousAuto);
-      }
+      setCitiesForUf((prev) => {
+        const cityName = String(addr.addressCity ?? '').trim();
+        if (!cityName) return prev;
+        if (prev.includes(cityName)) return prev;
+        return [...prev, cityName].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      });
+      applyAutoField('addressCity', addr.addressCity, previousAuto, force);
 
-      applyAutoField('addressDistrict', addr.addressDistrict, previousAuto);
-      applyAutoField('addressStreet', addr.addressStreet, previousAuto);
-      applyAutoField('addressNumber', normalizeAddressNumberInput(addr.addressNumber ?? ''), previousAuto);
-      applyAutoField('addressZipcode', normalizeZipcodeInput(addr.addressZipcode ?? ''), previousAuto);
-      applyAutoField('addressCountry', addr.addressCountry, previousAuto);
+      applyAutoField('addressDistrict', addr.addressDistrict, previousAuto, force);
+      applyAutoField('addressStreet', addr.addressStreet, previousAuto, force);
+      applyAutoField('addressNumber', normalizeAddressNumberInput(addr.addressNumber ?? ''), previousAuto, force);
+      applyAutoField('addressZipcode', normalizeZipcodeInput(addr.addressZipcode ?? ''), previousAuto, force);
+      applyAutoField('addressCountry', addr.addressCountry, previousAuto, force);
     } catch (e: any) {
       const msg = String(e?.message ?? '');
       if (msg.includes('abort')) return;
@@ -527,12 +524,12 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     }
   };
 
-  const applyPinPosition = (p: LatLng, opts?: { autoFill?: boolean }) => {
+  const applyPinPosition = (p: LatLng, opts?: { autoFill?: boolean; forceAddressRefresh?: boolean }) => {
     setPinPos(p);
     updateField('latitude', Number(p.lat.toFixed(6)));
     updateField('longitude', Number(p.lng.toFixed(6)));
     if (opts?.autoFill !== false) {
-      scheduleReverseGeocode(p.lat, p.lng);
+      scheduleReverseGeocode(p.lat, p.lng, opts?.forceAddressRefresh !== false);
     }
   };
 
@@ -722,10 +719,13 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   const storageLimitBytes = Math.max(0, Number(entitlements?.limits?.totalStorageGb ?? 0) * 1024 * 1024 * 1024);
   const currentPointStorageBytes = computePointStorageBytes(pointSnapshot ?? mediaPoint ?? initialData ?? null);
+  const globalStorageUsedBytes = parseBytes((entitlements as any)?.usage?.storageUsedBytes);
+  const globalStorageRemainingBytes = parseBytes((entitlements as any)?.remaining?.storageRemainingBytes);
   const pendingStorageBytes = [...imageFiles, ...videoFiles].reduce((total, file) => total + (file?.size ?? 0), 0);
   const projectedPointStorageBytes = currentPointStorageBytes + pendingStorageBytes;
-  const storagePercent = storageLimitBytes > 0 ? Math.min(100, (projectedPointStorageBytes / storageLimitBytes) * 100) : 0;
-  const remainingStorageBytes = Math.max(0, storageLimitBytes - currentPointStorageBytes);
+  const projectedGlobalStorageUsedBytes = globalStorageUsedBytes + pendingStorageBytes;
+  const projectedGlobalStorageRemainingBytes = Math.max(0, storageLimitBytes - projectedGlobalStorageUsedBytes);
+  const storagePercent = storageLimitBytes > 0 ? Math.min(100, (projectedGlobalStorageUsedBytes / storageLimitBytes) * 100) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -912,12 +912,13 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-900">Armazenamento deste ponto</p>
-                      <p className="text-xs text-slate-600">Soma das mídias do ponto + todas as faces/telas vinculadas.</p>
+                      <p className="text-sm font-medium text-slate-900">Armazenamento do plano</p>
+                      <p className="text-xs text-slate-600">Uso global da assinatura. Deste ponto: {formatBytes(currentPointStorageBytes)}.</p>
                     </div>
                     <div className="text-right text-sm text-slate-700">
-                      <div>{formatBytes(currentPointStorageBytes)} / {formatBytes(storageLimitBytes)}</div>
-                      <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(remainingStorageBytes)}</div>
+                      <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
+                      <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(globalStorageRemainingBytes)}</div>
+                      {pendingStorageBytes > 0 ? <div className="text-xs text-amber-700">Após salvar: {formatBytes(projectedGlobalStorageUsedBytes)} usados · {formatBytes(projectedGlobalStorageRemainingBytes)} livres</div> : null}
                     </div>
                   </div>
                   <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">

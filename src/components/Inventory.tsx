@@ -123,24 +123,41 @@ export function Inventory() {
 
   // Deep-link: /app/inventory?pointId=...
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pointId = params.get('pointId');
-    if (!pointId) return;
+    let cancelled = false;
 
-    (async () => {
+    const maybeOpenPointFromQuery = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const pointId = params.get('pointId');
+      if (!pointId) return;
+
       try {
         const res = await apiClient.get<MediaPoint>(`/media-points/${pointId}`);
-        handleEditPoint(res.data);
-      } catch (err: any) {
-        toast.error('Não foi possível abrir este ponto no inventário.');
+        if (cancelled) return;
+        await handleEditPoint(res.data);
+      } catch (_err: any) {
+        if (!cancelled) toast.error('Não foi possível abrir este ponto no inventário.');
+      } finally {
+        params.delete('pointId');
+        const next = params.toString();
+        const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
+        window.history.replaceState({}, '', url);
       }
-    })();
+    };
 
-    // limpa a query para não reabrir ao fechar
-    params.delete('pointId');
-    const next = params.toString();
-    const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
-    window.history.replaceState({}, '', url);
+    void maybeOpenPointFromQuery();
+
+    const handleNavigation = () => {
+      void maybeOpenPointFromQuery();
+    };
+
+    window.addEventListener('popstate', handleNavigation);
+    window.addEventListener('inventory:open-point', handleNavigation as EventListener);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('popstate', handleNavigation);
+      window.removeEventListener('inventory:open-point', handleNavigation as EventListener);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

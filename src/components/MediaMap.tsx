@@ -808,8 +808,19 @@ export function MediaMap() {
 
   const handleOpenInventory = () => {
     if (!details?.point?.id) return;
-    navigate(`/app/inventory?pointId=${details.point.id}`);
+    const targetUrl = `/app/inventory?pointId=${details.point.id}`;
     setPanelOpen(false);
+    try {
+      if (window.location.pathname === '/app/inventory') {
+        window.history.pushState({}, '', targetUrl);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        window.dispatchEvent(new Event('inventory:open-point'));
+        return;
+      }
+    } catch {
+      // fallback below
+    }
+    window.location.assign(targetUrl);
   };
 
   const handleCreateProposal = () => {
@@ -862,13 +873,13 @@ export function MediaMap() {
       };
 
       if (addr) {
-        if (addr.addressZipcode) payload.addressZipcode = addr.addressZipcode;
-        if (addr.addressStreet) payload.addressStreet = addr.addressStreet;
-        if (addr.addressNumber) payload.addressNumber = addr.addressNumber;
-        if (addr.addressDistrict) payload.addressDistrict = addr.addressDistrict;
-        if (addr.addressCity) payload.addressCity = addr.addressCity;
-        if (addr.addressState) payload.addressState = addr.addressState;
-        if (addr.addressCountry) payload.addressCountry = addr.addressCountry;
+        payload.addressZipcode = String(addr.addressZipcode ?? '').trim();
+        payload.addressStreet = String(addr.addressStreet ?? '').trim();
+        payload.addressNumber = String(addr.addressNumber ?? '').trim();
+        payload.addressDistrict = String(addr.addressDistrict ?? '').trim();
+        payload.addressCity = String(addr.addressCity ?? '').trim();
+        payload.addressState = String(addr.addressState ?? '').trim();
+        payload.addressCountry = String(addr.addressCountry ?? 'Brasil').trim() || 'Brasil';
       }
 
       await apiClient.put(`/media-points/${details.point.id}`, payload);

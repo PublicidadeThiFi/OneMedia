@@ -126,7 +126,9 @@ export function MediaUnitsDialog({
   const pointBaseStorageBytes = parseBytes(mediaPoint?.storageUsedBytes);
   const pointUnitsStorageBytes = units.reduce((total, unit) => total + parseBytes(unit.storageUsedBytes), 0);
   const pointTotalStorageBytes = pointBaseStorageBytes + pointUnitsStorageBytes;
-  const pointStoragePercent = storageLimitBytes > 0 ? Math.min(100, (pointTotalStorageBytes / storageLimitBytes) * 100) : 0;
+  const globalStorageUsedBytes = parseBytes(entitlements?.usage?.storageUsedBytes);
+  const globalStorageRemainingBytes = parseBytes(entitlements?.remaining?.storageRemainingBytes);
+  const pointStoragePercent = storageLimitBytes > 0 ? Math.min(100, (globalStorageUsedBytes / storageLimitBytes) * 100) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,12 +148,12 @@ export function MediaUnitsDialog({
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-slate-900">Armazenamento deste ponto</p>
-                <p className="text-xs text-slate-600">Soma das mídias do ponto + todas as {unitLabel.toLowerCase()}s cadastradas.</p>
+                <p className="text-sm font-medium text-slate-900">Armazenamento do plano</p>
+                <p className="text-xs text-slate-600">Uso global da assinatura. Deste ponto: {formatBytes(pointTotalStorageBytes)}.</p>
               </div>
               <div className="text-right text-sm text-slate-700">
-                <div>{formatBytes(pointTotalStorageBytes)} / {formatBytes(storageLimitBytes)}</div>
-                <div className="text-xs text-slate-500">Base do ponto: {formatBytes(pointBaseStorageBytes)}</div>
+                <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
+                <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(globalStorageRemainingBytes)}</div>
               </div>
             </div>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
@@ -621,9 +623,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
   }, [imagePreviews, videoPreviews]);
 
   const currentUnitStorageBytes = parseBytes(unitSnapshot?.storageUsedBytes);
+  const globalStorageUsedBytes = parseBytes(entitlements?.usage?.storageUsedBytes);
   const pendingStorageBytes = [...imageFiles, ...videoFiles].reduce((total, file) => total + (file?.size ?? 0), 0);
   const projectedPointStorageBytes = pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes + pendingStorageBytes;
-  const projectedStoragePercent = storageLimitBytes > 0 ? Math.min(100, (projectedPointStorageBytes / storageLimitBytes) * 100) : 0;
+  const projectedGlobalStorageUsedBytes = globalStorageUsedBytes + pendingStorageBytes;
+  const projectedStoragePercent = storageLimitBytes > 0 ? Math.min(100, (projectedGlobalStorageUsedBytes / storageLimitBytes) * 100) : 0;
 
   return (
     <Card className="border-2 border-indigo-200">
@@ -634,12 +638,12 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-slate-900">Limite do ponto compartilhado com as {unitLabel.toLowerCase()}s</p>
-                <p className="text-xs text-slate-600">Esta {unitLabel.toLowerCase()} consome o mesmo armazenamento total do ponto.</p>
+                <p className="text-sm font-medium text-slate-900">Armazenamento do plano compartilhado com as {unitLabel.toLowerCase()}s</p>
+                <p className="text-xs text-slate-600">Esta {unitLabel.toLowerCase()} consome o armazenamento global do plano. Deste ponto: {formatBytes(pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes)}.</p>
               </div>
               <div className="text-right text-sm text-slate-700">
-                <div>{formatBytes(pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes)} / {formatBytes(storageLimitBytes)}</div>
-                {pendingStorageBytes > 0 ? <div className="text-xs text-amber-700">Após salvar: {formatBytes(projectedPointStorageBytes)}</div> : null}
+                <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
+                {pendingStorageBytes > 0 ? <div className="text-xs text-amber-700">Após salvar: {formatBytes(projectedGlobalStorageUsedBytes)}</div> : <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(Math.max(0, storageLimitBytes - globalStorageUsedBytes))}</div>}
               </div>
             </div>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">

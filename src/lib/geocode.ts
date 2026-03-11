@@ -72,13 +72,14 @@ export async function reverseGeocodeOSM(
 ): Promise<ReverseGeocodeAddress | null> {
   // Nominatim (OpenStreetMap) — sem chave, best-effort.
   // Se falhar (CORS/rate-limit), retornamos null e a UI segue sem auto-preenchimento.
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${encodeURIComponent(
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&namedetails=1&zoom=19&lat=${encodeURIComponent(
     String(lat)
   )}&lon=${encodeURIComponent(String(lng))}&accept-language=pt-BR`;
 
   const res = await fetch(url, {
     method: 'GET',
     signal,
+    cache: 'no-store',
     headers: {
       // Alguns browsers/CDNs ignoram, mas ajuda quando disponível.
       'Accept': 'application/json',
@@ -102,11 +103,11 @@ export async function reverseGeocodeOSM(
   const district = a.suburb || a.neighbourhood || a.neighborhood || a.city_district;
   const street = a.road || a.pedestrian || a.footway || a.residential;
   const number = a.house_number;
-  const zipcode = a.postcode;
+  const zipcode = String(a.postcode ?? '').trim().replace(/[^\d-]/g, '');
   const country = a.country || 'Brasil';
 
   const out: ReverseGeocodeAddress = {
-    addressZipcode: zipcode ? String(zipcode) : undefined,
+    addressZipcode: zipcode || undefined,
     addressStreet: street ? String(street) : undefined,
     addressNumber: number ? String(number) : undefined,
     addressDistrict: district ? String(district) : undefined,
