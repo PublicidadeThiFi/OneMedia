@@ -50,6 +50,20 @@ function sanitizeUnitPayload(payload: UnitFormPayload) {
   return clean;
 }
 
+function parseNonNegativeFloatInput(value: string) {
+  if (!value) return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, numeric);
+}
+
+function parseNonNegativeIntInput(value: string) {
+  if (!value) return null;
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, numeric);
+}
+
 function parseBytes(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return 0;
   const numeric = typeof value === 'number' ? value : Number(value);
@@ -228,7 +242,7 @@ export function MediaUnitsDialog({
                                 <span className="text-gray-600">Preços: </span>
                                 <span className="text-gray-900">
                                   {unit.priceMonth ? `R$ ${unit.priceMonth}/mês` : ''}
-                                  {unit.priceWeek ? ` • R$ ${unit.priceWeek}/quinz` : ''}
+                                  {unit.priceWeek ? ` • R$ ${unit.priceWeek}/bi-semana` : ''}
                                 </span>
                               </div>
                             )}
@@ -454,6 +468,23 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     setExistingVideoAssets(videoAssets.length ? videoAssets : (resolveUploadsUrl(target?.videoUrl) ? [{ src: resolveUploadsUrl(target?.videoUrl)! }] : []));
   };
 
+  const resolveExistingAssetId = (kind: 'image' | 'video', src: string, preferredId?: string) => {
+    if (preferredId) return preferredId;
+
+    const snapshot = unitSnapshot ?? unit ?? null;
+    const mediaAssets = Array.isArray((snapshot as any)?.mediaAssets) ? (snapshot as any).mediaAssets : [];
+    const targetKind = kind === 'image' ? 'IMAGE' : 'VIDEO';
+    const normalizedSrc = resolveUploadsUrl(src) || src;
+
+    const match = mediaAssets.find((asset: any) => {
+      if (!asset || asset.kind !== targetKind || !asset.url) return false;
+      const normalizedAssetUrl = resolveUploadsUrl(asset.url) || asset.url;
+      return normalizedAssetUrl === normalizedSrc;
+    });
+
+    return match?.id as string | undefined;
+  };
+
   // Quando alterna de "nova unidade" para "editar" (ou troca a unidade sendo editada),
   // precisamos sincronizar o estado interno do formulário com a prop `unit`.
   useEffect(() => {
@@ -502,6 +533,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     }
 
     const err = await validateUploadBatchAgainstEntitlements([
+      ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
       ...files.map((file) => ({ file, kind: 'image' as const })),
       ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
     ], entitlements);
@@ -512,8 +544,8 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       return;
     }
 
-    setImageFiles(files);
-    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
+    setImageFiles((prev) => [...prev, ...files]);
+    setImagePreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
   };
 
   const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -526,6 +558,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
     const err = await validateUploadBatchAgainstEntitlements([
       ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
+      ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
       ...files.map((file) => ({ file, kind: 'video' as const })),
     ], entitlements);
     if (err) {
@@ -535,8 +568,8 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       return;
     }
 
-    setVideoFiles(files);
-    setVideoPreviews(files.map((file) => URL.createObjectURL(file)));
+    setVideoFiles((prev) => [...prev, ...files]);
+    setVideoPreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
   };
 
   const removePendingImage = (idx: number) => {
@@ -637,27 +670,30 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
             <div className="space-y-2">
               <p className="text-xs font-medium text-gray-700">Imagens selecionadas/cadastradas</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {existingImageAssets.map((asset, idx) => (
-                  <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
-                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                      <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                {existingImageAssets.map((asset, idx) => {
+                  const deleteAssetId = resolveExistingAssetId('image', asset.src, asset.id);
+                  return (
+                    <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                      <div className="h-24 bg-gray-100 rounded overflow-hidden">
+                        <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
+                        {deleteAssetId && onDeleteAsset ? (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            disabled={deletingAssetId === deleteAssetId}
+                            onClick={() => handleDeleteExistingAsset('image', deleteAssetId)}
+                          >
+                            Excluir
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
-                      {asset.id && onDeleteAsset ? (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          disabled={deletingAssetId === asset.id}
-                          onClick={() => handleDeleteExistingAsset('image', asset.id)}
-                        >
-                          Excluir
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {imagePreviews.map((src, idx) => (
                   <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
                     <div className="h-24 bg-gray-100 rounded overflow-hidden">
@@ -697,27 +733,30 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
             <div className="space-y-2">
               <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {existingVideoAssets.map((asset, idx) => (
-                  <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
-                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                      <video src={asset.src} className="w-full h-full object-cover" controls muted />
+                {existingVideoAssets.map((asset, idx) => {
+                  const deleteAssetId = resolveExistingAssetId('video', asset.src, asset.id);
+                  return (
+                    <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                      <div className="h-24 bg-gray-100 rounded overflow-hidden">
+                        <video src={asset.src} className="w-full h-full object-cover" controls muted />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
+                        {deleteAssetId && onDeleteAsset ? (
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            disabled={deletingAssetId === deleteAssetId}
+                            onClick={() => handleDeleteExistingAsset('video', deleteAssetId)}
+                          >
+                            Excluir
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
-                      {asset.id && onDeleteAsset ? (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          disabled={deletingAssetId === asset.id}
-                          onClick={() => handleDeleteExistingAsset('video', asset.id)}
-                        >
-                          Excluir
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {videoPreviews.map((src, idx) => (
                   <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
                     <div className="h-24 bg-gray-100 rounded overflow-hidden">
@@ -754,8 +793,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   type="number"
                   step="0.01"
                   placeholder="3.00"
+                  min="0"
                   value={formData.widthM ?? ''}
-                  onChange={(e) => updateField('widthM', e.target.value ? parseFloat(e.target.value) : null)}
+                  onChange={(e) => updateField('widthM', parseNonNegativeFloatInput(e.target.value))}
                 />
               </div>
               <div className="space-y-2">
@@ -764,8 +804,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   type="number"
                   step="0.01"
                   placeholder="9.00"
+                  min="0"
                   value={formData.heightM ?? ''}
-                  onChange={(e) => updateField('heightM', e.target.value ? parseFloat(e.target.value) : null)}
+                  onChange={(e) => updateField('heightM', parseNonNegativeFloatInput(e.target.value))}
                 />
               </div>
             </div>
@@ -799,9 +840,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 <Input
                   type="number"
                   placeholder="150"
+                  min="0"
                   value={formData.insertionsPerDay ?? ''}
                   onChange={(e) =>
-                    updateField('insertionsPerDay', e.target.value ? parseInt(e.target.value) : null)
+                    updateField('insertionsPerDay', parseNonNegativeIntInput(e.target.value))
                   }
                 />
               </div>
@@ -831,9 +873,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 <Input
                   type="number"
                   placeholder="1920"
+                  min="0"
                   value={formData.resolutionWidthPx ?? ''}
                   onChange={(e) =>
-                    updateField('resolutionWidthPx', e.target.value ? parseInt(e.target.value) : null)
+                    updateField('resolutionWidthPx', parseNonNegativeIntInput(e.target.value))
                   }
                 />
               </div>
@@ -842,9 +885,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 <Input
                   type="number"
                   placeholder="1080"
+                  min="0"
                   value={formData.resolutionHeightPx ?? ''}
                   onChange={(e) =>
-                    updateField('resolutionHeightPx', e.target.value ? parseInt(e.target.value) : null)
+                    updateField('resolutionHeightPx', parseNonNegativeIntInput(e.target.value))
                   }
                 />
               </div>
@@ -861,22 +905,24 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 type="number"
                 step="0.01"
                 placeholder="5000.00"
+                min="0"
                 value={formData.priceMonth ?? ''}
                 onChange={(e) =>
-                  updateField('priceMonth', e.target.value ? parseFloat(e.target.value) : null)
+                  updateField('priceMonth', parseNonNegativeFloatInput(e.target.value))
                 }
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm">Preço/Quinzenal (R$)</Label>
+              <Label className="text-sm">Preço/Bi-semana (R$)</Label>
               <Input
                 type="number"
                 step="0.01"
                 placeholder="1500.00"
+                min="0"
                 value={formData.priceWeek ?? ''}
                 onChange={(e) =>
-                  updateField('priceWeek', e.target.value ? parseFloat(e.target.value) : null)
+                  updateField('priceWeek', parseNonNegativeFloatInput(e.target.value))
                 }
               />
             </div>

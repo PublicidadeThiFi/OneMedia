@@ -284,7 +284,7 @@ export default function MenuCarrinho() {
                           </div>
 
                           <div className="rounded-lg bg-gray-50 px-3 py-2">
-                            <div className="text-[11px] text-gray-500">Semanal</div>
+                            <div className="text-[11px] text-gray-500">Bi-semana</div>
                             <div className="mt-0.5 text-sm text-gray-900">
                               {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
                                 <>

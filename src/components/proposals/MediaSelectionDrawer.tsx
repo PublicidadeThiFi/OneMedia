@@ -1000,7 +1000,7 @@ export function MediaSelectionDrawer({
                                   <Input value={formatPrice(computedPricing.priceMonth)} readOnly disabled />
                                 </div>
                                 <div>
-                                  <label className="text-sm text-gray-600 mb-1 block">Preço quinzenal</label>
+                                  <label className="text-sm text-gray-600 mb-1 block">Preço bi-semana</label>
                                   <Input value={formatPrice(computedPricing.priceBiweekly)} readOnly disabled />
                                 </div>
                               </div>

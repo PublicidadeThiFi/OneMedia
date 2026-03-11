@@ -742,7 +742,7 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
     'socialClasses',
     'showInMediaKit',
     'basePriceMonth',
-    'basePriceWeek (Preço Quinzenal)',
+    'basePriceWeek (Preço Bi-semana)',
   ];
 
   const OPTIONAL_OOH = [

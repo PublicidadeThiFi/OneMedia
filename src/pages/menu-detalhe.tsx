@@ -325,7 +325,7 @@ export default function MenuDetalhe() {
                       <div className="text-xs text-gray-600">
                         {isPromotions && bestPromoPointWeek ? (
                           <>
-                            Semanal •{' '}
+                            Bi-semana •{' '}
                             <span className="mr-2 text-gray-500 line-through">
                               {formatCurrencyBRL(bestPromoPointWeek.from)}
                             </span>
@@ -335,7 +335,7 @@ export default function MenuDetalhe() {
                           </>
                         ) : (
                           <>
-                            Semanal •{' '}
+                            Bi-semana •{' '}
                             <span className="font-semibold text-gray-900">
                               {formatCurrencyBRL(displayWeek)}
                             </span>
@@ -510,7 +510,7 @@ export default function MenuDetalhe() {
                             </div>
 
                             <div className="mt-1 text-xs text-gray-700">
-                              <span className="text-gray-500">Semanal:</span>{' '}
+                              <span className="text-gray-500">Bi-semana:</span>{' '}
                               {isPromotions && promoWeekOk ? (
                                 <>
                                   <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekOk.from)}</span>
