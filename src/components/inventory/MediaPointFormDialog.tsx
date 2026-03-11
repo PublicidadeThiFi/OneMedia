@@ -19,7 +19,7 @@ import { getUploadErrorMessage } from '../../lib/httpErrorMessage';
 import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
 
-import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { reverseGeocodeOSM, type ReverseGeocodeAddress } from '../../lib/geocode';
 
@@ -65,6 +65,52 @@ function MapPickEvents({ enabled, onPick }: { enabled: boolean; onPick: (p: LatL
   return null;
 }
 
+function MapViewportSync({ center, zoom, open }: { center: LatLng | null; zoom: number; open: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const target = center ?? { lat: -23.55052, lng: -46.633308 };
+    map.setView([target.lat, target.lng] as any, zoom, { animate: false });
+  }, [map, center?.lat, center?.lng, zoom]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [map, open, center?.lat, center?.lng]);
+
+  return null;
+}
+
+function parseBytes(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return 0;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = size >= 100 || unitIndex === 0 ? 0 : size >= 10 ? 1 : 2;
+  return `${size.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
+function computePointStorageBytes(point?: Partial<MediaPoint> | null) {
+  const pointBytes = parseBytes((point as any)?.storageUsedBytes);
+  const unitsBytes = Array.isArray(point?.units)
+    ? point.units.reduce((total, unit) => total + parseBytes(unit?.storageUsedBytes), 0)
+    : 0;
+  return pointBytes + unitsBytes;
+}
+
 interface MediaPointFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -97,6 +143,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
   const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [pointSnapshot, setPointSnapshot] = useState<Partial<MediaPoint> | null>(null);
 
   // =====================
   // Mapa (Etapa 6)
@@ -144,15 +191,21 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
 
   useEffect(() => {
+    geoAbortRef.current?.abort();
+    window.clearTimeout(geoTimerRef.current ?? undefined);
     setSubmitError(null);
     if (mediaPoint) {
       setFormData(mediaPoint);
+      setPointSnapshot(mediaPoint);
       setType(mediaPoint.type);
       setImageFiles([]);
       setImagePreviews([]);
       setVideoFiles([]);
       setVideoPreviews([]);
       syncExistingAssets(mediaPoint);
+      const lat = Number((mediaPoint as any)?.latitude);
+      const lng = Number((mediaPoint as any)?.longitude);
+      setPinPos(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
     } else {
       const merged: Partial<MediaPoint> = {
         type: MediaType.OOH,
@@ -162,7 +215,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         ...(initialData ?? {}),
       };
       setFormData(merged);
-      setType(MediaType.OOH);
+      setPointSnapshot(merged);
+      setType((merged.type as MediaType) || MediaType.OOH);
       setImageFiles([]);
       setImagePreviews([]);
       setExistingImageAssets([]);
@@ -170,6 +224,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setVideoFiles([]);
       setVideoPreviews([]);
       setExistingVideoAssets([]);
+      const lat = Number((merged as any)?.latitude);
+      const lng = Number((merged as any)?.longitude);
+      setPinPos(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
     }
     // Reset do auto-fill quando abrir
     lastAutoRef.current = null;
@@ -177,11 +234,21 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setGeoLoading(false);
   }, [mediaPoint, open, initialData]);
 
+  useEffect(() => {
+    return () => {
+      geoAbortRef.current?.abort();
+      window.clearTimeout(geoTimerRef.current ?? undefined);
+    };
+  }, []);
+
   // Sincroniza pin com lat/lng do form
   useEffect(() => {
     const lat = Number((formData as any)?.latitude);
     const lng = Number((formData as any)?.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      setPinPos(null);
+      return;
+    }
     setPinPos((prev) => {
       if (prev && Math.abs(prev.lat - lat) < 1e-8 && Math.abs(prev.lng - lng) < 1e-8) return prev;
       return { lat, lng };
@@ -276,7 +343,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     try {
       setDeletingAssetId(assetId);
       const updated = await onDeleteAsset(mediaPoint.id, assetId);
-      syncExistingAssets((updated as MediaPoint) ?? mediaPoint);
+      const nextPoint = (updated as MediaPoint) ?? mediaPoint;
+      setPointSnapshot(nextPoint);
+      syncExistingAssets(nextPoint);
       await refreshEntitlements?.();
       toast.success(kind === 'image' ? 'Imagem removida.' : 'Vídeo removido.');
     } catch (e: any) {
@@ -299,6 +368,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   const updateField = (field: keyof MediaPoint, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setPointSnapshot((prev) => ({ ...(prev ?? {}), [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -551,10 +621,19 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setVideoPreviews([]);
     setExistingImageAssets([]);
     setExistingVideoAssets([]);
+    setPointSnapshot(null);
+    setPinPos(null);
     onOpenChange(false);
   };
 
   const subcategories = type === MediaType.OOH ? OOH_SUBCATEGORIES : DOOH_SUBCATEGORIES;
+
+  const storageLimitBytes = Math.max(0, Number(entitlements?.limits?.totalStorageGb ?? 0) * 1024 * 1024 * 1024);
+  const currentPointStorageBytes = computePointStorageBytes(pointSnapshot ?? mediaPoint ?? initialData ?? null);
+  const pendingStorageBytes = [...imageFiles, ...videoFiles].reduce((total, file) => total + (file?.size ?? 0), 0);
+  const projectedPointStorageBytes = currentPointStorageBytes + pendingStorageBytes;
+  const storagePercent = storageLimitBytes > 0 ? Math.min(100, (projectedPointStorageBytes / storageLimitBytes) * 100) : 0;
+  const remainingStorageBytes = Math.max(0, storageLimitBytes - currentPointStorageBytes);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -709,6 +788,29 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 />
               </div>
 
+              {storageLimitBytes > 0 && (
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Armazenamento deste ponto</p>
+                      <p className="text-xs text-slate-600">Soma das mídias do ponto + todas as faces/telas vinculadas.</p>
+                    </div>
+                    <div className="text-right text-sm text-slate-700">
+                      <div>{formatBytes(currentPointStorageBytes)} / {formatBytes(storageLimitBytes)}</div>
+                      <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(remainingStorageBytes)}</div>
+                    </div>
+                  </div>
+                  <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${storagePercent}%` }} />
+                  </div>
+                  {pendingStorageBytes > 0 ? (
+                    <p className="text-xs text-amber-700">
+                      Seleção pendente: +{formatBytes(pendingStorageBytes)}. Após salvar, o ponto ficará com {formatBytes(projectedPointStorageBytes)}.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
               {/* Mapa (Etapa 6) */}
               <div className="space-y-2">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -759,11 +861,13 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
                 <div className="border rounded-2xl overflow-hidden" style={{ height: 320 }}>
                   <MapContainer
+                    key={`media-point-map-${mediaPoint?.id ?? 'new'}-${open ? 'open' : 'closed'}`}
                     center={pinPos ? ([pinPos.lat, pinPos.lng] as any) : ([-23.55052, -46.633308] as any)}
                     zoom={pinPos ? 17 : 12}
                     style={{ height: '100%', width: '100%' }}
                     zoomControl
                   >
+                    <MapViewportSync center={pinPos} zoom={pinPos ? 17 : 12} open={open} />
                     <TileLayer
                       attribution={mapMode === 'satellite' ? 'Tiles &copy; Esri' : '&copy; OpenStreetMap contributors'}
                       url={
