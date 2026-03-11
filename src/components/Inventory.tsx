@@ -111,8 +111,13 @@ export function Inventory() {
     }
   };
 
-  const handleEditPoint = (point: MediaPoint) => {
-    setEditingPoint(point);
+  const handleEditPoint = async (point: MediaPoint) => {
+    try {
+      const res = await apiClient.get<MediaPoint>(`/media-points/${point.id}`);
+      setEditingPoint(res.data);
+    } catch {
+      setEditingPoint(point);
+    }
     setIsFormDialogOpen(true);
   };
 
@@ -585,6 +590,8 @@ export function Inventory() {
           mediaPointId={unitsDialog.point.id}
           mediaPointName={unitsDialog.point.name}
           mediaPointType={unitsDialog.point.type}
+          mediaPoint={unitsDialog.point}
+          onChanged={refetch}
         />
       )}
 

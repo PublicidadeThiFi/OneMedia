@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Plus, Edit, Trash2, Image as ImageIcon, X } from 'lucide-react';
-import { MediaType, MediaUnit, UnitType, Orientation } from '../../types';
+import { MediaPoint, MediaType, MediaUnit, UnitType, Orientation } from '../../types';
 import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
 import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
@@ -21,6 +21,8 @@ interface MediaUnitsDialogProps {
   mediaPointId: string;
   mediaPointName: string;
   mediaPointType: MediaType;
+  mediaPoint?: MediaPoint | null;
+  onChanged?: () => Promise<any> | void;
 }
 
 type UnitFormPayload = Partial<
@@ -48,12 +50,33 @@ function sanitizeUnitPayload(payload: UnitFormPayload) {
   return clean;
 }
 
+function parseBytes(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return 0;
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+}
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = size >= 100 || unitIndex === 0 ? 0 : size >= 10 ? 1 : 2;
+  return `${size.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
 export function MediaUnitsDialog({
   open,
   onOpenChange,
   mediaPointId,
   mediaPointName,
   mediaPointType,
+  mediaPoint,
+  onChanged,
 }: MediaUnitsDialogProps) {
   const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos, deleteUnitAsset } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
@@ -85,6 +108,11 @@ export function MediaUnitsDialog({
 
   const unitTypeForPoint = mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN;
   const unitLabel = mediaPointType === MediaType.OOH ? 'Face' : 'Tela';
+  const storageLimitBytes = Math.max(0, Number(entitlements?.limits?.totalStorageGb ?? 0) * 1024 * 1024 * 1024);
+  const pointBaseStorageBytes = parseBytes(mediaPoint?.storageUsedBytes);
+  const pointUnitsStorageBytes = units.reduce((total, unit) => total + parseBytes(unit.storageUsedBytes), 0);
+  const pointTotalStorageBytes = pointBaseStorageBytes + pointUnitsStorageBytes;
+  const pointStoragePercent = storageLimitBytes > 0 ? Math.min(100, (pointTotalStorageBytes / storageLimitBytes) * 100) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -99,6 +127,24 @@ export function MediaUnitsDialog({
               : 'Gerencie as telas (unidades digitais) deste ponto DOOH'}
           </p>
         </DialogHeader>
+
+        {storageLimitBytes > 0 && (
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-slate-900">Armazenamento deste ponto</p>
+                <p className="text-xs text-slate-600">Soma das mídias do ponto + todas as {unitLabel.toLowerCase()}s cadastradas.</p>
+              </div>
+              <div className="text-right text-sm text-slate-700">
+                <div>{formatBytes(pointTotalStorageBytes)} / {formatBytes(storageLimitBytes)}</div>
+                <div className="text-xs text-slate-500">Base do ponto: {formatBytes(pointBaseStorageBytes)}</div>
+              </div>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pointStoragePercent}%` }} />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           {/* Lista de unidades */}
@@ -222,6 +268,8 @@ export function MediaUnitsDialog({
                               if (!ok) return;
                               try {
                                 await deleteUnit(unit.id);
+                                await refreshEntitlements?.();
+                                await onChanged?.();
                               } catch (e) {
                                 console.error(e);
                                 alert('Erro ao excluir unidade.');
@@ -280,6 +328,7 @@ export function MediaUnitsDialog({
                     if (imageFiles.length || videoFiles.length) {
                       await refreshEntitlements?.();
                     }
+                    await onChanged?.();
                     setEditingUnit(null);
                   } else {
                     const created = await createUnit({
@@ -310,6 +359,7 @@ export function MediaUnitsDialog({
                     if (imageFiles.length || videoFiles.length) {
                       await refreshEntitlements?.();
                     }
+                    await onChanged?.();
                     setIsAdding(false);
                   }
 	                } catch (e: any) {
@@ -324,6 +374,11 @@ export function MediaUnitsDialog({
               }}
               onDeleteAsset={deleteUnitAsset}
               refreshEntitlements={refreshEntitlements}
+              pointBaseStorageBytes={pointBaseStorageBytes}
+              otherUnitsStorageBytes={units.reduce((total, current) => total + (editingUnit && current.id === editingUnit.id ? 0 : parseBytes(current.storageUsedBytes)), 0)}
+              storageLimitBytes={storageLimitBytes}
+              unitLabel={unitLabel}
+              onChanged={onChanged}
             />
           )}
         </div>
@@ -346,9 +401,14 @@ interface UnitFormProps {
   entitlements: any;
   onDeleteAsset?: (unitId: string, assetId: string) => Promise<any> | void;
   refreshEntitlements?: () => Promise<any> | void;
+  pointBaseStorageBytes: number;
+  otherUnitsStorageBytes: number;
+  storageLimitBytes: number;
+  unitLabel: string;
+  onChanged?: () => Promise<any> | void;
 }
 
-function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDeleteAsset, refreshEntitlements }: UnitFormProps) {
+function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDeleteAsset, refreshEntitlements, pointBaseStorageBytes, otherUnitsStorageBytes, storageLimitBytes, unitLabel, onChanged }: UnitFormProps) {
   const [formData, setFormData] = useState<UnitFormPayload>(
     unit
       ? {
@@ -375,6 +435,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
   const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
   const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [unitSnapshot, setUnitSnapshot] = useState<MediaUnit | null>(unit);
 
   const fileLimits = entitlements?.limits?.file;
 
@@ -397,6 +458,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
   // precisamos sincronizar o estado interno do formulário com a prop `unit`.
   useEffect(() => {
     if (unit) {
+      setUnitSnapshot(unit);
       setFormData({
         label: unit.label,
         orientation: unit.orientation,
@@ -414,6 +476,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       setVideoPreviews([]);
       syncExistingAssets(unit);
     } else {
+      setUnitSnapshot(null);
       setFormData({ label: '' });
       setImageFiles([]);
       setImagePreviews([]);
@@ -500,8 +563,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     try {
       setDeletingAssetId(assetId);
       const updated = await onDeleteAsset(unit.id, assetId);
-      syncExistingAssets((updated as MediaUnit) ?? unit);
+      const nextUnit = (updated as MediaUnit) ?? unit;
+      setUnitSnapshot(nextUnit);
+      syncExistingAssets(nextUnit);
       await refreshEntitlements?.();
+      await onChanged?.();
       toast.success(kind === 'image' ? 'Imagem da unidade removida.' : 'Vídeo da unidade removido.');
     } catch (e: any) {
       toast.error(e?.message || 'Não foi possível remover a mídia da unidade.');
@@ -521,10 +587,33 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     };
   }, [imagePreviews, videoPreviews]);
 
+  const currentUnitStorageBytes = parseBytes(unitSnapshot?.storageUsedBytes);
+  const pendingStorageBytes = [...imageFiles, ...videoFiles].reduce((total, file) => total + (file?.size ?? 0), 0);
+  const projectedPointStorageBytes = pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes + pendingStorageBytes;
+  const projectedStoragePercent = storageLimitBytes > 0 ? Math.min(100, (projectedPointStorageBytes / storageLimitBytes) * 100) : 0;
+
   return (
     <Card className="border-2 border-indigo-200">
       <CardContent className="pt-6 space-y-4">
         <h4 className="text-gray-900 mb-4">{unit ? 'Editar Unidade' : 'Nova Unidade'}</h4>
+
+        {storageLimitBytes > 0 && (
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-slate-900">Limite do ponto compartilhado com as {unitLabel.toLowerCase()}s</p>
+                <p className="text-xs text-slate-600">Esta {unitLabel.toLowerCase()} consome o mesmo armazenamento total do ponto.</p>
+              </div>
+              <div className="text-right text-sm text-slate-700">
+                <div>{formatBytes(pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes)} / {formatBytes(storageLimitBytes)}</div>
+                {pendingStorageBytes > 0 ? <div className="text-xs text-amber-700">Após salvar: {formatBytes(projectedPointStorageBytes)}</div> : null}
+              </div>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${projectedStoragePercent}%` }} />
+            </div>
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label>Nome/Label *</Label>
