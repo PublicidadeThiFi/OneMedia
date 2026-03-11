@@ -179,6 +179,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const lastAutoRef = useRef<ReverseGeocodeAddress | null>(null);
+  const formDataRef = useRef<Partial<MediaPoint>>({});
   const geoAbortRef = useRef<AbortController | null>(null);
   const geoTimerRef = useRef<number | null>(null);
 
@@ -276,6 +277,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setGeoError(null);
     setGeoLoading(false);
   }, [mediaPoint, open, initialData]);
+
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   useEffect(() => {
     return () => {
@@ -460,12 +465,13 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     }, 450);
   };
 
-  const applyAutoField = (field: keyof MediaPoint, value?: string, previousAuto?: ReverseGeocodeAddress | null) => {
-    if (!value) return;
-    const current = String((formData as any)?.[field] ?? '').trim();
+  const applyAutoField = (field: keyof MediaPoint, value: string | undefined, previousAuto?: ReverseGeocodeAddress | null) => {
+    const current = String((formDataRef.current as any)?.[field] ?? '').trim();
     const prevAuto = String((previousAuto as any)?.[field] ?? '').trim();
+    const normalizedValue = String(value ?? '').trim();
+
     if (!current || current === prevAuto) {
-      updateField(field, value);
+      updateField(field, normalizedValue || '');
     }
   };
 
@@ -481,7 +487,15 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       if (!addr) return;
 
       const previousAuto = lastAutoRef.current ? { ...lastAutoRef.current } : null;
-      lastAutoRef.current = { ...(lastAutoRef.current ?? {}), ...addr };
+      lastAutoRef.current = {
+        addressState: addr.addressState,
+        addressCity: addr.addressCity,
+        addressDistrict: addr.addressDistrict,
+        addressStreet: addr.addressStreet,
+        addressNumber: addr.addressNumber,
+        addressZipcode: addr.addressZipcode,
+        addressCountry: addr.addressCountry,
+      };
 
       // Ordem importa (UF -> Cidade)
       if (addr.addressState) {
@@ -501,8 +515,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
       applyAutoField('addressDistrict', addr.addressDistrict, previousAuto);
       applyAutoField('addressStreet', addr.addressStreet, previousAuto);
-      applyAutoField('addressNumber', addr.addressNumber, previousAuto);
-      applyAutoField('addressZipcode', addr.addressZipcode, previousAuto);
+      applyAutoField('addressNumber', normalizeAddressNumberInput(addr.addressNumber ?? ''), previousAuto);
+      applyAutoField('addressZipcode', normalizeZipcodeInput(addr.addressZipcode ?? ''), previousAuto);
       applyAutoField('addressCountry', addr.addressCountry, previousAuto);
     } catch (e: any) {
       const msg = String(e?.message ?? '');
@@ -612,10 +626,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     if (!formData.addressState?.trim()) {
       newErrors.addressState = 'Estado é obrigatório';
     }
-    if (formData.latitude === undefined || formData.latitude === null) {
+    if (!Number.isFinite(Number(formData.latitude))) {
       newErrors.latitude = 'Latitude é obrigatória';
     }
-    if (formData.longitude === undefined || formData.longitude === null) {
+    if (!Number.isFinite(Number(formData.longitude))) {
       newErrors.longitude = 'Longitude é obrigatória';
     }
 
@@ -1135,7 +1149,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     step="0.000001"
                     placeholder="-23.561414"
                     value={formData.latitude || ''}
-                    onChange={(e) => updateField('latitude', parseFloat(e.target.value))}
+                    onChange={(e) => updateField('latitude', e.target.value === '' ? undefined : Number(e.target.value))}
                     className={errors.latitude ? 'border-red-500' : ''}
                   />
                   {errors.latitude && <p className="text-xs text-red-600">{errors.latitude}</p>}
@@ -1147,7 +1161,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     step="0.000001"
                     placeholder="-46.655881"
                     value={formData.longitude || ''}
-                    onChange={(e) => updateField('longitude', parseFloat(e.target.value))}
+                    onChange={(e) => updateField('longitude', e.target.value === '' ? undefined : Number(e.target.value))}
                     className={errors.longitude ? 'border-red-500' : ''}
                   />
                   {errors.longitude && <p className="text-xs text-red-600">{errors.longitude}</p>}
@@ -1265,13 +1279,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                           <Label>Lona (R$)</Label>
                           <Input
                             type="number"
+                            min="0"
                             step="0.01"
                             placeholder="R$ 0,00"
                             value={formData.productionCosts?.lona || ''}
                             onChange={(e) =>
                               updateField('productionCosts', {
                                 ...formData.productionCosts,
-                                lona: parseFloat(e.target.value) || null,
+                                lona: parseNonNegativeFloatInput(e.target.value),
                               })
                             }
                           />
@@ -1282,13 +1297,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                           <Label>Adesivo (R$)</Label>
                           <Input
                             type="number"
+                            min="0"
                             step="0.01"
                             placeholder="R$ 0,00"
                             value={formData.productionCosts?.adesivo || ''}
                             onChange={(e) =>
                               updateField('productionCosts', {
                                 ...formData.productionCosts,
-                                adesivo: parseFloat(e.target.value) || null,
+                                adesivo: parseNonNegativeFloatInput(e.target.value),
                               })
                             }
                           />
@@ -1299,13 +1315,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                           <Label>Vinil (R$)</Label>
                           <Input
                             type="number"
+                            min="0"
                             step="0.01"
                             placeholder="R$ 0,00"
                             value={formData.productionCosts?.vinil || ''}
                             onChange={(e) =>
                               updateField('productionCosts', {
                                 ...formData.productionCosts,
-                                vinil: parseFloat(e.target.value) || null,
+                                vinil: parseNonNegativeFloatInput(e.target.value),
                               })
                             }
                           />
@@ -1316,13 +1333,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                           <Label>Montagem/Instalação (R$)</Label>
                           <Input
                             type="number"
+                            min="0"
                             step="0.01"
                             placeholder="R$ 0,00"
                             value={formData.productionCosts?.montagem || ''}
                             onChange={(e) =>
                               updateField('productionCosts', {
                                 ...formData.productionCosts,
-                                montagem: parseFloat(e.target.value) || null,
+                                montagem: parseNonNegativeFloatInput(e.target.value),
                               })
                             }
                           />

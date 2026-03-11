@@ -72,7 +72,7 @@ export async function reverseGeocodeOSM(
 ): Promise<ReverseGeocodeAddress | null> {
   // Nominatim (OpenStreetMap) — sem chave, best-effort.
   // Se falhar (CORS/rate-limit), retornamos null e a UI segue sem auto-preenchimento.
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&lat=${encodeURIComponent(
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${encodeURIComponent(
     String(lat)
   )}&lon=${encodeURIComponent(String(lng))}&accept-language=pt-BR`;
 

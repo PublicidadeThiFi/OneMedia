@@ -4,7 +4,7 @@ import type { Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import Supercluster from 'supercluster';
 
-import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus, Pencil, Square, Check, Trash2 } from 'lucide-react';
+import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus, Pencil, Square, Check, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from './ui/badge';
@@ -367,7 +367,6 @@ export function MediaMap() {
   const [bboxArr, setBboxArr] = useState<BboxArr | null>(null);
   const [zoom, setZoom] = useState<number>(12);
   const [mapReady, setMapReady] = useState(false);
-  const [mapViewMode, setMapViewMode] = useState<'map' | 'satellite'>('map');
 
   // =====================
   // Filtros + busca (Etapa 2)
@@ -383,7 +382,7 @@ export function MediaMap() {
   // Camadas (Etapa 3)
   // =====================
   const [layers, setLayers] = useState<MediaMapLayer[]>([]); // vazio => TODOS (default)
-
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
 
   // =====================
   // Seleção por área (Etapa 4)
@@ -809,7 +808,8 @@ export function MediaMap() {
 
   const handleOpenInventory = () => {
     if (!details?.point?.id) return;
-    window.location.href = `/app/inventory?pointId=${details.point.id}`;
+    navigate(`/app/inventory?pointId=${details.point.id}`);
+    setPanelOpen(false);
   };
 
   const handleCreateProposal = () => {
@@ -1040,7 +1040,7 @@ export function MediaMap() {
         style={{ zIndex: 30, maxWidth: 980, pointerEvents: 'auto' }}
       >
         <div className="bg-white border rounded-2xl shadow-sm p-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-start gap-2">
             <div className="relative flex-1" ref={searchBoxRef}>
               <div className="flex items-center gap-2 border rounded-lg px-3 py-2">
                 <Search className="w-4 h-4 text-gray-500" />
@@ -1102,8 +1102,20 @@ export function MediaMap() {
                 </div>
               )}
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0"
+              onClick={() => setFiltersCollapsed((prev) => !prev)}
+              aria-label={filtersCollapsed ? 'Expandir filtros' : 'Ocultar filtros'}
+              title={filtersCollapsed ? 'Expandir filtros' : 'Ocultar filtros'}
+            >
+              {filtersCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </Button>
           </div>
 
+          {!filtersCollapsed ? <>
           {/* Camadas */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button
@@ -1254,44 +1266,6 @@ export function MediaMap() {
             </label>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={mapViewMode === 'map' ? 'default' : 'outline'}
-              className={mapViewMode === 'map' ? 'mm-indigo h-8' : 'h-8'}
-              onClick={() => setMapViewMode('map')}
-            >
-              Mapa
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={mapViewMode === 'satellite' ? 'default' : 'outline'}
-              className={mapViewMode === 'satellite' ? 'mm-indigo h-8' : 'h-8'}
-              onClick={() => setMapViewMode('satellite')}
-            >
-              Satélite
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="gap-2 h-8"
-              onClick={() => {
-                const lat = Number((details?.point as any)?.latitude ?? mapRef.current?.getCenter?.().lat);
-                const lng = Number((details?.point as any)?.longitude ?? mapRef.current?.getCenter?.().lng);
-                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-                  toast.error('Selecione um ponto ou centralize o mapa antes de abrir o Street View.');
-                  return;
-                }
-                window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank', 'noopener,noreferrer');
-              }}
-            >
-              <ExternalLink className="w-4 h-4" /> Street View
-            </Button>
-          </div>
-
           {/* Legenda */}
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge className="bg-green-100 text-green-700 border border-green-200">Livre</Badge>
@@ -1299,6 +1273,7 @@ export function MediaMap() {
             <Badge className="bg-red-100 text-red-700 border border-red-200">Ocupado</Badge>
             <Badge className="bg-purple-100 text-purple-700 border border-purple-200">Negociação</Badge>
           </div>
+          </> : null}
         </div>
       </div>
 
@@ -1311,12 +1286,8 @@ export function MediaMap() {
         zoomControl={true}
       >
         <TileLayer
-          attribution={mapViewMode === 'satellite' ? 'Tiles &copy; Esri' : '&copy; OpenStreetMap contributors'}
-          url={
-            mapViewMode === 'satellite'
-              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-          }
+          attribution='&copy; OpenStreetMap contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
         <MapEvents mapRef={mapRef} onViewportChange={handleViewportChange} />
