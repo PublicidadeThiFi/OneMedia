@@ -14,7 +14,6 @@ import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
 import { useCompany } from '../contexts/CompanyContext';
 import apiClient from '../lib/apiClient';
 import { resolveUploadsUrl } from '../lib/format';
-import { getUploadErrorMessage } from '../lib/httpErrorMessage';
 import { toast } from 'sonner';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
 import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
@@ -37,7 +36,7 @@ export function Inventory() {
     setPage(1);
   }, [searchQuery, typeFilter, cityFilter]);
 
-  const { mediaPoints, total, loading, error, refetch, uploadMediaPointImage, uploadMediaPointVideo } = useMediaPoints({
+  const { mediaPoints, total, loading, error, refetch, deleteMediaPointAsset } = useMediaPoints({
     search: searchQuery || undefined,
     type: typeFilter === 'all' ? undefined : typeFilter,
     city: cityFilter === 'all' ? undefined : cityFilter,
@@ -79,7 +78,7 @@ export function Inventory() {
   const filteredPoints = mediaPoints;
 
   // Handlers
-  const handleSavePoint = async (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => {
+  const handleSavePoint = async (data: Partial<MediaPoint>, _imageFile?: File | null, _videoFile?: File | null) => {
     try {
       // Remove campos não aceitos/necessários pela API
       const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
@@ -88,34 +87,11 @@ export function Inventory() {
       if (editingPoint?.id) {
         const response = await apiClient.put<MediaPoint>(`/media-points/${editingPoint.id}`, payload);
         saved = response.data;
-        toast.success('Ponto de mídia atualizado!');
       } else {
         const response = await apiClient.post<MediaPoint>('/media-points', payload);
         saved = response.data;
-        toast.success('Ponto de mídia criado!');
       }
 
-      if (imageFile && saved?.id) {
-        try {
-          await uploadMediaPointImage(saved.id, imageFile);
-          toast.success('Imagem do ponto enviada!');
-        } catch (e: any) {
-          toast.error(getUploadErrorMessage(e, 'Erro ao enviar imagem do ponto'));
-        }
-      }
-
-      // ✅ Upload do vídeo do ponto (não deve anular nem sobrescrever o vídeo da face)
-      if (videoFile && saved?.id) {
-        try {
-          await uploadMediaPointVideo(saved.id, videoFile);
-          toast.success('Vídeo do ponto enviado!');
-        } catch (e: any) {
-          toast.error(getUploadErrorMessage(e, 'Erro ao enviar vídeo do ponto'));
-        }
-      }
-
-      setIsFormDialogOpen(false);
-      setEditingPoint(null);
       refetch();
       // Mantém o valor de pontos usados sincronizado em Configurações (Sem precisar dar F5)
       await refreshPointsUsed?.();
@@ -581,6 +557,7 @@ export function Inventory() {
         }}
         mediaPoint={editingPoint}
         onSave={handleSavePoint}
+        onDeleteAsset={deleteMediaPointAsset}
       />
 
       {ownersDialog.point && (

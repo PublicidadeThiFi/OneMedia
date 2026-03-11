@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Dialog,
@@ -18,11 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { Client, ClientStatus } from '../../types';
+import { Client, ClientCompanyLookupResponse, ClientStatus } from '../../types';
 import { BRAZILIAN_STATES } from '../../lib/mockData';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
 import { useClientOwners } from '../../hooks/useClientOwners';
+import { formatCNPJDisplay, isValidCNPJ, onlyDigits } from '../../lib/validators';
 
 interface ClientFormDialogProps {
   open: boolean;
@@ -38,6 +39,10 @@ export function ClientFormDialog({
   onSave,
 }: ClientFormDialogProps) {
   const { owners, loading: ownersLoading } = useClientOwners();
+  const [isLookingUpCnpj, setIsLookingUpCnpj] = useState(false);
+  const [cnpjLookupMessage, setCnpjLookupMessage] = useState<string | null>(null);
+  const [lastLookupCnpj, setLastLookupCnpj] = useState('');
+  const [cnpjTouchedByUser, setCnpjTouchedByUser] = useState(false);
 
   const defaultValues = useMemo(
     () => ({
@@ -65,10 +70,16 @@ export function ClientFormDialog({
   const form = useForm<Client>({
     defaultValues: (client as any) || (defaultValues as any),
   });
+  const cnpjField = form.register('cnpj');
 
   useEffect(() => {
     if (client) form.reset(client as any);
     else form.reset(defaultValues as any);
+
+    setIsLookingUpCnpj(false);
+    setCnpjLookupMessage(null);
+    setLastLookupCnpj('');
+    setCnpjTouchedByUser(false);
   }, [client, form, defaultValues]);
 
   const handleChange = (field: keyof Client, value: unknown) => {
@@ -115,6 +126,109 @@ export function ClientFormDialog({
 
     return payload;
   };
+
+  const cnpjValue = form.watch('cnpj') || '';
+  const cnpjDigits = onlyDigits(cnpjValue).slice(0, 14);
+  const showInvalidCnpjMessage =
+    cnpjTouchedByUser && cnpjDigits.length === 14 && !isValidCNPJ(cnpjDigits);
+
+  const applyLookupDataToForm = useCallback((lookup: ClientCompanyLookupResponse) => {
+    const nextValues: Partial<Client> = {
+      cnpj: lookup.cnpj ? formatCNPJDisplay(lookup.cnpj) : formatCNPJDisplay(cnpjDigits),
+      companyName: lookup.companyName,
+      addressZipcode: lookup.addressZipcode,
+      addressStreet: lookup.addressStreet,
+      addressNumber: lookup.addressNumber,
+      addressDistrict: lookup.addressDistrict,
+      addressCity: lookup.addressCity,
+      addressState: lookup.addressState,
+      addressCountry: lookup.addressCountry || 'Brasil',
+    };
+
+    (Object.entries(nextValues) as Array<[keyof Client, string | undefined]>).forEach(([field, value]) => {
+      if (typeof value === 'string' && value.trim()) {
+        form.setValue(field as any, value as any, {
+          shouldDirty: true,
+          shouldTouch: true,
+        });
+      }
+    });
+  }, [cnpjDigits, form]);
+
+  const handleCnpjInputChange = (value: string) => {
+    const digits = onlyDigits(value).slice(0, 14);
+    const formatted = formatCNPJDisplay(digits);
+
+    setCnpjTouchedByUser(true);
+
+    if (digits.length < 14) {
+      setLastLookupCnpj('');
+      setCnpjLookupMessage(null);
+    }
+
+    form.setValue('cnpj', formatted as any, {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  };
+
+  useEffect(() => {
+    if (!open || !cnpjTouchedByUser) return;
+    if (cnpjDigits.length !== 14) return;
+    if (!isValidCNPJ(cnpjDigits)) return;
+    if (isLookingUpCnpj) return;
+    if (lastLookupCnpj === cnpjDigits) return;
+
+    let cancelled = false;
+
+    const lookupCompany = async () => {
+      try {
+        setIsLookingUpCnpj(true);
+        setCnpjLookupMessage('Consultando CNPJ...');
+
+        const response = await apiClient.get<ClientCompanyLookupResponse>('/clients/lookup-cnpj', {
+          params: { cnpj: cnpjDigits },
+        });
+
+        if (cancelled) return;
+
+        applyLookupDataToForm(response.data);
+        setLastLookupCnpj(cnpjDigits);
+        setCnpjLookupMessage('Dados da empresa preenchidos automaticamente.');
+      } catch (error: any) {
+        if (cancelled) return;
+
+        setLastLookupCnpj(cnpjDigits);
+        setCnpjLookupMessage(null);
+
+        const apiMsg = error?.response?.data?.message;
+        const msg =
+          Array.isArray(apiMsg) ? apiMsg.join(', ') : apiMsg || 'Não foi possível consultar o CNPJ.';
+
+        toast.error(msg);
+        // eslint-disable-next-line no-console
+        console.error('Erro ao consultar CNPJ:', error?.response?.data || error);
+      } finally {
+        if (!cancelled) {
+          setIsLookingUpCnpj(false);
+        }
+      }
+    };
+
+    lookupCompany();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applyLookupDataToForm,
+    cnpjDigits,
+    cnpjTouchedByUser,
+    isLookingUpCnpj,
+    lastLookupCnpj,
+    open,
+  ]);
 
   const onSubmit = async (data: Partial<Client>) => {
     try {
@@ -204,7 +318,25 @@ export function ClientFormDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="cnpj">CNPJ</Label>
-                <Input id="cnpj" {...form.register('cnpj')} placeholder="00.000.000/0000-00" />
+                <Input
+                  id="cnpj"
+                  name={cnpjField.name}
+                  ref={cnpjField.ref}
+                  onBlur={cnpjField.onBlur}
+                  value={cnpjValue}
+                  onChange={(event) => handleCnpjInputChange(event.target.value)}
+                  placeholder="00.000.000/0000-00"
+                  maxLength={18}
+                />
+                {isLookingUpCnpj && (
+                  <p className="text-xs text-muted-foreground">Consultando dados da empresa...</p>
+                )}
+                {!isLookingUpCnpj && showInvalidCnpjMessage && (
+                  <p className="text-xs text-red-500">CNPJ inválido.</p>
+                )}
+                {!isLookingUpCnpj && !showInvalidCnpjMessage && cnpjLookupMessage && (
+                  <p className="text-xs text-emerald-600">{cnpjLookupMessage}</p>
+                )}
               </div>
             </div>
           </div>
@@ -335,7 +467,7 @@ export function ClientFormDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
+            <Button type="submit" disabled={form.formState.isSubmitting || isLookingUpCnpj}>
               {form.formState.isSubmitting
                 ? 'Salvando...'
                 : client

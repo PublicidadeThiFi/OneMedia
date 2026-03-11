@@ -334,6 +334,7 @@ export interface MediaPoint {
   mediaAssets?: MediaAsset[];
   galleryImages?: string[];
   galleryVideos?: string[];
+  storageUsedBytes?: string | number;
   productionCosts?: ProductionCosts; // custos de produção OOH
   promotion?: PromotionPayload | null;
   createdAt: Date;
@@ -366,6 +367,10 @@ export interface MediaUnit {
   priceDay?: number;
   imageUrl?: string | null; // imagem específica da face/tela
   videoUrl?: string | null; // vídeo específico da face/tela
+  mediaAssets?: MediaAsset[];
+  galleryImages?: string[];
+  galleryVideos?: string[];
+  storageUsedBytes?: string | number;
   promotion?: PromotionPayload | null;
   effectivePromotion?: PromotionPayload | null;
   isActive: boolean;
@@ -527,6 +532,20 @@ export interface Client {
 
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface ClientCompanyLookupResponse {
+  cnpj: string;
+  companyName?: string;
+  legalName?: string;
+  tradeName?: string;
+  addressZipcode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDistrict?: string;
+  addressCity?: string;
+  addressState?: string;
+  addressCountry?: string;
 }
 
 /**
