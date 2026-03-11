@@ -183,10 +183,15 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
     navigate('/app/settings?tab=subscription');
   };
 
-  // Close mobile menu when navigating
+  // Keep URL and visible module in sync.
+  // This avoids getting visually back to Mídia Map while the browser URL
+  // still points to /app/inventory, which breaks repeated deep-links.
   const handleNavigate = (page: Page) => {
     setCurrentPage(page);
     setIsMobileMenuOpen(false);
+
+    const targetPath = page === 'dashboard' ? '/app/dashboard' : `/app/${page}`;
+    navigate(targetPath);
   };
 
   // Render the current page content
