@@ -24,6 +24,7 @@ import L from 'leaflet';
 import { reverseGeocodeOSM, type ReverseGeocodeAddress } from '../../lib/geocode';
 
 type LatLng = { lat: number; lng: number };
+type ExistingAssetPreview = { id?: string; src: string };
 
 function buildPinIcon() {
   // Evita o ícone padrão do Leaflet (que costuma quebrar no bundler por falta de assets).
@@ -70,9 +71,10 @@ interface MediaPointFormDialogProps {
   mediaPoint?: MediaPoint | null;
   initialData?: Partial<MediaPoint> | null;
   onSave: (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => Promise<any> | void;
+  onDeleteAsset?: (mediaPointId: string, assetId: string) => Promise<any> | void;
 }
 
-export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave }: MediaPointFormDialogProps) {
+export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave, onDeleteAsset }: MediaPointFormDialogProps) {
   const company = useCompany() as any;
   const entitlements = company?.entitlements;
   const refreshEntitlements = company?.refreshEntitlements;
@@ -89,9 +91,12 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [isSaving, setIsSaving] = useState(false);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [existingImageAssets, setExistingImageAssets] = useState<ExistingAssetPreview[]>([]);
 
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
+  const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
 
   // =====================
   // Mapa (Etapa 6)
@@ -112,6 +117,31 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [addCityError, setAddCityError] = useState<string | null>(null);
   const [isAddingCity, setIsAddingCity] = useState(false);
 
+  const syncExistingAssets = (point?: Partial<MediaPoint> | null) => {
+    const mediaAssets = Array.isArray((point as any)?.mediaAssets) ? (point as any).mediaAssets : [];
+
+    const imageAssets = mediaAssets
+      .filter((asset: any) => asset?.kind === 'IMAGE' && asset?.url)
+      .map((asset: any) => ({ id: asset.id, src: resolveUploadsUrl(asset.url) || asset.url }))
+      .filter((asset: ExistingAssetPreview) => !!asset.src);
+
+    const videoAssets = mediaAssets
+      .filter((asset: any) => asset?.kind === 'VIDEO' && asset?.url)
+      .map((asset: any) => ({ id: asset.id, src: resolveUploadsUrl(asset.url) || asset.url }))
+      .filter((asset: ExistingAssetPreview) => !!asset.src);
+
+    setExistingImageAssets(
+      imageAssets.length
+        ? imageAssets
+        : (resolveUploadsUrl((point as any)?.mainImageUrl) ? [{ src: resolveUploadsUrl((point as any)?.mainImageUrl)! }] : [])
+    );
+    setExistingVideoAssets(
+      videoAssets.length
+        ? videoAssets
+        : (resolveUploadsUrl((point as any)?.mainVideoUrl) ? [{ src: resolveUploadsUrl((point as any)?.mainVideoUrl)! }] : [])
+    );
+  };
+
 
   useEffect(() => {
     setSubmitError(null);
@@ -119,10 +149,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setFormData(mediaPoint);
       setType(mediaPoint.type);
       setImageFiles([]);
-      setImagePreviews(Array.isArray((mediaPoint as any)?.galleryImages) && (mediaPoint as any).galleryImages.length ? (mediaPoint as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint.mainImageUrl) ? [resolveUploadsUrl(mediaPoint.mainImageUrl)!] : []));
-
+      setImagePreviews([]);
       setVideoFiles([]);
-      setVideoPreviews(Array.isArray((mediaPoint as any)?.galleryVideos) && (mediaPoint as any).galleryVideos.length ? (mediaPoint as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint.mainVideoUrl) ? [resolveUploadsUrl(mediaPoint.mainVideoUrl)!] : []));
+      setVideoPreviews([]);
+      syncExistingAssets(mediaPoint);
     } else {
       const merged: Partial<MediaPoint> = {
         type: MediaType.OOH,
@@ -135,9 +165,11 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setType(MediaType.OOH);
       setImageFiles([]);
       setImagePreviews([]);
+      setExistingImageAssets([]);
 
       setVideoFiles([]);
       setVideoPreviews([]);
+      setExistingVideoAssets([]);
     }
     // Reset do auto-fill quando abrir
     lastAutoRef.current = null;
@@ -167,7 +199,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
     if (!files.length) {
       setImageFiles([]);
-      setImagePreviews(Array.isArray((mediaPoint as any)?.galleryImages) && (mediaPoint as any).galleryImages.length ? (mediaPoint as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint?.mainImageUrl) ? [resolveUploadsUrl(mediaPoint?.mainImageUrl)!] : []));
+      setImagePreviews([]);
       return;
     }
 
@@ -196,7 +228,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
     if (!files.length) {
       setVideoFiles([]);
-      setVideoPreviews(Array.isArray((mediaPoint as any)?.galleryVideos) && (mediaPoint as any).galleryVideos.length ? (mediaPoint as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(mediaPoint?.mainVideoUrl) ? [resolveUploadsUrl(mediaPoint?.mainVideoUrl)!] : []));
+      setVideoPreviews([]);
       return;
     }
 
@@ -218,6 +250,40 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
     setVideoFiles(files);
     setVideoPreviews(files.map((file) => URL.createObjectURL(file)));
+  };
+
+  const removePendingImage = (idx: number) => {
+    setImageFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
+    setImagePreviews((prev) => {
+      const target = prev[idx];
+      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
+      return prev.filter((_, currentIdx) => currentIdx !== idx);
+    });
+  };
+
+  const removePendingVideo = (idx: number) => {
+    setVideoFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
+    setVideoPreviews((prev) => {
+      const target = prev[idx];
+      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
+      return prev.filter((_, currentIdx) => currentIdx !== idx);
+    });
+  };
+
+  const handleDeleteExistingAsset = async (kind: 'image' | 'video', assetId?: string) => {
+    if (!mediaPoint?.id || !assetId || !onDeleteAsset) return;
+
+    try {
+      setDeletingAssetId(assetId);
+      const updated = await onDeleteAsset(mediaPoint.id, assetId);
+      syncExistingAssets((updated as MediaPoint) ?? mediaPoint);
+      await refreshEntitlements?.();
+      toast.success(kind === 'image' ? 'Imagem removida.' : 'Vídeo removido.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Não foi possível remover a mídia.');
+    } finally {
+      setDeletingAssetId(null);
+    }
   };
 
   useEffect(() => {
@@ -457,6 +523,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         await refreshEntitlements?.();
       }
 
+      toast.success(mediaPoint ? 'Ponto de mídia atualizado com sucesso.' : 'Ponto de mídia criado com sucesso.');
+
       // Só fecha se a operação foi concluída sem erro.
       onOpenChange(false);
     } catch (e: any) {
@@ -481,6 +549,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setVideoFiles([]);
     setImagePreviews([]);
     setVideoPreviews([]);
+    setExistingImageAssets([]);
+    setExistingVideoAssets([]);
     onOpenChange(false);
   };
 
@@ -546,11 +616,37 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
               <div className="space-y-2">
                 <Label>Imagens do ponto</Label>
                 <Input type="file" accept="image/*" multiple onChange={handleImageChange} />
-                {imagePreviews.length > 0 && (
+                {(existingImageAssets.length > 0 || imagePreviews.length > 0) && (
                   <div className="mt-2 grid grid-cols-2 gap-2 w-full max-w-2xl">
+                    {existingImageAssets.map((asset, idx) => (
+                      <div key={`existing-img-${asset.id ?? idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border">
+                        <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                        {asset.id && onDeleteAsset ? (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="destructive"
+                            className="absolute top-2 right-2 h-7 w-7"
+                            disabled={deletingAssetId === asset.id || isSaving}
+                            onClick={() => handleDeleteExistingAsset('image', asset.id)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
                     {imagePreviews.map((src, idx) => (
-                      <div key={`img-${idx}`} className="h-32 bg-gray-100 rounded overflow-hidden">
-                        <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div key={`img-${idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border border-dashed">
+                        <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute top-2 right-2 h-7 w-7"
+                          onClick={() => removePendingImage(idx)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -563,11 +659,37 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
               <div className="space-y-2">
                 <Label>Vídeos do ponto (opcional)</Label>
                 <Input type="file" accept="video/*" multiple onChange={handleVideoChange} />
-                {videoPreviews.length > 0 && (
+                {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
                   <div className="mt-2 grid grid-cols-2 gap-2 w-full max-w-2xl">
+                    {existingVideoAssets.map((asset, idx) => (
+                      <div key={`existing-video-${asset.id ?? idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border">
+                        <video src={asset.src} controls muted className="w-full h-full object-cover" />
+                        {asset.id && onDeleteAsset ? (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="destructive"
+                            className="absolute top-2 right-2 h-7 w-7"
+                            disabled={deletingAssetId === asset.id || isSaving}
+                            onClick={() => handleDeleteExistingAsset('video', asset.id)}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
                     {videoPreviews.map((src, idx) => (
-                      <div key={`video-${idx}`} className="h-32 bg-gray-100 rounded overflow-hidden">
+                      <div key={`video-${idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border border-dashed">
                         <video src={src} controls muted className="w-full h-full object-cover" />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute top-2 right-2 h-7 w-7"
+                          onClick={() => removePendingVideo(idx)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>

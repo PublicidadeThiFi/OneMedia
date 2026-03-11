@@ -129,6 +129,17 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     return response.data;
   };
 
+
+  const deleteUnitAsset = async (id: string, assetId: string) => {
+    const response = await apiClient.delete<MediaUnit>(`/media-units/${id}/assets/${assetId}`);
+
+    setUnits((prev: MediaUnit[]) =>
+      prev.map((u: MediaUnit) => (u.id === id ? response.data : u))
+    );
+
+    return response.data;
+  };
+
   useEffect(() => {
     fetchUnits();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,5 +157,6 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     uploadUnitVideo,
     uploadManyUnitImages,
     uploadManyUnitVideos,
+    deleteUnitAsset,
   };
 }

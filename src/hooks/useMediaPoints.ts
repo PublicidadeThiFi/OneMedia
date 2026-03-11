@@ -134,6 +134,17 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     return response.data;
   };
 
+
+  const deleteMediaPointAsset = async (id: string, assetId: string) => {
+    const response = await apiClient.delete<MediaPoint>(`/media-points/${id}/assets/${assetId}`);
+
+    setMediaPoints((prev: MediaPoint[]) =>
+      prev.map((p: MediaPoint) => (p.id === id ? response.data : p))
+    );
+
+    return response.data;
+  };
+
   useEffect(() => {
     fetchMediaPoints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,5 +171,6 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     uploadMediaPointVideo,
     uploadManyMediaPointImages,
     uploadManyMediaPointVideos,
+    deleteMediaPointAsset,
   };
 }

@@ -42,6 +42,9 @@ type BboxArr = [number, number, number, number];
 
 type LatLng = { lat: number; lng: number };
 
+const BRASILIA_CENTER: LatLng = { lat: -15.793889, lng: -47.882778 };
+const DEFAULT_MAP_ZOOM = 12;
+
 function buildMovePinIcon() {
   return L.divIcon({
     html: `
@@ -356,8 +359,11 @@ export function MediaMap() {
   const mapRef = useRef<LeafletMap | null>(null);
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
   const suggestAbortRef = useRef<AbortController | null>(null);
+  const defaultCenterAppliedRef = useRef(false);
 
   const [bboxStr, setBboxStr] = useState<string | undefined>(undefined);
+  const [defaultCenter, setDefaultCenter] = useState<LatLng>(BRASILIA_CENTER);
+  const [defaultCenterResolved, setDefaultCenterResolved] = useState(false);
   const [bboxArr, setBboxArr] = useState<BboxArr | null>(null);
   const [zoom, setZoom] = useState<number>(12);
   const [mapReady, setMapReady] = useState(false);
@@ -396,6 +402,7 @@ export function MediaMap() {
   const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const [panelOpen, setPanelOpen] = useState(false);
+  const deepLinkedPointId = useMemo(() => new URLSearchParams(window.location.search).get('pointId'), []);
   const [panelMode, setPanelMode] = useState<'details' | 'cluster' | 'selected'>('details');
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [clusterPoints, setClusterPoints] = useState<MediaMapPoint[]>([]);
@@ -560,6 +567,76 @@ export function MediaMap() {
     setZoom(z);
     setMapReady(true);
   };
+
+  useEffect(() => {
+    let active = true;
+
+    const resolveDefaultCenter = async () => {
+      try {
+        const response = await apiClient.get('/company');
+        const company = response?.data as any;
+        const addressCity = String(company?.addressCity || '').trim();
+        const addressState = String(company?.addressState || '').trim();
+
+        if (!addressCity && !addressState) {
+          return;
+        }
+
+        const query = [addressCity, addressState, 'Brasil'].filter(Boolean).join(', ');
+        if (!query) {
+          return;
+        }
+
+        const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(query)}`;
+        const geocodeResponse = await fetch(searchUrl, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!geocodeResponse.ok) {
+          return;
+        }
+
+        const results = await geocodeResponse.json();
+        const first = Array.isArray(results) ? results[0] : null;
+        const lat = Number(first?.lat);
+        const lng = Number(first?.lon);
+
+        if (!active || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return;
+        }
+
+        setDefaultCenter({ lat, lng });
+      } catch {
+        // fallback continua sendo Brasília
+      } finally {
+        if (active) {
+          setDefaultCenterResolved(true);
+        }
+      }
+    };
+
+    void resolveDefaultCenter();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!defaultCenterResolved) return;
+    if (defaultCenterAppliedRef.current) return;
+    if (deepLinkedPointId) return;
+    if (!mapReady) return;
+    if (!mapRef.current) return;
+
+    defaultCenterAppliedRef.current = true;
+
+    try {
+      mapRef.current.setView([defaultCenter.lat, defaultCenter.lng], DEFAULT_MAP_ZOOM, { animate: false } as any);
+    } catch {
+      // ignore
+    }
+  }, [defaultCenter, defaultCenterResolved, deepLinkedPointId, mapReady]);
 
   const startDrawing = (mode: 'polygon' | 'rectangle') => {
     setDrawMode(mode);
@@ -928,12 +1005,19 @@ export function MediaMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady]);
 
-  // Se o painel fechar, cancela modo mover
+  // Se o painel realmente fechar, cancela modo mover
   useEffect(() => {
     if (panelOpen) return;
     setMoveMode(false);
     setMovePos(null);
   }, [panelOpen]);
+
+  const handlePanelOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && moveMode) {
+      return;
+    }
+    setPanelOpen(nextOpen);
+  };
 
   // =====================
   // Render
@@ -1182,8 +1266,8 @@ export function MediaMap() {
 
       {/* Mapa */}
       <MapContainer
-        center={[-23.55052, -46.633308]}
-        zoom={12}
+        center={[BRASILIA_CENTER.lat, BRASILIA_CENTER.lng]}
+        zoom={DEFAULT_MAP_ZOOM}
         className="h-full w-full"
         style={{ height: '100%', width: '100%' }}
         zoomControl={true}
@@ -1353,10 +1437,18 @@ export function MediaMap() {
         </div>
       ) : null}
       {/* Painel lateral */}
-      <Sheet open={panelOpen} onOpenChange={setPanelOpen} modal={false}>
+      <Sheet open={panelOpen} onOpenChange={handlePanelOpenChange} modal={false}>
         <SheetContent
           hideOverlay
           side="right"
+          onInteractOutside={(event: Event) => {
+            if (!moveMode) return;
+            event.preventDefault();
+          }}
+          onPointerDownOutside={(event: PointerEvent) => {
+            if (!moveMode) return;
+            event.preventDefault();
+          }}
           // Mantém o layout do Sheet e controla o espaçamento pelo header/corpo.
           className="p-0"
           style={{ width: 480, maxWidth: '92vw' }}

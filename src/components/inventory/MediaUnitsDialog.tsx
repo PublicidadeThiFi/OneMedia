@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, X } from 'lucide-react';
 import { MediaType, MediaUnit, UnitType, Orientation } from '../../types';
 import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
@@ -55,7 +55,7 @@ export function MediaUnitsDialog({
   mediaPointName,
   mediaPointType,
 }: MediaUnitsDialogProps) {
-  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos } =
+  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos, deleteUnitAsset } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
   const company = useCompany() as any;
@@ -322,6 +322,8 @@ export function MediaUnitsDialog({
                 setIsAdding(false);
                 setEditingUnit(null);
               }}
+              onDeleteAsset={deleteUnitAsset}
+              refreshEntitlements={refreshEntitlements}
             />
           )}
         </div>
@@ -334,15 +336,19 @@ export function MediaUnitsDialog({
   );
 }
 
+type ExistingAssetPreview = { id?: string; src: string };
+
 interface UnitFormProps {
   unit: MediaUnit | null;
   mediaPointType: MediaType;
   onSave: (data: UnitFormPayload, imageFiles?: File[], videoFiles?: File[]) => void;
   onCancel: () => void;
   entitlements: any;
+  onDeleteAsset?: (unitId: string, assetId: string) => Promise<any> | void;
+  refreshEntitlements?: () => Promise<any> | void;
 }
 
-function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: UnitFormProps) {
+function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDeleteAsset, refreshEntitlements }: UnitFormProps) {
   const [formData, setFormData] = useState<UnitFormPayload>(
     unit
       ? {
@@ -362,12 +368,30 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
   );
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>(Array.isArray((unit as any)?.galleryImages) && (unit as any).galleryImages.length ? (unit as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit?.imageUrl) ? [resolveUploadsUrl(unit?.imageUrl)!] : []));
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [existingImageAssets, setExistingImageAssets] = useState<ExistingAssetPreview[]>([]);
 
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
-  const [videoPreviews, setVideoPreviews] = useState<string[]>(Array.isArray((unit as any)?.galleryVideos) && (unit as any).galleryVideos.length ? (unit as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit?.videoUrl) ? [resolveUploadsUrl(unit?.videoUrl)!] : []));
+  const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
+  const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
 
   const fileLimits = entitlements?.limits?.file;
+
+  const syncExistingAssets = (target?: MediaUnit | null) => {
+    const mediaAssets = Array.isArray((target as any)?.mediaAssets) ? (target as any).mediaAssets : [];
+    const imageAssets = mediaAssets
+      .filter((asset: any) => asset?.kind === 'IMAGE' && asset?.url)
+      .map((asset: any) => ({ id: asset.id, src: resolveUploadsUrl(asset.url) || asset.url }))
+      .filter((asset: ExistingAssetPreview) => !!asset.src);
+    const videoAssets = mediaAssets
+      .filter((asset: any) => asset?.kind === 'VIDEO' && asset?.url)
+      .map((asset: any) => ({ id: asset.id, src: resolveUploadsUrl(asset.url) || asset.url }))
+      .filter((asset: ExistingAssetPreview) => !!asset.src);
+
+    setExistingImageAssets(imageAssets.length ? imageAssets : (resolveUploadsUrl(target?.imageUrl) ? [{ src: resolveUploadsUrl(target?.imageUrl)! }] : []));
+    setExistingVideoAssets(videoAssets.length ? videoAssets : (resolveUploadsUrl(target?.videoUrl) ? [{ src: resolveUploadsUrl(target?.videoUrl)! }] : []));
+  };
 
   // Quando alterna de "nova unidade" para "editar" (ou troca a unidade sendo editada),
   // precisamos sincronizar o estado interno do formulário com a prop `unit`.
@@ -385,17 +409,19 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
         priceWeek: unit.priceWeek,
       });
       setImageFiles([]);
-      setImagePreviews(Array.isArray((unit as any)?.galleryImages) && (unit as any).galleryImages.length ? (unit as any).galleryImages.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit.imageUrl) ? [resolveUploadsUrl(unit.imageUrl)!] : []));
-
+      setImagePreviews([]);
       setVideoFiles([]);
-      setVideoPreviews(Array.isArray((unit as any)?.galleryVideos) && (unit as any).galleryVideos.length ? (unit as any).galleryVideos.map((value: string) => resolveUploadsUrl(value) || value).filter(Boolean) : (resolveUploadsUrl(unit.videoUrl) ? [resolveUploadsUrl(unit.videoUrl)!] : []));
+      setVideoPreviews([]);
+      syncExistingAssets(unit);
     } else {
       setFormData({ label: '' });
       setImageFiles([]);
       setImagePreviews([]);
+      setExistingImageAssets([]);
 
       setVideoFiles([]);
       setVideoPreviews([]);
+      setExistingVideoAssets([]);
     }
   }, [unit]);
 
@@ -408,6 +434,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
     const files = Array.from(e.target.files ?? []);
     if (!files.length) {
       setImageFiles([]);
+      setImagePreviews([]);
       return;
     }
 
@@ -430,6 +457,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
     const files = Array.from(e.target.files ?? []);
     if (!files.length) {
       setVideoFiles([]);
+      setVideoPreviews([]);
       return;
     }
 
@@ -446,6 +474,40 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
 
     setVideoFiles(files);
     setVideoPreviews(files.map((file) => URL.createObjectURL(file)));
+  };
+
+  const removePendingImage = (idx: number) => {
+    setImageFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
+    setImagePreviews((prev) => {
+      const target = prev[idx];
+      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
+      return prev.filter((_, currentIdx) => currentIdx !== idx);
+    });
+  };
+
+  const removePendingVideo = (idx: number) => {
+    setVideoFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
+    setVideoPreviews((prev) => {
+      const target = prev[idx];
+      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
+      return prev.filter((_, currentIdx) => currentIdx !== idx);
+    });
+  };
+
+  const handleDeleteExistingAsset = async (kind: 'image' | 'video', assetId?: string) => {
+    if (!unit?.id || !assetId || !onDeleteAsset) return;
+
+    try {
+      setDeletingAssetId(assetId);
+      const updated = await onDeleteAsset(unit.id, assetId);
+      syncExistingAssets((updated as MediaUnit) ?? unit);
+      await refreshEntitlements?.();
+      toast.success(kind === 'image' ? 'Imagem da unidade removida.' : 'Vídeo da unidade removido.');
+    } catch (e: any) {
+      toast.error(e?.message || 'Não foi possível remover a mídia da unidade.');
+    } finally {
+      setDeletingAssetId(null);
+    }
   };
 
   useEffect(() => {
@@ -483,11 +545,37 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
               onChange={handleImageChange}
               className="flex-1"
             />
-            {imagePreviews.length > 0 && (
+            {(existingImageAssets.length > 0 || imagePreviews.length > 0) && (
               <div className="grid grid-cols-2 gap-2">
+                {existingImageAssets.map((asset, idx) => (
+                  <div key={`existing-img-${asset.id ?? idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border">
+                    <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                    {asset.id && onDeleteAsset ? (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        disabled={deletingAssetId === asset.id}
+                        onClick={() => handleDeleteExistingAsset('image', asset.id)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
                 {imagePreviews.map((src, idx) => (
-                  <div key={`img-${idx}`} className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
-                    <img src={src} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                  <div key={`img-${idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border border-dashed">
+                    <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => removePendingImage(idx)}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -508,11 +596,37 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements }: Unit
               onChange={handleVideoChange}
               className="flex-1"
             />
-            {videoPreviews.length > 0 && (
+            {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
               <div className="grid grid-cols-2 gap-2">
+                {existingVideoAssets.map((asset, idx) => (
+                  <div key={`existing-video-${asset.id ?? idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border">
+                    <video src={asset.src} className="w-full h-full object-cover" controls muted />
+                    {asset.id && onDeleteAsset ? (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-1 right-1 h-6 w-6"
+                        disabled={deletingAssetId === asset.id}
+                        onClick={() => handleDeleteExistingAsset('video', asset.id)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
                 {videoPreviews.map((src, idx) => (
-                  <div key={`video-${idx}`} className="w-24 h-16 bg-gray-100 rounded overflow-hidden">
+                  <div key={`video-${idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border border-dashed">
                     <video src={src} className="w-full h-full object-cover" controls muted />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="secondary"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={() => removePendingVideo(idx)}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
                 ))}
               </div>
