@@ -286,7 +286,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                   <Input value={formatPrice(pricing.priceMonth)} readOnly disabled />
                 </div>
                 <div>
-                  <Label>Preço quinzenal</Label>
+                  <Label>Preço bi-semana</Label>
                   <Input value={formatPrice(pricing.priceBiweekly)} readOnly disabled />
                 </div>
               </div>

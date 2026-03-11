@@ -271,7 +271,7 @@ export default function MenuFaces() {
                                   )}
                                 </div>
                                 <div>
-                                  <span className="text-gray-500">Semanal:</span>{' '}
+                                  <span className="text-gray-500">Bi-semana:</span>{' '}
                                   {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
                                     <>
                                       <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>

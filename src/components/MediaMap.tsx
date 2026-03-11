@@ -367,6 +367,7 @@ export function MediaMap() {
   const [bboxArr, setBboxArr] = useState<BboxArr | null>(null);
   const [zoom, setZoom] = useState<number>(12);
   const [mapReady, setMapReady] = useState(false);
+  const [mapViewMode, setMapViewMode] = useState<'map' | 'satellite'>('map');
 
   // =====================
   // Filtros + busca (Etapa 2)
@@ -808,8 +809,7 @@ export function MediaMap() {
 
   const handleOpenInventory = () => {
     if (!details?.point?.id) return;
-    navigate(`/app/inventory?pointId=${details.point.id}`);
-    setPanelOpen(false);
+    window.location.href = `/app/inventory?pointId=${details.point.id}`;
   };
 
   const handleCreateProposal = () => {
@@ -1254,6 +1254,44 @@ export function MediaMap() {
             </label>
           </div>
 
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={mapViewMode === 'map' ? 'default' : 'outline'}
+              className={mapViewMode === 'map' ? 'mm-indigo h-8' : 'h-8'}
+              onClick={() => setMapViewMode('map')}
+            >
+              Mapa
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mapViewMode === 'satellite' ? 'default' : 'outline'}
+              className={mapViewMode === 'satellite' ? 'mm-indigo h-8' : 'h-8'}
+              onClick={() => setMapViewMode('satellite')}
+            >
+              Satélite
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2 h-8"
+              onClick={() => {
+                const lat = Number((details?.point as any)?.latitude ?? mapRef.current?.getCenter?.().lat);
+                const lng = Number((details?.point as any)?.longitude ?? mapRef.current?.getCenter?.().lng);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                  toast.error('Selecione um ponto ou centralize o mapa antes de abrir o Street View.');
+                  return;
+                }
+                window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <ExternalLink className="w-4 h-4" /> Street View
+            </Button>
+          </div>
+
           {/* Legenda */}
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge className="bg-green-100 text-green-700 border border-green-200">Livre</Badge>
@@ -1273,8 +1311,12 @@ export function MediaMap() {
         zoomControl={true}
       >
         <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={mapViewMode === 'satellite' ? 'Tiles &copy; Esri' : '&copy; OpenStreetMap contributors'}
+          url={
+            mapViewMode === 'satellite'
+              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+          }
         />
 
         <MapEvents mapRef={mapRef} onViewportChange={handleViewportChange} />

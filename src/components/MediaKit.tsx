@@ -161,7 +161,7 @@ function buildPointText(point: MediaKitPoint): string {
     .join(' | ');
 
   const prices = [
-    point.basePriceWeek != null ? `Semanal: ${formatCurrencyBRL(point.basePriceWeek)}` : null,
+    point.basePriceWeek != null ? `Bi-semana: ${formatCurrencyBRL(point.basePriceWeek)}` : null,
     point.basePriceMonth != null ? `Mensal: ${formatCurrencyBRL(point.basePriceMonth)}` : null,
     point.basePriceDay != null ? `Diária: ${formatCurrencyBRL(point.basePriceDay)}` : null,
   ]
@@ -954,11 +954,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                                   {point.basePriceWeek != null ? (
                                     point.promotion ? (
                                       <span className="flex flex-col">
-                                        <span className="text-xs text-gray-400 line-through">{formatCurrencyBRL(point.basePriceWeek)}/semana</span>
-                                        <span>{formatCurrencyBRL(applyPromotion(point.basePriceWeek, point.promotion))}/semana</span>
+                                        <span className="text-xs text-gray-400 line-through">{formatCurrencyBRL(point.basePriceWeek)}/bi-semana</span>
+                                        <span>{formatCurrencyBRL(applyPromotion(point.basePriceWeek, point.promotion))}/bi-semana</span>
                                       </span>
                                     ) : (
-                                      `${formatCurrencyBRL(point.basePriceWeek)}/semana`
+                                      `${formatCurrencyBRL(point.basePriceWeek)}/bi-semana`
                                     )
                                   ) : '—'}
                                 </div>
@@ -1353,7 +1353,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <div className="text-xs text-gray-500">Semanal</div>
+                <div className="text-xs text-gray-500">Bi-semana</div>
                 {detailsPoint?.promotion && detailsPoint.basePriceWeek != null ? (
                   <div className="flex flex-col">
                     <div className="text-xs text-gray-400 line-through">{formatCurrencyBRL(detailsPoint.basePriceWeek)}</div>

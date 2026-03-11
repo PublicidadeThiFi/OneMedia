@@ -26,6 +26,32 @@ import { reverseGeocodeOSM, type ReverseGeocodeAddress } from '../../lib/geocode
 type LatLng = { lat: number; lng: number };
 type ExistingAssetPreview = { id?: string; src: string };
 
+const BRAZILIA_CENTER: LatLng = { lat: -15.793889, lng: -47.882778 };
+
+function parseNonNegativeFloatInput(value: string) {
+  if (!value) return null;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, numeric);
+}
+
+function parseNonNegativeIntInput(value: string) {
+  if (!value) return null;
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isFinite(numeric)) return null;
+  return Math.max(0, numeric);
+}
+
+function normalizeZipcodeInput(value: string) {
+  const digits = String(value ?? '').replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+function normalizeAddressNumberInput(value: string) {
+  return String(value ?? '').replace(/-/g, '');
+}
+
 function buildPinIcon() {
   // Evita o ícone padrão do Leaflet (que costuma quebrar no bundler por falta de assets).
   return L.divIcon({
@@ -189,6 +215,23 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     );
   };
 
+  const resolveExistingAssetId = (kind: 'image' | 'video', src: string, preferredId?: string) => {
+    if (preferredId) return preferredId;
+
+    const snapshot = pointSnapshot ?? mediaPoint ?? initialData ?? null;
+    const mediaAssets = Array.isArray((snapshot as any)?.mediaAssets) ? (snapshot as any).mediaAssets : [];
+    const targetKind = kind === 'image' ? 'IMAGE' : 'VIDEO';
+    const normalizedSrc = resolveUploadsUrl(src) || src;
+
+    const match = mediaAssets.find((asset: any) => {
+      if (!asset || asset.kind !== targetKind || !asset.url) return false;
+      const normalizedAssetUrl = resolveUploadsUrl(asset.url) || asset.url;
+      return normalizedAssetUrl === normalizedSrc;
+    });
+
+    return match?.id as string | undefined;
+  };
+
 
   useEffect(() => {
     geoAbortRef.current?.abort();
@@ -260,6 +303,40 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setFormData(prev => ({ ...prev, type: newType, subcategory: undefined }));
   };
 
+  useEffect(() => {
+    if (!open || mediaPoint) return;
+    if (Number.isFinite(Number(formData.latitude)) && Number.isFinite(Number(formData.longitude))) return;
+
+    const addressCity = String((company as any)?.addressCity || '').trim();
+    const addressState = String((company as any)?.addressState || '').trim();
+    if (!addressCity && !addressState) return;
+
+    let active = true;
+
+    const resolveCompanyCenter = async () => {
+      try {
+        const query = [addressCity, addressState, 'Brasil'].filter(Boolean).join(', ');
+        const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(query)}`;
+        const response = await fetch(searchUrl, { headers: { Accept: 'application/json' } });
+        if (!response.ok) return;
+        const results = await response.json();
+        const first = Array.isArray(results) ? results[0] : null;
+        const lat = Number(first?.lat);
+        const lng = Number(first?.lon);
+        if (!active || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        applyPinPosition({ lat, lng }, { autoFill: false });
+      } catch {
+        if (active) setPinPos(BRAZILIA_CENTER);
+      }
+    };
+
+    void resolveCompanyCenter();
+
+    return () => {
+      active = false;
+    };
+  }, [open, mediaPoint, company, formData.latitude, formData.longitude]);
+
 
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -272,6 +349,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
     const err = await validateUploadBatchAgainstEntitlements(
       [
+        ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
         ...files.map((file) => ({ file, kind: 'image' as const })),
         ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
       ],
@@ -286,8 +364,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       return;
     }
 
-    setImageFiles(files);
-    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
+    setImageFiles((prev) => [...prev, ...files]);
+    setImagePreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
   };
 
   const handleVideoChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -302,6 +380,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     const err = await validateUploadBatchAgainstEntitlements(
       [
         ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
+        ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
         ...files.map((file) => ({ file, kind: 'video' as const })),
       ],
       entitlements
@@ -315,8 +394,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       return;
     }
 
-    setVideoFiles(files);
-    setVideoPreviews(files.map((file) => URL.createObjectURL(file)));
+    setVideoFiles((prev) => [...prev, ...files]);
+    setVideoPreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
   };
 
   const removePendingImage = (idx: number) => {
@@ -381,11 +460,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     }, 450);
   };
 
-  const applyAutoField = (field: keyof MediaPoint, value?: string) => {
+  const applyAutoField = (field: keyof MediaPoint, value?: string, previousAuto?: ReverseGeocodeAddress | null) => {
     if (!value) return;
     const current = String((formData as any)?.[field] ?? '').trim();
-    const prevAuto = String((lastAutoRef.current as any)?.[field] ?? '').trim();
-    // Só sobrescreve se estiver vazio ou se for o valor auto anterior
+    const prevAuto = String((previousAuto as any)?.[field] ?? '').trim();
     if (!current || current === prevAuto) {
       updateField(field, value);
     }
@@ -402,12 +480,12 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       const addr = await reverseGeocodeOSM(lat, lng, controller.signal);
       if (!addr) return;
 
-      // Atualiza last auto (para não sobrescrever manual)
+      const previousAuto = lastAutoRef.current ? { ...lastAutoRef.current } : null;
       lastAutoRef.current = { ...(lastAutoRef.current ?? {}), ...addr };
 
       // Ordem importa (UF -> Cidade)
       if (addr.addressState) {
-        applyAutoField('addressState', addr.addressState);
+        applyAutoField('addressState', addr.addressState, previousAuto);
       }
 
       if (addr.addressCity) {
@@ -418,14 +496,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
           if (prev.includes(cityName)) return prev;
           return [...prev, cityName].sort((a, b) => a.localeCompare(b, 'pt-BR'));
         });
-        applyAutoField('addressCity', addr.addressCity);
+        applyAutoField('addressCity', addr.addressCity, previousAuto);
       }
 
-      applyAutoField('addressDistrict', addr.addressDistrict);
-      applyAutoField('addressStreet', addr.addressStreet);
-      applyAutoField('addressNumber', addr.addressNumber);
-      applyAutoField('addressZipcode', addr.addressZipcode);
-      applyAutoField('addressCountry', addr.addressCountry);
+      applyAutoField('addressDistrict', addr.addressDistrict, previousAuto);
+      applyAutoField('addressStreet', addr.addressStreet, previousAuto);
+      applyAutoField('addressNumber', addr.addressNumber, previousAuto);
+      applyAutoField('addressZipcode', addr.addressZipcode, previousAuto);
+      applyAutoField('addressCountry', addr.addressCountry, previousAuto);
     } catch (e: any) {
       const msg = String(e?.message ?? '');
       if (msg.includes('abort')) return;
@@ -699,27 +777,30 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   <div className="mt-2 space-y-2 w-full max-w-2xl">
                     <p className="text-xs font-medium text-gray-700">Imagens selecionadas/cadastradas</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {existingImageAssets.map((asset, idx) => (
-                        <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
-                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                            <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                      {existingImageAssets.map((asset, idx) => {
+                        const deleteAssetId = resolveExistingAssetId('image', asset.src, asset.id);
+                        return (
+                          <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                            <div className="h-32 bg-gray-100 rounded overflow-hidden">
+                              <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
+                              {deleteAssetId && onDeleteAsset ? (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  disabled={deletingAssetId === deleteAssetId || isSaving}
+                                  onClick={() => handleDeleteExistingAsset('image', deleteAssetId)}
+                                >
+                                  Excluir
+                                </Button>
+                              ) : null}
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
-                            {asset.id && onDeleteAsset ? (
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                disabled={deletingAssetId === asset.id || isSaving}
-                                onClick={() => handleDeleteExistingAsset('image', asset.id)}
-                              >
-                                Excluir
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {imagePreviews.map((src, idx) => (
                         <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
                           <div className="h-32 bg-gray-100 rounded overflow-hidden">
@@ -753,27 +834,30 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   <div className="mt-2 space-y-2 w-full max-w-2xl">
                     <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {existingVideoAssets.map((asset, idx) => (
-                        <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
-                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                            <video src={asset.src} controls muted className="w-full h-full object-cover" />
+                      {existingVideoAssets.map((asset, idx) => {
+                        const deleteAssetId = resolveExistingAssetId('video', asset.src, asset.id);
+                        return (
+                          <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                            <div className="h-32 bg-gray-100 rounded overflow-hidden">
+                              <video src={asset.src} controls muted className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
+                              {deleteAssetId && onDeleteAsset ? (
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  disabled={deletingAssetId === deleteAssetId || isSaving}
+                                  onClick={() => handleDeleteExistingAsset('video', deleteAssetId)}
+                                >
+                                  Excluir
+                                </Button>
+                              ) : null}
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
-                            {asset.id && onDeleteAsset ? (
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                disabled={deletingAssetId === asset.id || isSaving}
-                                onClick={() => handleDeleteExistingAsset('video', asset.id)}
-                              >
-                                Excluir
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {videoPreviews.map((src, idx) => (
                         <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
                           <div className="h-32 bg-gray-100 rounded overflow-hidden">
@@ -933,7 +1017,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   <Input
                     placeholder="00000-000"
                     value={formData.addressZipcode || ''}
-                    onChange={(e) => updateField('addressZipcode', e.target.value)}
+                    onChange={(e) => updateField('addressZipcode', normalizeZipcodeInput(e.target.value))}
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
@@ -952,7 +1036,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   <Input
                     placeholder="1000"
                     value={formData.addressNumber || ''}
-                    onChange={(e) => updateField('addressNumber', e.target.value)}
+                    onChange={(e) => updateField('addressNumber', normalizeAddressNumberInput(e.target.value))}
                   />
                 </div>
                 <div className="space-y-2 col-span-2">
@@ -1080,9 +1164,10 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   <Label>Impactos Diários</Label>
                   <Input
                     type="number"
+                    min="0"
                     placeholder="85000"
                     value={formData.dailyImpressions || ''}
-                    onChange={(e) => updateField('dailyImpressions', parseInt(e.target.value) || null)}
+                    onChange={(e) => updateField('dailyImpressions', parseNonNegativeIntInput(e.target.value))}
                   />
                   {!formData.dailyImpressions && (
                     <p className="text-xs text-amber-600">⚠️ Recomendado preencher</p>
@@ -1131,20 +1216,22 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   <Label>Preço Mensal (R$)</Label>
                   <Input
                     type="number"
+                    min="0"
                     step="0.01"
                     placeholder="8500.00"
                     value={formData.basePriceMonth || ''}
-                    onChange={(e) => updateField('basePriceMonth', parseFloat(e.target.value) || null)}
+                    onChange={(e) => updateField('basePriceMonth', parseNonNegativeFloatInput(e.target.value))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Preço Quinzenal (R$)</Label>
+                  <Label>Preço Bi-semana (R$)</Label>
                   <Input
                     type="number"
+                    min="0"
                     step="0.01"
                     placeholder="2500.00"
                     value={formData.basePriceWeek || ''}
-                    onChange={(e) => updateField('basePriceWeek', parseFloat(e.target.value) || null)}
+                    onChange={(e) => updateField('basePriceWeek', parseNonNegativeFloatInput(e.target.value))}
                   />
                 </div>
               </div>
