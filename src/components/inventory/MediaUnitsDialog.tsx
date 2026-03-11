@@ -6,7 +6,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
 import { MediaPoint, MediaType, MediaUnit, UnitType, Orientation } from '../../types';
 import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
@@ -626,50 +626,59 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
         <div className="space-y-2">
           <Label>Imagem da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              type="file"
-              accept="image/jpeg,image/png,image/gif"
-              multiple
-              onChange={handleImageChange}
-              className="flex-1"
-            />
-            {(existingImageAssets.length > 0 || imagePreviews.length > 0) && (
-              <div className="grid grid-cols-2 gap-2">
+          <Input
+            type="file"
+            accept="image/jpeg,image/png,image/gif"
+            multiple
+            onChange={handleImageChange}
+            className="flex-1"
+          />
+          {(existingImageAssets.length > 0 || imagePreviews.length > 0) && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-700">Imagens selecionadas/cadastradas</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {existingImageAssets.map((asset, idx) => (
-                  <div key={`existing-img-${asset.id ?? idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border">
-                    <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
-                    {asset.id && onDeleteAsset ? (
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="destructive"
-                        className="absolute top-1 right-1 h-6 w-6"
-                        disabled={deletingAssetId === asset.id}
-                        onClick={() => handleDeleteExistingAsset('image', asset.id)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    ) : null}
+                  <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
+                      <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
+                      {asset.id && onDeleteAsset ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingAssetId === asset.id}
+                          onClick={() => handleDeleteExistingAsset('image', asset.id)}
+                        >
+                          Excluir
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
                 {imagePreviews.map((src, idx) => (
-                  <div key={`img-${idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border border-dashed">
-                    <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="secondary"
-                      className="absolute top-1 right-1 h-6 w-6"
-                      onClick={() => removePendingImage(idx)}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
+                  <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
+                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
+                      <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-600">Nova imagem {idx + 1}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removePendingImage(idx)}
+                      >
+                        Remover
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
           <p className="text-xs text-gray-500">
             JPG, PNG ou GIF (máx. {fileLimits?.maxImageMb ?? 4}MB por arquivo, respeitando o armazenamento restante do plano).
           </p>
@@ -677,50 +686,59 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
         <div className="space-y-2">
           <Label>Vídeo da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'} (opcional)</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              type="file"
-              accept="video/*"
-              multiple
-              onChange={handleVideoChange}
-              className="flex-1"
-            />
-            {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
-              <div className="grid grid-cols-2 gap-2">
+          <Input
+            type="file"
+            accept="video/*"
+            multiple
+            onChange={handleVideoChange}
+            className="flex-1"
+          />
+          {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {existingVideoAssets.map((asset, idx) => (
-                  <div key={`existing-video-${asset.id ?? idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border">
-                    <video src={asset.src} className="w-full h-full object-cover" controls muted />
-                    {asset.id && onDeleteAsset ? (
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="destructive"
-                        className="absolute top-1 right-1 h-6 w-6"
-                        disabled={deletingAssetId === asset.id}
-                        onClick={() => handleDeleteExistingAsset('video', asset.id)}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    ) : null}
+                  <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
+                      <video src={asset.src} className="w-full h-full object-cover" controls muted />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
+                      {asset.id && onDeleteAsset ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingAssetId === asset.id}
+                          onClick={() => handleDeleteExistingAsset('video', asset.id)}
+                        >
+                          Excluir
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
                 {videoPreviews.map((src, idx) => (
-                  <div key={`video-${idx}`} className="relative w-24 h-16 bg-gray-100 rounded overflow-hidden border border-dashed">
-                    <video src={src} className="w-full h-full object-cover" controls muted />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="secondary"
-                      className="absolute top-1 right-1 h-6 w-6"
-                      onClick={() => removePendingVideo(idx)}
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
+                  <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
+                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
+                      <video src={src} className="w-full h-full object-cover" controls muted />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-gray-600">Novo vídeo {idx + 1}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removePendingVideo(idx)}
+                      >
+                        Remover
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
           <p className="text-xs text-gray-500">
             MP4/WebM/MOV (máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s por arquivo). O upload será feito ao salvar, respeitando o armazenamento restante do plano.
           </p>

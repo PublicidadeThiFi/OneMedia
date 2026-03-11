@@ -696,38 +696,49 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 <Label>Imagens do ponto</Label>
                 <Input type="file" accept="image/*" multiple onChange={handleImageChange} />
                 {(existingImageAssets.length > 0 || imagePreviews.length > 0) && (
-                  <div className="mt-2 grid grid-cols-2 gap-2 w-full max-w-2xl">
-                    {existingImageAssets.map((asset, idx) => (
-                      <div key={`existing-img-${asset.id ?? idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border">
-                        <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
-                        {asset.id && onDeleteAsset ? (
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="destructive"
-                            className="absolute top-2 right-2 h-7 w-7"
-                            disabled={deletingAssetId === asset.id || isSaving}
-                            onClick={() => handleDeleteExistingAsset('image', asset.id)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                    {imagePreviews.map((src, idx) => (
-                      <div key={`img-${idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border border-dashed">
-                        <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          className="absolute top-2 right-2 h-7 w-7"
-                          onClick={() => removePendingImage(idx)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div className="mt-2 space-y-2 w-full max-w-2xl">
+                    <p className="text-xs font-medium text-gray-700">Imagens selecionadas/cadastradas</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {existingImageAssets.map((asset, idx) => (
+                        <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
+                            <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
+                            {asset.id && onDeleteAsset ? (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                disabled={deletingAssetId === asset.id || isSaving}
+                                onClick={() => handleDeleteExistingAsset('image', asset.id)}
+                              >
+                                Excluir
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                      {imagePreviews.map((src, idx) => (
+                        <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
+                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
+                            <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-600">Nova imagem {idx + 1}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removePendingImage(idx)}
+                            >
+                              Remover
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 <p className="text-xs text-gray-500">
@@ -739,38 +750,49 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 <Label>Vídeos do ponto (opcional)</Label>
                 <Input type="file" accept="video/*" multiple onChange={handleVideoChange} />
                 {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
-                  <div className="mt-2 grid grid-cols-2 gap-2 w-full max-w-2xl">
-                    {existingVideoAssets.map((asset, idx) => (
-                      <div key={`existing-video-${asset.id ?? idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border">
-                        <video src={asset.src} controls muted className="w-full h-full object-cover" />
-                        {asset.id && onDeleteAsset ? (
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="destructive"
-                            className="absolute top-2 right-2 h-7 w-7"
-                            disabled={deletingAssetId === asset.id || isSaving}
-                            onClick={() => handleDeleteExistingAsset('video', asset.id)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                    {videoPreviews.map((src, idx) => (
-                      <div key={`video-${idx}`} className="relative h-32 bg-gray-100 rounded overflow-hidden border border-dashed">
-                        <video src={src} controls muted className="w-full h-full object-cover" />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="secondary"
-                          className="absolute top-2 right-2 h-7 w-7"
-                          onClick={() => removePendingVideo(idx)}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div className="mt-2 space-y-2 w-full max-w-2xl">
+                    <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {existingVideoAssets.map((asset, idx) => (
+                        <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
+                            <video src={asset.src} controls muted className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
+                            {asset.id && onDeleteAsset ? (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                disabled={deletingAssetId === asset.id || isSaving}
+                                onClick={() => handleDeleteExistingAsset('video', asset.id)}
+                              >
+                                Excluir
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                      {videoPreviews.map((src, idx) => (
+                        <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
+                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
+                            <video src={src} controls muted className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-gray-600">Novo vídeo {idx + 1}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removePendingVideo(idx)}
+                            >
+                              Remover
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 <p className="text-xs text-gray-500">
