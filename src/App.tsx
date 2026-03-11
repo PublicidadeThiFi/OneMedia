@@ -202,7 +202,7 @@ export default function App() {
       // Map path to page
       // Valid pages: dashboard, inventory, clients, products, proposals, campaigns,
       // reservations, financial, messages, mediakit, activities, settings, superadmin
-      return <MainApp initialPage={pagePath as any} />;
+      return <MainApp key={cleanPath} initialPage={pagePath as any} />;
     }
 
     switch (cleanPath) {

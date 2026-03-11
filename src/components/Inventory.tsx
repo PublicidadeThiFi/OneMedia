@@ -22,6 +22,8 @@ import { MediaUnitsDialog } from './inventory/MediaUnitsDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
 
+const OPEN_POINT_STORAGE_KEY = 'ONE_MEDIA_OPEN_INVENTORY_POINT_ID';
+
 export function Inventory() {
   const company = useCompany() as any;
   const refreshPointsUsed = company?.refreshPointsUsed;
@@ -121,13 +123,38 @@ export function Inventory() {
     setIsFormDialogOpen(true);
   };
 
-  // Deep-link: /app/inventory?pointId=...
+  // Deep-link: /app/inventory?pointId=... ou intenção salva em sessionStorage
   useEffect(() => {
     let cancelled = false;
 
-    const maybeOpenPointFromQuery = async () => {
+    const readPendingPointId = () => {
       const params = new URLSearchParams(window.location.search);
-      const pointId = params.get('pointId');
+      const queryPointId = params.get('pointId');
+      if (queryPointId) return queryPointId;
+      try {
+        return window.sessionStorage.getItem(OPEN_POINT_STORAGE_KEY);
+      } catch {
+        return null;
+      }
+    };
+
+    const clearPendingPointId = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('pointId')) {
+        params.delete('pointId');
+        const next = params.toString();
+        const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
+        window.history.replaceState({}, '', url);
+      }
+      try {
+        window.sessionStorage.removeItem(OPEN_POINT_STORAGE_KEY);
+      } catch {
+        // ignore session storage failures
+      }
+    };
+
+    const maybeOpenPointFromIntent = async () => {
+      const pointId = readPendingPointId();
       if (!pointId) return;
 
       try {
@@ -137,17 +164,14 @@ export function Inventory() {
       } catch (_err: any) {
         if (!cancelled) toast.error('Não foi possível abrir este ponto no inventário.');
       } finally {
-        params.delete('pointId');
-        const next = params.toString();
-        const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
-        window.history.replaceState({}, '', url);
+        clearPendingPointId();
       }
     };
 
-    void maybeOpenPointFromQuery();
+    void maybeOpenPointFromIntent();
 
     const handleNavigation = () => {
-      void maybeOpenPointFromQuery();
+      void maybeOpenPointFromIntent();
     };
 
     window.addEventListener('popstate', handleNavigation);

@@ -808,8 +808,16 @@ export function MediaMap() {
 
   const handleOpenInventory = () => {
     if (!details?.point?.id) return;
-    const targetUrl = `/app/inventory?pointId=${details.point.id}`;
+    const pointId = details.point.id;
+    const targetUrl = `/app/inventory?pointId=${pointId}`;
     setPanelOpen(false);
+
+    try {
+      window.sessionStorage.setItem('ONE_MEDIA_OPEN_INVENTORY_POINT_ID', pointId);
+    } catch {
+      // ignore session storage failures
+    }
+
     try {
       if (window.location.pathname === '/app/inventory') {
         window.history.pushState({}, '', targetUrl);
@@ -820,7 +828,18 @@ export function MediaMap() {
     } catch {
       // fallback below
     }
-    window.location.assign(targetUrl);
+
+    try {
+      navigate(targetUrl);
+      window.setTimeout(() => {
+        window.dispatchEvent(new Event('inventory:open-point'));
+      }, 0);
+      return;
+    } catch {
+      // fallback below
+    }
+
+    window.location.href = targetUrl;
   };
 
   const handleCreateProposal = () => {
