@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Dialog,
@@ -43,6 +43,7 @@ export function ClientFormDialog({
   const [cnpjLookupMessage, setCnpjLookupMessage] = useState<string | null>(null);
   const [lastLookupCnpj, setLastLookupCnpj] = useState('');
   const [cnpjTouchedByUser, setCnpjTouchedByUser] = useState(false);
+  const cnpjLookupInFlightRef = useRef<string | null>(null);
 
   const defaultValues = useMemo(
     () => ({
@@ -80,6 +81,7 @@ export function ClientFormDialog({
     setCnpjLookupMessage(null);
     setLastLookupCnpj('');
     setCnpjTouchedByUser(false);
+    cnpjLookupInFlightRef.current = null;
   }, [client, form, defaultValues]);
 
   const handleChange = (field: keyof Client, value: unknown) => {
@@ -177,10 +179,11 @@ export function ClientFormDialog({
     if (!open || !cnpjTouchedByUser) return;
     if (cnpjDigits.length !== 14) return;
     if (!isValidCNPJ(cnpjDigits)) return;
-    if (isLookingUpCnpj) return;
     if (lastLookupCnpj === cnpjDigits) return;
+    if (cnpjLookupInFlightRef.current === cnpjDigits) return;
 
     let cancelled = false;
+    cnpjLookupInFlightRef.current = cnpjDigits;
 
     const lookupCompany = async () => {
       try {
@@ -193,7 +196,8 @@ export function ClientFormDialog({
 
         if (cancelled) return;
 
-        applyLookupDataToForm(response.data);
+        const lookupData = response?.data as ClientCompanyLookupResponse | undefined;
+        applyLookupDataToForm(lookupData ?? { cnpj: cnpjDigits });
         setLastLookupCnpj(cnpjDigits);
         setCnpjLookupMessage('Dados da empresa preenchidos automaticamente.');
       } catch (error: any) {
@@ -210,6 +214,10 @@ export function ClientFormDialog({
         // eslint-disable-next-line no-console
         console.error('Erro ao consultar CNPJ:', error?.response?.data || error);
       } finally {
+        if (cnpjLookupInFlightRef.current === cnpjDigits) {
+          cnpjLookupInFlightRef.current = null;
+        }
+
         if (!cancelled) {
           setIsLookingUpCnpj(false);
         }
@@ -225,7 +233,6 @@ export function ClientFormDialog({
     applyLookupDataToForm,
     cnpjDigits,
     cnpjTouchedByUser,
-    isLookingUpCnpj,
     lastLookupCnpj,
     open,
   ]);
