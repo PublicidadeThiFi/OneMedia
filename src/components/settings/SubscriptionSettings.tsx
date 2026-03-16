@@ -13,7 +13,7 @@ import {
   PlatformSubscriptionAddonCode,
 } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
-import { getMultiOwnerPlanPrice, getMultiOwnerPlanName, getMultiOwnerPriceCents } from '../../lib/plans';
+import { getFriendlyPlanLabel, getMultiOwnerPlanPrice, getMultiOwnerPlanName, getMultiOwnerPriceCents } from '../../lib/plans';
 import { buildMediaUsageSummary, formatBytes } from '../../lib/mediaValidation';
 import { toast } from 'sonner';
 
@@ -75,9 +75,14 @@ export function SubscriptionSettings({
 }: SubscriptionSettingsProps) {
   const { entitlements, purchaseMediaAddon, refreshEntitlements, blockReason } = useCompany();
 
+  const sortedPlans = useMemo(
+    () => [...plans].sort((a, b) => (a.minPoints ?? 0) - (b.minPoints ?? 0)),
+    [plans]
+  );
+
   const currentPlan = useMemo(
-    () => plans.find((p) => p.id === subscription.planId) || null,
-    [plans, subscription.planId]
+    () => sortedPlans.find((p) => p.id === subscription.planId) || null,
+    [sortedPlans, subscription.planId]
   );
 
   const [selectedPlanId, setSelectedPlanId] = useState(subscription.planId);
@@ -87,8 +92,8 @@ export function SubscriptionSettings({
   const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
 
   const selectedPlan = useMemo(
-    () => plans.find((p) => p.id === selectedPlanId) || null,
-    [plans, selectedPlanId]
+    () => sortedPlans.find((p) => p.id === selectedPlanId) || null,
+    [sortedPlans, selectedPlanId]
   );
 
   const maxPoints = selectedPlan?.maxPoints ?? null;
@@ -208,7 +213,7 @@ export function SubscriptionSettings({
 
             <div className="text-right">
               <div className="text-sm text-gray-600">Plano atual</div>
-              <div className="font-medium">{currentPlan?.name || '—'}</div>
+              <div className="font-medium">{getFriendlyPlanLabel(currentPlan as any)}</div>
             </div>
           </div>
 
@@ -367,8 +372,8 @@ export function SubscriptionSettings({
                   <SelectValue placeholder={plansLoading ? 'Carregando planos...' : 'Selecione um plano'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {plans.map((plan) => {
-                    const label = plan.maxPoints == null ? plan.name : `${plan.name} (${plan.minPoints ?? 0}-${plan.maxPoints} pontos)`;
+                  {sortedPlans.map((plan) => {
+                    const label = getFriendlyPlanLabel(plan as any);
                     return (
                       <SelectItem key={plan.id} value={plan.id}>
                         {label}
