@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X, Loader2, ChevronUp, Pause, Play, RotateCcw, Ban } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
@@ -27,7 +27,7 @@ const OPEN_POINT_STORAGE_KEY = 'ONE_MEDIA_OPEN_INVENTORY_POINT_ID';
 
 type UploadTaskKind = 'image' | 'video';
 type UploadTaskTargetType = 'point' | 'unit';
-type UploadTaskStatus = 'queued' | 'uploading' | 'completed' | 'error';
+type UploadTaskStatus = 'queued' | 'uploading' | 'paused' | 'completed' | 'error' | 'canceled';
 
 interface UploadTask {
   id: string;
@@ -136,8 +136,11 @@ export function Inventory() {
   const filteredPoints = mediaPoints;
 
   const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+  const [isUploadPanelHovered, setIsUploadPanelHovered] = useState(false);
   const uploadTasksRef = useRef<UploadTask[]>([]);
   const activeTaskIdsRef = useRef<Set<string>>(new Set());
+  const taskControllersRef = useRef<Map<string, AbortController>>(new Map());
+  const taskAbortActionRef = useRef<Map<string, 'pause' | 'cancel'>>(new Map());
   const refreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -157,6 +160,9 @@ export function Inventory() {
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+      for (const controller of taskControllersRef.current.values()) controller.abort();
+      taskControllersRef.current.clear();
+      taskAbortActionRef.current.clear();
     };
   }, []);
 
@@ -165,14 +171,71 @@ export function Inventory() {
   }, []);
 
   const clearFinishedUploads = useCallback(() => {
-    setUploadTasks((prev) => prev.filter((task) => task.status === 'queued' || task.status === 'uploading' || task.status === 'error'));
+    setUploadTasks((prev) => prev.filter((task) => task.status === 'queued' || task.status === 'uploading' || task.status === 'paused' || task.status === 'error'));
   }, []);
 
   const dismissUploadTask = useCallback((taskId: string) => {
+    const controller = taskControllersRef.current.get(taskId);
+    if (controller) {
+      taskAbortActionRef.current.set(taskId, 'cancel');
+      controller.abort();
+      taskControllersRef.current.delete(taskId);
+    }
+    activeTaskIdsRef.current.delete(taskId);
     setUploadTasks((prev) => prev.filter((task) => task.id !== taskId));
   }, []);
 
+  const queueUploadTask = useCallback((taskId: string) => {
+    setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, status: 'queued', loadedBytes: 0, error: undefined } : task)));
+  }, []);
+
+  const pauseUploadTask = useCallback((taskId: string) => {
+    const task = uploadTasksRef.current.find((item) => item.id === taskId);
+    if (!task) return;
+
+    if (task.status === 'queued') {
+      setUploadTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, status: 'paused' } : item)));
+      return;
+    }
+
+    if (task.status === 'uploading') {
+      const controller = taskControllersRef.current.get(taskId);
+      if (controller) {
+        taskAbortActionRef.current.set(taskId, 'pause');
+        controller.abort();
+      }
+    }
+  }, []);
+
+  const resumeUploadTask = useCallback((taskId: string) => {
+    const task = uploadTasksRef.current.find((item) => item.id === taskId);
+    if (!task) return;
+    setUploadTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, status: 'queued', loadedBytes: 0, error: undefined } : item)));
+  }, []);
+
+  const cancelUploadTask = useCallback((taskId: string) => {
+    const task = uploadTasksRef.current.find((item) => item.id === taskId);
+    if (!task) return;
+
+    if (task.status === 'uploading') {
+      const controller = taskControllersRef.current.get(taskId);
+      if (controller) {
+        taskAbortActionRef.current.set(taskId, 'cancel');
+        controller.abort();
+        return;
+      }
+    }
+
+    setUploadTasks((prev) => prev.map((item) => (item.id === taskId ? { ...item, status: 'canceled', error: undefined } : item)));
+  }, []);
+
+  const retryUploadTask = useCallback((taskId: string) => {
+    queueUploadTask(taskId);
+  }, [queueUploadTask]);
+
   const startUploadTask = useCallback(async (task: UploadTask) => {
+    const controller = new AbortController();
+    taskControllersRef.current.set(task.id, controller);
     activeTaskIdsRef.current.add(task.id);
     updateUploadTask(task.id, (current) => ({ ...current, status: 'uploading', loadedBytes: 0, error: undefined }));
 
@@ -187,15 +250,15 @@ export function Inventory() {
 
       if (task.targetType === 'point') {
         if (task.kind === 'image') {
-          await uploadMediaPointImage(task.targetId, task.file, onProgress);
+          await uploadMediaPointImage(task.targetId, task.file, onProgress, { signal: controller.signal });
         } else {
-          await uploadMediaPointVideo(task.targetId, task.file, onProgress);
+          await uploadMediaPointVideo(task.targetId, task.file, onProgress, { signal: controller.signal });
         }
       } else {
         if (task.kind === 'image') {
-          await uploadUnitImage(task.targetId, task.file, onProgress);
+          await uploadUnitImage(task.targetId, task.file, onProgress, { signal: controller.signal });
         } else {
-          await uploadUnitVideo(task.targetId, task.file, onProgress);
+          await uploadUnitVideo(task.targetId, task.file, onProgress, { signal: controller.signal });
         }
       }
 
@@ -208,13 +271,24 @@ export function Inventory() {
       window.dispatchEvent(new CustomEvent('inventory:uploads-updated', { detail: { pointId: task.pointId, targetType: task.targetType, targetId: task.targetId } }));
       scheduleInventoryRefresh();
     } catch (error: any) {
-      updateUploadTask(task.id, (current) => ({
-        ...current,
-        status: 'error',
-        error: getUploadErrorMessage(error, `Falha ao enviar ${current.fileName}`),
-      }));
-      toast.error(getUploadErrorMessage(error, `Falha ao enviar ${task.fileName}`));
+      const abortAction = taskAbortActionRef.current.get(task.id);
+      const wasAborted = controller.signal.aborted || error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError' || error?.name === 'AbortError';
+
+      if (wasAborted && abortAction === 'pause') {
+        updateUploadTask(task.id, (current) => ({ ...current, status: 'paused', error: undefined }));
+      } else if (wasAborted && abortAction === 'cancel') {
+        updateUploadTask(task.id, (current) => ({ ...current, status: 'canceled', error: undefined }));
+      } else {
+        updateUploadTask(task.id, (current) => ({
+          ...current,
+          status: 'error',
+          error: getUploadErrorMessage(error, `Falha ao enviar ${current.fileName}`),
+        }));
+        toast.error(getUploadErrorMessage(error, `Falha ao enviar ${task.fileName}`));
+      }
     } finally {
+      taskAbortActionRef.current.delete(task.id);
+      taskControllersRef.current.delete(task.id);
       activeTaskIdsRef.current.delete(task.id);
     }
   }, [scheduleInventoryRefresh, updateUploadTask, uploadMediaPointImage, uploadMediaPointVideo, uploadUnitImage, uploadUnitVideo]);
@@ -325,9 +399,11 @@ export function Inventory() {
     const totalFiles = uploadTasks.length;
     const completedFiles = uploadTasks.filter((task) => task.status === 'completed').length;
     const failedFiles = uploadTasks.filter((task) => task.status === 'error').length;
+    const pausedFiles = uploadTasks.filter((task) => task.status === 'paused').length;
+    const canceledFiles = uploadTasks.filter((task) => task.status === 'canceled').length;
     const activeFiles = uploadTasks.filter((task) => task.status === 'uploading').length;
     const queuedFiles = uploadTasks.filter((task) => task.status === 'queued').length;
-    const finishedFiles = completedFiles + failedFiles;
+    const finishedFiles = completedFiles + failedFiles + canceledFiles;
     const remainingFiles = Math.max(0, totalFiles - finishedFiles);
     const totalBytes = uploadTasks.reduce((sum, task) => sum + (task.totalBytes || 0), 0);
     const loadedBytes = uploadTasks.reduce((sum, task) => {
@@ -342,6 +418,8 @@ export function Inventory() {
       failedFiles,
       activeFiles,
       queuedFiles,
+      pausedFiles,
+      canceledFiles,
       remainingFiles,
       totalBytes,
       loadedBytes,
@@ -867,22 +945,31 @@ export function Inventory() {
       )}
 
       {uploadSummary.totalFiles > 0 && (
-        <div className="fixed bottom-6 right-6 z-50 w-full max-w-md">
+        <div
+          className={`fixed bottom-6 right-6 z-50 transition-all duration-200 ${isUploadPanelHovered ? 'w-full max-w-xl' : 'w-full max-w-sm'}`}
+          onMouseEnter={() => setIsUploadPanelHovered(true)}
+          onMouseLeave={() => setIsUploadPanelHovered(false)}
+        >
           <Card className="border-slate-200 shadow-2xl">
-            <CardContent className="space-y-4 pt-5">
+            <CardContent className={`pt-4 ${isUploadPanelHovered ? 'space-y-4' : 'space-y-3'}`}>
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Uploads em segundo plano</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">Uploads de mídia</p>
+                    {uploadSummary.activeFiles > 0 ? <Loader2 className="h-4 w-4 animate-spin text-indigo-600" /> : null}
+                  </div>
                   <p className="text-xs text-slate-600">
-                    {uploadSummary.completedFiles}/{uploadSummary.totalFiles} concluídos · {uploadSummary.remainingFiles} restantes
+                    {uploadSummary.completedFiles}/{uploadSummary.totalFiles} concluídos
+                    {uploadSummary.activeFiles ? ` · ${uploadSummary.activeFiles} enviando` : ''}
                     {uploadSummary.queuedFiles ? ` · ${uploadSummary.queuedFiles} na fila` : ''}
+                    {uploadSummary.pausedFiles ? ` · ${uploadSummary.pausedFiles} pausados` : ''}
                     {uploadSummary.failedFiles ? ` · ${uploadSummary.failedFiles} com erro` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {uploadSummary.activeFiles > 0 ? <Loader2 className="h-4 w-4 animate-spin text-indigo-600" /> : null}
+                  <ChevronUp className={`h-4 w-4 text-slate-500 transition-transform ${isUploadPanelHovered ? 'rotate-180' : ''}`} />
                   <Button type="button" variant="outline" size="sm" onClick={clearFinishedUploads}>
-                    Limpar concluídos
+                    Limpar
                   </Button>
                 </div>
               </div>
@@ -897,58 +984,88 @@ export function Inventory() {
                 </div>
               </div>
 
-              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                {uploadTasks.map((task) => {
-                  const percent = task.totalBytes > 0 ? Math.min(100, (Math.min(task.loadedBytes, task.totalBytes) / task.totalBytes) * 100) : 0;
-                  return (
-                    <div key={task.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900">{task.fileName}</p>
-                          <p className="text-xs text-slate-600">
-                            {task.targetType === 'point' ? task.pointName : `${task.pointName} · ${task.unitLabel || 'Unidade'}`}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {task.kind === 'video' ? 'Vídeo' : 'Imagem'} · {formatBytes(task.totalBytes)}
-                          </p>
-                        </div>
-                        {task.status === 'error' || task.status === 'completed' ? (
-                          <Button type="button" variant="ghost" size="sm" onClick={() => dismissUploadTask(task.id)}>
-                            Fechar
-                          </Button>
-                        ) : (
+              {isUploadPanelHovered ? (
+                <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {uploadTasks.map((task) => {
+                    const percent = task.totalBytes > 0 ? Math.min(100, (Math.min(task.loadedBytes, task.totalBytes) / task.totalBytes) * 100) : 0;
+                    return (
+                      <div key={task.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-slate-900">{task.fileName}</p>
+                            <p className="text-xs text-slate-600">
+                              {task.targetType === 'point' ? task.pointName : `${task.pointName} · ${task.unitLabel || 'Unidade'}`}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {task.kind === 'video' ? 'Vídeo' : 'Imagem'} · {formatBytes(task.totalBytes)}
+                            </p>
+                          </div>
                           <span className="text-xs text-slate-500">
-                            {task.status === 'queued' ? 'Na fila' : `${percent.toFixed(0)}%`}
+                            {task.status === 'queued' ? 'Na fila' : task.status === 'paused' ? 'Pausado' : task.status === 'uploading' ? `${percent.toFixed(0)}%` : task.status === 'completed' ? 'Concluído' : task.status === 'canceled' ? 'Cancelado' : 'Erro'}
                           </span>
-                        )}
-                      </div>
+                        </div>
 
-                      <div className="mt-3 space-y-1">
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className={`h-full rounded-full transition-all ${task.status === 'error' ? 'bg-red-500' : task.status === 'completed' ? 'bg-emerald-500' : 'bg-indigo-500'}`}
-                            style={{ width: `${task.status === 'completed' ? 100 : task.status === 'error' ? Math.max(percent, 8) : percent}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between text-[11px] text-slate-500">
-                          <span>
-                            {task.status === 'queued' && 'Aguardando envio'}
-                            {task.status === 'uploading' && `${formatBytes(task.loadedBytes)} de ${formatBytes(task.totalBytes)}`}
-                            {task.status === 'completed' && 'Upload concluído'}
-                            {task.status === 'error' && (task.error || 'Falha no upload')}
-                          </span>
-                          <span>{task.status === 'uploading' ? 'Enviando…' : task.status === 'queued' ? 'Fila' : task.status === 'completed' ? 'Concluído' : 'Erro'}</span>
+                        <div className="mt-3 space-y-2">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                            <div
+                              className={`h-full rounded-full transition-all ${task.status === 'error' ? 'bg-red-500' : task.status === 'completed' ? 'bg-emerald-500' : task.status === 'paused' ? 'bg-amber-500' : task.status === 'canceled' ? 'bg-slate-400' : 'bg-indigo-500'}`}
+                              style={{ width: `${task.status === 'completed' ? 100 : task.status === 'error' ? Math.max(percent, 8) : task.status === 'canceled' ? Math.max(percent, 8) : percent}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                            <span className="min-w-0 truncate">
+                              {task.status === 'queued' && 'Aguardando envio'}
+                              {task.status === 'paused' && 'Upload pausado'}
+                              {task.status === 'uploading' && `${formatBytes(task.loadedBytes)} de ${formatBytes(task.totalBytes)}`}
+                              {task.status === 'completed' && 'Upload concluído'}
+                              {task.status === 'canceled' && 'Upload cancelado'}
+                              {task.status === 'error' && (task.error || 'Falha no upload')}
+                            </span>
+                            <div className="flex shrink-0 items-center gap-1">
+                              {task.status === 'uploading' ? (
+                                <>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => pauseUploadTask(task.id)}><Pause className="h-3.5 w-3.5" /></Button>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => cancelUploadTask(task.id)}><Ban className="h-3.5 w-3.5" /></Button>
+                                </>
+                              ) : null}
+                              {task.status === 'queued' ? (
+                                <>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => pauseUploadTask(task.id)}><Pause className="h-3.5 w-3.5" /></Button>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => cancelUploadTask(task.id)}><Ban className="h-3.5 w-3.5" /></Button>
+                                </>
+                              ) : null}
+                              {task.status === 'paused' ? (
+                                <>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => resumeUploadTask(task.id)}><Play className="h-3.5 w-3.5" /></Button>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => cancelUploadTask(task.id)}><Ban className="h-3.5 w-3.5" /></Button>
+                                </>
+                              ) : null}
+                              {task.status === 'error' ? (
+                                <>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => retryUploadTask(task.id)}><RotateCcw className="h-3.5 w-3.5" /></Button>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => dismissUploadTask(task.id)}><X className="h-3.5 w-3.5" /></Button>
+                                </>
+                              ) : null}
+                              {(task.status === 'completed' || task.status === 'canceled') ? (
+                                <Button type="button" variant="ghost" size="sm" onClick={() => dismissUploadTask(task.id)}><X className="h-3.5 w-3.5" /></Button>
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>{uploadSummary.remainingFiles} restantes</span>
+                  <span>{uploadSummary.totalFiles} arquivos</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
-
       {/* Dialogs */}
       <MediaPointFormDialog
         open={isFormDialogOpen}

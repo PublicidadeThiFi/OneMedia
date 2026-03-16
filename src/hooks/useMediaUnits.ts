@@ -103,11 +103,13 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     id: string,
     file: File,
     onProgress?: (progress: { loaded: number; total: number }) => void,
+    options?: { signal?: AbortSignal },
   ) => {
     const formData = new FormData();
     formData.append('file', file);
 
     const uploadConfig = {
+      signal: options?.signal,
       onUploadProgress: (event: ProgressEvent) => {
         const loaded = Number(event.loaded ?? 0);
         const total = Number(event.total ?? file.size ?? 0);
@@ -148,11 +150,13 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     id: string,
     file: File,
     onProgress?: (progress: { loaded: number; total: number }) => void,
+    options?: { signal?: AbortSignal },
   ) => {
     const formData = new FormData();
     formData.append('file', file);
 
     const uploadConfig = {
+      signal: options?.signal,
       onUploadProgress: (event: ProgressEvent) => {
         const loaded = Number(event.loaded ?? 0);
         const total = Number(event.total ?? file.size ?? 0);
