@@ -22,7 +22,8 @@ export const displayPlans: DisplayPlan[] = [
     points: 50,
     tag: 'Para começar',
     accent: 'border-blue-500/70',
-    description: 'Gestão completa para o dono do negócio. Todas as ferramentas de venda, financeiro e DOOH libertas para um utilizador. Ideal para quem gere a sua própria operação com profissionalismo e agilidade.',
+    description:
+      'Gestão completa para o dono do negócio. Todas as ferramentas de venda, financeiro e DOOH libertas para um utilizador. Ideal para quem gere a sua própria operação com profissionalismo e agilidade.',
   },
   {
     id: 'core',
@@ -33,7 +34,8 @@ export const displayPlans: DisplayPlan[] = [
     points: 100,
     tag: 'Crescimento',
     accent: 'border-blue-500/70',
-    description: 'Para pequenas equipes que querem escalar. Até 3 usuários com acesso completo às ferramentas de vendas, inventário e financeiro para crescer com organização e velocidade.',
+    description:
+      'Para pequenas equipes que querem escalar. Até 3 usuários com acesso completo às ferramentas de vendas, inventário e financeiro para crescer com organização e velocidade.',
   },
   {
     id: 'start',
@@ -44,7 +46,8 @@ export const displayPlans: DisplayPlan[] = [
     points: 150,
     tag: 'Popular',
     accent: 'border-green-500/70',
-    description: 'O plano escolhido pela maioria das operações em crescimento. Equipe de até 10 pessoas com todos os recursos para vender mais e gerir o inventário com eficiência.',
+    description:
+      'O plano escolhido pela maioria das operações em crescimento. Equipe de até 10 pessoas com todos os recursos para vender mais e gerir o inventário com eficiência.',
   },
   {
     id: 'pro',
@@ -55,7 +58,8 @@ export const displayPlans: DisplayPlan[] = [
     points: 200,
     tag: 'Operações',
     accent: 'border-blue-500/70',
-    description: 'Para operações robustas com múltiplos usuários. Até 15 pessoas com acesso total, recursos avançados de inventário e relatórios para dominar o mercado OOH/DOOH.',
+    description:
+      'Para operações robustas com múltiplos usuários. Até 15 pessoas com acesso total, recursos avançados de inventário e relatórios para dominar o mercado OOH/DOOH.',
   },
 ];
 
@@ -85,15 +89,16 @@ export const proSliderConfig = {
   step: 50,
   basePoints: 250,
   basePrice: 699,
-  pricePer100: 200,
+  pricePerStep: 100,
   users: 20,
 };
 
 export function useProSliderPrice(points: number) {
   return useMemo(() => {
-    const diff = Math.max(0, points - proSliderConfig.basePoints);
-    const increments = diff / 100;
-    const price = proSliderConfig.basePrice + increments * proSliderConfig.pricePer100;
+    const normalizedPoints = Math.max(proSliderConfig.minPoints, Math.min(proSliderConfig.maxPoints, points));
+    const diff = Math.max(0, normalizedPoints - proSliderConfig.basePoints);
+    const increments = diff / proSliderConfig.step;
+    const price = proSliderConfig.basePrice + increments * proSliderConfig.pricePerStep;
     return Math.round(price);
   }, [points]);
 }

@@ -28,7 +28,8 @@ export function usePlatformPlans() {
         ? responseData
         : responseData.data;
 
-      setPlans(data);
+      const ordered = [...data].sort((a, b) => (a.minPoints ?? 0) - (b.minPoints ?? 0));
+      setPlans(ordered);
     } catch (err) {
       setError(err as Error);
     } finally {
