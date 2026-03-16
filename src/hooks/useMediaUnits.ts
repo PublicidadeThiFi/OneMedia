@@ -99,11 +99,23 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     setUnits((prev: MediaUnit[]) => prev.filter((u: MediaUnit) => u.id !== id));
   };
 
-  const uploadUnitImage = async (id: string, file: File) => {
+  const uploadUnitImage = async (
+    id: string,
+    file: File,
+    onProgress?: (progress: { loaded: number; total: number }) => void,
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<MediaUnit>(`/media-units/${id}/image`, formData);
+    const uploadConfig = {
+      onUploadProgress: (event: ProgressEvent) => {
+        const loaded = Number(event.loaded ?? 0);
+        const total = Number(event.total ?? file.size ?? 0);
+        onProgress?.({ loaded, total: total > 0 ? total : file.size });
+      },
+    } as any;
+
+    const response = await apiClient.post<MediaUnit>(`/media-units/${id}/image`, formData, uploadConfig);
 
     setUnits((prev: MediaUnit[]) =>
       prev.map((u: MediaUnit) =>
@@ -132,11 +144,23 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     return results.at(-1) ?? null;
   };
 
-  const uploadUnitVideo = async (id: string, file: File) => {
+  const uploadUnitVideo = async (
+    id: string,
+    file: File,
+    onProgress?: (progress: { loaded: number; total: number }) => void,
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<MediaUnit>(`/media-units/${id}/video`, formData);
+    const uploadConfig = {
+      onUploadProgress: (event: ProgressEvent) => {
+        const loaded = Number(event.loaded ?? 0);
+        const total = Number(event.total ?? file.size ?? 0);
+        onProgress?.({ loaded, total: total > 0 ? total : file.size });
+      },
+    } as any;
+
+    const response = await apiClient.post<MediaUnit>(`/media-units/${id}/video`, formData, uploadConfig);
 
     setUnits((prev: MediaUnit[]) =>
       prev.map((u: MediaUnit) =>
