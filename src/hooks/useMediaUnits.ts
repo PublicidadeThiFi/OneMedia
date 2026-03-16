@@ -13,6 +13,27 @@ type MediaUnitsResponse =
       data: MediaUnit[];
     };
 
+
+async function runWithConcurrency<TInput, TResult>(
+  items: TInput[],
+  worker: (item: TInput) => Promise<TResult>,
+  concurrency = 2,
+): Promise<TResult[]> {
+  const results: TResult[] = new Array(items.length);
+  let cursor = 0;
+
+  const runners = Array.from({ length: Math.max(1, Math.min(concurrency, items.length || 1)) }, async () => {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  });
+
+  await Promise.all(runners);
+  return results;
+}
+
 export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
   const [units, setUnits] = useState<MediaUnit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,7 +47,8 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
       setError(null);
 
       const response = await apiClient.get<MediaUnitsResponse>(
-        `/media-points/${mediaPointId}/units`
+        `/media-points/${mediaPointId}/units`,
+        { params: { detailed: false } }
       );
 
       const responseData = response.data as MediaUnitsResponse;
@@ -41,6 +63,12 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     } finally {
       setLoading(false);
     }
+  };
+
+
+  const getUnitById = async (id: string) => {
+    const response = await apiClient.get<MediaUnit>(`/media-units/${id}`);
+    return response.data;
   };
 
   const createUnit = async (payload: Partial<MediaUnit>) => {
@@ -93,19 +121,15 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
   };
 
   const uploadManyUnitImages = async (id: string, files: File[]) => {
-    let lastResponse: MediaUnit | null = null;
-    for (const file of files) {
-      lastResponse = await uploadUnitImage(id, file);
-    }
-    return lastResponse;
+    if (!files.length) return null;
+    const results = await runWithConcurrency(files, (file) => uploadUnitImage(id, file), 3);
+    return results.at(-1) ?? null;
   };
 
   const uploadManyUnitVideos = async (id: string, files: File[]) => {
-    let lastResponse: MediaUnit | null = null;
-    for (const file of files) {
-      lastResponse = await uploadUnitVideo(id, file);
-    }
-    return lastResponse;
+    if (!files.length) return null;
+    const results = await runWithConcurrency(files, (file) => uploadUnitVideo(id, file), 2);
+    return results.at(-1) ?? null;
   };
 
   const uploadUnitVideo = async (id: string, file: File) => {
@@ -151,6 +175,7 @@ export function useMediaUnits({ mediaPointId }: UseMediaUnitsOptions) {
     error,
     refetch: fetchUnits,
     createUnit,
+    getUnitById,
     updateUnit,
     deleteUnit,
     uploadUnitImage,

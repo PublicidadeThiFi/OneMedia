@@ -10,6 +10,7 @@ export interface UseMediaPointsParams {
   showInMediaKit?: boolean;
   page?: number;
   pageSize?: number;
+  summary?: boolean;
 }
 
 // Resposta pode ser um array direto ou um objeto paginado
@@ -19,6 +20,27 @@ type MediaPointsResponse =
       data: MediaPoint[];
       total?: number;
     };
+
+
+async function runWithConcurrency<TInput, TResult>(
+  items: TInput[],
+  worker: (item: TInput) => Promise<TResult>,
+  concurrency = 2,
+): Promise<TResult[]> {
+  const results: TResult[] = new Array(items.length);
+  let cursor = 0;
+
+  const runners = Array.from({ length: Math.max(1, Math.min(concurrency, items.length || 1)) }, async () => {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  });
+
+  await Promise.all(runners);
+  return results;
+}
 
 export function useMediaPoints(params: UseMediaPointsParams = {}) {
   const [mediaPoints, setMediaPoints] = useState<MediaPoint[]>([]);
@@ -32,7 +54,7 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
       setError(null);
 
       const response = await apiClient.get<MediaPointsResponse>('/media-points', {
-        params,
+        params: { summary: true, ...params },
       });
 
       const responseData = response.data as MediaPointsResponse;
@@ -97,19 +119,15 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
   };
 
   const uploadManyMediaPointImages = async (id: string, files: File[]) => {
-    let lastResponse: MediaPoint | null = null;
-    for (const file of files) {
-      lastResponse = await uploadMediaPointImage(id, file);
-    }
-    return lastResponse;
+    if (!files.length) return null;
+    const results = await runWithConcurrency(files, (file) => uploadMediaPointImage(id, file), 3);
+    return results.at(-1) ?? null;
   };
 
   const uploadManyMediaPointVideos = async (id: string, files: File[]) => {
-    let lastResponse: MediaPoint | null = null;
-    for (const file of files) {
-      lastResponse = await uploadMediaPointVideo(id, file);
-    }
-    return lastResponse;
+    if (!files.length) return null;
+    const results = await runWithConcurrency(files, (file) => uploadMediaPointVideo(id, file), 2);
+    return results.at(-1) ?? null;
   };
 
   const uploadMediaPointVideo = async (id: string, file: File) => {

@@ -114,13 +114,15 @@ export function Inventory() {
   };
 
   const handleEditPoint = async (point: MediaPoint) => {
+    setEditingPoint(point);
+    setIsFormDialogOpen(true);
+
     try {
       const res = await apiClient.get<MediaPoint>(`/media-points/${point.id}`);
-      setEditingPoint(res.data);
+      setEditingPoint((current) => (current?.id === point.id ? ({ ...current, ...res.data } as MediaPoint) : current));
     } catch {
-      setEditingPoint(point);
+      // mantém snapshot já aberto
     }
-    setIsFormDialogOpen(true);
   };
 
   // Deep-link: /app/inventory?pointId=... ou intenção salva em sessionStorage

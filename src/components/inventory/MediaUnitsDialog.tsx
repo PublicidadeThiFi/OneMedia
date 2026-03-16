@@ -92,7 +92,7 @@ export function MediaUnitsDialog({
   mediaPoint,
   onChanged,
 }: MediaUnitsDialogProps) {
-  const { units, loading, error, createUnit, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos, deleteUnitAsset } =
+  const { units, loading, error, createUnit, getUnitById, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos, deleteUnitAsset } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
   const company = useCompany() as any;
@@ -100,6 +100,7 @@ export function MediaUnitsDialog({
   const refreshEntitlements = company?.refreshEntitlements;
   const [isAdding, setIsAdding] = useState(false);
   const [editingUnit, setEditingUnit] = useState<MediaUnit | null>(null);
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -271,7 +272,18 @@ export function MediaUnitsDialog({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setEditingUnit(unit)}
+                            disabled={loadingEditId === unit.id}
+                            onClick={async () => {
+                              setLoadingEditId(unit.id);
+                              try {
+                                const detailed = await getUnitById(unit.id);
+                                setEditingUnit(detailed);
+                              } catch {
+                                setEditingUnit(unit);
+                              } finally {
+                                setLoadingEditId(null);
+                              }
+                            }}
                             title="Editar"
                           >
                             <Edit className="w-4 h-4" />
@@ -571,7 +583,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     }
 
     setVideoFiles((prev) => [...prev, ...files]);
-    setVideoPreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
+    setVideoPreviews([]);
   };
 
   const removePendingImage = (idx: number) => {
@@ -585,11 +597,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
   const removePendingVideo = (idx: number) => {
     setVideoFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
-    setVideoPreviews((prev) => {
-      const target = prev[idx];
-      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
-      return prev.filter((_, currentIdx) => currentIdx !== idx);
-    });
+    setVideoPreviews([]);
   };
 
   const handleDeleteExistingAsset = async (kind: 'image' | 'video', assetId?: string) => {
@@ -679,7 +687,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   return (
                     <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
                       <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                        <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
@@ -701,7 +709,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 {imagePreviews.map((src, idx) => (
                   <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
                     <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                      <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img src={src} alt={`Nova imagem ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-gray-600">Nova imagem {idx + 1}</span>
@@ -733,7 +741,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
             onChange={handleVideoChange}
             className="flex-1"
           />
-          {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
+          {(existingVideoAssets.length > 0 || videoFiles.length > 0) && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -742,7 +750,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   return (
                     <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
                       <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                        <video src={asset.src} className="w-full h-full object-cover" controls muted />
+                        <video src={asset.src} className="w-full h-full object-cover" controls muted preload="metadata" />
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
@@ -761,10 +769,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                     </div>
                   );
                 })}
-                {videoPreviews.map((src, idx) => (
-                  <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
-                    <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                      <video src={src} className="w-full h-full object-cover" controls muted />
+                {videoFiles.map((file, idx) => (
+                  <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-3 space-y-2">
+                    <div className="rounded bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                      <div className="font-medium truncate">{file.name}</div>
+                      <div className="text-xs text-gray-500">{formatBytes(file.size)} • upload pendente</div>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-gray-600">Novo vídeo {idx + 1}</span>
