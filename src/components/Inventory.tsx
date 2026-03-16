@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Card, CardContent } from './ui/card';
@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from './ui/switch';
 import { MediaPoint, MediaType } from '../types';
 import { useMediaPoints } from '../hooks/useMediaPoints';
+import { useMediaUnits } from '../hooks/useMediaUnits';
 import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
 import { useCompany } from '../contexts/CompanyContext';
 import apiClient from '../lib/apiClient';
@@ -23,6 +24,51 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
 
 const OPEN_POINT_STORAGE_KEY = 'ONE_MEDIA_OPEN_INVENTORY_POINT_ID';
+
+type UploadTaskKind = 'image' | 'video';
+type UploadTaskTargetType = 'point' | 'unit';
+type UploadTaskStatus = 'queued' | 'uploading' | 'completed' | 'error';
+
+interface UploadTask {
+  id: string;
+  targetType: UploadTaskTargetType;
+  targetId: string;
+  pointId: string;
+  pointName: string;
+  unitId?: string;
+  unitLabel?: string;
+  kind: UploadTaskKind;
+  file: File;
+  fileName: string;
+  totalBytes: number;
+  loadedBytes: number;
+  status: UploadTaskStatus;
+  error?: string;
+}
+
+const MAX_CONCURRENT_UPLOADS: Record<UploadTaskKind, number> = {
+  image: 3,
+  video: 2,
+};
+
+function formatBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const decimals = size >= 100 || unitIndex === 0 ? 0 : size >= 10 ? 1 : 2;
+  return `${size.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
+function getUploadErrorMessage(error: any, fallback: string) {
+  const rawMessage = error?.response?.data?.message ?? error?.message;
+  if (Array.isArray(rawMessage)) return rawMessage.join(', ');
+  return String(rawMessage || fallback);
+}
 
 export function Inventory() {
   const company = useCompany() as any;
@@ -38,13 +84,23 @@ export function Inventory() {
     setPage(1);
   }, [searchQuery, typeFilter, cityFilter]);
 
-  const { mediaPoints, total, loading, error, refetch, deleteMediaPointAsset } = useMediaPoints({
+  const {
+    mediaPoints,
+    total,
+    loading,
+    error,
+    refetch,
+    deleteMediaPointAsset,
+    uploadMediaPointImage,
+    uploadMediaPointVideo,
+  } = useMediaPoints({
     search: searchQuery || undefined,
     type: typeFilter === 'all' ? undefined : typeFilter,
     city: cityFilter === 'all' ? undefined : cityFilter,
     page,
     pageSize,
   });
+  const { uploadUnitImage, uploadUnitVideo } = useMediaUnits({ mediaPointId: null });
   
   const totalPages = useMemo(() => Math.max(1, Math.ceil((total || 0) / pageSize)), [total, pageSize]);
 
@@ -78,6 +134,220 @@ export function Inventory() {
 
   // Server-side filters applied via hook; render current list
   const filteredPoints = mediaPoints;
+
+  const [uploadTasks, setUploadTasks] = useState<UploadTask[]>([]);
+  const uploadTasksRef = useRef<UploadTask[]>([]);
+  const activeTaskIdsRef = useRef<Set<string>>(new Set());
+  const refreshTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    uploadTasksRef.current = uploadTasks;
+  }, [uploadTasks]);
+
+  const scheduleInventoryRefresh = useCallback(() => {
+    if (refreshTimerRef.current) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      void refetch();
+      void refreshEntitlements?.();
+    }, 900);
+  }, [refetch, refreshEntitlements]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
+    };
+  }, []);
+
+  const updateUploadTask = useCallback((taskId: string, updater: (task: UploadTask) => UploadTask) => {
+    setUploadTasks((prev) => prev.map((task) => (task.id === taskId ? updater(task) : task)));
+  }, []);
+
+  const clearFinishedUploads = useCallback(() => {
+    setUploadTasks((prev) => prev.filter((task) => task.status === 'queued' || task.status === 'uploading' || task.status === 'error'));
+  }, []);
+
+  const dismissUploadTask = useCallback((taskId: string) => {
+    setUploadTasks((prev) => prev.filter((task) => task.id !== taskId));
+  }, []);
+
+  const startUploadTask = useCallback(async (task: UploadTask) => {
+    activeTaskIdsRef.current.add(task.id);
+    updateUploadTask(task.id, (current) => ({ ...current, status: 'uploading', loadedBytes: 0, error: undefined }));
+
+    try {
+      const onProgress = ({ loaded, total }: { loaded: number; total: number }) => {
+        updateUploadTask(task.id, (current) => ({
+          ...current,
+          loadedBytes: Math.min(total || current.totalBytes, loaded),
+          totalBytes: total > 0 ? total : current.totalBytes,
+        }));
+      };
+
+      if (task.targetType === 'point') {
+        if (task.kind === 'image') {
+          await uploadMediaPointImage(task.targetId, task.file, onProgress);
+        } else {
+          await uploadMediaPointVideo(task.targetId, task.file, onProgress);
+        }
+      } else {
+        if (task.kind === 'image') {
+          await uploadUnitImage(task.targetId, task.file, onProgress);
+        } else {
+          await uploadUnitVideo(task.targetId, task.file, onProgress);
+        }
+      }
+
+      updateUploadTask(task.id, (current) => ({
+        ...current,
+        status: 'completed',
+        loadedBytes: current.totalBytes,
+        error: undefined,
+      }));
+      window.dispatchEvent(new CustomEvent('inventory:uploads-updated', { detail: { pointId: task.pointId, targetType: task.targetType, targetId: task.targetId } }));
+      scheduleInventoryRefresh();
+    } catch (error: any) {
+      updateUploadTask(task.id, (current) => ({
+        ...current,
+        status: 'error',
+        error: getUploadErrorMessage(error, `Falha ao enviar ${current.fileName}`),
+      }));
+      toast.error(getUploadErrorMessage(error, `Falha ao enviar ${task.fileName}`));
+    } finally {
+      activeTaskIdsRef.current.delete(task.id);
+    }
+  }, [scheduleInventoryRefresh, updateUploadTask, uploadMediaPointImage, uploadMediaPointVideo, uploadUnitImage, uploadUnitVideo]);
+
+  const pumpUploadQueue = useCallback(() => {
+    const snapshot = uploadTasksRef.current;
+    const activeByKind: Record<UploadTaskKind, number> = { image: 0, video: 0 };
+
+    for (const activeId of activeTaskIdsRef.current) {
+      const activeTask = snapshot.find((task) => task.id === activeId);
+      if (activeTask) activeByKind[activeTask.kind] += 1;
+    }
+
+    for (const task of snapshot) {
+      if (task.status !== 'queued') continue;
+      if (activeTaskIdsRef.current.has(task.id)) continue;
+      if (activeByKind[task.kind] >= MAX_CONCURRENT_UPLOADS[task.kind]) continue;
+      activeByKind[task.kind] += 1;
+      void startUploadTask(task);
+    }
+  }, [startUploadTask]);
+
+  useEffect(() => {
+    pumpUploadQueue();
+  }, [uploadTasks, pumpUploadQueue]);
+
+  const enqueuePointUploads = useCallback((args: { pointId: string; pointName: string; imageFiles?: File[]; videoFiles?: File[] }) => {
+    const imageFiles = args.imageFiles ?? [];
+    const videoFiles = args.videoFiles ?? [];
+    const createdAt = Date.now();
+    const nextTasks: UploadTask[] = [
+      ...imageFiles.map((file, index) => ({
+        id: `point-image-${args.pointId}-${createdAt}-${index}-${crypto.randomUUID()}`,
+        targetType: 'point' as const,
+        targetId: args.pointId,
+        pointId: args.pointId,
+        pointName: args.pointName,
+        kind: 'image' as const,
+        file,
+        fileName: file.name,
+        totalBytes: file.size ?? 0,
+        loadedBytes: 0,
+        status: 'queued' as const,
+      })),
+      ...videoFiles.map((file, index) => ({
+        id: `point-video-${args.pointId}-${createdAt}-${index}-${crypto.randomUUID()}`,
+        targetType: 'point' as const,
+        targetId: args.pointId,
+        pointId: args.pointId,
+        pointName: args.pointName,
+        kind: 'video' as const,
+        file,
+        fileName: file.name,
+        totalBytes: file.size ?? 0,
+        loadedBytes: 0,
+        status: 'queued' as const,
+      })),
+    ];
+
+    if (!nextTasks.length) return;
+    setUploadTasks((prev) => [...prev, ...nextTasks]);
+    toast.success(`${nextTasks.length} arquivo(s) estão sendo enviados em segundo plano.`);
+  }, []);
+
+  const enqueueUnitUploads = useCallback((args: { pointId: string; pointName: string; unitId: string; unitLabel: string; imageFiles?: File[]; videoFiles?: File[] }) => {
+    const imageFiles = args.imageFiles ?? [];
+    const videoFiles = args.videoFiles ?? [];
+    const createdAt = Date.now();
+    const nextTasks: UploadTask[] = [
+      ...imageFiles.map((file, index) => ({
+        id: `unit-image-${args.unitId}-${createdAt}-${index}-${crypto.randomUUID()}`,
+        targetType: 'unit' as const,
+        targetId: args.unitId,
+        pointId: args.pointId,
+        pointName: args.pointName,
+        unitId: args.unitId,
+        unitLabel: args.unitLabel,
+        kind: 'image' as const,
+        file,
+        fileName: file.name,
+        totalBytes: file.size ?? 0,
+        loadedBytes: 0,
+        status: 'queued' as const,
+      })),
+      ...videoFiles.map((file, index) => ({
+        id: `unit-video-${args.unitId}-${createdAt}-${index}-${crypto.randomUUID()}`,
+        targetType: 'unit' as const,
+        targetId: args.unitId,
+        pointId: args.pointId,
+        pointName: args.pointName,
+        unitId: args.unitId,
+        unitLabel: args.unitLabel,
+        kind: 'video' as const,
+        file,
+        fileName: file.name,
+        totalBytes: file.size ?? 0,
+        loadedBytes: 0,
+        status: 'queued' as const,
+      })),
+    ];
+
+    if (!nextTasks.length) return;
+    setUploadTasks((prev) => [...prev, ...nextTasks]);
+    toast.success(`${nextTasks.length} arquivo(s) da unidade estão sendo enviados em segundo plano.`);
+  }, []);
+
+  const uploadSummary = useMemo(() => {
+    const totalFiles = uploadTasks.length;
+    const completedFiles = uploadTasks.filter((task) => task.status === 'completed').length;
+    const failedFiles = uploadTasks.filter((task) => task.status === 'error').length;
+    const activeFiles = uploadTasks.filter((task) => task.status === 'uploading').length;
+    const queuedFiles = uploadTasks.filter((task) => task.status === 'queued').length;
+    const finishedFiles = completedFiles + failedFiles;
+    const remainingFiles = Math.max(0, totalFiles - finishedFiles);
+    const totalBytes = uploadTasks.reduce((sum, task) => sum + (task.totalBytes || 0), 0);
+    const loadedBytes = uploadTasks.reduce((sum, task) => {
+      if (task.status === 'completed') return sum + (task.totalBytes || 0);
+      return sum + Math.min(task.loadedBytes || 0, task.totalBytes || 0);
+    }, 0);
+    const progressPercent = totalBytes > 0 ? Math.min(100, (loadedBytes / totalBytes) * 100) : 0;
+
+    return {
+      totalFiles,
+      completedFiles,
+      failedFiles,
+      activeFiles,
+      queuedFiles,
+      remainingFiles,
+      totalBytes,
+      loadedBytes,
+      progressPercent,
+    };
+  }, [uploadTasks]);
 
   // Handlers
   const handleSavePoint = async (data: Partial<MediaPoint>, _imageFile?: File | null, _videoFile?: File | null) => {
@@ -596,6 +866,89 @@ export function Inventory() {
         </Card>
       )}
 
+      {uploadSummary.totalFiles > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 w-full max-w-md">
+          <Card className="border-slate-200 shadow-2xl">
+            <CardContent className="space-y-4 pt-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Uploads em segundo plano</p>
+                  <p className="text-xs text-slate-600">
+                    {uploadSummary.completedFiles}/{uploadSummary.totalFiles} concluídos · {uploadSummary.remainingFiles} restantes
+                    {uploadSummary.queuedFiles ? ` · ${uploadSummary.queuedFiles} na fila` : ''}
+                    {uploadSummary.failedFiles ? ` · ${uploadSummary.failedFiles} com erro` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {uploadSummary.activeFiles > 0 ? <Loader2 className="h-4 w-4 animate-spin text-indigo-600" /> : null}
+                  <Button type="button" variant="outline" size="sm" onClick={clearFinishedUploads}>
+                    Limpar concluídos
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>{formatBytes(uploadSummary.loadedBytes)} enviados</span>
+                  <span>{formatBytes(uploadSummary.totalBytes)} no total</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${uploadSummary.progressPercent}%` }} />
+                </div>
+              </div>
+
+              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                {uploadTasks.map((task) => {
+                  const percent = task.totalBytes > 0 ? Math.min(100, (Math.min(task.loadedBytes, task.totalBytes) / task.totalBytes) * 100) : 0;
+                  return (
+                    <div key={task.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900">{task.fileName}</p>
+                          <p className="text-xs text-slate-600">
+                            {task.targetType === 'point' ? task.pointName : `${task.pointName} · ${task.unitLabel || 'Unidade'}`}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {task.kind === 'video' ? 'Vídeo' : 'Imagem'} · {formatBytes(task.totalBytes)}
+                          </p>
+                        </div>
+                        {task.status === 'error' || task.status === 'completed' ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => dismissUploadTask(task.id)}>
+                            Fechar
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-slate-500">
+                            {task.status === 'queued' ? 'Na fila' : `${percent.toFixed(0)}%`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-3 space-y-1">
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className={`h-full rounded-full transition-all ${task.status === 'error' ? 'bg-red-500' : task.status === 'completed' ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                            style={{ width: `${task.status === 'completed' ? 100 : task.status === 'error' ? Math.max(percent, 8) : percent}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span>
+                            {task.status === 'queued' && 'Aguardando envio'}
+                            {task.status === 'uploading' && `${formatBytes(task.loadedBytes)} de ${formatBytes(task.totalBytes)}`}
+                            {task.status === 'completed' && 'Upload concluído'}
+                            {task.status === 'error' && (task.error || 'Falha no upload')}
+                          </span>
+                          <span>{task.status === 'uploading' ? 'Enviando…' : task.status === 'queued' ? 'Fila' : task.status === 'completed' ? 'Concluído' : 'Erro'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Dialogs */}
       <MediaPointFormDialog
         open={isFormDialogOpen}
@@ -606,6 +959,7 @@ export function Inventory() {
         mediaPoint={editingPoint}
         onSave={handleSavePoint}
         onDeleteAsset={deleteMediaPointAsset}
+        onEnqueueUploads={enqueuePointUploads}
       />
 
       {ownersDialog.point && (
@@ -635,6 +989,7 @@ export function Inventory() {
           mediaPointType={unitsDialog.point.type}
           mediaPoint={unitsDialog.point}
           onChanged={refetch}
+          onEnqueueUploads={enqueueUnitUploads}
         />
       )}
 

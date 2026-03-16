@@ -15,7 +15,6 @@ import { useCompany } from '../../contexts/CompanyContext';
 import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
 import apiClient from '../../lib/apiClient';
-import { getUploadErrorMessage } from '../../lib/httpErrorMessage';
 import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
 
@@ -130,26 +129,6 @@ function formatBytes(value: number) {
 }
 
 
-async function runWithConcurrency<TInput, TResult>(
-  items: TInput[],
-  worker: (item: TInput) => Promise<TResult>,
-  concurrency = 2,
-): Promise<TResult[]> {
-  const results: TResult[] = new Array(items.length);
-  let cursor = 0;
-
-  const runners = Array.from({ length: Math.max(1, Math.min(concurrency, items.length || 1)) }, async () => {
-    while (cursor < items.length) {
-      const currentIndex = cursor;
-      cursor += 1;
-      results[currentIndex] = await worker(items[currentIndex]);
-    }
-  });
-
-  await Promise.all(runners);
-  return results;
-}
-
 function computePointStorageBytes(point?: Partial<MediaPoint> | null) {
   const pointBytes = parseBytes((point as any)?.storageUsedBytes);
   const unitsBytes = Array.isArray(point?.units)
@@ -165,9 +144,10 @@ interface MediaPointFormDialogProps {
   initialData?: Partial<MediaPoint> | null;
   onSave: (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => Promise<any> | void;
   onDeleteAsset?: (mediaPointId: string, assetId: string) => Promise<any> | void;
+  onEnqueueUploads?: (args: { pointId: string; pointName: string; imageFiles: File[]; videoFiles: File[] }) => Promise<any> | void;
 }
 
-export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave, onDeleteAsset }: MediaPointFormDialogProps) {
+export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave, onDeleteAsset, onEnqueueUploads }: MediaPointFormDialogProps) {
   const company = useCompany() as any;
   const entitlements = company?.entitlements;
   const refreshEntitlements = company?.refreshEntitlements;
@@ -309,6 +289,24 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       window.clearTimeout(geoTimerRef.current ?? undefined);
     };
   }, []);
+
+  useEffect(() => {
+    if (!open || !mediaPoint?.id) return;
+
+    const handleUploadsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ pointId?: string }>).detail;
+      if (detail?.pointId !== mediaPoint.id) return;
+      void apiClient.get<MediaPoint>(`/media-points/${mediaPoint.id}`).then((response) => {
+        setPointSnapshot(response.data);
+        syncExistingAssets(response.data);
+      }).catch(() => undefined);
+    };
+
+    window.addEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+    };
+  }, [mediaPoint?.id, open]);
 
   // Sincroniza pin com lat/lng do form
   useEffect(() => {
@@ -679,27 +677,22 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         throw new Error('O ponto foi salvo, mas o retorno não trouxe o ID para enviar as mídias.');
       }
 
-      await runWithConcurrency(imageFiles, async (file) => {
-        try {
-          await apiClient.post(`/media-points/${targetId}/image`, (() => { const fd = new FormData(); fd.append('file', file); return fd; })());
-        } catch (e: any) {
-          throw new Error(getUploadErrorMessage(e, `Erro ao enviar imagem ${file.name}`));
-        }
-      }, 3);
-
-      await runWithConcurrency(videoFiles, async (file) => {
-        try {
-          await apiClient.post(`/media-points/${targetId}/video`, (() => { const fd = new FormData(); fd.append('file', file); return fd; })());
-        } catch (e: any) {
-          throw new Error(getUploadErrorMessage(e, `Erro ao enviar vídeo ${file.name}`));
-        }
-      }, 2);
-
-      if (imageFiles.length || videoFiles.length) {
-        await refreshEntitlements?.();
+      if ((imageFiles.length || videoFiles.length) && targetId) {
+        await onEnqueueUploads?.({
+          pointId: targetId,
+          pointName: String(payload.name ?? mediaPoint?.name ?? result?.name ?? 'Ponto de mídia'),
+          imageFiles: [...imageFiles],
+          videoFiles: [...videoFiles],
+        });
       }
 
-      toast.success(mediaPoint ? 'Ponto de mídia atualizado com sucesso.' : 'Ponto de mídia criado com sucesso.');
+      toast.success(
+        imageFiles.length || videoFiles.length
+          ? `${mediaPoint ? 'Ponto atualizado' : 'Ponto criado'}. Os uploads continuarão em segundo plano.`
+          : mediaPoint
+            ? 'Ponto de mídia atualizado com sucesso.'
+            : 'Ponto de mídia criado com sucesso.',
+      );
 
       // Só fecha se a operação foi concluída sem erro.
       onOpenChange(false);
@@ -870,7 +863,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                         return (
                           <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
                             <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                              <video src={asset.src} controls muted preload="metadata" className="w-full h-full object-cover" />
+                              <video src={asset.src} controls muted preload="none" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>

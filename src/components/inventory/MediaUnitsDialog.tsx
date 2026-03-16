@@ -12,7 +12,6 @@ import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
 import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { resolveUploadsUrl } from '../../lib/format';
-import { getUploadErrorMessage } from '../../lib/httpErrorMessage';
 import { toast } from 'sonner';
 
 interface MediaUnitsDialogProps {
@@ -23,6 +22,7 @@ interface MediaUnitsDialogProps {
   mediaPointType: MediaType;
   mediaPoint?: MediaPoint | null;
   onChanged?: () => Promise<any> | void;
+  onEnqueueUploads?: (args: { pointId: string; pointName: string; unitId: string; unitLabel: string; imageFiles: File[]; videoFiles: File[] }) => Promise<any> | void;
 }
 
 type UnitFormPayload = Partial<
@@ -91,8 +91,9 @@ export function MediaUnitsDialog({
   mediaPointType,
   mediaPoint,
   onChanged,
+  onEnqueueUploads,
 }: MediaUnitsDialogProps) {
-  const { units, loading, error, createUnit, getUnitById, updateUnit, deleteUnit, uploadManyUnitImages, uploadManyUnitVideos, deleteUnitAsset } =
+  const { units, loading, error, refetch, createUnit, getUnitById, updateUnit, deleteUnit, deleteUnitAsset } =
     useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
   const company = useCompany() as any;
@@ -108,6 +109,21 @@ export function MediaUnitsDialog({
       setEditingUnit(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleUploadsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ pointId?: string }>).detail;
+      if (detail?.pointId !== mediaPointId) return;
+      void refetch();
+    };
+
+    window.addEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+    };
+  }, [mediaPointId, open, refetch]);
 
   const getOrientationLabel = (orientation?: Orientation) => {
     if (!orientation) return '-';
@@ -332,63 +348,47 @@ export function MediaUnitsDialog({
                   const clean = sanitizeUnitPayload(data);
 
                   if (editingUnit) {
-                    await updateUnit(editingUnit.id, clean);
-                    if (imageFiles.length) {
-                      try {
-                        await uploadManyUnitImages(editingUnit.id, imageFiles);
-                        toast.success(`${imageFiles.length} imagem(ns) da unidade enviada(s)!`);
-                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagens da unidade');
-                        toast.error(msg);
-                        throw new Error(msg);
-                      }
-                    }
-                    if (videoFiles.length) {
-                      try {
-                        await uploadManyUnitVideos(editingUnit.id, videoFiles);
-                        toast.success(`${videoFiles.length} vídeo(s) da unidade enviado(s)!`);
-                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeos da unidade');
-                        toast.error(msg);
-                        throw new Error(msg);
-                      }
-                    }
+                    const updated = await updateUnit(editingUnit.id, clean);
                     if (imageFiles.length || videoFiles.length) {
-                      await refreshEntitlements?.();
+                      await onEnqueueUploads?.({
+                        pointId: mediaPointId,
+                        pointName: mediaPointName,
+                        unitId: editingUnit.id,
+                        unitLabel: String(clean.label ?? updated?.label ?? editingUnit.label ?? unitLabel),
+                        imageFiles: [...imageFiles],
+                        videoFiles: [...videoFiles],
+                      });
                     }
                     await onChanged?.();
                     setEditingUnit(null);
+                    toast.success(
+                      imageFiles.length || videoFiles.length
+                        ? 'Unidade salva. Os uploads continuarão em segundo plano.'
+                        : 'Unidade atualizada com sucesso.',
+                    );
                   } else {
                     const created = await createUnit({
                       ...clean,
                       unitType: unitTypeForPoint,
                       label: (clean.label ?? '').toString(),
                     } as any);
-                    if (imageFiles.length) {
-                      try {
-                        await uploadManyUnitImages(created.id, imageFiles);
-                        toast.success(`${imageFiles.length} imagem(ns) da unidade enviada(s)!`);
-                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar imagens da unidade');
-                        toast.error(msg);
-                        throw new Error(msg);
-                      }
-                    }
-                    if (videoFiles.length) {
-                      try {
-                        await uploadManyUnitVideos(created.id, videoFiles);
-                        toast.success(`${videoFiles.length} vídeo(s) da unidade enviado(s)!`);
-                      } catch (e: any) {
-                        const msg = getUploadErrorMessage(e, 'Erro ao enviar vídeos da unidade');
-                        toast.error(msg);
-                        throw new Error(msg);
-                      }
-                    }
                     if (imageFiles.length || videoFiles.length) {
-                      await refreshEntitlements?.();
+                      await onEnqueueUploads?.({
+                        pointId: mediaPointId,
+                        pointName: mediaPointName,
+                        unitId: created.id,
+                        unitLabel: String(clean.label ?? created.label ?? unitLabel),
+                        imageFiles: [...imageFiles],
+                        videoFiles: [...videoFiles],
+                      });
                     }
                     await onChanged?.();
                     setIsAdding(false);
+                    toast.success(
+                      imageFiles.length || videoFiles.length
+                        ? 'Unidade criada. Os uploads continuarão em segundo plano.'
+                        : 'Unidade criada com sucesso.',
+                    );
                   }
 	                } catch (e: any) {
 	                  console.error(e);
@@ -750,7 +750,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   return (
                     <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
                       <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                        <video src={asset.src} className="w-full h-full object-cover" controls muted preload="metadata" />
+                        <video src={asset.src} className="w-full h-full object-cover" controls muted preload="none" />
                       </div>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>

@@ -96,11 +96,23 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     );
   };
 
-  const uploadMediaPointImage = async (id: string, file: File) => {
+  const uploadMediaPointImage = async (
+    id: string,
+    file: File,
+    onProgress?: (progress: { loaded: number; total: number }) => void,
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<MediaPoint>(`/media-points/${id}/image`, formData);
+    const uploadConfig = {
+      onUploadProgress: (event: ProgressEvent) => {
+        const loaded = Number(event.loaded ?? 0);
+        const total = Number(event.total ?? file.size ?? 0);
+        onProgress?.({ loaded, total: total > 0 ? total : file.size });
+      },
+    } as any;
+
+    const response = await apiClient.post<MediaPoint>(`/media-points/${id}/image`, formData, uploadConfig);
 
     setMediaPoints((prev: MediaPoint[]) =>
       prev.map((p: MediaPoint) =>
@@ -130,11 +142,23 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
     return results.at(-1) ?? null;
   };
 
-  const uploadMediaPointVideo = async (id: string, file: File) => {
+  const uploadMediaPointVideo = async (
+    id: string,
+    file: File,
+    onProgress?: (progress: { loaded: number; total: number }) => void,
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await apiClient.post<MediaPoint>(`/media-points/${id}/video`, formData);
+    const uploadConfig = {
+      onUploadProgress: (event: ProgressEvent) => {
+        const loaded = Number(event.loaded ?? 0);
+        const total = Number(event.total ?? file.size ?? 0);
+        onProgress?.({ loaded, total: total > 0 ? total : file.size });
+      },
+    } as any;
+
+    const response = await apiClient.post<MediaPoint>(`/media-points/${id}/video`, formData, uploadConfig);
 
     setMediaPoints((prev: MediaPoint[]) =>
       prev.map((p: MediaPoint) =>
