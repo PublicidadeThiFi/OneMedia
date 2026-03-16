@@ -62,6 +62,11 @@ export default function Cadastro() {
     state: '',
     country: 'Brasil',
     estimatedUsers: '',
+    billingContactName: '',
+    billingEmail: '',
+    billingPhone: '',
+    billingDocument: '',
+    billingPreferredMethod: 'CARTAO',
   });
 
   const [step3Data, setStep3Data] = useState<SignupUserStep>({
@@ -202,6 +207,29 @@ export default function Cadastro() {
       errors.phone = 'Telefone deve ter 10 ou 11 dígitos (com DDD)';
     }
 
+    if (!step2Data.billingContactName.trim()) {
+      errors.billingContactName = 'Responsável financeiro é obrigatório';
+    }
+
+    if (!step2Data.billingEmail.trim()) {
+      errors.billingEmail = 'E-mail financeiro é obrigatório';
+    } else if (!isValidEmail(step2Data.billingEmail)) {
+      errors.billingEmail = getEmailErrorMessage(step2Data.billingEmail) ?? 'E-mail financeiro inválido';
+    }
+
+    if (!step2Data.billingDocument.trim()) {
+      errors.billingDocument = 'CPF ou CNPJ financeiro é obrigatório';
+    } else {
+      const billingDocDigits = onlyDigits(step2Data.billingDocument);
+      if (![11, 14].includes(billingDocDigits.length)) {
+        errors.billingDocument = 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido';
+      }
+    }
+
+    if (step2Data.billingPhone && !isValidPhone(step2Data.billingPhone)) {
+      errors.billingPhone = 'Telefone financeiro deve ter 10 ou 11 dígitos (com DDD)';
+    }
+
     setStep2Errors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -327,6 +355,11 @@ export default function Cadastro() {
             typeof estimatedUsers === 'number' && !Number.isNaN(estimatedUsers)
               ? estimatedUsers
               : undefined,
+          billingContactName: step2Data.billingContactName.trim(),
+          billingEmail: normalizeEmailInput(step2Data.billingEmail),
+          billingPhone: step2Data.billingPhone ? onlyDigits(step2Data.billingPhone) : undefined,
+          billingDocument: onlyDigits(step2Data.billingDocument),
+          billingPreferredMethod: step2Data.billingPreferredMethod,
 
           adminName: step3Data.name,
           adminEmail: normalizeEmailInput(step3Data.email),
@@ -358,6 +391,11 @@ export default function Cadastro() {
             typeof estimatedUsers === 'number' && !Number.isNaN(estimatedUsers)
               ? estimatedUsers
               : undefined,
+          billingContactName: step2Data.billingContactName.trim(),
+          billingEmail: normalizeEmailInput(step2Data.billingEmail),
+          billingPhone: step2Data.billingPhone ? onlyDigits(step2Data.billingPhone) : undefined,
+          billingDocument: onlyDigits(step2Data.billingDocument),
+          billingPreferredMethod: step2Data.billingPreferredMethod,
 
           adminName: step3Data.name,
           adminEmail: normalizeEmailInput(step3Data.email),

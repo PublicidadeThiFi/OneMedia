@@ -855,6 +855,45 @@ export interface PlatformSubscription {
   updatedAt: Date;
 }
 
+export interface PlatformBillingProfile {
+  contactName: string;
+  email: string;
+  phone?: string | null;
+  document?: string | null;
+  preferredMethod: PaymentMethod | 'CARTAO' | 'PIX' | 'BOLETO';
+  gatewayProvider?: string | null;
+  gatewayCustomerId?: string | null;
+  paymentMethodLabel?: string | null;
+  paymentMethodToken?: string | null;
+  autoChargeReady: boolean;
+  updatedAt?: string | null;
+}
+
+export interface PlatformBillingLineItem {
+  code: string;
+  category: 'PLAN' | 'ADDON';
+  title: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  storageGb?: number;
+  trafficGb?: number;
+}
+
+export interface PlatformBillingSummary {
+  subscription: PlatformSubscription | null;
+  billingProfile: PlatformBillingProfile;
+  items: PlatformBillingLineItem[];
+  totals: {
+    planMonthly: number;
+    multiOwnerMonthly: number;
+    addonsMonthly: number;
+    totalMonthly: number;
+  };
+  currentInvoice: PlatformInvoice | null;
+  invoices: PlatformInvoice[];
+}
+
 /**
  * PlatformInvoice - model platform_invoices do schema
  */

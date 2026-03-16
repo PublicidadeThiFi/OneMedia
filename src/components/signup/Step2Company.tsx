@@ -23,6 +23,7 @@ type Step2CompanyProps = {
 export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2CompanyProps) {
   // Phone state management
   const [phoneDigits, setPhoneDigits] = useState(onlyDigits(data.phone));
+  const [billingPhoneDigits, setBillingPhoneDigits] = useState(onlyDigits(data.billingPhone));
   
   // State/UF autocomplete
   const [stateQuery, setStateQuery] = useState(data.state);
@@ -44,6 +45,16 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
     const digits = handlePhoneInput(value);
     setPhoneDigits(digits);
     handleChange('phone', digits); // Store only digits
+  };
+
+  const handleBillingPhoneChange = (value: string) => {
+    const digits = handlePhoneInput(value);
+    setBillingPhoneDigits(digits);
+    handleChange('billingPhone', digits);
+  };
+
+  const handleBillingDocumentChange = (value: string) => {
+    handleChange('billingDocument', onlyDigits(value).slice(0, 14));
   };
 
   // State/UF handling
@@ -270,6 +281,96 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
           <p className="mt-2 text-xs text-gray-500">
             Apenas para inteligência comercial, não afeta o plano
           </p>
+        </div>
+
+        <div className="pt-2 border-t border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Dados financeiros</h3>
+          <p className="text-sm text-gray-600 mb-5">
+            Esses dados serão usados para cobrança da assinatura. O meio real de débito automático será vinculado quando o gateway de pagamento for integrado.
+          </p>
+
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Responsável financeiro <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                value={data.billingContactName}
+                onChange={(e) => handleChange('billingContactName', e.target.value)}
+                placeholder="Ex: Maria Silva"
+                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                  errors.billingContactName ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                }`}
+              />
+              {errors.billingContactName && <p className="mt-2 text-sm text-red-600">{errors.billingContactName}</p>}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  E-mail financeiro <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={data.billingEmail}
+                  onChange={(e) => handleChange('billingEmail', e.target.value)}
+                  placeholder="financeiro@empresa.com.br"
+                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                    errors.billingEmail ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                  }`}
+                />
+                {errors.billingEmail && <p className="mt-2 text-sm text-red-600">{errors.billingEmail}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Telefone financeiro</label>
+                <input
+                  type="tel"
+                  value={formatPhoneDisplay(billingPhoneDigits)}
+                  onChange={(e) => handleBillingPhoneChange(e.target.value)}
+                  placeholder="(11) 99999-9999"
+                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                    errors.billingPhone ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                  }`}
+                />
+                {errors.billingPhone && <p className="mt-2 text-sm text-red-600">{errors.billingPhone}</p>}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  CPF ou CNPJ financeiro <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={data.billingDocument}
+                  onChange={(e) => handleBillingDocumentChange(e.target.value)}
+                  placeholder="Somente números"
+                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                    errors.billingDocument ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                  }`}
+                />
+                {errors.billingDocument && <p className="mt-2 text-sm text-red-600">{errors.billingDocument}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Forma preferida de cobrança <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={data.billingPreferredMethod}
+                  onChange={(e) => handleChange('billingPreferredMethod', e.target.value as SignupCompanyStep['billingPreferredMethod'])}
+                  className="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                >
+                  <option value="CARTAO">Cartão recorrente</option>
+                  <option value="PIX">PIX</option>
+                  <option value="BOLETO">Boleto</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

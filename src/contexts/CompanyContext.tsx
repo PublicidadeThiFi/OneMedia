@@ -27,6 +27,8 @@ import {
   CompanySubscriptionStatus,
   PlatformSubscriptionEntitlementsResponse,
   PlatformSubscriptionAddonCode,
+  PlatformBillingProfile,
+  PlatformBillingSummary,
 } from '../types';
 import {
   AccessBlockReason,
@@ -58,6 +60,7 @@ interface CompanyContextValue {
 
   // Media entitlements (storage/traffic/file limits + usage)
   entitlements: PlatformSubscriptionEntitlementsResponse | null;
+  billingSummary: PlatformBillingSummary | null;
 
   // Computed values
   isTrialActive: boolean;
@@ -76,9 +79,12 @@ interface CompanyContextValue {
   updateCompanyData: (updates: Partial<Company>) => Promise<void>;
   updateSubscriptionData: (updates: Partial<PlatformSubscription>) => Promise<void>;
   purchaseMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
+  removeMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
+  updateBillingProfile: (profile: PlatformBillingProfile) => Promise<void>;
   refreshCompanyData: () => Promise<void>;
   refreshPointsUsed: () => Promise<void>;
   refreshEntitlements: () => Promise<void>;
+  refreshBillingSummary: () => Promise<void>;
 
   // Loading state
   isLoading: boolean;
@@ -160,6 +166,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<PlatformSubscription | null>(null);
   const [plan, setPlan] = useState<PlatformPlan | null>(null);
   const [entitlements, setEntitlements] = useState<PlatformSubscriptionEntitlementsResponse | null>(null);
+  const [billingSummary, setBillingSummary] = useState<PlatformBillingSummary | null>(null);
   const [pointsUsed, setPointsUsed] = useState(0);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -188,6 +195,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       setSubscription(null);
       setPlan(null);
       setEntitlements(null);
+      setBillingSummary(null);
       setPointsUsed(0);
       clearAccessState();
       setIsLoading(false);
@@ -204,6 +212,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setSubscription(null);
         setPlan(null);
         setEntitlements(null);
+        setBillingSummary(null);
         setIsLoading(false);
         return;
       }
@@ -224,6 +233,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         setEntitlements(entResp.data);
       } catch {
         setEntitlements(null);
+      }
+
+      try {
+        const billingResp = await apiClient.get<PlatformBillingSummary>('/platform-subscription/billing-summary');
+        setBillingSummary(billingResp.data);
+      } catch {
+        setBillingSummary(null);
       }
 
       // Plan (optional)
@@ -341,6 +357,15 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshBillingSummary = async () => {
+    try {
+      const billingResp = await apiClient.get<PlatformBillingSummary>('/platform-subscription/billing-summary');
+      setBillingSummary(billingResp.data);
+    } catch {
+      setBillingSummary(null);
+    }
+  };
+
   const purchaseMediaAddon = async (code: PlatformSubscriptionAddonCode, quantity: number) => {
     const q = Math.max(1, Math.floor(quantity || 1));
     const resp = await apiClient.post<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/addons', {
@@ -354,6 +379,23 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     // should immediately unlock the UI. If limits are still exceeded, the next
     // protected request will re-trigger the 402.
     clearAccessState();
+    await refreshBillingSummary();
+  };
+
+  const removeMediaAddon = async (code: PlatformSubscriptionAddonCode, quantity: number) => {
+    const q = Math.max(1, Math.floor(quantity || 1));
+    const resp = await apiClient.post<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/addons/remove', {
+      code,
+      quantity: q,
+    });
+    setEntitlements(resp.data);
+    await refreshBillingSummary();
+  };
+
+  const updateBillingProfile = async (profile: PlatformBillingProfile) => {
+    const resp = await apiClient.put<PlatformBillingSummary>('/platform-subscription/billing-profile', profile);
+    setBillingSummary(resp.data);
+    await loadCompanyData();
   };
 
   const refreshCompanyData = async () => {
@@ -373,6 +415,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     subscription,
     plan,
     entitlements,
+    billingSummary,
 
     isTrialActive,
     daysRemainingInTrial,
@@ -388,9 +431,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     updateCompanyData,
     updateSubscriptionData,
     purchaseMediaAddon,
+    removeMediaAddon,
+    updateBillingProfile,
     refreshCompanyData,
     refreshPointsUsed,
     refreshEntitlements,
+    refreshBillingSummary,
 
     isLoading,
     error,
