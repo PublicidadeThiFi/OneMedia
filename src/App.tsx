@@ -41,6 +41,7 @@ import OAuthCallback from './pages/oauth-callback';
 import { MainApp } from './components/MainApp';
 
 import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
+import { UploadQueueProvider } from './contexts/UploadQueueContext';
 
 // Backward-compatible re-exports (many components import these from "../App")
 export { useNavigation } from './contexts/NavigationContext';
@@ -246,8 +247,10 @@ export default function App() {
         <AuthProvider>
           <CompanyProvider>
             <WaitlistProvider>
-              {renderRoute()}
-              <Toaster richColors position="top-right" />
+              <UploadQueueProvider>
+                {renderRoute()}
+                <Toaster richColors position="top-right" />
+              </UploadQueueProvider>
             </WaitlistProvider>
           </CompanyProvider>
         </AuthProvider>
