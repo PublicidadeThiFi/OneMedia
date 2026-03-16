@@ -129,6 +129,27 @@ function formatBytes(value: number) {
   return `${size.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
+
+async function runWithConcurrency<TInput, TResult>(
+  items: TInput[],
+  worker: (item: TInput) => Promise<TResult>,
+  concurrency = 2,
+): Promise<TResult[]> {
+  const results: TResult[] = new Array(items.length);
+  let cursor = 0;
+
+  const runners = Array.from({ length: Math.max(1, Math.min(concurrency, items.length || 1)) }, async () => {
+    while (cursor < items.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  });
+
+  await Promise.all(runners);
+  return results;
+}
+
 function computePointStorageBytes(point?: Partial<MediaPoint> | null) {
   const pointBytes = parseBytes((point as any)?.storageUsedBytes);
   const unitsBytes = Array.isArray(point?.units)
@@ -400,7 +421,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     }
 
     setVideoFiles((prev) => [...prev, ...files]);
-    setVideoPreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
+    setVideoPreviews([]);
   };
 
   const removePendingImage = (idx: number) => {
@@ -414,11 +435,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   const removePendingVideo = (idx: number) => {
     setVideoFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
-    setVideoPreviews((prev) => {
-      const target = prev[idx];
-      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
-      return prev.filter((_, currentIdx) => currentIdx !== idx);
-    });
+    setVideoPreviews([]);
   };
 
   const handleDeleteExistingAsset = async (kind: 'image' | 'video', assetId?: string) => {
@@ -662,21 +679,21 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         throw new Error('O ponto foi salvo, mas o retorno não trouxe o ID para enviar as mídias.');
       }
 
-      for (const file of imageFiles) {
+      await runWithConcurrency(imageFiles, async (file) => {
         try {
           await apiClient.post(`/media-points/${targetId}/image`, (() => { const fd = new FormData(); fd.append('file', file); return fd; })());
         } catch (e: any) {
           throw new Error(getUploadErrorMessage(e, `Erro ao enviar imagem ${file.name}`));
         }
-      }
+      }, 3);
 
-      for (const file of videoFiles) {
+      await runWithConcurrency(videoFiles, async (file) => {
         try {
           await apiClient.post(`/media-points/${targetId}/video`, (() => { const fd = new FormData(); fd.append('file', file); return fd; })());
         } catch (e: any) {
           throw new Error(getUploadErrorMessage(e, `Erro ao enviar vídeo ${file.name}`));
         }
-      }
+      }, 2);
 
       if (imageFiles.length || videoFiles.length) {
         await refreshEntitlements?.();
@@ -796,7 +813,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                         return (
                           <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
                             <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                              <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} className="w-full h-full object-cover" />
+                              <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
@@ -818,7 +835,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                       {imagePreviews.map((src, idx) => (
                         <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
                           <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                            <img src={src} alt={`Nova imagem ${idx + 1}`} className="w-full h-full object-cover" />
+                            <img src={src} alt={`Nova imagem ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                           </div>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-gray-600">Nova imagem {idx + 1}</span>
@@ -844,7 +861,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
               <div className="space-y-2">
                 <Label>Vídeos do ponto (opcional)</Label>
                 <Input type="file" accept="video/*" multiple onChange={handleVideoChange} />
-                {(existingVideoAssets.length > 0 || videoPreviews.length > 0) && (
+                {(existingVideoAssets.length > 0 || videoFiles.length > 0) && (
                   <div className="mt-2 space-y-2 w-full max-w-2xl">
                     <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -853,7 +870,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                         return (
                           <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
                             <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                              <video src={asset.src} controls muted className="w-full h-full object-cover" />
+                              <video src={asset.src} controls muted preload="metadata" className="w-full h-full object-cover" />
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
@@ -872,10 +889,11 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                           </div>
                         );
                       })}
-                      {videoPreviews.map((src, idx) => (
-                        <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
-                          <div className="h-32 bg-gray-100 rounded overflow-hidden">
-                            <video src={src} controls muted className="w-full h-full object-cover" />
+                      {videoFiles.map((file, idx) => (
+                        <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-3 space-y-2">
+                          <div className="rounded bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                            <div className="font-medium truncate">{file.name}</div>
+                            <div className="text-xs text-gray-500">{formatBytes(file.size)} • upload pendente</div>
                           </div>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs text-gray-600">Novo vídeo {idx + 1}</span>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
-import { MediaPoint, UnitType } from '../../types';
+import { MediaPoint } from '../../types';
 
 type Slide = {
   src: string;
@@ -100,7 +100,7 @@ function CarouselVideo({ src, alt }: { src: string; alt: string }) {
         controls
         muted
         playsInline
-        preload="metadata"
+        preload="none"
         onLoadedData={() => setLoaded(true)}
         onError={() => setLoaded(true)}
       />
@@ -154,51 +154,6 @@ export function MediaPointImageCarousel({
       });
     }
 
-    const units = Array.isArray(point.units) ? point.units : [];
-    for (const u of units) {
-      const kind = u.unitType === UnitType.SCREEN ? 'tela' : 'face';
-      const unitLabel = u.label?.trim();
-
-      const unitGalleryImages = Array.isArray((u as any).galleryImages) && (u as any).galleryImages.length
-        ? (u as any).galleryImages
-        : [u.imageUrl].filter(Boolean);
-      for (const [idx, srcValue] of unitGalleryImages.entries()) {
-        const unitImageSrc = normalizeUploadsUrl(srcValue);
-        if (!unitImageSrc) continue;
-        pushSlide({
-          src: unitImageSrc,
-          label: unitLabel
-            ? idx === 0
-              ? `Imagem da ${kind}: ${unitLabel}`
-              : `Imagem ${idx + 1} da ${kind}: ${unitLabel}`
-            : idx === 0
-              ? `Imagem da ${kind}`
-              : `Imagem ${idx + 1} da ${kind}`,
-          alt: unitLabel ? `${point.name} - ${unitLabel}` : `${point.name} - ${kind}`,
-          kind: 'image',
-        });
-      }
-
-      const unitGalleryVideos = Array.isArray((u as any).galleryVideos) && (u as any).galleryVideos.length
-        ? (u as any).galleryVideos
-        : [u.videoUrl].filter(Boolean);
-      for (const [idx, srcValue] of unitGalleryVideos.entries()) {
-        const unitVideoSrc = normalizeUploadsUrl(srcValue);
-        if (!unitVideoSrc) continue;
-        pushSlide({
-          src: unitVideoSrc,
-          label: unitLabel
-            ? idx === 0
-              ? `Vídeo da ${kind}: ${unitLabel}`
-              : `Vídeo ${idx + 1} da ${kind}: ${unitLabel}`
-            : idx === 0
-              ? `Vídeo da ${kind}`
-              : `Vídeo ${idx + 1} da ${kind}`,
-          alt: unitLabel ? `${point.name} - vídeo - ${unitLabel}` : `${point.name} - vídeo - ${kind}`,
-          kind: 'video',
-        });
-      }
-    }
 
     if (list.length === 0) {
       list.push({
