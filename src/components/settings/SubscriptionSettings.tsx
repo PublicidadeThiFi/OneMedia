@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -11,6 +11,7 @@ import {
   PlatformSubscription,
   PlatformSubscriptionStatus,
   PlatformSubscriptionAddonCode,
+  PlatformBillingProfile,
 } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
 import { getFriendlyPlanLabel, getMultiOwnerPlanPrice, getMultiOwnerPlanName, getMultiOwnerPriceCents } from '../../lib/plans';
@@ -73,7 +74,16 @@ export function SubscriptionSettings({
   pointsUsed,
   onUpdateSubscription,
 }: SubscriptionSettingsProps) {
-  const { entitlements, purchaseMediaAddon, refreshEntitlements, blockReason } = useCompany();
+  const {
+    entitlements,
+    billingSummary,
+    purchaseMediaAddon,
+    removeMediaAddon,
+    updateBillingProfile,
+    refreshEntitlements,
+    refreshBillingSummary,
+    blockReason,
+  } = useCompany();
 
   const sortedPlans = useMemo(
     () => [...plans].sort((a, b) => (a.minPoints ?? 0) - (b.minPoints ?? 0)),
@@ -90,6 +100,21 @@ export function SubscriptionSettings({
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
+  const [addonRemoving, setAddonRemoving] = useState<PlatformSubscriptionAddonCode | null>(null);
+  const [isSavingBilling, setIsSavingBilling] = useState(false);
+  const [billingForm, setBillingForm] = useState<PlatformBillingProfile>({
+    contactName: '',
+    email: '',
+    phone: '',
+    document: '',
+    preferredMethod: 'CARTAO',
+    autoChargeReady: false,
+  });
+
+  useEffect(() => {
+    if (!billingSummary?.billingProfile) return;
+    setBillingForm(billingSummary.billingProfile);
+  }, [billingSummary]);
 
   const selectedPlan = useMemo(
     () => sortedPlans.find((p) => p.id === selectedPlanId) || null,
@@ -112,7 +137,11 @@ export function SubscriptionSettings({
     ? getMultiOwnerPriceCents(selectedMaxOwners)
     : getMultiOwnerPlanPrice(selectedMaxOwners);
 
-  const baseMonthlyPrice = planMonthlyPrice + multiOwnerPlanPrice;
+  const normalizedPlanMonthlyPrice = priceIsCents ? planMonthlyPrice / 100 : planMonthlyPrice;
+  const normalizedMultiOwnerPrice = priceIsCents ? multiOwnerPlanPrice / 100 : multiOwnerPlanPrice;
+  const baseMonthlyPrice = normalizedPlanMonthlyPrice + normalizedMultiOwnerPrice;
+  const addonMonthlyTotal = billingSummary?.totals?.addonsMonthly ?? 0;
+  const totalMonthlyEstimate = baseMonthlyPrice + addonMonthlyTotal;
 
   const handleSave = async () => {
     if (!selectedPlan) {
@@ -180,6 +209,55 @@ export function SubscriptionSettings({
       toast.error(e?.response?.data?.message || 'Erro ao adicionar add-on.');
     } finally {
       setAddonLoading(null);
+    }
+  };
+
+  const handleRemoveAddon = async (code: PlatformSubscriptionAddonCode) => {
+    const addon = MEDIA_ADDONS.find((a) => a.code === code);
+    if (!addon) return;
+
+    const ok = window.confirm(`Remover 1 unidade de ${addon.title} da sua assinatura mensal?`);
+    if (!ok) return;
+
+    try {
+      setAddonRemoving(code);
+      await removeMediaAddon(code, 1);
+      toast.success('Add-on removido com sucesso.');
+      await refreshEntitlements();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Erro ao remover add-on.');
+    } finally {
+      setAddonRemoving(null);
+    }
+  };
+
+  const handleBillingField = (field: keyof PlatformBillingProfile, value: string) => {
+    setBillingForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveBilling = async () => {
+    if (!billingForm.contactName?.trim()) {
+      toast.error('Informe o responsável financeiro.');
+      return;
+    }
+    if (!billingForm.email?.trim()) {
+      toast.error('Informe o e-mail financeiro.');
+      return;
+    }
+    if (!billingForm.document?.trim()) {
+      toast.error('Informe o CPF ou CNPJ financeiro.');
+      return;
+    }
+
+    try {
+      setIsSavingBilling(true);
+      await updateBillingProfile(billingForm);
+      await refreshBillingSummary();
+      toast.success('Dados financeiros atualizados.');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Erro ao salvar dados financeiros.');
+    } finally {
+      setIsSavingBilling(false);
     }
   };
 
@@ -313,9 +391,17 @@ export function SubscriptionSettings({
                         const qty = addonCount(entitlements.addons, a.code);
                         if (!qty) return null;
                         return (
-                          <Badge key={a.code} className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100">
-                            {a.title} ×{qty}
-                          </Badge>
+                          <div key={a.code} className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-indigo-800">
+                            <span className="text-xs font-medium">{a.title} ×{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAddon(a.code)}
+                              disabled={addonRemoving != null}
+                              className="text-[11px] font-semibold hover:underline disabled:opacity-50"
+                            >
+                              {addonRemoving === a.code ? 'Removendo...' : 'Remover 1'}
+                            </button>
+                          </div>
                         );
                       })}
                       {(!entitlements.addons || entitlements.addons.length === 0) && (
@@ -421,18 +507,143 @@ export function SubscriptionSettings({
 
           <Card className="border-amber-200 bg-amber-50">
             <CardContent className="p-4 text-sm text-amber-900">
-              <b>Pagamento ainda não integrado.</b> Este fluxo já está preparado para integração futura:
-              ao salvar, o backend valida downgrade (pontos e proprietários por ponto) e persiste o plano.
+              <b>Pagamento automático ainda depende do gateway.</b> Nesta etapa o sistema já salva os dados financeiros,
+              consolida o total mensal e controla assinatura, mídia extra e multi-proprietários.
               <br />
-              <span className="text-xs">(TODO: integrar gateway e prorrateio)</span>
+              <span className="text-xs">A tokenização real do meio de pagamento (cartão/PIX/boleto) entra na integração do gateway.</span>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200">
+            <CardHeader>
+              <CardTitle className="text-base">Dados financeiros</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium mb-2">Responsável financeiro</div>
+                  <input
+                    type="text"
+                    value={billingForm.contactName || ''}
+                    onChange={(e) => handleBillingField('contactName', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">E-mail financeiro</div>
+                  <input
+                    type="email"
+                    value={billingForm.email || ''}
+                    onChange={(e) => handleBillingField('email', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Telefone</div>
+                  <input
+                    type="text"
+                    value={billingForm.phone || ''}
+                    onChange={(e) => handleBillingField('phone', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">CPF ou CNPJ</div>
+                  <input
+                    type="text"
+                    value={billingForm.document || ''}
+                    onChange={(e) => handleBillingField('document', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm font-medium mb-2">Forma preferida de cobrança</div>
+                <Select
+                  value={String(billingForm.preferredMethod || 'CARTAO')}
+                  onValueChange={(value: string) => handleBillingField('preferredMethod', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CARTAO">Cartão recorrente</SelectItem>
+                    <SelectItem value="PIX">PIX</SelectItem>
+                    <SelectItem value="BOLETO">Boleto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600">
+                {billingSummary?.billingProfile?.autoChargeReady ? (
+                  <span>Meio de pagamento tokenizado e pronto para cobrança automática.</span>
+                ) : (
+                  <span>O meio de pagamento ainda não foi tokenizado. Isso será feito quando o gateway for integrado.</span>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={handleSaveBilling} disabled={isSavingBilling}>
+                  {isSavingBilling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar dados financeiros'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-gray-200">
+            <CardHeader>
+              <CardTitle className="text-base">Resumo mensal da cobrança</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span>Plano de pontos</span>
+                  <span>{formatCurrency(normalizedPlanMonthlyPrice)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Multi-proprietários</span>
+                  <span>{formatCurrency(normalizedMultiOwnerPrice)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Mídia extra</span>
+                  <span>{formatCurrency(addonMonthlyTotal)}</span>
+                </div>
+                <div className="border-t pt-2 flex items-center justify-between font-semibold text-base">
+                  <span>Total mensal</span>
+                  <span>{formatCurrency(totalMonthlyEstimate)}</span>
+                </div>
+              </div>
+
+              {!!billingSummary?.invoices?.length && (
+                <div className="pt-3 border-t border-gray-100 space-y-2">
+                  <div className="text-sm font-medium">Faturas registradas</div>
+                  <div className="space-y-2">
+                    {billingSummary.invoices.slice(0, 4).map((invoice) => (
+                      <div key={invoice.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                        <span>{String(invoice.competenceMonth).padStart(2, '0')}/{invoice.competenceYear}</span>
+                        <span>{formatCurrency(invoice.amount)}</span>
+                        <Badge variant="outline">{invoice.status}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
             <div>
-              <div className="text-sm text-gray-600">Total mensal (estimado)</div>
-              <div className="text-lg font-semibold">{formatCurrency(baseMonthlyPrice, priceIsCents)}</div>
-              <div className="text-xs text-gray-500">Plano de pontos + assinatura multi-proprietários.</div>
+              <div className="text-sm text-gray-600">Total mensal consolidado</div>
+              <div className="text-lg font-semibold">{formatCurrency(totalMonthlyEstimate)}</div>
+              <div className="text-xs text-gray-500">Plano + multi-proprietários + mídia extra.</div>
             </div>
 
             <Button onClick={handleSave} disabled={!hasChanges || isUpdating || !!plansLoading}>

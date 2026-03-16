@@ -28,6 +28,11 @@ export type SignupCompanyStep = {
   state: string;
   country: string;
   estimatedUsers: string;
+  billingContactName: string;
+  billingEmail: string;
+  billingPhone: string;
+  billingDocument: string;
+  billingPreferredMethod: 'CARTAO' | 'PIX' | 'BOLETO';
 };
 
 export type SignupUserStep = {
@@ -78,6 +83,11 @@ export interface SignupRequestDto {
   addressState?: string;
   addressCountry?: string;
   estimatedUsers?: number;
+  billingContactName: string;
+  billingEmail: string;
+  billingPhone?: string;
+  billingDocument: string;
+  billingPreferredMethod: 'CARTAO' | 'PIX' | 'BOLETO';
 
   adminName: string;
   adminEmail: string;
@@ -113,6 +123,11 @@ export interface CompleteOAuthSignupRequestDto {
   addressState?: string;
   addressCountry?: string;
   estimatedUsers?: number;
+  billingContactName: string;
+  billingEmail: string;
+  billingPhone?: string;
+  billingDocument: string;
+  billingPreferredMethod: 'CARTAO' | 'PIX' | 'BOLETO';
 
   adminName: string;
   adminEmail: string;
