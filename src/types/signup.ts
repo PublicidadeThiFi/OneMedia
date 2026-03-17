@@ -29,10 +29,19 @@ export type SignupCompanyStep = {
   country: string;
   estimatedUsers: string;
   billingContactName: string;
+  billingLegalName: string;
   billingEmail: string;
   billingPhone: string;
   billingDocument: string;
   billingPreferredMethod: 'CARTAO' | 'PIX' | 'BOLETO';
+  billingAddressZipcode: string;
+  billingAddressStreet: string;
+  billingAddressNumber: string;
+  billingAddressComplement: string;
+  billingAddressDistrict: string;
+  billingAddressCity: string;
+  billingAddressState: string;
+  billingAddressCountry: string;
 };
 
 export type SignupUserStep = {
@@ -84,10 +93,19 @@ export interface SignupRequestDto {
   addressCountry?: string;
   estimatedUsers?: number;
   billingContactName: string;
+  billingLegalName: string;
   billingEmail: string;
   billingPhone?: string;
   billingDocument: string;
   billingPreferredMethod: 'CARTAO' | 'PIX' | 'BOLETO';
+  billingAddressZipcode: string;
+  billingAddressStreet: string;
+  billingAddressNumber: string;
+  billingAddressComplement?: string;
+  billingAddressDistrict: string;
+  billingAddressCity: string;
+  billingAddressState: string;
+  billingAddressCountry: string;
 
   adminName: string;
   adminEmail: string;
@@ -124,10 +142,19 @@ export interface CompleteOAuthSignupRequestDto {
   addressCountry?: string;
   estimatedUsers?: number;
   billingContactName: string;
+  billingLegalName: string;
   billingEmail: string;
   billingPhone?: string;
   billingDocument: string;
   billingPreferredMethod: 'CARTAO' | 'PIX' | 'BOLETO';
+  billingAddressZipcode: string;
+  billingAddressStreet: string;
+  billingAddressNumber: string;
+  billingAddressComplement?: string;
+  billingAddressDistrict: string;
+  billingAddressCity: string;
+  billingAddressState: string;
+  billingAddressCountry: string;
 
   adminName: string;
   adminEmail: string;

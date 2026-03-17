@@ -857,14 +857,26 @@ export interface PlatformSubscription {
 
 export interface PlatformBillingProfile {
   contactName: string;
+  legalName?: string | null;
   email: string;
   phone?: string | null;
   document?: string | null;
+  documentType?: 'CPF' | 'CNPJ' | null;
   preferredMethod: PaymentMethod | 'CARTAO' | 'PIX' | 'BOLETO';
+  addressZipcode?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressComplement?: string | null;
+  addressDistrict?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressCountry?: string | null;
   gatewayProvider?: string | null;
   gatewayCustomerId?: string | null;
   paymentMethodLabel?: string | null;
   paymentMethodToken?: string | null;
+  paymentMethodStatus?: 'PENDENTE' | 'AGUARDANDO_VINCULACAO' | 'PRONTO_PARA_COBRANCA' | null;
+  paymentMethodStatusLabel?: string | null;
   autoChargeReady: boolean;
   updatedAt?: string | null;
 }

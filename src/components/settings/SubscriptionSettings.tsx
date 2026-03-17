@@ -47,6 +47,19 @@ function statusLabel(status: PlatformSubscriptionStatus) {
   }
 }
 
+
+function billingMethodStatusVariant(status?: PlatformBillingProfile['paymentMethodStatus']): 'default' | 'secondary' | 'outline' {
+  switch (status) {
+    case 'PRONTO_PARA_COBRANCA':
+      return 'default';
+    case 'AGUARDANDO_VINCULACAO':
+      return 'secondary';
+    case 'PENDENTE':
+    default:
+      return 'outline';
+  }
+}
+
 const MEDIA_ADDONS: Array<{
   code: PlatformSubscriptionAddonCode;
   title: string;
@@ -104,10 +117,21 @@ export function SubscriptionSettings({
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [billingForm, setBillingForm] = useState<PlatformBillingProfile>({
     contactName: '',
+    legalName: '',
     email: '',
     phone: '',
     document: '',
     preferredMethod: 'CARTAO',
+    addressZipcode: '',
+    addressStreet: '',
+    addressNumber: '',
+    addressComplement: '',
+    addressDistrict: '',
+    addressCity: '',
+    addressState: '',
+    addressCountry: 'Brasil',
+    paymentMethodStatus: 'PENDENTE',
+    paymentMethodStatusLabel: 'Dados financeiros pendentes',
     autoChargeReady: false,
   });
 
@@ -240,12 +264,44 @@ export function SubscriptionSettings({
       toast.error('Informe o responsável financeiro.');
       return;
     }
+    if (!billingForm.legalName?.trim()) {
+      toast.error('Informe o nome ou razão social para cobrança.');
+      return;
+    }
     if (!billingForm.email?.trim()) {
       toast.error('Informe o e-mail financeiro.');
       return;
     }
     if (!billingForm.document?.trim()) {
       toast.error('Informe o CPF ou CNPJ financeiro.');
+      return;
+    }
+    if (!billingForm.addressZipcode?.trim()) {
+      toast.error('Informe o CEP de cobrança.');
+      return;
+    }
+    if (!billingForm.addressStreet?.trim()) {
+      toast.error('Informe o logradouro de cobrança.');
+      return;
+    }
+    if (!billingForm.addressNumber?.trim()) {
+      toast.error('Informe o número do endereço de cobrança.');
+      return;
+    }
+    if (!billingForm.addressDistrict?.trim()) {
+      toast.error('Informe o bairro de cobrança.');
+      return;
+    }
+    if (!billingForm.addressCity?.trim()) {
+      toast.error('Informe a cidade de cobrança.');
+      return;
+    }
+    if (!billingForm.addressState?.trim()) {
+      toast.error('Informe o estado/UF de cobrança.');
+      return;
+    }
+    if (!billingForm.addressCountry?.trim()) {
+      toast.error('Informe o país de cobrança.');
       return;
     }
 
@@ -519,6 +575,22 @@ export function SubscriptionSettings({
               <CardTitle className="text-base">Dados financeiros</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Status do método de pagamento</div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    {billingSummary?.billingProfile?.paymentMethodStatusLabel || 'Aguardando configuração do Mercado Pago'}
+                  </div>
+                </div>
+                <Badge variant={billingMethodStatusVariant(billingSummary?.billingProfile?.paymentMethodStatus)}>
+                  {billingSummary?.billingProfile?.paymentMethodStatus === 'PRONTO_PARA_COBRANCA'
+                    ? 'Pronto para cobrança'
+                    : billingSummary?.billingProfile?.paymentMethodStatus === 'AGUARDANDO_VINCULACAO'
+                      ? 'Aguardando vínculo'
+                      : 'Pendente'}
+                </Badge>
+              </div>
+
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm font-medium mb-2">Responsável financeiro</div>
@@ -526,6 +598,15 @@ export function SubscriptionSettings({
                     type="text"
                     value={billingForm.contactName || ''}
                     onChange={(e) => handleBillingField('contactName', e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Nome / razão social para cobrança</div>
+                  <input
+                    type="text"
+                    value={billingForm.legalName || ''}
+                    onChange={(e) => handleBillingField('legalName', e.target.value)}
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
@@ -556,30 +637,107 @@ export function SubscriptionSettings({
                     className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Forma preferida de cobrança</div>
+                  <Select
+                    value={String(billingForm.preferredMethod || 'CARTAO')}
+                    onValueChange={(value: string) => handleBillingField('preferredMethod', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CARTAO">Cartão recorrente</SelectItem>
+                      <SelectItem value="PIX">PIX</SelectItem>
+                      <SelectItem value="BOLETO">Boleto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div>
-                <div className="text-sm font-medium mb-2">Forma preferida de cobrança</div>
-                <Select
-                  value={String(billingForm.preferredMethod || 'CARTAO')}
-                  onValueChange={(value: string) => handleBillingField('preferredMethod', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CARTAO">Cartão recorrente</SelectItem>
-                    <SelectItem value="PIX">PIX</SelectItem>
-                    <SelectItem value="BOLETO">Boleto</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-4">
+                <div className="text-sm font-medium text-gray-900">Endereço de cobrança</div>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-sm font-medium mb-2">CEP</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressZipcode || ''}
+                      onChange={(e) => handleBillingField('addressZipcode', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="text-sm font-medium mb-2">Logradouro</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressStreet || ''}
+                      onChange={(e) => handleBillingField('addressStreet', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium mb-2">Número</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressNumber || ''}
+                      onChange={(e) => handleBillingField('addressNumber', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <div className="text-sm font-medium mb-2">Complemento</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressComplement || ''}
+                      onChange={(e) => handleBillingField('addressComplement', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium mb-2">Bairro</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressDistrict || ''}
+                      onChange={(e) => handleBillingField('addressDistrict', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium mb-2">Cidade</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressCity || ''}
+                      onChange={(e) => handleBillingField('addressCity', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium mb-2">Estado / UF</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressState || ''}
+                      onChange={(e) => handleBillingField('addressState', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
+                    <div className="text-sm font-medium mb-2">País</div>
+                    <input
+                      type="text"
+                      value={billingForm.addressCountry || ''}
+                      onChange={(e) => handleBillingField('addressCountry', e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600">
                 {billingSummary?.billingProfile?.autoChargeReady ? (
                   <span>Meio de pagamento tokenizado e pronto para cobrança automática.</span>
                 ) : (
-                  <span>O meio de pagamento ainda não foi tokenizado. Isso será feito quando o gateway for integrado.</span>
+                  <span>Os dados financeiros já estão prontos. A tokenização do cartão e a ativação automática entram na próxima etapa com o Mercado Pago.</span>
                 )}
               </div>
 

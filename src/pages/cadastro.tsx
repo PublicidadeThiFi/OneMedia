@@ -63,10 +63,19 @@ export default function Cadastro() {
     country: 'Brasil',
     estimatedUsers: '',
     billingContactName: '',
+    billingLegalName: '',
     billingEmail: '',
     billingPhone: '',
     billingDocument: '',
     billingPreferredMethod: 'CARTAO',
+    billingAddressZipcode: '',
+    billingAddressStreet: '',
+    billingAddressNumber: '',
+    billingAddressComplement: '',
+    billingAddressDistrict: '',
+    billingAddressCity: '',
+    billingAddressState: '',
+    billingAddressCountry: 'Brasil',
   });
 
   const [step3Data, setStep3Data] = useState<SignupUserStep>({
@@ -211,6 +220,10 @@ export default function Cadastro() {
       errors.billingContactName = 'Responsável financeiro é obrigatório';
     }
 
+    if (!step2Data.billingLegalName.trim()) {
+      errors.billingLegalName = 'Nome ou razão social para cobrança é obrigatório';
+    }
+
     if (!step2Data.billingEmail.trim()) {
       errors.billingEmail = 'E-mail financeiro é obrigatório';
     } else if (!isValidEmail(step2Data.billingEmail)) {
@@ -228,6 +241,36 @@ export default function Cadastro() {
 
     if (step2Data.billingPhone && !isValidPhone(step2Data.billingPhone)) {
       errors.billingPhone = 'Telefone financeiro deve ter 10 ou 11 dígitos (com DDD)';
+    }
+
+    if (!step2Data.billingAddressZipcode.trim()) {
+      errors.billingAddressZipcode = 'CEP de cobrança é obrigatório';
+    } else if (onlyDigits(step2Data.billingAddressZipcode).length !== 8) {
+      errors.billingAddressZipcode = 'CEP de cobrança deve ter 8 dígitos';
+    }
+
+    if (!step2Data.billingAddressStreet.trim()) {
+      errors.billingAddressStreet = 'Rua de cobrança é obrigatória';
+    }
+
+    if (!step2Data.billingAddressNumber.trim()) {
+      errors.billingAddressNumber = 'Número de cobrança é obrigatório';
+    }
+
+    if (!step2Data.billingAddressDistrict.trim()) {
+      errors.billingAddressDistrict = 'Bairro de cobrança é obrigatório';
+    }
+
+    if (!step2Data.billingAddressCity.trim()) {
+      errors.billingAddressCity = 'Cidade de cobrança é obrigatória';
+    }
+
+    if (!step2Data.billingAddressState.trim()) {
+      errors.billingAddressState = 'Estado/UF de cobrança é obrigatório';
+    }
+
+    if (!step2Data.billingAddressCountry.trim()) {
+      errors.billingAddressCountry = 'País de cobrança é obrigatório';
     }
 
     setStep2Errors(errors);
@@ -356,10 +399,19 @@ export default function Cadastro() {
               ? estimatedUsers
               : undefined,
           billingContactName: step2Data.billingContactName.trim(),
+          billingLegalName: step2Data.billingLegalName.trim(),
           billingEmail: normalizeEmailInput(step2Data.billingEmail),
           billingPhone: step2Data.billingPhone ? onlyDigits(step2Data.billingPhone) : undefined,
           billingDocument: onlyDigits(step2Data.billingDocument),
           billingPreferredMethod: step2Data.billingPreferredMethod,
+          billingAddressZipcode: onlyDigits(step2Data.billingAddressZipcode),
+          billingAddressStreet: step2Data.billingAddressStreet.trim(),
+          billingAddressNumber: step2Data.billingAddressNumber.trim(),
+          billingAddressComplement: step2Data.billingAddressComplement.trim() || undefined,
+          billingAddressDistrict: step2Data.billingAddressDistrict.trim(),
+          billingAddressCity: step2Data.billingAddressCity.trim(),
+          billingAddressState: step2Data.billingAddressState.trim(),
+          billingAddressCountry: step2Data.billingAddressCountry.trim(),
 
           adminName: step3Data.name,
           adminEmail: normalizeEmailInput(step3Data.email),
@@ -392,10 +444,19 @@ export default function Cadastro() {
               ? estimatedUsers
               : undefined,
           billingContactName: step2Data.billingContactName.trim(),
+          billingLegalName: step2Data.billingLegalName.trim(),
           billingEmail: normalizeEmailInput(step2Data.billingEmail),
           billingPhone: step2Data.billingPhone ? onlyDigits(step2Data.billingPhone) : undefined,
           billingDocument: onlyDigits(step2Data.billingDocument),
           billingPreferredMethod: step2Data.billingPreferredMethod,
+          billingAddressZipcode: onlyDigits(step2Data.billingAddressZipcode),
+          billingAddressStreet: step2Data.billingAddressStreet.trim(),
+          billingAddressNumber: step2Data.billingAddressNumber.trim(),
+          billingAddressComplement: step2Data.billingAddressComplement.trim() || undefined,
+          billingAddressDistrict: step2Data.billingAddressDistrict.trim(),
+          billingAddressCity: step2Data.billingAddressCity.trim(),
+          billingAddressState: step2Data.billingAddressState.trim(),
+          billingAddressCountry: step2Data.billingAddressCountry.trim(),
 
           adminName: step3Data.name,
           adminEmail: normalizeEmailInput(step3Data.email),
