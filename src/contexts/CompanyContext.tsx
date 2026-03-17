@@ -29,6 +29,7 @@ import {
   PlatformSubscriptionAddonCode,
   PlatformBillingProfile,
   PlatformBillingSummary,
+  ActivateMercadoPagoCardPayload,
 } from '../types';
 import {
   AccessBlockReason,
@@ -81,6 +82,7 @@ interface CompanyContextValue {
   purchaseMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
   removeMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
   updateBillingProfile: (profile: PlatformBillingProfile) => Promise<void>;
+  activateMercadoPagoCard: (payload: ActivateMercadoPagoCardPayload) => Promise<void>;
   refreshCompanyData: () => Promise<void>;
   refreshPointsUsed: () => Promise<void>;
   refreshEntitlements: () => Promise<void>;
@@ -398,6 +400,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     await loadCompanyData();
   };
 
+  const activateMercadoPagoCard = async (payload: ActivateMercadoPagoCardPayload) => {
+    const resp = await apiClient.post<PlatformBillingSummary>('/platform-subscription/mercado-pago/activate-card', payload);
+    setBillingSummary(resp.data);
+    await loadCompanyData();
+  };
+
   const refreshCompanyData = async () => {
     await loadCompanyData();
   };
@@ -433,6 +441,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     purchaseMediaAddon,
     removeMediaAddon,
     updateBillingProfile,
+    activateMercadoPagoCard,
     refreshCompanyData,
     refreshPointsUsed,
     refreshEntitlements,

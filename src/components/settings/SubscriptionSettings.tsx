@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Progress } from '../ui/progress';
-import { AlertCircle, CheckCircle2, Crown, Info, Loader2, HardDrive, Wifi } from 'lucide-react';
+import { AlertCircle, CheckCircle2, CreditCard, Crown, Info, Loader2, HardDrive, Wifi } from 'lucide-react';
 import {
   Company,
   PlatformPlan,
@@ -79,6 +79,40 @@ function addonCount(addons: { code: PlatformSubscriptionAddonCode; quantity: num
   return Math.max(0, Math.floor(line?.quantity ?? 0));
 }
 
+
+function onlyDigitsValue(value?: string | null) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+let mercadoPagoSdkPromise: Promise<any> | null = null;
+
+async function loadMercadoPagoSdk() {
+  if (typeof window === 'undefined') {
+    throw new Error('Mercado Pago indisponível neste ambiente.');
+  }
+  if ((window as any).MercadoPago) {
+    return (window as any).MercadoPago;
+  }
+  if (!mercadoPagoSdkPromise) {
+    mercadoPagoSdkPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-mercado-pago-sdk="true"]') as HTMLScriptElement | null;
+      if (existing) {
+        existing.addEventListener('load', () => resolve((window as any).MercadoPago));
+        existing.addEventListener('error', () => reject(new Error('Falha ao carregar o SDK do Mercado Pago.')));
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://sdk.mercadopago.com/js/v2';
+      script.async = true;
+      script.dataset.mercadoPagoSdk = 'true';
+      script.onload = () => resolve((window as any).MercadoPago);
+      script.onerror = () => reject(new Error('Falha ao carregar o SDK do Mercado Pago.'));
+      document.head.appendChild(script);
+    });
+  }
+  return mercadoPagoSdkPromise;
+}
+
 export function SubscriptionSettings({
   company,
   subscription,
@@ -93,6 +127,7 @@ export function SubscriptionSettings({
     purchaseMediaAddon,
     removeMediaAddon,
     updateBillingProfile,
+    activateMercadoPagoCard,
     refreshEntitlements,
     refreshBillingSummary,
     blockReason,
@@ -115,6 +150,15 @@ export function SubscriptionSettings({
   const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
   const [addonRemoving, setAddonRemoving] = useState<PlatformSubscriptionAddonCode | null>(null);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
+  const mercadoPagoPublicKey = ((import.meta as any).env?.VITE_MERCADO_PAGO_PUBLIC_KEY as string | undefined)?.trim() || '';
+  const cardFormRef = useRef<any>(null);
+  const [isBindingCard, setIsBindingCard] = useState(false);
+  const [cardFormReady, setCardFormReady] = useState(false);
+  const [cardFormError, setCardFormError] = useState<string | null>(null);
+  const [cardholderNameValue, setCardholderNameValue] = useState('');
+  const [cardholderEmailValue, setCardholderEmailValue] = useState('');
+  const [cardIdentificationNumberValue, setCardIdentificationNumberValue] = useState('');
+  const [cardIdentificationTypeValue, setCardIdentificationTypeValue] = useState<'CPF' | 'CNPJ'>('CPF');
   const [billingForm, setBillingForm] = useState<PlatformBillingProfile>({
     contactName: '',
     legalName: '',
@@ -139,6 +183,14 @@ export function SubscriptionSettings({
     if (!billingSummary?.billingProfile) return;
     setBillingForm(billingSummary.billingProfile);
   }, [billingSummary]);
+
+  useEffect(() => {
+    setCardholderNameValue(billingForm.contactName || '');
+    setCardholderEmailValue(billingForm.email || '');
+    const digits = onlyDigitsValue(billingForm.document || '');
+    setCardIdentificationNumberValue(digits);
+    setCardIdentificationTypeValue((billingForm.documentType as 'CPF' | 'CNPJ' | undefined) || (digits.length === 11 ? 'CPF' : 'CNPJ'));
+  }, [billingForm.contactName, billingForm.email, billingForm.document, billingForm.documentType]);
 
   const selectedPlan = useMemo(
     () => sortedPlans.find((p) => p.id === selectedPlanId) || null,
@@ -259,49 +311,25 @@ export function SubscriptionSettings({
     setBillingForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const validateBillingForm = (profile: PlatformBillingProfile) => {
+    if (!profile.contactName?.trim()) return 'Informe o responsável financeiro.';
+    if (!profile.legalName?.trim()) return 'Informe o nome ou razão social para cobrança.';
+    if (!profile.email?.trim()) return 'Informe o e-mail financeiro.';
+    if (!profile.document?.trim()) return 'Informe o CPF ou CNPJ financeiro.';
+    if (!profile.addressZipcode?.trim()) return 'Informe o CEP de cobrança.';
+    if (!profile.addressStreet?.trim()) return 'Informe o logradouro de cobrança.';
+    if (!profile.addressNumber?.trim()) return 'Informe o número do endereço de cobrança.';
+    if (!profile.addressDistrict?.trim()) return 'Informe o bairro de cobrança.';
+    if (!profile.addressCity?.trim()) return 'Informe a cidade de cobrança.';
+    if (!profile.addressState?.trim()) return 'Informe o estado/UF de cobrança.';
+    if (!profile.addressCountry?.trim()) return 'Informe o país de cobrança.';
+    return null;
+  };
+
   const handleSaveBilling = async () => {
-    if (!billingForm.contactName?.trim()) {
-      toast.error('Informe o responsável financeiro.');
-      return;
-    }
-    if (!billingForm.legalName?.trim()) {
-      toast.error('Informe o nome ou razão social para cobrança.');
-      return;
-    }
-    if (!billingForm.email?.trim()) {
-      toast.error('Informe o e-mail financeiro.');
-      return;
-    }
-    if (!billingForm.document?.trim()) {
-      toast.error('Informe o CPF ou CNPJ financeiro.');
-      return;
-    }
-    if (!billingForm.addressZipcode?.trim()) {
-      toast.error('Informe o CEP de cobrança.');
-      return;
-    }
-    if (!billingForm.addressStreet?.trim()) {
-      toast.error('Informe o logradouro de cobrança.');
-      return;
-    }
-    if (!billingForm.addressNumber?.trim()) {
-      toast.error('Informe o número do endereço de cobrança.');
-      return;
-    }
-    if (!billingForm.addressDistrict?.trim()) {
-      toast.error('Informe o bairro de cobrança.');
-      return;
-    }
-    if (!billingForm.addressCity?.trim()) {
-      toast.error('Informe a cidade de cobrança.');
-      return;
-    }
-    if (!billingForm.addressState?.trim()) {
-      toast.error('Informe o estado/UF de cobrança.');
-      return;
-    }
-    if (!billingForm.addressCountry?.trim()) {
-      toast.error('Informe o país de cobrança.');
+    const billingError = validateBillingForm(billingForm);
+    if (billingError) {
+      toast.error(billingError);
       return;
     }
 
@@ -316,6 +344,127 @@ export function SubscriptionSettings({
       setIsSavingBilling(false);
     }
   };
+
+  useEffect(() => {
+    if (billingForm.preferredMethod !== 'CARTAO') {
+      setCardFormReady(false);
+      setCardFormError(null);
+      return;
+    }
+
+    if (!mercadoPagoPublicKey) {
+      setCardFormReady(false);
+      setCardFormError('Defina VITE_MERCADO_PAGO_PUBLIC_KEY no frontend para habilitar a tokenização com o Mercado Pago.');
+      return;
+    }
+
+    let cancelled = false;
+    let localCardForm: any = null;
+
+    const mountCardForm = async () => {
+      try {
+        setCardFormReady(false);
+        setCardFormError(null);
+        const MercadoPagoCtor = await loadMercadoPagoSdk();
+        if (cancelled) return;
+
+        try {
+          cardFormRef.current?.unmount?.();
+        } catch {
+          // noop
+        }
+
+        const mp = new MercadoPagoCtor(mercadoPagoPublicKey, { locale: 'pt-BR' });
+        localCardForm = mp.cardForm({
+          amount: String(Math.max(totalMonthlyEstimate || 0, 1).toFixed(2)),
+          iframe: true,
+          form: {
+            id: 'onemedia-mp-card-form',
+            cardNumber: { id: 'form-checkout__cardNumber', placeholder: 'Número do cartão' },
+            expirationDate: { id: 'form-checkout__expirationDate', placeholder: 'MM/AA' },
+            securityCode: { id: 'form-checkout__securityCode', placeholder: 'CVV' },
+            cardholderName: { id: 'form-checkout__cardholderName', placeholder: 'Titular do cartão' },
+            cardholderEmail: { id: 'form-checkout__cardholderEmail', placeholder: 'email@empresa.com' },
+            identificationType: { id: 'form-checkout__identificationType', placeholder: 'Tipo de documento' },
+            identificationNumber: { id: 'form-checkout__identificationNumber', placeholder: 'CPF/CNPJ do titular' },
+            issuer: { id: 'form-checkout__issuer', placeholder: 'Banco emissor' },
+            installments: { id: 'form-checkout__installments', placeholder: 'Parcelas' },
+          },
+          callbacks: {
+            onFormMounted: (error: any) => {
+              if (cancelled) return;
+              if (error) {
+                setCardFormError(error?.message || 'Não foi possível montar o formulário seguro do Mercado Pago.');
+                setCardFormReady(false);
+                return;
+              }
+              setCardFormReady(true);
+            },
+            onSubmit: async (event: Event) => {
+              event.preventDefault();
+              const billingPayload: PlatformBillingProfile = { ...billingForm, preferredMethod: 'CARTAO' };
+              const billingError = validateBillingForm(billingPayload);
+              if (billingError) {
+                toast.error(billingError);
+                return;
+              }
+              try {
+                setIsBindingCard(true);
+                const data = localCardForm?.getCardFormData?.() || {};
+                if (!data?.token) {
+                  throw new Error('O Mercado Pago não retornou o token do cartão.');
+                }
+                await updateBillingProfile(billingPayload);
+                await activateMercadoPagoCard({
+                  cardToken: data.token,
+                  paymentMethodId: data.paymentMethodId || null,
+                  paymentMethodLabel: data.paymentMethodId ? `Cartão ${data.paymentMethodId}` : 'Cartão Mercado Pago',
+                  identificationType: data.identificationType || cardIdentificationTypeValue,
+                  identificationNumber: data.identificationNumber || cardIdentificationNumberValue || onlyDigitsValue(billingForm.document || ''),
+                  cardholderName: data.cardholderName || cardholderNameValue,
+                  lastFourDigits: null,
+                });
+                await refreshBillingSummary();
+                toast.success('Cartão vinculado com sucesso ao Mercado Pago.');
+              } catch (error: any) {
+                toast.error(error?.response?.data?.message || error?.message || 'Não foi possível vincular o cartão no Mercado Pago.');
+              } finally {
+                setIsBindingCard(false);
+              }
+            },
+          },
+        });
+
+        cardFormRef.current = localCardForm;
+      } catch (error: any) {
+        if (cancelled) return;
+        setCardFormReady(false);
+        setCardFormError(error?.message || 'Falha ao carregar o Mercado Pago.');
+      }
+    };
+
+    const timer = window.setTimeout(mountCardForm, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      try {
+        localCardForm?.unmount?.();
+      } catch {
+        // noop
+      }
+    };
+  }, [
+    billingForm.preferredMethod,
+    billingForm.contactName,
+    billingForm.email,
+    billingForm.document,
+    billingForm.documentType,
+    totalMonthlyEstimate,
+    mercadoPagoPublicKey,
+    cardIdentificationNumberValue,
+    cardIdentificationTypeValue,
+    cardholderNameValue,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -563,10 +712,9 @@ export function SubscriptionSettings({
 
           <Card className="border-amber-200 bg-amber-50">
             <CardContent className="p-4 text-sm text-amber-900">
-              <b>Pagamento automático ainda depende do gateway.</b> Nesta etapa o sistema já salva os dados financeiros,
-              consolida o total mensal e controla assinatura, mídia extra e multi-proprietários.
+              <b>Mercado Pago habilitado para cartão recorrente.</b> Nesta etapa você já pode salvar os dados do pagador, tokenizar o cartão com segurança no frontend e ativar a cobrança recorrente.
               <br />
-              <span className="text-xs">A tokenização real do meio de pagamento (cartão/PIX/boleto) entra na integração do gateway.</span>
+              <span className="text-xs">Webhook, tratamento automático de inadimplência e sincronização fina de status entram na próxima etapa.</span>
             </CardContent>
           </Card>
 
@@ -733,12 +881,15 @@ export function SubscriptionSettings({
                 </div>
               </div>
 
-              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600">
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600 space-y-2">
                 {billingSummary?.billingProfile?.autoChargeReady ? (
                   <span>Meio de pagamento tokenizado e pronto para cobrança automática.</span>
                 ) : (
-                  <span>Os dados financeiros já estão prontos. A tokenização do cartão e a ativação automática entram na próxima etapa com o Mercado Pago.</span>
+                  <span>Salve os dados financeiros e, em seguida, vincule um cartão recorrente do Mercado Pago.</span>
                 )}
+                {billingSummary?.billingProfile?.paymentMethodLabel ? (
+                  <div className="text-xs text-gray-500">Método atual: <b>{billingSummary.billingProfile.paymentMethodLabel}</b>{billingSummary.billingProfile.paymentMethodLast4 ? ` • final ${billingSummary.billingProfile.paymentMethodLast4}` : ''}</div>
+                ) : null}
               </div>
 
               <div className="flex justify-end">
@@ -753,6 +904,85 @@ export function SubscriptionSettings({
                   )}
                 </Button>
               </div>
+
+              {String(billingForm.preferredMethod || 'CARTAO') === 'CARTAO' && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-emerald-700" />
+                    <div>
+                      <div className="text-sm font-semibold text-emerald-900">Vincular cartão recorrente no Mercado Pago</div>
+                      <div className="text-xs text-emerald-800">O cartão é tokenizado no frontend e enviado ao backend apenas como token seguro.</div>
+                    </div>
+                  </div>
+
+                  {!mercadoPagoPublicKey ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      Configure <b>VITE_MERCADO_PAGO_PUBLIC_KEY</b> no frontend para habilitar o formulário seguro do Mercado Pago.
+                    </div>
+                  ) : (
+                    <form id="onemedia-mp-card-form" className="space-y-4">
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <div className="text-sm font-medium mb-2">Número do cartão</div>
+                          <div id="form-checkout__cardNumber" className="min-h-[48px] rounded-xl border border-gray-200 bg-white px-4 py-3" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium mb-2">Validade</div>
+                          <div id="form-checkout__expirationDate" className="min-h-[48px] rounded-xl border border-gray-200 bg-white px-4 py-3" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium mb-2">CVV</div>
+                          <div id="form-checkout__securityCode" className="min-h-[48px] rounded-xl border border-gray-200 bg-white px-4 py-3" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium mb-2">Titular do cartão</div>
+                          <input id="form-checkout__cardholderName" value={cardholderNameValue} onChange={(e) => setCardholderNameValue(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="Nome como está no cartão" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium mb-2">E-mail do pagador</div>
+                          <input id="form-checkout__cardholderEmail" type="email" value={cardholderEmailValue} onChange={(e) => setCardholderEmailValue(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="email@empresa.com" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium mb-2">Tipo de documento</div>
+                          <select id="form-checkout__identificationType" value={cardIdentificationTypeValue} onChange={(e) => setCardIdentificationTypeValue(e.target.value as 'CPF' | 'CNPJ')} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                            <option value="CPF">CPF</option>
+                            <option value="CNPJ">CNPJ</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium mb-2">CPF/CNPJ do pagador</div>
+                          <input id="form-checkout__identificationNumber" value={cardIdentificationNumberValue} onChange={(e) => setCardIdentificationNumberValue(onlyDigitsValue(e.target.value))} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="Somente números" />
+                        </div>
+                      </div>
+
+                      <div className="hidden">
+                        <select id="form-checkout__issuer" />
+                        <select id="form-checkout__installments" />
+                      </div>
+
+                      {cardFormError ? (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{cardFormError}</div>
+                      ) : null}
+
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="text-xs text-gray-500">
+                          Valor mensal atual que será vinculado: <b>{formatCurrency(totalMonthlyEstimate)}</b>
+                        </div>
+                        <Button type="submit" disabled={!cardFormReady || isBindingCard || isSavingBilling}>
+                          {isBindingCard ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Vinculando cartão...
+                            </>
+                          ) : (
+                            'Vincular cartão no Mercado Pago'
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

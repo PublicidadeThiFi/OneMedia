@@ -873,7 +873,10 @@ export interface PlatformBillingProfile {
   addressCountry?: string | null;
   gatewayProvider?: string | null;
   gatewayCustomerId?: string | null;
+  gatewaySubscriptionId?: string | null;
+  paymentMethodId?: string | null;
   paymentMethodLabel?: string | null;
+  paymentMethodLast4?: string | null;
   paymentMethodToken?: string | null;
   paymentMethodStatus?: 'PENDENTE' | 'AGUARDANDO_VINCULACAO' | 'PRONTO_PARA_COBRANCA' | null;
   paymentMethodStatusLabel?: string | null;
@@ -890,6 +893,17 @@ export interface PlatformBillingLineItem {
   totalPrice: number;
   storageGb?: number;
   trafficGb?: number;
+}
+
+
+export interface ActivateMercadoPagoCardPayload {
+  cardToken: string;
+  paymentMethodId?: string | null;
+  paymentMethodLabel?: string | null;
+  identificationType?: string | null;
+  identificationNumber?: string | null;
+  cardholderName?: string | null;
+  lastFourDigits?: string | null;
 }
 
 export interface PlatformBillingSummary {
