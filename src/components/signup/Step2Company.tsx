@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { SignupCompanyStep } from '../../types/signup';
-import { 
-  onlyDigits, 
-  formatPhoneDisplay, 
+import {
+  onlyDigits,
+  formatPhoneDisplay,
   handlePhoneInput,
-  formatCNPJDisplay 
+  formatCNPJDisplay,
 } from '../../lib/validators';
 import {
   BRAZILIAN_STATES,
@@ -20,31 +20,60 @@ type Step2CompanyProps = {
   errors: Record<string, string>;
 };
 
+function formatBillingDocumentDisplay(value: string) {
+  const digits = onlyDigits(value).slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  }
+
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+}
+
+function formatZipcodeDisplay(value: string) {
+  const digits = onlyDigits(value).slice(0, 8);
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
 export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2CompanyProps) {
-  // Phone state management
   const [phoneDigits, setPhoneDigits] = useState(onlyDigits(data.phone));
   const [billingPhoneDigits, setBillingPhoneDigits] = useState(onlyDigits(data.billingPhone));
-  
-  // State/UF autocomplete
+
   const [stateQuery, setStateQuery] = useState(data.state);
   const [showStateDropdown, setShowStateDropdown] = useState(false);
   const [stateResults, setStateResults] = useState(BRAZILIAN_STATES);
+
+  useEffect(() => {
+    setPhoneDigits(onlyDigits(data.phone));
+  }, [data.phone]);
+
+  useEffect(() => {
+    setBillingPhoneDigits(onlyDigits(data.billingPhone));
+  }, [data.billingPhone]);
+
+  useEffect(() => {
+    setStateQuery(data.state);
+  }, [data.state]);
 
   const handleChange = (field: keyof SignupCompanyStep, value: string) => {
     onChange({ ...data, [field]: value });
   };
 
-  // CNPJ formatting
   const handleCNPJChange = (value: string) => {
-    const formatted = formatCNPJDisplay(value);
-    handleChange('cnpj', formatted);
+    handleChange('cnpj', formatCNPJDisplay(value));
   };
 
-  // Phone handling
   const handlePhoneChange = (value: string) => {
     const digits = handlePhoneInput(value);
     setPhoneDigits(digits);
-    handleChange('phone', digits); // Store only digits
+    handleChange('phone', digits);
   };
 
   const handleBillingPhoneChange = (value: string) => {
@@ -57,24 +86,26 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
     handleChange('billingDocument', onlyDigits(value).slice(0, 14));
   };
 
-  // State/UF handling
+  const handleBillingZipcodeChange = (value: string) => {
+    handleChange('billingAddressZipcode', onlyDigits(value).slice(0, 8));
+  };
+
   const handleStateInputChange = (value: string) => {
     setStateQuery(value);
     setShowStateDropdown(true);
-    
+
     const results = searchStates(value);
     setStateResults(results);
-    
-    // If exact match by UF, update the actual state field
+
     const exactMatch = BRAZILIAN_STATES.find(
-      s => s.uf.toUpperCase() === value.toUpperCase()
+      (s) => s.uf.toUpperCase() === value.toUpperCase(),
     );
     if (exactMatch) {
       handleChange('state', exactMatch.uf);
     }
   };
 
-  const handleStateSelect = (uf: string, name: string) => {
+  const handleStateSelect = (uf: string) => {
     setStateQuery(uf);
     handleChange('state', uf);
     setShowStateDropdown(false);
@@ -85,12 +116,11 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
       <div className="text-center mb-10">
         <h2 className="text-3xl font-semibold text-gray-900 mb-3">Dados da empresa</h2>
         <p className="text-gray-600">
-          Essas informações serão usadas para notas, contratos e relatórios.
+          Essas informações serão usadas para notas, contratos, faturamento e relatórios.
         </p>
       </div>
 
       <div className="space-y-5 mb-8">
-        {/* Nome Fantasia */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Nome fantasia da empresa <span className="text-red-600">*</span>
@@ -109,7 +139,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
           )}
         </div>
 
-        {/* Razão Social */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Razão social
@@ -123,7 +152,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
           />
         </div>
 
-        {/* CNPJ */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             CNPJ <span className="text-red-600">*</span>
@@ -143,9 +171,7 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
           )}
         </div>
 
-        {/* Grid 2 columns */}
         <div className="grid md:grid-cols-2 gap-5">
-          {/* Telefone */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Telefone / WhatsApp
@@ -167,7 +193,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
             </p>
           </div>
 
-          {/* Website */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Site
@@ -182,9 +207,7 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
           </div>
         </div>
 
-        {/* Grid 3 columns - Location */}
         <div className="grid md:grid-cols-3 gap-5">
-          {/* UF / Estado */}
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               UF / Estado
@@ -199,7 +222,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
                   setStateResults(BRAZILIAN_STATES);
                 }}
                 onBlur={() => {
-                  // Delay to allow click on dropdown item
                   setTimeout(() => setShowStateDropdown(false), 200);
                 }}
                 placeholder="SP ou São Paulo"
@@ -213,15 +235,14 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
             {errors.state && (
               <p className="mt-2 text-sm text-red-600">{errors.state}</p>
             )}
-            
-            {/* State Dropdown */}
+
             {showStateDropdown && stateResults.length > 0 && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                 {stateResults.map((state) => (
                   <button
                     key={state.uf}
                     type="button"
-                    onMouseDown={() => handleStateSelect(state.uf, state.name)}
+                    onMouseDown={() => handleStateSelect(state.uf)}
                     className="w-full px-4 py-2.5 text-left hover:bg-blue-50 text-sm transition-colors"
                   >
                     <span className="text-gray-900 font-medium">{state.uf}</span>
@@ -232,7 +253,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
             )}
           </div>
 
-          {/* Cidade */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Cidade
@@ -251,7 +271,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
             )}
           </div>
 
-          {/* País */}
           <div className="md:col-span-3">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               País
@@ -266,7 +285,6 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
           </div>
         </div>
 
-        {/* Estimativa de usuários */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Número estimado de usuários internos
@@ -279,31 +297,50 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
             className="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
           />
           <p className="mt-2 text-xs text-gray-500">
-            Apenas para inteligência comercial, não afeta o plano
+            Apenas para inteligência comercial, não afeta o plano.
           </p>
         </div>
 
         <div className="pt-2 border-t border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Dados financeiros</h3>
           <p className="text-sm text-gray-600 mb-5">
-            Esses dados serão usados para cobrança da assinatura. O meio real de débito automático será vinculado quando o gateway de pagamento for integrado.
+            Nesta etapa já coletamos o perfil do pagador e o endereço de cobrança.
+            A tokenização real do cartão e a ativação automática no Mercado Pago entram na próxima etapa.
           </p>
 
           <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Responsável financeiro <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="text"
-                value={data.billingContactName}
-                onChange={(e) => handleChange('billingContactName', e.target.value)}
-                placeholder="Ex: Maria Silva"
-                className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
-                  errors.billingContactName ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
-                }`}
-              />
-              {errors.billingContactName && <p className="mt-2 text-sm text-red-600">{errors.billingContactName}</p>}
+            <div className="grid md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Responsável financeiro <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={data.billingContactName}
+                  onChange={(e) => handleChange('billingContactName', e.target.value)}
+                  placeholder="Ex: Maria Silva"
+                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                    errors.billingContactName ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                  }`}
+                />
+                {errors.billingContactName && <p className="mt-2 text-sm text-red-600">{errors.billingContactName}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nome / razão social para cobrança <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={data.billingLegalName}
+                  onChange={(e) => handleChange('billingLegalName', e.target.value)}
+                  placeholder="Ex: Outdoor Brasil Publicidade Ltda"
+                  className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                    errors.billingLegalName ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                  }`}
+                />
+                {errors.billingLegalName && <p className="mt-2 text-sm text-red-600">{errors.billingLegalName}</p>}
+              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-5">
@@ -341,13 +378,13 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
             <div className="grid md:grid-cols-2 gap-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  CPF ou CNPJ financeiro <span className="text-red-600">*</span>
+                  CPF ou CNPJ do pagador <span className="text-red-600">*</span>
                 </label>
                 <input
                   type="text"
-                  value={data.billingDocument}
+                  value={formatBillingDocumentDisplay(data.billingDocument)}
                   onChange={(e) => handleBillingDocumentChange(e.target.value)}
-                  placeholder="Somente números"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
                   className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
                     errors.billingDocument ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
                   }`}
@@ -370,11 +407,141 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
                 </select>
               </div>
             </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-sm font-medium text-gray-900 mb-4">Endereço de cobrança</div>
+              <div className="grid md:grid-cols-3 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    CEP <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formatZipcodeDisplay(data.billingAddressZipcode)}
+                    onChange={(e) => handleBillingZipcodeChange(e.target.value)}
+                    placeholder="00000-000"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressZipcode ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressZipcode && <p className="mt-2 text-sm text-red-600">{errors.billingAddressZipcode}</p>}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rua / logradouro <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressStreet}
+                    onChange={(e) => handleChange('billingAddressStreet', e.target.value)}
+                    placeholder="Ex: Av. Paulista"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressStreet ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressStreet && <p className="mt-2 text-sm text-red-600">{errors.billingAddressStreet}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Número <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressNumber}
+                    onChange={(e) => handleChange('billingAddressNumber', e.target.value)}
+                    placeholder="Ex: 1000"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressNumber ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressNumber && <p className="mt-2 text-sm text-red-600">{errors.billingAddressNumber}</p>}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Complemento
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressComplement}
+                    onChange={(e) => handleChange('billingAddressComplement', e.target.value)}
+                    placeholder="Sala, conjunto, bloco..."
+                    className="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Bairro <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressDistrict}
+                    onChange={(e) => handleChange('billingAddressDistrict', e.target.value)}
+                    placeholder="Ex: Bela Vista"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressDistrict ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressDistrict && <p className="mt-2 text-sm text-red-600">{errors.billingAddressDistrict}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cidade <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressCity}
+                    onChange={(e) => handleChange('billingAddressCity', e.target.value)}
+                    placeholder="Ex: São Paulo"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressCity ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressCity && <p className="mt-2 text-sm text-red-600">{errors.billingAddressCity}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Estado / UF <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressState}
+                    onChange={(e) => handleChange('billingAddressState', e.target.value.toUpperCase())}
+                    placeholder="Ex: SP"
+                    maxLength={20}
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressState ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressState && <p className="mt-2 text-sm text-red-600">{errors.billingAddressState}</p>}
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    País <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={data.billingAddressCountry}
+                    onChange={(e) => handleChange('billingAddressCountry', e.target.value)}
+                    placeholder="Brasil"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
+                      errors.billingAddressCountry ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
+                    }`}
+                  />
+                  {errors.billingAddressCountry && <p className="mt-2 text-sm text-red-600">{errors.billingAddressCountry}</p>}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Buttons */}
       <div className="flex justify-between">
         <button
           onClick={onBack}
