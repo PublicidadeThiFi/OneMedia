@@ -130,6 +130,7 @@ export function SubscriptionSettings({
     activateMercadoPagoCard,
     refreshEntitlements,
     refreshBillingSummary,
+    refreshCompanyData,
     blockReason,
   } = useCompany();
 
@@ -150,6 +151,7 @@ export function SubscriptionSettings({
   const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
   const [addonRemoving, setAddonRemoving] = useState<PlatformSubscriptionAddonCode | null>(null);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
+  const [isRefreshingBillingStatus, setIsRefreshingBillingStatus] = useState(false);
   const mercadoPagoPublicKey = ((import.meta as any).env?.VITE_MERCADO_PAGO_PUBLIC_KEY as string | undefined)?.trim() || '';
   const cardFormRef = useRef<any>(null);
   const [isBindingCard, setIsBindingCard] = useState(false);
@@ -218,6 +220,18 @@ export function SubscriptionSettings({
   const baseMonthlyPrice = normalizedPlanMonthlyPrice + normalizedMultiOwnerPrice;
   const addonMonthlyTotal = billingSummary?.totals?.addonsMonthly ?? 0;
   const totalMonthlyEstimate = baseMonthlyPrice + addonMonthlyTotal;
+
+  const handleRefreshBillingStatus = async () => {
+    try {
+      setIsRefreshingBillingStatus(true);
+      await Promise.all([refreshBillingSummary(), refreshCompanyData()]);
+      toast.success('Status de cobrança atualizado.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Não foi possível atualizar o status de cobrança.');
+    } finally {
+      setIsRefreshingBillingStatus(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!selectedPlan) {
@@ -712,9 +726,9 @@ export function SubscriptionSettings({
 
           <Card className="border-amber-200 bg-amber-50">
             <CardContent className="p-4 text-sm text-amber-900">
-              <b>Mercado Pago habilitado para cartão recorrente.</b> Nesta etapa você já pode salvar os dados do pagador, tokenizar o cartão com segurança no frontend e ativar a cobrança recorrente.
+              <b>Mercado Pago habilitado para cartão recorrente.</b> O sistema já recebe webhook para sincronizar status da assinatura e das cobranças.
               <br />
-              <span className="text-xs">Webhook, tratamento automático de inadimplência e sincronização fina de status entram na próxima etapa.</span>
+              <span className="text-xs">Ao configurar a URL do webhook no Mercado Pago com a chave secreta, aprovações, pendências e falhas passam a refletir automaticamente aqui.</span>
             </CardContent>
           </Card>
 
@@ -729,14 +743,29 @@ export function SubscriptionSettings({
                   <div className="text-sm text-gray-600 mt-1">
                     {billingSummary?.billingProfile?.paymentMethodStatusLabel || 'Aguardando configuração do Mercado Pago'}
                   </div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    Use o botão ao lado para forçar uma atualização manual depois de testar o webhook no Mercado Pago.
+                  </div>
                 </div>
-                <Badge variant={billingMethodStatusVariant(billingSummary?.billingProfile?.paymentMethodStatus)}>
-                  {billingSummary?.billingProfile?.paymentMethodStatus === 'PRONTO_PARA_COBRANCA'
-                    ? 'Pronto para cobrança'
-                    : billingSummary?.billingProfile?.paymentMethodStatus === 'AGUARDANDO_VINCULACAO'
-                      ? 'Aguardando vínculo'
-                      : 'Pendente'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={billingMethodStatusVariant(billingSummary?.billingProfile?.paymentMethodStatus)}>
+                    {billingSummary?.billingProfile?.paymentMethodStatus === 'PRONTO_PARA_COBRANCA'
+                      ? 'Pronto para cobrança'
+                      : billingSummary?.billingProfile?.paymentMethodStatus === 'AGUARDANDO_VINCULACAO'
+                        ? 'Aguardando vínculo'
+                        : 'Pendente'}
+                  </Badge>
+                  <Button type="button" variant="outline" size="sm" onClick={handleRefreshBillingStatus} disabled={isRefreshingBillingStatus}>
+                    {isRefreshingBillingStatus ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Atualizando...
+                      </>
+                    ) : (
+                      'Atualizar status'
+                    )}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
