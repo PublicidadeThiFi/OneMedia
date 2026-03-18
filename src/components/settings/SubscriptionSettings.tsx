@@ -557,7 +557,7 @@ export function SubscriptionSettings({
                       <div className="flex items-center gap-2">
                         <HardDrive className="w-4 h-4 text-gray-500" />
                         <span className="text-sm font-medium">Armazenamento</span>
-                      </div>
+                      </div> 
                       <span className="text-sm text-gray-600">
                         {formatBytes(mediaSummary?.storageUsedBytes ?? 0)} / {entitlements.limits.totalStorageGb} GB
                       </span>
