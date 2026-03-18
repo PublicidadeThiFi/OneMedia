@@ -147,7 +147,6 @@ export function SubscriptionSettings({
   const [selectedPlanId, setSelectedPlanId] = useState(subscription.planId);
   const [selectedMaxOwners, setSelectedMaxOwners] = useState(subscription.maxOwnersPerMediaPoint || 1);
   const [isUpdating, setIsUpdating] = useState(false);
-
   const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
   const [addonRemoving, setAddonRemoving] = useState<PlatformSubscriptionAddonCode | null>(null);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
