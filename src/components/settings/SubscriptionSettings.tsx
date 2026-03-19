@@ -17,7 +17,7 @@ import { useCompany } from '../../contexts/CompanyContext';
 import { getFriendlyPlanLabel, getMultiOwnerPlanPrice, getMultiOwnerPlanName, getMultiOwnerPriceCents } from '../../lib/plans';
 import { buildMediaUsageSummary, formatBytes } from '../../lib/mediaValidation';
 import { toast } from 'sonner';
-
+ 
 interface SubscriptionSettingsProps {
   company: Company;
   subscription: PlatformSubscription;
