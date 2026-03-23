@@ -49,7 +49,9 @@ export type MenuRequestRecord = {
   flow?: 'default' | 'promotions' | 'agency' | null;
   agencyMarkupPercentApplied?: number | null;
   clientId?: string | null;
+  clientStatus?: string | null;
   proposalId?: string | null;
+  proposalStatus?: string | null;
   campaignId?: string | null;
 
   items: MenuCartItem[];
