@@ -99,6 +99,16 @@ function formatDateTimeBr(iso?: string | null): string {
   }
 }
 
+function openMenuHref(href?: string | null, opts?: { newTab?: boolean }) {
+  const target = String(href || '').trim();
+  if (!target || typeof window === 'undefined') return;
+  if (opts?.newTab) {
+    window.open(target, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  window.location.assign(target);
+}
+
 function clampInt(v: any, min: number, max: number): number {
   const n = Math.floor(Number(v) || 0);
   if (!Number.isFinite(n)) return min;
@@ -716,6 +726,22 @@ export default function MenuDonoWorkspace() {
     };
   }, [rid, token, t]);
 
+  useEffect(() => {
+    if (!String(rid || '').trim() || !String(t || '').trim()) return;
+    if (!data?.proposalId && !data?.operational?.campaign?.id && String(data?.status || '').toUpperCase() !== 'APPROVED') return;
+
+    const timer = window.setInterval(() => {
+      fetchMenuRequest({ requestId: rid, token, t, view: 'owner' })
+        .then((res) => setData((current) => {
+          if (!current) return res;
+          return res;
+        }))
+        .catch(() => undefined);
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [rid, token, t, data?.proposalId, data?.operational?.campaign?.id, data?.status]);
+
   const refresh = async () => {
     const res = await fetchMenuRequest({ requestId: rid, token, t, view: 'owner' });
     setData(res);
@@ -989,19 +1015,59 @@ export default function MenuDonoWorkspace() {
                 <Separator className="my-5" />
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                  <div className="text-sm font-semibold text-slate-900">Integração operacional</div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Integração operacional</div>
+                      <div className="mt-1 text-xs text-slate-500">Sincronizado em {formatDateTimeBr(data.operational?.syncedAt || data.updatedAt || data.createdAt)}</div>
+                    </div>
+                    {data.operational?.stage ? (
+                      <Badge variant="secondary" className="w-fit rounded-full bg-white text-slate-700 border border-slate-200">
+                        {data.operational.stage.label}
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  {data.operational?.stage?.description ? (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-3 text-xs text-slate-700">
+                      {data.operational.stage.description}
+                    </div>
+                  ) : null}
+
+                  {Array.isArray(data.operational?.warnings) && data.operational!.warnings!.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {data.operational!.warnings!.map((warning) => (
+                        <div key={warning.code} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                          {warning.message}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
                       <div className="text-xs text-slate-500">Cliente interno</div>
                       <div className="mt-1 font-medium text-slate-900">{data.clientId ? 'Criado/sincronizado' : 'Pendente'}</div>
                       <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.clientId || '—'}</div>
                       <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.clientStatus)}</span></div>
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.client} onClick={() => openMenuHref(data.operational?.links?.client)}>
+                          Abrir clientes
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
                       <div className="text-xs text-slate-500">Proposta interna espelho</div>
                       <div className="mt-1 font-medium text-slate-900">{data.proposalId ? 'Criada/sincronizada' : 'Será criada ao enviar a versão'}</div>
                       <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.proposalId || '—'}</div>
                       <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.proposal?.status || data.proposalStatus)}</span></div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.proposal} onClick={() => openMenuHref(data.operational?.links?.proposal)}>
+                          Abrir propostas
+                        </Button>
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.publicProposal} onClick={() => openMenuHref(data.operational?.links?.publicProposal, { newTab: true })}>
+                          Portal público
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
                       <div className="text-xs text-slate-500">Campanha</div>
@@ -1013,6 +1079,11 @@ export default function MenuDonoWorkspace() {
                           Período: <span className="font-semibold">{formatDateTimeBr(data.operational?.campaign?.startDate)} → {formatDateTimeBr(data.operational?.campaign?.endDate)}</span>
                         </div>
                       ) : null}
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.campaign} onClick={() => openMenuHref(data.operational?.links?.campaign)}>
+                          Abrir campanhas
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
                       <div className="text-xs text-slate-500">Reservas e financeiro</div>
@@ -1020,6 +1091,14 @@ export default function MenuDonoWorkspace() {
                       <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
                       <div className="mt-3 text-xs text-slate-600">Cobranças: <span className="font-semibold">{data.operational?.billing?.total ?? 0}</span></div>
                       <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.reservations} onClick={() => openMenuHref(data.operational?.links?.reservations)}>
+                          Abrir reservas
+                        </Button>
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.billing} onClick={() => openMenuHref(data.operational?.links?.billing)}>
+                          Abrir financeiro
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <div className="mt-3 text-xs text-slate-500">Depois da aprovação do cliente, a proposta interna é aprovada de forma operacional e o sistema passa a gerar campanha, reservas e cobranças conforme a lógica já existente.</div>

@@ -29,6 +29,11 @@ export type CreateMenuRequestResponse = {
 
 export type MenuOperationalSummary = {
   syncedAt: string;
+  stage?: {
+    code: string;
+    label: string;
+    description?: string | null;
+  } | null;
   proposal?: {
     id?: string | null;
     status: string;
@@ -60,6 +65,18 @@ export type MenuOperationalSummary = {
       paidAt?: string | null;
     }>;
   } | null;
+  links?: {
+    client?: string | null;
+    proposal?: string | null;
+    publicProposal?: string | null;
+    campaign?: string | null;
+    reservations?: string | null;
+    billing?: string | null;
+  } | null;
+  warnings?: Array<{
+    code: string;
+    message: string;
+  }>;
 };
 
 export type MenuRequestRecord = {

@@ -68,6 +68,16 @@ function formatDateTimeBr(iso?: string | null): string {
   }
 }
 
+function openMenuHref(href?: string | null, opts?: { newTab?: boolean }) {
+  const target = String(href || '').trim();
+  if (!target || typeof window === 'undefined') return;
+  if (opts?.newTab) {
+    window.open(target, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  window.location.assign(target);
+}
+
 export default function MenuDonoAprovada() {
   const navigate = useNavigation();
 
@@ -140,6 +150,16 @@ export default function MenuDonoAprovada() {
     return () => {
       alive = false;
     };
+  }, [rid, token, t]);
+
+  useEffect(() => {
+    if (!String(rid || '').trim() || !String(t || '').trim()) return;
+    const timer = window.setInterval(() => {
+      fetchMenuRequest({ requestId: rid, token, t, view: 'owner' })
+        .then((res) => setData(res))
+        .catch(() => undefined);
+    }, 30000);
+    return () => window.clearInterval(timer);
   }, [rid, token, t]);
 
   return (
@@ -226,27 +246,75 @@ export default function MenuDonoAprovada() {
 
                   <Separator className="my-4" />
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="text-xs text-gray-500">Sincronizado em {formatDateTimeBr(data.operational?.syncedAt || data.updatedAt || data.createdAt)}</div>
+                    {data.operational?.stage ? (
+                      <Badge variant="secondary" className="w-fit rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                        {data.operational.stage.label}
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  {data.operational?.stage?.description ? (
+                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-700">
+                      {data.operational.stage.description}
+                    </div>
+                  ) : null}
+
+                  {Array.isArray(data.operational?.warnings) && data.operational!.warnings!.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {data.operational!.warnings!.map((warning) => (
+                        <div key={warning.code} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                          {warning.message}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="rounded-xl border border-gray-200 px-3 py-3">
                       <div className="text-xs text-gray-500">Proposta interna</div>
                       <div className="mt-1 text-sm font-semibold text-gray-900">{formatOperationalStatus(data.operational?.proposal?.status || data.proposalStatus)}</div>
                       <div className="mt-1 text-xs text-gray-600 break-all">ID: {data.proposalId || '—'}</div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.proposal} onClick={() => openMenuHref(data.operational?.links?.proposal)}>
+                          Abrir propostas
+                        </Button>
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.publicProposal} onClick={() => openMenuHref(data.operational?.links?.publicProposal, { newTab: true })}>
+                          Portal público
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-xl border border-gray-200 px-3 py-3">
                       <div className="text-xs text-gray-500">Campanha gerada</div>
                       <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.campaign?.name || '—'}</div>
                       <div className="mt-1 text-xs text-gray-600 break-all">ID: {data.operational?.campaign?.id || data.campaignId || '—'}</div>
                       <div className="mt-1 text-xs text-gray-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.campaign?.status)}</span></div>
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.campaign} onClick={() => openMenuHref(data.operational?.links?.campaign)}>
+                          Abrir campanhas
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-xl border border-gray-200 px-3 py-3">
                       <div className="text-xs text-gray-500">Reservas</div>
                       <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.reservations?.total ?? 0}</div>
                       <div className="mt-1 text-xs text-gray-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.reservations} onClick={() => openMenuHref(data.operational?.links?.reservations)}>
+                          Abrir reservas
+                        </Button>
+                      </div>
                     </div>
                     <div className="rounded-xl border border-gray-200 px-3 py-3">
                       <div className="text-xs text-gray-500">Cobranças</div>
                       <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.billing?.total ?? 0}</div>
                       <div className="mt-1 text-xs text-gray-600">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
+                      <div className="mt-3">
+                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.billing} onClick={() => openMenuHref(data.operational?.links?.billing)}>
+                          Abrir financeiro
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
