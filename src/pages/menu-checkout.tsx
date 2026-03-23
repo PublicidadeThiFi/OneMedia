@@ -10,7 +10,7 @@ import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { clearCart, formatDurationParts, readCart } from '../lib/menuCart';
-import { createMenuRequest } from '../lib/menuRequestApi';
+import { createMenuRequest, fetchPublicMenuConfig } from '../lib/menuRequestApi';
 import { getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 import { TurnstileWidget } from '../components/turnstile/TurnstileWidget';
 import { formatCpfCnpjDisplay, getCpfCnpjErrorMessage } from '../lib/validators';
@@ -37,13 +37,6 @@ function normalizePhone(raw: string): string {
 
 const ENV_TURNSTILE_SITE_KEY = ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
 
-type PublicMenuConfigResponse = {
-  captcha?: {
-    provider?: string;
-    enabled?: boolean;
-    siteKey?: string | null;
-  };
-};
 
 export default function MenuFinalizar() {
   const navigate = useNavigation();
@@ -93,8 +86,7 @@ export default function MenuFinalizar() {
 
     const loadConfig = async () => {
       try {
-        const res = await publicApiClient.get('/public/menu/config');
-        const data = (res?.data ?? {}) as PublicMenuConfigResponse;
+        const data = await fetchPublicMenuConfig();
 
         const enabled = !!data?.captcha?.enabled;
         const key = String(data?.captcha?.siteKey ?? '').trim();

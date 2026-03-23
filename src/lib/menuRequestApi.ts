@@ -27,6 +27,14 @@ export type CreateMenuRequestResponse = {
   requestId: string;
 };
 
+export type PublicMenuConfigResponse = {
+  captcha?: {
+    provider?: string;
+    enabled?: boolean;
+    siteKey?: string | null;
+  };
+};
+
 export type MenuOperationalSummary = {
   syncedAt: string;
   stage?: {
@@ -379,6 +387,11 @@ export function classifyMenuRequestError(err: any): MenuRequestLoadError {
     title: 'Não foi possível carregar',
     description: rawMsg || 'Falha ao carregar.',
   };
+}
+
+export async function fetchPublicMenuConfig(): Promise<PublicMenuConfigResponse> {
+  const resp = await publicApiClient.get<PublicMenuConfigResponse>('/public/menu/config');
+  return (resp?.data ?? {}) as PublicMenuConfigResponse;
 }
 
 export async function createMenuRequest(input: CreateMenuRequestInput): Promise<CreateMenuRequestResponse> {
