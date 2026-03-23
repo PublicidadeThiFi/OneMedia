@@ -33,6 +33,8 @@ export type PublicMenuConfigResponse = {
     enabled?: boolean;
     siteKey?: string | null;
   };
+  reservationStartCutoffTime?: string | null;
+  reservationStartCutoffNotice?: string | null;
 };
 
 export type MenuOperationalSummary = {
@@ -108,6 +110,7 @@ export type MenuRequestRecord = {
   ownerCompanyId?: string | null;
   flow?: 'default' | 'promotions' | 'agency' | null;
   agencyMarkupPercentApplied?: number | null;
+  reservationStartCutoffTime?: string | null;
   clientId?: string | null;
   clientStatus?: string | null;
   proposalId?: string | null;
@@ -389,8 +392,11 @@ export function classifyMenuRequestError(err: any): MenuRequestLoadError {
   };
 }
 
-export async function fetchPublicMenuConfig(): Promise<PublicMenuConfigResponse> {
-  const resp = await publicApiClient.get<PublicMenuConfigResponse>('/public/menu/config');
+export async function fetchPublicMenuConfig(token?: string): Promise<PublicMenuConfigResponse> {
+  const safeToken = String(token || '').trim();
+  const resp = await publicApiClient.get<PublicMenuConfigResponse>('/public/menu/config', {
+    params: safeToken ? { token: safeToken } : undefined,
+  });
   return (resp?.data ?? {}) as PublicMenuConfigResponse;
 }
 
@@ -445,6 +451,12 @@ export type MenuGiftTargetSuggestion = {
   meta?: Record<string, any>;
 };
 
+export type MenuServiceCatalogItem = {
+  id: string;
+  name: string;
+  defaultValue: number;
+};
+
 export async function listMenuGiftTargets(params: {
   requestId: string;
   token?: string;
@@ -479,6 +491,25 @@ export async function listMenuGiftTargets(params: {
   return resp.data;
 }
 
+
+export async function listMenuServiceCatalog(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+}): Promise<{ items: MenuServiceCatalogItem[] }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const query: Record<string, string | undefined> = {};
+  if (t) query.t = t;
+  else query.token = token;
+
+  const resp = await publicApiClient.get<{ items: MenuServiceCatalogItem[] }>(
+    `/public/menu/request/${encodeURIComponent(requestId)}/service-catalog`,
+    { params: query },
+  );
+  return resp.data;
+}
 
 export async function sendMenuQuote(params: {
   requestId: string;

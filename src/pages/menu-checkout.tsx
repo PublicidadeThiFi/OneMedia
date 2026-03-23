@@ -37,6 +37,13 @@ function normalizePhone(raw: string): string {
 
 const ENV_TURNSTILE_SITE_KEY = ((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY as string | undefined) || '';
 
+function buildReservationCutoffNotice(cutoffTime?: string | null, fallbackNotice?: string | null) {
+  const normalized = String(cutoffTime || '').trim();
+  if (normalized) {
+    return `Check-ins realizados até ${normalized} contam no mesmo dia. Após esse horário, a vigência começa no dia seguinte.`;
+  }
+  return String(fallbackNotice || '').trim() || '';
+}
 
 export default function MenuFinalizar() {
   const navigate = useNavigation();
@@ -74,6 +81,7 @@ export default function MenuFinalizar() {
   const [captchaRequired, setCaptchaRequired] = useState<boolean>(!!String(ENV_TURNSTILE_SITE_KEY || '').trim());
   const [turnstileSiteKey, setTurnstileSiteKey] = useState<string>(String(ENV_TURNSTILE_SITE_KEY || '').trim());
   const [captchaLoadError, setCaptchaLoadError] = useState<string | null>(null);
+  const [reservationCutoffNotice, setReservationCutoffNotice] = useState<string>('');
 
   // Keep the Turnstile callback stable; otherwise the widget can re-initialize on every re-render
   // (e.g. while typing), which looks like "piscando"/recarregando.
@@ -86,7 +94,7 @@ export default function MenuFinalizar() {
 
     const loadConfig = async () => {
       try {
-        const data = await fetchPublicMenuConfig();
+        const data = await fetchPublicMenuConfig(token);
 
         const enabled = !!data?.captcha?.enabled;
         const key = String(data?.captcha?.siteKey ?? '').trim();
@@ -102,6 +110,8 @@ export default function MenuFinalizar() {
           setTurnstileSiteKey(key);
         }
 
+        setReservationCutoffNotice(buildReservationCutoffNotice(data?.reservationStartCutoffTime, data?.reservationStartCutoffNotice));
+
         if ((enabled || !!turnstileSiteKey) && !String(key || turnstileSiteKey).trim()) {
           setCaptchaLoadError('Captcha habilitado, mas a chave do site não foi configurada.');
         } else {
@@ -113,6 +123,7 @@ export default function MenuFinalizar() {
         if (!String(turnstileSiteKey || '').trim()) {
           setCaptchaLoadError('Não consegui carregar a configuração do captcha.');
         }
+        setReservationCutoffNotice('');
       }
     };
 
@@ -373,6 +384,12 @@ export default function MenuFinalizar() {
                 </div>
               ) : null}
             </div>
+
+            {reservationCutoffNotice ? (
+              <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                <span className="font-semibold">Início da vigência:</span> {reservationCutoffNotice}
+              </div>
+            ) : null}
 
             <div className="mt-5 flex flex-col sm:flex-row gap-3">
               <Button variant="outline" onClick={() => navigate(backUrl)}>

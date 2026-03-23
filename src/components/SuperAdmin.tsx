@@ -31,6 +31,7 @@ export function SuperAdmin() {
 
   const isSuperAdmin = Boolean(user?.isSuperAdmin);
   const [agencyMarkupPercent, setAgencyMarkupPercent] = useState<string>('0');
+  const [reservationStartCutoffTime, setReservationStartCutoffTime] = useState<string>('18:00');
   const [companyLoading, setCompanyLoading] = useState(false);
   const [companySaving, setCompanySaving] = useState(false);
 
@@ -39,7 +40,9 @@ export function SuperAdmin() {
     try {
       const res = await apiClient.get('/company');
       const p = Number(res?.data?.agencyMarkupPercent ?? 0);
+      const cutoffRaw = String(res?.data?.reservationStartCutoffTime ?? '').trim();
       setAgencyMarkupPercent(String(Number.isFinite(p) ? p : 0));
+      setReservationStartCutoffTime(/^([01]\d|2[0-3]):([0-5]\d)$/.test(cutoffRaw) ? cutoffRaw : '18:00');
     } catch {
       // não bloqueia a tela
     } finally {
@@ -47,17 +50,23 @@ export function SuperAdmin() {
     }
   };
 
-  const saveCompanyMarkup = async () => {
+  const saveCompanySettings = async () => {
     if (!isSuperAdmin) {
       toast.error('Apenas SuperAdmin pode alterar o markup.');
       return;
     }
     const next = Math.max(0, Math.min(500, Number(agencyMarkupPercent) || 0));
+    const cutoff = String(reservationStartCutoffTime || '').trim();
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(cutoff)) {
+      toast.error('Informe um horário válido no formato HH:mm.');
+      return;
+    }
     setCompanySaving(true);
     try {
-      await apiClient.put('/company', { agencyMarkupPercent: next });
+      await apiClient.put('/company', { agencyMarkupPercent: next, reservationStartCutoffTime: cutoff });
       setAgencyMarkupPercent(String(next));
-      toast.success('Markup atualizado', { description: `Agência +${next}%` });
+      setReservationStartCutoffTime(cutoff);
+      toast.success('Configurações atualizadas', { description: `Agência +${next}% • corte ${cutoff}` });
     } catch (e: any) {
       toast.error('Não foi possível salvar', { description: e?.response?.data?.message || e?.message });
     } finally {
@@ -95,7 +104,7 @@ export function SuperAdmin() {
             <b>0%</b> desativa o markup.
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-[16rem_16rem_auto] gap-3 md:items-end">
             <div className="space-y-2">
               <Label>Percentual (%)</Label>
               <Input
@@ -110,9 +119,21 @@ export function SuperAdmin() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Horário de corte da vigência</Label>
+              <Input
+                type="time"
+                step={60}
+                value={reservationStartCutoffTime}
+                disabled={!isSuperAdmin || companyLoading || companySaving}
+                onChange={(e) => setReservationStartCutoffTime(e.target.value)}
+                className="w-full md:w-64"
+              />
+            </div>
+
             <div className="flex items-center gap-2">
               <Button
-                onClick={saveCompanyMarkup}
+                onClick={saveCompanySettings}
                 disabled={!isSuperAdmin || companyLoading || companySaving}
               >
                 {companySaving ? 'Salvando...' : 'Salvar'}
@@ -130,6 +151,10 @@ export function SuperAdmin() {
                 <span className="text-xs text-gray-500">Sem permissão</span>
               )}
             </div>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            Check-ins feitos até o horário de corte contam no mesmo dia. Depois desse horário, a vigência começa no dia seguinte.
           </div>
         </CardContent>
       </Card>
@@ -235,6 +260,10 @@ export function SuperAdmin() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          <div className="text-xs text-gray-500">
+            Check-ins feitos até o horário de corte contam no mesmo dia. Depois desse horário, a vigência começa no dia seguinte.
           </div>
         </CardContent>
       </Card>

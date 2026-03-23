@@ -83,6 +83,12 @@ function clampInt(v: any, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+function buildReservationCutoffNotice(cutoffTime?: string | null) {
+  const normalized = String(cutoffTime || '').trim();
+  if (!normalized) return '';
+  return `Check-ins realizados até ${normalized} contam no mesmo dia. Após esse horário, a vigência começa no dia seguinte.`;
+}
+
 function formatPeriod(parts?: { years?: any; months?: any; days?: any } | null): string {
   const years = clampInt(parts?.years, 0, 99);
   const months = clampInt(parts?.months, 0, 99);
@@ -442,6 +448,12 @@ export default function MenuProposta() {
                     <div className="mt-1 text-lg font-bold text-white">{formatMoneyBr(currentQuote.totals.total)}</div>
                   </div>
                 </div>
+
+                {data?.reservationStartCutoffTime ? (
+                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                    <span className="font-semibold">Início da vigência:</span> {buildReservationCutoffNotice(data.reservationStartCutoffTime)}
+                  </div>
+                ) : null}
 
                 {servicesIncluded.length > 0 && (
                   <>
