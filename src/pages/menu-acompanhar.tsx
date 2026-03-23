@@ -20,6 +20,29 @@ function buildQuery(params: Record<string, string | undefined | null>) {
   return qs ? `?${qs}` : '';
 }
 
+function formatOperationalStatus(status?: string | null): string {
+  const s = String(status || '').trim().toUpperCase();
+  if (!s) return '—';
+  if (s === 'APROVADA') return 'Aprovada';
+  if (s === 'ENVIADA') return 'Enviada';
+  if (s === 'EM_INSTALACAO') return 'Em instalação';
+  if (s === 'AGUARDANDO_MATERIAL') return 'Aguardando material';
+  if (s === 'ATIVA') return 'Ativa';
+  if (s === 'EM_VEICULACAO') return 'Em veiculação';
+  if (s === 'FINALIZADA') return 'Finalizada';
+  if (s === 'ABERTA') return 'Aberta';
+  if (s === 'PAGA') return 'Paga';
+  if (s === 'RESERVADA') return 'Reservada';
+  if (s === 'CONFIRMADA') return 'Confirmada';
+  return s;
+}
+
+function formatStatusCounts(map?: Record<string, number> | null): string {
+  const entries = Object.entries(map || {}).filter(([, value]) => Number(value) > 0);
+  if (!entries.length) return '—';
+  return entries.map(([key, value]) => `${formatOperationalStatus(key)}: ${value}`).join(' • ');
+}
+
 function formatDateTimeBr(iso?: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -250,6 +273,28 @@ export default function MenuAcompanhar() {
                     </div>
                   </div>
                 </div>
+
+                {String(data.status || '').toUpperCase() === 'APPROVED' && (data.operational?.campaign || data.operational?.billing?.total) ? (
+                  <>
+                    <Separator className="my-5" />
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                      <div className="text-sm font-semibold text-emerald-950">Etapa operacional iniciada</div>
+                      <div className="mt-1 text-xs text-emerald-900">Sua aprovação já foi refletida no fluxo interno.</div>
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg border border-emerald-200 bg-white px-3 py-3">
+                          <div className="text-xs text-emerald-700">Campanha</div>
+                          <div className="mt-1 font-semibold text-emerald-950">{data.operational?.campaign?.name || 'Em preparação'}</div>
+                          <div className="mt-1 text-xs text-emerald-800">Status: {formatOperationalStatus(data.operational?.campaign?.status)}</div>
+                        </div>
+                        <div className="rounded-lg border border-emerald-200 bg-white px-3 py-3">
+                          <div className="text-xs text-emerald-700">Cobranças</div>
+                          <div className="mt-1 font-semibold text-emerald-950">{data.operational?.billing?.total ?? 0}</div>
+                          <div className="mt-1 text-xs text-emerald-800">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
 
                 {data.notes && (
                   <>

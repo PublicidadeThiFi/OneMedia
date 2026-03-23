@@ -27,6 +27,32 @@ function formatMoneyBr(v: number): string {
   }
 }
 
+function formatOperationalStatus(status?: string | null): string {
+  const s = String(status || '').trim().toUpperCase();
+  if (!s) return '—';
+  if (s === 'APROVADA') return 'Aprovada';
+  if (s === 'ENVIADA') return 'Enviada';
+  if (s === 'RASCUNHO') return 'Rascunho';
+  if (s === 'EM_INSTALACAO') return 'Em instalação';
+  if (s === 'AGUARDANDO_MATERIAL') return 'Aguardando material';
+  if (s === 'ATIVA') return 'Ativa';
+  if (s === 'EM_VEICULACAO') return 'Em veiculação';
+  if (s === 'FINALIZADA') return 'Finalizada';
+  if (s === 'CANCELADA') return 'Cancelada';
+  if (s === 'ABERTA') return 'Aberta';
+  if (s === 'PAGA') return 'Paga';
+  if (s === 'VENCIDA') return 'Vencida';
+  if (s === 'RESERVADA') return 'Reservada';
+  if (s === 'CONFIRMADA') return 'Confirmada';
+  return s;
+}
+
+function formatStatusCounts(map?: Record<string, number> | null): string {
+  const entries = Object.entries(map || {}).filter(([, value]) => Number(value) > 0);
+  if (!entries.length) return '—';
+  return entries.map(([key, value]) => `${formatOperationalStatus(key)}: ${value}`).join(' • ');
+}
+
 function formatDateTimeBr(iso?: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -197,6 +223,60 @@ export default function MenuDonoAprovada() {
                       </div>
                     </>
                   )}
+
+                  <Separator className="my-4" />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-gray-200 px-3 py-3">
+                      <div className="text-xs text-gray-500">Proposta interna</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{formatOperationalStatus(data.operational?.proposal?.status || data.proposalStatus)}</div>
+                      <div className="mt-1 text-xs text-gray-600 break-all">ID: {data.proposalId || '—'}</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 px-3 py-3">
+                      <div className="text-xs text-gray-500">Campanha gerada</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.campaign?.name || '—'}</div>
+                      <div className="mt-1 text-xs text-gray-600 break-all">ID: {data.operational?.campaign?.id || data.campaignId || '—'}</div>
+                      <div className="mt-1 text-xs text-gray-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.campaign?.status)}</span></div>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 px-3 py-3">
+                      <div className="text-xs text-gray-500">Reservas</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.reservations?.total ?? 0}</div>
+                      <div className="mt-1 text-xs text-gray-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 px-3 py-3">
+                      <div className="text-xs text-gray-500">Cobranças</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.billing?.total ?? 0}</div>
+                      <div className="mt-1 text-xs text-gray-600">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
+                    </div>
+                  </div>
+
+                  {Array.isArray(data.operational?.billing?.invoices) && data.operational!.billing!.invoices.length > 0 ? (
+                    <>
+                      <Separator className="my-4" />
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">Cobranças geradas</div>
+                        <div className="mt-3 space-y-2">
+                          {data.operational!.billing!.invoices.map((invoice) => (
+                            <div key={invoice.id} className="rounded-xl border border-gray-200 px-3 py-3">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <div>
+                                  <div className="text-sm font-semibold text-gray-900">
+                                    {invoice.type ? `${invoice.type}${invoice.sequence ? ` #${invoice.sequence}` : ''}` : 'Cobrança'}
+                                  </div>
+                                  <div className="mt-1 text-xs text-gray-600 break-all">ID: {invoice.id}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(invoice.amount)}</div>
+                                  <div className="mt-1 text-xs text-gray-600">Vencimento: {formatDateTimeBr(invoice.dueDate)}</div>
+                                  <div className="mt-1 text-xs text-gray-600">Status: <span className="font-semibold">{formatOperationalStatus(invoice.status)}</span></div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </>
             )}
