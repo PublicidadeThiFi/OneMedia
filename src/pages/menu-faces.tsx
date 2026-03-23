@@ -58,9 +58,11 @@ export default function MenuFaces() {
   }, [data?.points, pointId]);
 
   const units: MediaUnit[] = useMemo(() => {
-    const list = Array.isArray(point?.units) ? point!.units!.filter((u) => u?.isActive !== false) : [];
-    return list;
+    const list = Array.isArray(point?.units) ? point!.units!.filter((u: any) => u?.isActive !== false) : [];
+    return list as MediaUnit[];
   }, [point]);
+
+  const selectableUnits = useMemo(() => units.filter((u: any) => (u as any)?.isAvailable !== false && (u as any)?.isOccupied !== true), [units]);
 
   const monthSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'month') : null), [point]);
   const weekSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'week') : null), [point]);
@@ -94,7 +96,8 @@ export default function MenuFaces() {
 
     let addedCount = 0;
     ids.forEach((id) => {
-      const unit = units.find((u) => u.id === id) ?? null;
+      const unit = units.find((u: any) => u.id === id) ?? null;
+      if (!unit || (unit as any)?.isAvailable === false || (unit as any)?.isOccupied === true) return;
       const res = addToCart({ point, unit, duration: { years: 0, months: 1, days: 0 } });
       if (res.added) addedCount += 1;
     });
@@ -208,7 +211,7 @@ export default function MenuFaces() {
                     </div>
                   </div>
 
-                  <Button className="gap-2" onClick={onAddSelected} disabled={units.length === 0}>
+                  <Button className="gap-2" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
                     <ShoppingCart className="h-4 w-4" />
                     Adicionar selecionadas ({selectedCount})
                   </Button>
@@ -218,8 +221,9 @@ export default function MenuFaces() {
 
                 <div className="space-y-3">
                   {units.length > 0 ? (
-                    units.map((u) => {
+                    units.map((u: any) => {
                       const checked = !!selected[u.id];
+                      const isUnavailable = (u as any)?.isAvailable === false || (u as any)?.isOccupied === true || (u as any)?.availability === 'Ocupado';
 
                       const baseMonthRaw = u.priceMonth ?? point.basePriceMonth;
                       const baseWeekRaw = u.priceWeek ?? point.basePriceWeek;
@@ -238,18 +242,22 @@ export default function MenuFaces() {
 
                       const promoBadge = formatPromotionBadge(promo);
                       return (
-                        <div key={u.id} className="rounded-xl border border-gray-200 p-3">
+                        <div key={u.id} className={`rounded-xl border p-3 ${isUnavailable ? 'border-amber-300 bg-amber-50/60' : 'border-gray-200'}`}>
                           <div className="flex items-start gap-3">
                             <Checkbox
                               checked={checked}
-                              onCheckedChange={(v: boolean | 'indeterminate') => onToggle(u.id, v === true)}
+                              onCheckedChange={(v: boolean | 'indeterminate') => !isUnavailable && onToggle(u.id, v === true)}
                               className="mt-1"
+                              disabled={isUnavailable}
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <div className="text-sm font-semibold text-gray-900">
                                   {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
                                 </div>
+                                {isUnavailable ? (
+                                  <Badge variant="secondary" className="rounded-full bg-amber-100 text-amber-900 hover:bg-amber-100">Ocupada</Badge>
+                                ) : null}
                                 {isPromotions && promo && (
                                   <Badge variant="secondary" className="rounded-full">{promoBadge || 'Promoção'}</Badge>
                                 )}
@@ -257,6 +265,7 @@ export default function MenuFaces() {
                               <div className="mt-1 text-xs text-gray-600">
                                 {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
                                 {u.orientation ? ` • ${u.orientation}` : ''}
+                                {isUnavailable ? ' • indisponível no momento' : ''}
                               </div>
                               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
                                 <div>

@@ -4,7 +4,29 @@ import { normalizeMenuFlow } from './menuFlow';
 
 export type Availability = 'Disponível' | 'Parcial' | 'Ocupado';
 
+export type UnitAvailability = 'Disponível' | 'Ocupado';
+
+export type PublicMediaKitUnit = {
+  id: string;
+  label: string;
+  unitType?: string | null;
+  orientation?: string | null;
+  widthM?: number | null;
+  heightM?: number | null;
+  priceMonth?: number | null;
+  priceWeek?: number | null;
+  priceDay?: number | null;
+  imageUrl?: string | null;
+  isActive?: boolean;
+  isOccupied?: boolean;
+  isAvailable?: boolean;
+  availability?: UnitAvailability;
+  effectivePromotion?: any;
+  promotion?: any;
+};
+
 export type PublicMediaKitPoint = MediaPoint & {
+  units?: PublicMediaKitUnit[];
   unitsCount?: number;
   occupiedUnitsCount?: number;
   availableUnitsCount?: number;

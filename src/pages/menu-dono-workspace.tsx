@@ -14,6 +14,7 @@ import {
   fetchMenuRequest,
   listMenuGiftTargets,
   listMenuServiceCatalog,
+  listMenuProductCatalog,
   previewMenuQuoteTotals,
   regenerateMenuLink,
   sendMenuQuote,
@@ -31,6 +32,7 @@ import {
   type MenuQuoteVersionRecord,
   type MenuRequestRecord,
   type MenuServiceCatalogItem,
+  type MenuProductCatalogItem,
 } from '../lib/menuRequestApi';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
@@ -184,6 +186,7 @@ export default function MenuDonoWorkspace() {
   const [draft, setDraft] = useState<MenuQuoteDraft>({
     message: '',
     services: [],
+    products: [],
     manualServiceValue: null,
     itemCosts: [],
     gifts: [],
@@ -198,6 +201,10 @@ export default function MenuDonoWorkspace() {
   const [serviceCatalogLoading, setServiceCatalogLoading] = useState(false);
   const [servicePick, setServicePick] = useState<string>('');
   const [serviceValue, setServiceValue] = useState<number>(0);
+  const [productCatalog, setProductCatalog] = useState<MenuProductCatalogItem[]>([]);
+  const [productCatalogLoading, setProductCatalogLoading] = useState(false);
+  const [productPick, setProductPick] = useState<string>('');
+  const [productValue, setProductValue] = useState<number>(0);
 
   const faceOptions = useMemo(() => {
     const m = new Map<string, { id: string; label: string }>();
@@ -690,8 +697,20 @@ export default function MenuDonoWorkspace() {
             message: last.draft.message || '',
             services: Array.isArray(last.draft.services)
               ? last.draft.services.map((s: any) => ({
+                  id: s?.id ?? null,
                   name: s?.name,
                   value: s?.value,
+                  lineType: s?.lineType ?? 'SERVICO',
+                  discountPercent: s?.discountPercent ?? null,
+                  discountFixed: s?.discountFixed ?? null,
+                }))
+              : [],
+            products: Array.isArray((last.draft as any).products)
+              ? (last.draft as any).products.map((s: any) => ({
+                  id: s?.id ?? null,
+                  name: s?.name,
+                  value: s?.value,
+                  lineType: s?.lineType ?? 'PRODUTO',
                   discountPercent: s?.discountPercent ?? null,
                   discountFixed: s?.discountFixed ?? null,
                 }))
@@ -729,6 +748,9 @@ export default function MenuDonoWorkspace() {
       setServiceCatalog([]);
       setServicePick('');
       setServiceValue(0);
+      setProductCatalog([]);
+      setProductPick('');
+      setProductValue(0);
       return () => {
         alive = false;
       };
@@ -737,36 +759,64 @@ export default function MenuDonoWorkspace() {
     (async () => {
       try {
         setServiceCatalogLoading(true);
-        const res = await listMenuServiceCatalog({ requestId: rid, token, t });
+        setProductCatalogLoading(true);
+        const [serviceRes, productRes] = await Promise.all([
+          listMenuServiceCatalog({ requestId: rid, token, t }),
+          listMenuProductCatalog({ requestId: rid, token, t }),
+        ]);
         if (!alive) return;
-        const items = Array.isArray(res?.items) ? res.items : [];
-        setServiceCatalog(items);
-        if (!items.length) {
+        const serviceItems = Array.isArray(serviceRes?.items) ? serviceRes.items : [];
+        const productItems = Array.isArray(productRes?.items) ? productRes.items : [];
+        setServiceCatalog(serviceItems);
+        setProductCatalog(productItems);
+        if (!serviceItems.length) {
           setServicePick('');
           setServiceValue(0);
-          return;
+        } else {
+          setServicePick((current) => {
+            const currentTrim = String(current || '').trim();
+            const exists = serviceItems.some((item) => item.name === currentTrim);
+            return exists ? currentTrim : serviceItems[0]?.name || '';
+          });
+          setServiceValue((current) => {
+            const selected = serviceItems.find((item) => item.name === String(servicePick || '').trim()) || serviceItems[0];
+            if (!selected) return 0;
+            const currentNumber = Number(current || 0);
+            if (Number.isFinite(currentNumber) && currentNumber > 0 && String(servicePick || '').trim()) return currentNumber;
+            return Number(selected.defaultValue || 0);
+          });
         }
 
-        setServicePick((current) => {
-          const currentTrim = String(current || '').trim();
-          const exists = items.some((item) => item.name === currentTrim);
-          return exists ? currentTrim : items[0]?.name || '';
-        });
-
-        setServiceValue((current) => {
-          const selected = items.find((item) => item.name === String(servicePick || '').trim()) || items[0];
-          if (!selected) return 0;
-          const currentNumber = Number(current || 0);
-          if (Number.isFinite(currentNumber) && currentNumber > 0 && String(servicePick || '').trim()) return currentNumber;
-          return Number(selected.defaultValue || 0);
-        });
+        if (!productItems.length) {
+          setProductPick('');
+          setProductValue(0);
+        } else {
+          setProductPick((current) => {
+            const currentTrim = String(current || '').trim();
+            const exists = productItems.some((item) => item.name === currentTrim);
+            return exists ? currentTrim : productItems[0]?.name || '';
+          });
+          setProductValue((current) => {
+            const selected = productItems.find((item) => item.name === String(productPick || '').trim()) || productItems[0];
+            if (!selected) return 0;
+            const currentNumber = Number(current || 0);
+            if (Number.isFinite(currentNumber) && currentNumber > 0 && String(productPick || '').trim()) return currentNumber;
+            return Number(selected.defaultValue || 0);
+          });
+        }
       } catch {
         if (!alive) return;
         setServiceCatalog([]);
         setServicePick('');
         setServiceValue(0);
+        setProductCatalog([]);
+        setProductPick('');
+        setProductValue(0);
       } finally {
-        if (alive) setServiceCatalogLoading(false);
+        if (alive) {
+          setServiceCatalogLoading(false);
+          setProductCatalogLoading(false);
+        }
       }
     })();
 
@@ -851,6 +901,39 @@ export default function MenuDonoWorkspace() {
     setDraft((d) => ({
       ...d,
       services: (d.services || []).map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+    }));
+  };
+
+  const onPickProduct = (name: string) => {
+    setProductPick(name);
+    const opt = productCatalog.find((s) => s.name === name);
+    if (opt) setProductValue(Number(opt.defaultValue || 0));
+  };
+
+  const addProductLine = () => {
+    const selected = productCatalog.find((p) => p.name === String(productPick || '').trim()) || null;
+    const name = String(productPick || '').trim();
+    const value = Number(productValue || 0);
+    if (!name || !Number.isFinite(value) || value <= 0) return;
+
+    const line: MenuQuoteServiceLine = { id: selected?.id || null, name, value, lineType: 'PRODUTO', discountPercent: null, discountFixed: null };
+    setDraft((d) => ({
+      ...d,
+      products: [...((d as any).products || []), line],
+    }));
+  };
+
+  const removeProductLine = (idx: number) => {
+    setDraft((d) => ({
+      ...d,
+      products: (((d as any).products || []) as MenuQuoteServiceLine[]).filter((_, i) => i !== idx),
+    }));
+  };
+
+  const updateProductLine = (idx: number, patch: Partial<MenuQuoteServiceLine>) => {
+    setDraft((d) => ({
+      ...d,
+      products: (((d as any).products || []) as MenuQuoteServiceLine[]).map((s, i) => (i === idx ? { ...s, ...patch } : s)),
     }));
   };
 
@@ -1490,6 +1573,97 @@ export default function MenuDonoWorkspace() {
                         </div>
                         <div />
                       </div>
+
+                      <div className="mt-4 text-sm font-semibold text-gray-900">Produtos</div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <select
+                          className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
+                          value={productPick}
+                          onChange={(e) => onPickProduct(e.target.value)}
+                          disabled={isLocked || productCatalogLoading || productCatalog.length === 0}
+                        >
+                          {productCatalog.length === 0 ? (
+                            <option value="">Nenhum produto cadastrado</option>
+                          ) : (
+                            productCatalog.map((s) => (
+                              <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                            ))
+                          )}
+                        </select>
+                        <Input
+                          type="number"
+                          value={Number.isFinite(Number(productValue)) ? String(productValue) : ''}
+                          onChange={(e) => setProductValue(Number(e.target.value || 0))}
+                          placeholder="Valor"
+                          disabled={isLocked}
+                        />
+                        <Button variant="outline" onClick={addProductLine} disabled={isLocked || productCatalogLoading || productCatalog.length === 0}>Adicionar</Button>
+                      </div>
+                      {productCatalogLoading ? (
+                        <div className="mt-2 text-xs text-gray-500">Carregando produtos cadastrados…</div>
+                      ) : productCatalog.length === 0 ? (
+                        <div className="mt-2 text-xs text-amber-700">Nenhum produto foi encontrado no módulo de Produtos/Serviços desta empresa.</div>
+                      ) : (
+                        <div className="mt-2 text-xs text-gray-500">A lista acima usa somente os produtos cadastrados no módulo de Produtos/Serviços.</div>
+                      )}
+
+                      {(((draft as any).products || []).length > 0) && (
+                        <div className="mt-3 space-y-2">
+                          {(((draft as any).products || []) as MenuQuoteServiceLine[]).map((s, idx) => {
+                            const value = Math.max(0, Number(s?.value || 0));
+                            const dp = Math.max(0, Number((s as any)?.discountPercent || 0));
+                            const df = Math.max(0, Number((s as any)?.discountFixed || 0));
+                            const lineDiscount = Number(Math.min(value, value * (dp / 100) + df).toFixed(2));
+                            const hasLineDiscount = lineDiscount > 0;
+
+                            return (
+                              <div key={`${s.name}-${idx}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm text-gray-900">{s.name}</div>
+
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <div className="text-xs text-gray-500">Desconto do produto (opcional)</div>
+
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        type="number"
+                                        className="h-9 w-20"
+                                        value={(s as any)?.discountPercent == null ? '' : String((s as any)?.discountPercent)}
+                                        onChange={(e) =>
+                                          updateProductLine(idx, { discountPercent: e.target.value ? Number(e.target.value) : null })
+                                        }
+                                        placeholder="%"
+                                        disabled={isLocked}
+                                      />
+                                      <Input
+                                        type="number"
+                                        className="h-9 w-24"
+                                        value={(s as any)?.discountFixed == null ? '' : String((s as any)?.discountFixed)}
+                                        onChange={(e) =>
+                                          updateProductLine(idx, { discountFixed: e.target.value ? Number(e.target.value) : null })
+                                        }
+                                        placeholder="R$"
+                                        disabled={isLocked}
+                                      />
+                                    </div>
+
+                                    {hasLineDiscount && (
+                                      <div className="text-xs text-gray-500">
+                                        (- {formatMoneyBr(lineDiscount)})
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between sm:justify-end gap-3">
+                                  <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(s.value)}</div>
+                                  <Button variant="ghost" size="sm" onClick={() => removeProductLine(idx)} disabled={isLocked}>Remover</Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       <Separator className="my-4" />
 
