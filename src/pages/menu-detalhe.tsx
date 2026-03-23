@@ -176,13 +176,18 @@ export default function MenuDetalhe() {
   const onAdd = () => {
     if (!point) return;
 
-    const units = Array.isArray(point.units) ? point.units.filter((u) => u?.isActive !== false) : [];
-    if (units.length > 1) {
+    const units = Array.isArray(point.units) ? point.units.filter((u: any) => u?.isActive !== false) : [];
+    const selectableUnits = units.filter((u: any) => (u as any)?.isAvailable !== false && (u as any)?.isOccupied !== true);
+    if (selectableUnits.length > 1) {
       navigate(`/menu/faces${buildQuery({ token, id: point.id, uf, city, flow, ownerCompanyId })}`);
       return;
     }
 
-    const unit = units.length === 1 ? units[0] : null;
+    const unit = selectableUnits.length === 1 ? selectableUnits[0] : null;
+    if (!unit && units.length > 0) {
+      toast.error('Este ponto está indisponível no momento.');
+      return;
+    }
     const { added } = addToCart({ point, unit, duration: { years: 0, months: 1, days: 0 } });
 
     if (added) {
@@ -201,9 +206,11 @@ export default function MenuDetalhe() {
   const mediaType = point ? (normalizeMediaType(point.type) ?? (point.type as any)) : null;
 
   const units = useMemo(() => {
-    const list = Array.isArray(point?.units) ? point!.units!.filter((u) => u?.isActive !== false) : [];
+    const list = Array.isArray(point?.units) ? point!.units!.filter((u: any) => u?.isActive !== false) : [];
     return list;
   }, [point]);
+
+  const selectableUnitsCount = useMemo(() => units.filter((u: any) => (u as any)?.isAvailable !== false && (u as any)?.isOccupied !== true).length, [units]);
 
   const gallery = useMemo(() => {
     const urls = [point?.mainImageUrl, ...units.map((u) => u.imageUrl || '')]
@@ -416,7 +423,7 @@ export default function MenuDetalhe() {
                   </div>
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    <Button className="gap-2" onClick={onAdd}>
+                    <Button className="gap-2" onClick={onAdd} disabled={units.length > 0 && selectableUnitsCount === 0}>
                       <ShoppingCart className="h-4 w-4" />
                       {units.length > 1 ? 'Escolher faces/telas' : 'Adicionar no carrinho'}
                     </Button>

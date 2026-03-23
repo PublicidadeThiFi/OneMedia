@@ -212,8 +212,10 @@ export type MenuGift = {
 };
 
 export type MenuQuoteServiceLine = {
+  id?: string | null;
   name: string;
   value: number;
+  lineType?: 'SERVICO' | 'PRODUTO' | null;
   discountPercent?: number | null;
   discountFixed?: number | null;
 };
@@ -233,6 +235,7 @@ export type MenuQuoteItemCostLine = {
 export type MenuQuoteDraft = {
   message?: string | null;
   services?: MenuQuoteServiceLine[];
+  products?: MenuQuoteServiceLine[];
   manualServiceValue?: number | null;
 
   /** Etapa 4 — custos adicionados diretamente no item (ponto/face). */
@@ -457,6 +460,12 @@ export type MenuServiceCatalogItem = {
   defaultValue: number;
 };
 
+export type MenuProductCatalogItem = {
+  id: string;
+  name: string;
+  defaultValue: number;
+};
+
 export async function listMenuGiftTargets(params: {
   requestId: string;
   token?: string;
@@ -506,6 +515,26 @@ export async function listMenuServiceCatalog(params: {
 
   const resp = await publicApiClient.get<{ items: MenuServiceCatalogItem[] }>(
     `/public/menu/request/${encodeURIComponent(requestId)}/service-catalog`,
+    { params: query },
+  );
+  return resp.data;
+}
+
+
+export async function listMenuProductCatalog(params: {
+  requestId: string;
+  token?: string;
+  t?: string;
+}): Promise<{ items: MenuProductCatalogItem[] }> {
+  const requestId = String(params.requestId || '').trim();
+  const token = String(params.token || '').trim();
+  const t = String(params.t || '').trim();
+  const query: Record<string, string | undefined> = {};
+  if (t) query.t = t;
+  else query.token = token;
+
+  const resp = await publicApiClient.get<{ items: MenuProductCatalogItem[] }>(
+    `/public/menu/request/${encodeURIComponent(requestId)}/product-catalog`,
     { params: query },
   );
   return resp.data;

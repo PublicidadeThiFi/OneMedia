@@ -206,16 +206,28 @@ export default function MenuProposta() {
       const name = String((s as any)?.name || '').trim();
       const value = Math.max(0, Number((s as any)?.value || 0));
       if (!name || !Number.isFinite(value) || value <= 0) continue;
-      out.push({ ...(s as any), name, value: Number(value.toFixed(2)) });
+      out.push({ ...(s as any), name, value: Number(value.toFixed(2)), lineType: 'SERVICO' } as any);
     }
 
     const manualValue = Math.max(0, Number((currentQuote as any)?.draft?.manualServiceValue || 0));
     if (Number.isFinite(manualValue) && manualValue > 0) {
-      out.push({ name: 'Serviço manual', value: Number(manualValue.toFixed(2)), __manual: true } as any);
+      out.push({ name: 'Serviço manual', value: Number(manualValue.toFixed(2)), __manual: true, lineType: 'SERVICO' } as any);
     }
 
     return out;
   }, [currentQuote?.draft?.services, (currentQuote as any)?.draft?.manualServiceValue]);
+
+  const productsIncluded = useMemo(() => {
+    const out: Array<MenuQuoteServiceLine> = [];
+    const lines = Array.isArray((currentQuote as any)?.draft?.products) ? (((currentQuote as any).draft.products) as MenuQuoteServiceLine[]) : [];
+    for (const s of lines) {
+      const name = String((s as any)?.name || '').trim();
+      const value = Math.max(0, Number((s as any)?.value || 0));
+      if (!name || !Number.isFinite(value) || value <= 0) continue;
+      out.push({ ...(s as any), name, value: Number(value.toFixed(2)), lineType: 'PRODUTO' } as any);
+    }
+    return out;
+  }, [(currentQuote as any)?.draft?.products]);
 
   const onApprove = async () => {
     try {
@@ -455,33 +467,67 @@ export default function MenuProposta() {
                   </div>
                 ) : null}
 
-                {servicesIncluded.length > 0 && (
+                {(servicesIncluded.length > 0 || productsIncluded.length > 0) && (
                   <>
                     <Separator className="my-5" />
                     <div>
-                      <div className="text-sm font-semibold text-gray-900">Serviços incluídos</div>
-                      <div className="mt-3 space-y-2">
-                        {servicesIncluded.map((s: any, idx: number) => {
-                          const value = Math.max(0, Number(s?.value || 0));
-                          const dp = s?.__manual ? 0 : Math.max(0, Number(s?.discountPercent || 0));
-                          const df = s?.__manual ? 0 : Math.max(0, Number(s?.discountFixed || 0));
-                          const lineDiscount = Number(Math.min(value, value * (dp / 100) + df).toFixed(2));
-                          const hasLineDiscount = lineDiscount > 0;
+                      <div className="text-sm font-semibold text-gray-900">Itens adicionais incluídos</div>
+                      <div className="mt-3 space-y-4">
+                        {servicesIncluded.length > 0 && (
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Serviços</div>
+                            <div className="space-y-2">
+                              {servicesIncluded.map((s: any, idx: number) => {
+                                const value = Math.max(0, Number(s?.value || 0));
+                                const dp = s?.__manual ? 0 : Math.max(0, Number(s?.discountPercent || 0));
+                                const df = s?.__manual ? 0 : Math.max(0, Number(s?.discountFixed || 0));
+                                const lineDiscount = Number(Math.min(value, value * (dp / 100) + df).toFixed(2));
+                                const hasLineDiscount = lineDiscount > 0;
 
-                          return (
-                            <div key={`${String(s.name)}-${idx}`} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-gray-900 truncate">{s.name}</div>
-                                  {hasLineDiscount ? (
-                                    <div className="mt-0.5 text-xs text-gray-600">Desconto do serviço: - {formatMoneyBr(lineDiscount)}</div>
-                                  ) : null}
-                                </div>
-                                <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(value)}</div>
-                              </div>
+                                return (
+                                  <div key={`${String(s.name)}-${idx}`} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-semibold text-gray-900 truncate">{s.name}</div>
+                                        {hasLineDiscount ? (
+                                          <div className="mt-0.5 text-xs text-gray-600">Desconto do serviço: - {formatMoneyBr(lineDiscount)}</div>
+                                        ) : null}
+                                      </div>
+                                      <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(value)}</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          );
-                        })}
+                          </div>
+                        )}
+                        {productsIncluded.length > 0 && (
+                          <div>
+                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Produtos</div>
+                            <div className="space-y-2">
+                              {productsIncluded.map((s: any, idx: number) => {
+                                const value = Math.max(0, Number(s?.value || 0));
+                                const dp = Math.max(0, Number(s?.discountPercent || 0));
+                                const df = Math.max(0, Number(s?.discountFixed || 0));
+                                const lineDiscount = Number(Math.min(value, value * (dp / 100) + df).toFixed(2));
+                                const hasLineDiscount = lineDiscount > 0;
+                                return (
+                                  <div key={`${String(s.name)}-prod-${idx}`} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <div className="text-sm font-semibold text-gray-900 truncate">{s.name}</div>
+                                        {hasLineDiscount ? (
+                                          <div className="mt-0.5 text-xs text-gray-600">Desconto do produto: - {formatMoneyBr(lineDiscount)}</div>
+                                        ) : null}
+                                      </div>
+                                      <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(value)}</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </>
