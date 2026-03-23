@@ -13,6 +13,7 @@ import {
   classifyMenuRequestError,
   fetchMenuRequest,
   listMenuGiftTargets,
+  listMenuServiceCatalog,
   previewMenuQuoteTotals,
   regenerateMenuLink,
   sendMenuQuote,
@@ -29,6 +30,7 @@ import {
   type MenuQuoteTotals,
   type MenuQuoteVersionRecord,
   type MenuRequestRecord,
+  type MenuServiceCatalogItem,
 } from '../lib/menuRequestApi';
 
 function buildQuery(params: Record<string, string | undefined | null>) {
@@ -160,14 +162,6 @@ function readProductionCostsList(raw: any): Array<{ name: string; value: number 
   return out;
 }
 
-type ServiceOption = { name: string; defaultValue: number };
-
-const MOCK_SERVICES: ServiceOption[] = [
-  { name: 'Impressão (material)', defaultValue: 1200 },
-  { name: 'Instalação (mão de obra)', defaultValue: 600 },
-  { name: 'Criação/Arte', defaultValue: 800 },
-  { name: 'Logística', defaultValue: 350 },
-];
 
 export default function MenuDonoWorkspace() {
   const navigate = useNavigation();
@@ -200,8 +194,10 @@ export default function MenuDonoWorkspace() {
     discountApplyTo: 'ALL',
   });
 
-  const [servicePick, setServicePick] = useState<string>(MOCK_SERVICES[0]?.name || '');
-  const [serviceValue, setServiceValue] = useState<number>(MOCK_SERVICES[0]?.defaultValue || 0);
+  const [serviceCatalog, setServiceCatalog] = useState<MenuServiceCatalogItem[]>([]);
+  const [serviceCatalogLoading, setServiceCatalogLoading] = useState(false);
+  const [servicePick, setServicePick] = useState<string>('');
+  const [serviceValue, setServiceValue] = useState<number>(0);
 
   const faceOptions = useMemo(() => {
     const m = new Map<string, { id: string; label: string }>();
@@ -727,6 +723,59 @@ export default function MenuDonoWorkspace() {
   }, [rid, token, t]);
 
   useEffect(() => {
+    let alive = true;
+
+    if (!String(rid || '').trim() || !String(t || '').trim()) {
+      setServiceCatalog([]);
+      setServicePick('');
+      setServiceValue(0);
+      return () => {
+        alive = false;
+      };
+    }
+
+    (async () => {
+      try {
+        setServiceCatalogLoading(true);
+        const res = await listMenuServiceCatalog({ requestId: rid, token, t });
+        if (!alive) return;
+        const items = Array.isArray(res?.items) ? res.items : [];
+        setServiceCatalog(items);
+        if (!items.length) {
+          setServicePick('');
+          setServiceValue(0);
+          return;
+        }
+
+        setServicePick((current) => {
+          const currentTrim = String(current || '').trim();
+          const exists = items.some((item) => item.name === currentTrim);
+          return exists ? currentTrim : items[0]?.name || '';
+        });
+
+        setServiceValue((current) => {
+          const selected = items.find((item) => item.name === String(servicePick || '').trim()) || items[0];
+          if (!selected) return 0;
+          const currentNumber = Number(current || 0);
+          if (Number.isFinite(currentNumber) && currentNumber > 0 && String(servicePick || '').trim()) return currentNumber;
+          return Number(selected.defaultValue || 0);
+        });
+      } catch {
+        if (!alive) return;
+        setServiceCatalog([]);
+        setServicePick('');
+        setServiceValue(0);
+      } finally {
+        if (alive) setServiceCatalogLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [rid, token, t]);
+
+  useEffect(() => {
     if (!String(rid || '').trim() || !String(t || '').trim()) return;
     if (!data?.proposalId && !data?.operational?.campaign?.id && String(data?.status || '').toUpperCase() !== 'APPROVED') return;
 
@@ -775,8 +824,8 @@ export default function MenuDonoWorkspace() {
 
   const onPickService = (name: string) => {
     setServicePick(name);
-    const opt = MOCK_SERVICES.find((s) => s.name === name);
-    if (opt) setServiceValue(opt.defaultValue);
+    const opt = serviceCatalog.find((s) => s.name === name);
+    if (opt) setServiceValue(Number(opt.defaultValue || 0));
   };
 
   const addServiceLine = () => {
@@ -1333,11 +1382,15 @@ export default function MenuDonoWorkspace() {
                           className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
                           value={servicePick}
                           onChange={(e) => onPickService(e.target.value)}
-                          disabled={isLocked}
+                          disabled={isLocked || serviceCatalogLoading || serviceCatalog.length === 0}
                         >
-                          {MOCK_SERVICES.map((s) => (
-                            <option key={s.name} value={s.name}>{s.name}</option>
-                          ))}
+                          {serviceCatalog.length === 0 ? (
+                            <option value="">Nenhum serviço cadastrado</option>
+                          ) : (
+                            serviceCatalog.map((s) => (
+                              <option key={s.name} value={s.name}>{s.name}</option>
+                            ))
+                          )}
                         </select>
                         <Input
                           type="number"
@@ -1346,8 +1399,15 @@ export default function MenuDonoWorkspace() {
                           placeholder="Valor"
                           disabled={isLocked}
                         />
-                        <Button variant="outline" onClick={addServiceLine} disabled={isLocked}>Adicionar</Button>
+                        <Button variant="outline" onClick={addServiceLine} disabled={isLocked || serviceCatalogLoading || serviceCatalog.length === 0}>Adicionar</Button>
                       </div>
+                      {serviceCatalogLoading ? (
+                        <div className="mt-2 text-xs text-gray-500">Carregando serviços cadastrados…</div>
+                      ) : serviceCatalog.length === 0 ? (
+                        <div className="mt-2 text-xs text-amber-700">Nenhum serviço foi encontrado no módulo de Produtos/Serviços desta empresa.</div>
+                      ) : (
+                        <div className="mt-2 text-xs text-gray-500">A lista acima usa somente os serviços cadastrados no módulo de Produtos/Serviços.</div>
+                      )}
 
                       {((draft.services || []).length > 0 || Math.max(0, Number(draft.manualServiceValue || 0)) > 0) && (
                         <div className="mt-3 space-y-2">

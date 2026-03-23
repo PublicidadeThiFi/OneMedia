@@ -58,6 +58,12 @@ function formatDateTimeBr(iso?: string | null): string {
   }
 }
 
+function buildReservationCutoffNotice(cutoffTime?: string | null) {
+  const normalized = String(cutoffTime || '').trim();
+  if (!normalized) return '';
+  return `Check-ins realizados até ${normalized} contam no mesmo dia. Após esse horário, a vigência começa no dia seguinte.`;
+}
+
 export default function MenuAcompanhar() {
   const navigate = useNavigation();
 
@@ -269,6 +275,12 @@ export default function MenuAcompanhar() {
                         Abrir proposta
                       </Button>
                     </div>
+
+                    {data.reservationStartCutoffTime ? (
+                      <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                        <span className="font-semibold">Início da vigência:</span> {buildReservationCutoffNotice(data.reservationStartCutoffTime)}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div>
