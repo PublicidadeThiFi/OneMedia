@@ -62,7 +62,26 @@ function formatOperationalStatus(status?: string | null): string {
   if (s === 'APROVADA') return 'Aprovada';
   if (s === 'REPROVADA') return 'Reprovada';
   if (s === 'EXPIRADA') return 'Expirada';
+  if (s === 'EM_INSTALACAO') return 'Em instalação';
+  if (s === 'AGUARDANDO_MATERIAL') return 'Aguardando material';
+  if (s === 'ATIVA') return 'Ativa';
+  if (s === 'EM_VEICULACAO') return 'Em veiculação';
+  if (s === 'FINALIZADA') return 'Finalizada';
+  if (s === 'CANCELADA') return 'Cancelada';
+  if (s === 'ABERTA') return 'Aberta';
+  if (s === 'PAGA') return 'Paga';
+  if (s === 'VENCIDA') return 'Vencida';
+  if (s === 'RESERVADA') return 'Reservada';
+  if (s === 'CONFIRMADA') return 'Confirmada';
   return s;
+}
+
+function formatStatusCounts(map?: Record<string, number> | null): string {
+  const entries = Object.entries(map || {}).filter(([, value]) => Number(value) > 0);
+  if (!entries.length) return '—';
+  return entries
+    .map(([key, value]) => `${formatOperationalStatus(key)}: ${value}`)
+    .join(' • ');
 }
 
 function formatDateTimeBr(iso?: string | null): string {
@@ -982,10 +1001,28 @@ export default function MenuDonoWorkspace() {
                       <div className="text-xs text-slate-500">Proposta interna espelho</div>
                       <div className="mt-1 font-medium text-slate-900">{data.proposalId ? 'Criada/sincronizada' : 'Será criada ao enviar a versão'}</div>
                       <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.proposalId || '—'}</div>
-                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.proposalStatus)}</span></div>
+                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.proposal?.status || data.proposalStatus)}</span></div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-xs text-slate-500">Campanha</div>
+                      <div className="mt-1 font-medium text-slate-900">{data.operational?.campaign?.id ? 'Criada' : 'Aguardando aprovação do cliente'}</div>
+                      <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.operational?.campaign?.id || data.campaignId || '—'}</div>
+                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.campaign?.status)}</span></div>
+                      {data.operational?.campaign?.startDate || data.operational?.campaign?.endDate ? (
+                        <div className="mt-1 text-xs text-slate-600">
+                          Período: <span className="font-semibold">{formatDateTimeBr(data.operational?.campaign?.startDate)} → {formatDateTimeBr(data.operational?.campaign?.endDate)}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-xs text-slate-500">Reservas e financeiro</div>
+                      <div className="mt-1 text-xs text-slate-600">Reservas: <span className="font-semibold">{data.operational?.reservations?.total ?? 0}</span></div>
+                      <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
+                      <div className="mt-3 text-xs text-slate-600">Cobranças: <span className="font-semibold">{data.operational?.billing?.total ?? 0}</span></div>
+                      <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
                     </div>
                   </div>
-                  <div className="mt-3 text-xs text-slate-500">Nesta etapa, a aprovação final da proposta interna e os desdobramentos de campanha/reserva/financeiro ainda entram nas próximas etapas.</div>
+                  <div className="mt-3 text-xs text-slate-500">Depois da aprovação do cliente, a proposta interna é aprovada de forma operacional e o sistema passa a gerar campanha, reservas e cobranças conforme a lógica já existente.</div>
                 </div>
 
                 <Separator className="my-5" />

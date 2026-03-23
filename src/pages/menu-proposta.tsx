@@ -39,6 +39,29 @@ function formatMoneyBr(v: number): string {
   }
 }
 
+function formatOperationalStatus(status?: string | null): string {
+  const s = String(status || '').trim().toUpperCase();
+  if (!s) return '—';
+  if (s === 'APROVADA') return 'Aprovada';
+  if (s === 'ENVIADA') return 'Enviada';
+  if (s === 'EM_INSTALACAO') return 'Em instalação';
+  if (s === 'AGUARDANDO_MATERIAL') return 'Aguardando material';
+  if (s === 'ATIVA') return 'Ativa';
+  if (s === 'EM_VEICULACAO') return 'Em veiculação';
+  if (s === 'FINALIZADA') return 'Finalizada';
+  if (s === 'ABERTA') return 'Aberta';
+  if (s === 'PAGA') return 'Paga';
+  if (s === 'RESERVADA') return 'Reservada';
+  if (s === 'CONFIRMADA') return 'Confirmada';
+  return s;
+}
+
+function formatStatusCounts(map?: Record<string, number> | null): string {
+  const entries = Object.entries(map || {}).filter(([, value]) => Number(value) > 0);
+  if (!entries.length) return '—';
+  return entries.map(([key, value]) => `${formatOperationalStatus(key)}: ${value}`).join(' • ');
+}
+
 function formatDateTimeBr(iso?: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -490,6 +513,25 @@ export default function MenuProposta() {
                 )}
 
                 <Separator className="my-5" />
+
+                {isApproved && (data?.operational?.campaign || data?.operational?.billing?.total) ? (
+                  <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                    <div className="text-sm font-semibold text-emerald-950">Aprovação registrada no fluxo operacional</div>
+                    <div className="mt-1 text-xs text-emerald-900">A campanha e as cobranças já começaram a ser geradas no sistema interno.</div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-lg border border-emerald-200 bg-white px-3 py-3">
+                        <div className="text-xs text-emerald-700">Campanha</div>
+                        <div className="mt-1 font-semibold text-emerald-950">{data?.operational?.campaign?.name || 'Em preparação'}</div>
+                        <div className="mt-1 text-xs text-emerald-800">Status: {formatOperationalStatus(data?.operational?.campaign?.status)}</div>
+                      </div>
+                      <div className="rounded-lg border border-emerald-200 bg-white px-3 py-3">
+                        <div className="text-xs text-emerald-700">Cobranças</div>
+                        <div className="mt-1 font-semibold text-emerald-950">{data?.operational?.billing?.total ?? 0}</div>
+                        <div className="mt-1 text-xs text-emerald-800">{formatStatusCounts(data?.operational?.billing?.byStatus)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="flex flex-col sm:flex-row gap-3">
                   {!isApproved && (

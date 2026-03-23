@@ -27,6 +27,41 @@ export type CreateMenuRequestResponse = {
   requestId: string;
 };
 
+export type MenuOperationalSummary = {
+  syncedAt: string;
+  proposal?: {
+    id?: string | null;
+    status: string;
+    title?: string | null;
+    approvedAt?: string | null;
+    publicHash?: string | null;
+  } | null;
+  campaign?: {
+    id?: string | null;
+    name: string;
+    status: string;
+    startDate?: string | null;
+    endDate?: string | null;
+  } | null;
+  reservations?: {
+    total: number;
+    byStatus: Record<string, number>;
+  } | null;
+  billing?: {
+    total: number;
+    byStatus: Record<string, number>;
+    invoices: Array<{
+      id: string;
+      status: string;
+      amount: number;
+      dueDate?: string | null;
+      type?: string | null;
+      sequence?: number | null;
+      paidAt?: string | null;
+    }>;
+  } | null;
+};
+
 export type MenuRequestRecord = {
   id: string;
   companyId: string;
@@ -53,6 +88,7 @@ export type MenuRequestRecord = {
   proposalId?: string | null;
   proposalStatus?: string | null;
   campaignId?: string | null;
+  operational?: MenuOperationalSummary | null;
 
   items: MenuCartItem[];
 
