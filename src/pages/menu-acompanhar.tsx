@@ -126,6 +126,16 @@ export default function MenuAcompanhar() {
     };
   }, [rid, token, t]);
 
+  useEffect(() => {
+    if (!String(rid || '').trim()) return;
+    const timer = window.setInterval(() => {
+      fetchMenuRequest({ requestId: rid, token, t, view: 'client' })
+        .then((res) => setData(res))
+        .catch(() => undefined);
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [rid, token, t]);
+
   const timeline = useMemo(() => {
     const events = Array.isArray(data?.events) ? data!.events! : [];
     const getAt = (t: string) => events.find((e) => e.type === t)?.at || null;
@@ -274,12 +284,27 @@ export default function MenuAcompanhar() {
                   </div>
                 </div>
 
-                {String(data.status || '').toUpperCase() === 'APPROVED' && (data.operational?.campaign || data.operational?.billing?.total) ? (
+                {String(data.status || '').toUpperCase() === 'APPROVED' && (data.operational?.campaign || data.operational?.billing?.total || data.operational?.stage) ? (
                   <>
                     <Separator className="my-5" />
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4">
-                      <div className="text-sm font-semibold text-emerald-950">Etapa operacional iniciada</div>
-                      <div className="mt-1 text-xs text-emerald-900">Sua aprovação já foi refletida no fluxo interno.</div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-emerald-950">Etapa operacional iniciada</div>
+                          <div className="mt-1 text-xs text-emerald-900">Sua aprovação já foi refletida no fluxo interno.</div>
+                        </div>
+                        {data.operational?.stage ? (
+                          <Badge variant="secondary" className="w-fit rounded-full border border-emerald-200 bg-white text-emerald-900">
+                            {data.operational.stage.label}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      {data.operational?.stage?.description ? (
+                        <div className="mt-3 rounded-lg border border-emerald-200 bg-white px-3 py-3 text-xs text-emerald-900">
+                          {data.operational.stage.description}
+                        </div>
+                      ) : null}
+                      <div className="mt-3 text-xs text-emerald-900">Última sincronização: <span className="font-semibold">{formatDateTimeBr(data.operational?.syncedAt || data.updatedAt || data.createdAt)}</span></div>
                       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                         <div className="rounded-lg border border-emerald-200 bg-white px-3 py-3">
                           <div className="text-xs text-emerald-700">Campanha</div>
