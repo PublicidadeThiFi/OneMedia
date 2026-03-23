@@ -10,12 +10,11 @@ import { Separator } from '../components/ui/separator';
 import { ArrowLeft, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { clearCart, formatDurationParts, readCart } from '../lib/menuCart';
-import { publicApiClient } from '../lib/apiClient';
+import { createMenuRequest } from '../lib/menuRequestApi';
 import { getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 import { TurnstileWidget } from '../components/turnstile/TurnstileWidget';
 import { formatCpfCnpjDisplay, getCpfCnpjErrorMessage } from '../lib/validators';
 
-type CreateMenuRequestResponse = { requestId: string };
 
 function buildQuery(params: Record<string, string | undefined | null>) {
   const sp = new URLSearchParams();
@@ -182,23 +181,23 @@ export default function MenuFinalizar() {
 
     setIsSubmitting(true);
     try {
-      const res = (await publicApiClient.post('/public/menu/request', {
+      const res = await createMenuRequest({
         token: t,
         customerName: name,
         customerEmail: email,
         customerPhone: customerPhone,
         customerCompanyName: customerCompanyName || undefined,
         customerCnpj: customerCnpj || undefined,
-        captchaToken: captchaRequired ? (captchaToken || undefined) : undefined,
         notes: notes || undefined,
         items: cart.items,
         uf: uf || undefined,
         city: city || undefined,
         flow,
         ownerCompanyId: ownerCompanyId || undefined,
-      })) as { data?: Partial<CreateMenuRequestResponse> };
+        captchaToken: captchaRequired ? (captchaToken || undefined) : undefined,
+      });
 
-      const requestId = String(res?.data?.requestId || '').trim();
+      const requestId = String(res?.requestId || '').trim();
       if (!requestId) {
         throw new Error('Resposta inválida: requestId ausente.');
       }
