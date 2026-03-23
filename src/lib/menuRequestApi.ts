@@ -20,6 +20,7 @@ export type CreateMenuRequestInput = {
   // Etapa 3 — fluxo do cardápio e empresa responsável selecionada
   flow?: 'default' | 'promotions' | 'agency';
   ownerCompanyId?: string;
+  captchaToken?: string;
 };
 
 export type CreateMenuRequestResponse = {
@@ -47,6 +48,9 @@ export type MenuRequestRecord = {
   ownerCompanyId?: string | null;
   flow?: 'default' | 'promotions' | 'agency' | null;
   agencyMarkupPercentApplied?: number | null;
+  clientId?: string | null;
+  proposalId?: string | null;
+  campaignId?: string | null;
 
   items: MenuCartItem[];
 
@@ -336,6 +340,7 @@ export async function createMenuRequest(input: CreateMenuRequestInput): Promise<
     flow: (String((input as any).flow || '').trim().toLowerCase() as any) || undefined,
     ownerCompanyId: String((input as any).ownerCompanyId || '').trim() || undefined,
     items: Array.isArray(input.items) ? input.items : [],
+    captchaToken: String((input as any).captchaToken || '').trim() || undefined,
   };
 
   const resp = await publicApiClient.post<CreateMenuRequestResponse>('/public/menu/request', payload);
