@@ -24,6 +24,21 @@ function buildQuery(params: Record<string, string | undefined | null>) {
   return qs ? `?${qs}` : '';
 }
 
+function formatOperationalStatus(status?: string | null): string {
+  const s = String(status || '').trim().toUpperCase();
+  if (!s) return '—';
+  if (s === 'LEAD') return 'Lead';
+  if (s === 'PROSPECT') return 'Prospect';
+  if (s === 'CLIENTE') return 'Cliente';
+  if (s === 'INATIVO') return 'Inativo';
+  if (s === 'RASCUNHO') return 'Rascunho';
+  if (s === 'ENVIADA') return 'Enviada';
+  if (s === 'APROVADA') return 'Aprovada';
+  if (s === 'REPROVADA') return 'Reprovada';
+  if (s === 'EXPIRADA') return 'Expirada';
+  return s;
+}
+
 function formatDateTimeBr(iso?: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -207,6 +222,26 @@ export default function MenuDonoEnviada() {
                   ) : (
                     <div>Nenhuma versão enviada ainda.</div>
                   )}
+                </div>
+
+                <Separator className="my-5" />
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="text-sm font-semibold text-slate-900">Integração operacional</div>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-xs text-slate-500">Cliente interno</div>
+                      <div className="mt-1 font-medium text-slate-900">{data.clientId ? 'Criado/sincronizado' : 'Pendente'}</div>
+                      <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.clientId || '—'}</div>
+                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.clientStatus)}</span></div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-xs text-slate-500">Proposta interna espelho</div>
+                      <div className="mt-1 font-medium text-slate-900">{data.proposalId ? 'Criada/sincronizada' : 'Pendente'}</div>
+                      <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.proposalId || '—'}</div>
+                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.proposalStatus)}</span></div>
+                    </div>
+                  </div>
                 </div>
 
                 <Separator className="my-5" />

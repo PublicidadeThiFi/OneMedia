@@ -50,6 +50,21 @@ function formatMoneyBr(v: number): string {
   }
 }
 
+function formatOperationalStatus(status?: string | null): string {
+  const s = String(status || '').trim().toUpperCase();
+  if (!s) return '—';
+  if (s === 'LEAD') return 'Lead';
+  if (s === 'PROSPECT') return 'Prospect';
+  if (s === 'CLIENTE') return 'Cliente';
+  if (s === 'INATIVO') return 'Inativo';
+  if (s === 'RASCUNHO') return 'Rascunho';
+  if (s === 'ENVIADA') return 'Enviada';
+  if (s === 'APROVADA') return 'Aprovada';
+  if (s === 'REPROVADA') return 'Reprovada';
+  if (s === 'EXPIRADA') return 'Expirada';
+  return s;
+}
+
 function formatDateTimeBr(iso?: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -951,6 +966,27 @@ export default function MenuDonoWorkspace() {
                     </div>
                   </div>
                 )}
+
+                <Separator className="my-5" />
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="text-sm font-semibold text-slate-900">Integração operacional</div>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-xs text-slate-500">Cliente interno</div>
+                      <div className="mt-1 font-medium text-slate-900">{data.clientId ? 'Criado/sincronizado' : 'Pendente'}</div>
+                      <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.clientId || '—'}</div>
+                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.clientStatus)}</span></div>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                      <div className="text-xs text-slate-500">Proposta interna espelho</div>
+                      <div className="mt-1 font-medium text-slate-900">{data.proposalId ? 'Criada/sincronizada' : 'Será criada ao enviar a versão'}</div>
+                      <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.proposalId || '—'}</div>
+                      <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.proposalStatus)}</span></div>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs text-slate-500">Nesta etapa, a aprovação final da proposta interna e os desdobramentos de campanha/reserva/financeiro ainda entram nas próximas etapas.</div>
+                </div>
 
                 <Separator className="my-5" />
 
