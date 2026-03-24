@@ -435,6 +435,9 @@ export interface MediaMapFace {
   imageUrl?: string | null;
   isActive: boolean;
   status: MediaUnitAvailabilityStatus;
+  blockedFrom?: string | null;
+  blockedUntil?: string | null;
+  availableOn?: string | null;
 }
 
 export interface MediaMapDetails {

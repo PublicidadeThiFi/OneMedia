@@ -243,8 +243,35 @@ function buildPointIcon(p: MediaMapPoint) {
 function humanStatus(p: Pick<MediaMapPoint, 'facesTotal' | 'facesFreeCount' | 'facesOccupiedCount' | 'facesNegotiationCount'>) {
   if (p.facesTotal > 0 && p.facesOccupiedCount === p.facesTotal) return 'Totalmente ocupada';
   if (p.facesOccupiedCount > 0) return 'Parcialmente ocupada';
-  if (p.facesNegotiationCount > 0) return 'Em negociação';
+  if (p.facesNegotiationCount > 0) return 'Reservada';
   return 'Livre';
+}
+
+function formatBrasiliaDate(value?: string | Date | null) {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(d);
+}
+
+function faceStatusLabel(status: MediaUnitAvailabilityStatus) {
+  if (status === 'OCUPADA') return 'Ocupada';
+  if (status === 'EM_NEGOCIACAO') return 'Reservada';
+  return 'Livre';
+}
+
+function faceOccupancyLabel(face: { blockedFrom?: string | null; blockedUntil?: string | null; availableOn?: string | null; status: MediaUnitAvailabilityStatus }) {
+  if (face.status === 'LIVRE') return null;
+  const from = formatBrasiliaDate(face.blockedFrom);
+  const until = formatBrasiliaDate(face.blockedUntil || face.availableOn);
+  if (from && until) return `Período: ${from} - ${until}`;
+  if (until) return `Livre em: ${until}`;
+  return null;
 }
 
 async function copyText(text: string) {
@@ -1622,7 +1649,7 @@ export function MediaMap() {
                               .join(', ')}
                           </div>
                           <div className="mt-2 text-xs text-gray-500">
-                            {humanStatus(details)} • {details.facesFreeCount}/{details.facesTotal} livres • {details.facesNegotiationCount} em negociação • {details.facesOccupiedCount} ocupadas
+                            {humanStatus(details)} • {details.facesFreeCount}/{details.facesTotal} livres • {details.facesNegotiationCount} reservadas • {details.facesOccupiedCount} ocupadas
                           </div>
                         </div>
                       </div>
@@ -1736,10 +1763,14 @@ export function MediaMap() {
                                 : st === 'OCUPADA'
                                   ? 'border-red-200 bg-red-50 text-red-700'
                                   : 'border-purple-200 bg-purple-50 text-purple-700';
+                            const occupancyLabel = faceOccupancyLabel(f as any);
                             return (
                               <div key={f.id} className={cn('border rounded-xl p-3 text-xs', color)}>
                                 <div className="font-medium text-gray-900">{f.label}</div>
-                                <div className="mt-1">{st === 'LIVRE' ? 'Livre' : st === 'OCUPADA' ? 'Ocupada' : 'Em negociação'}</div>
+                                <div className="mt-1">{faceStatusLabel(st)}</div>
+                                {occupancyLabel ? (
+                                  <div className="mt-1 text-[11px] leading-relaxed opacity-90">{occupancyLabel}</div>
+                                ) : null}
                               </div>
                             );
                           })}
