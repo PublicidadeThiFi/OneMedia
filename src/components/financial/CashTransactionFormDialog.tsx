@@ -268,7 +268,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         We solve it by making DialogContent itself scrollable (max-h + overflow-y-auto)
         and keeping the footer sticky so action buttons remain accessible.
       */}
-      <DialogContent className="max-w-2xl !p-0 !gap-0 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl !p-0 !gap-0 max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <div className="px-6 pt-6">
           <DialogHeader>
             <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
@@ -276,7 +276,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </DialogHeader>
         </div>
 
-        <div className="min-h-0 overflow-y-auto px-4 py-2 sm:px-6">
+        <div className="px-6 py-2">
           <div className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label>Tipo de Transação (flowType) *</Label>
@@ -297,7 +297,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Data *</Label>
               <Input
@@ -367,7 +367,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label>Categoria (categoryId)</Label>
@@ -414,7 +414,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipo de Pagamento (paymentType)</Label>
               <Select
@@ -471,7 +471,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
             {isEditing ? (
               <>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Ponto de Mídia (opcional)</Label>
                     <Select
@@ -520,7 +520,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                   <div className="max-h-72 overflow-y-auto pr-2">
                     <div className="space-y-3">
                       {mediaLinks.map((link, idx) => (
-                        <div key={link.key} className="grid grid-cols-1 gap-4 items-end sm:grid-cols-2">
+                        <div key={link.key} className="grid grid-cols-2 gap-4 items-end">
                           <div className="space-y-2">
                             <Label>{idx === 0 ? 'Ponto de Mídia (opcional)' : 'Ponto de Mídia'}</Label>
                             <Select
@@ -585,7 +585,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </div>
         </div>
 
-        <div className="sticky bottom-0 border-t bg-background px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+        <div className="sticky bottom-0 px-6 pb-6 pt-4 border-t bg-background flex justify-end gap-3">
           <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
           <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
         </div>
@@ -598,7 +598,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           if (!v) setAddCategoryError(null);
         }}
       >
-        <InnerDialogContent className="w-[min(480px,calc(100vw-1rem))] max-w-[480px] overflow-y-auto">
+        <InnerDialogContent>
           <InnerDialogHeader>
             <InnerDialogTitle>Adicionar categoria</InnerDialogTitle>
             <InnerDialogDescription>Cadastre uma nova categoria para usar no Financeiro.</InnerDialogDescription>
