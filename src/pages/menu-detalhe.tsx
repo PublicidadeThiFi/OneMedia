@@ -73,8 +73,20 @@ function isUnitSelectable(unit: any): boolean {
   if (unit.isActive === false) return false;
   if (unit.isAvailable === false) return false;
   if (unit.isOccupied === true) return false;
-  if (String(unit.availability || '').trim() === 'Ocupado') return false;
+  const availability = String(unit.availability || '').trim();
+  if (availability && availability !== 'Disponível') return false;
   return true;
+}
+
+function formatAvailabilityDate(value?: string | null): string | null {
+  if (!value) return null;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return null;
+  try {
+    return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(dt);
+  } catch {
+    return dt.toLocaleDateString('pt-BR');
+  }
 }
 
 function makeMapsEmbedUrl(point: PublicMediaKitPoint): string | null {
@@ -506,7 +518,7 @@ export default function MenuDetalhe() {
                               </div>
                               {isUnavailable && (
                                 <Badge variant="secondary" className="rounded-full bg-amber-100 text-amber-900 hover:bg-amber-100">
-                                  Ocupada
+                                  {String(u.availability || '').trim() === 'Reservada' ? 'Reservada' : 'Ocupada'}
                                 </Badge>
                               )}
                               {isPromotions && promoBadge && (
@@ -518,8 +530,14 @@ export default function MenuDetalhe() {
                             <div className="mt-1 text-xs text-gray-600">
                               {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
                               {u.orientation ? ` • ${u.orientation}` : ''}
-                              {!isUnitSelectable(u) ? ' • indisponível no momento' : ''}
+                              {!isUnitSelectable(u) ? ` • ${String(u.availability || '').trim() === 'Reservada' ? 'reservada' : 'indisponível no momento'}` : ''}
                             </div>
+
+                            {isUnavailable && formatAvailabilityDate((u as any).availableOn) && (
+                              <div className="mt-2 text-xs text-amber-800">
+                                Livre para nova seleção em <span className="font-semibold">{formatAvailabilityDate((u as any).availableOn)}</span>.
+                              </div>
+                            )}
 
                             <div className="mt-2 text-xs text-gray-700">
                               <span className="text-gray-500">Mensal:</span>{' '}
