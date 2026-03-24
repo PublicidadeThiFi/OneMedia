@@ -267,15 +267,17 @@ export function ClientFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl h-[min(90dvh,820px)] overflow-hidden p-0 gap-0">
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>{client ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           <DialogDescription>
             {client ? 'Atualize as informações do cliente' : 'Adicione um novo cliente'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="space-y-6">
           <div className="space-y-4">
             <h3 className="text-gray-900">Informações de Contato</h3>
 
@@ -465,22 +467,27 @@ export function ClientFormDialog({
             <Textarea id="notes" {...form.register('notes')} placeholder="Anotações internas..." rows={3} />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={form.formState.isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting || isLookingUpCnpj}>
-              {form.formState.isSubmitting
-                ? 'Salvando...'
-                : client
-                  ? 'Atualizar Cliente'
-                  : 'Salvar Cliente'}
-            </Button>
+            </div>
+          </div>
+
+          <div className="shrink-0 border-t px-6 py-4">
+            <div className="flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={form.formState.isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={form.formState.isSubmitting || isLookingUpCnpj}>
+                {form.formState.isSubmitting
+                  ? 'Salvando...'
+                  : client
+                    ? 'Atualizar Cliente'
+                    : 'Salvar Cliente'}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

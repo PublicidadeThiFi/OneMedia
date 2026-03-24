@@ -915,8 +915,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl h-[min(90dvh,920px)] overflow-hidden p-0 gap-0">
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>
             {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
           </DialogTitle>
@@ -925,7 +925,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <Tabs
   value={type}
   onValueChange={(v: string) => handleTypeChange(v as MediaType)}
 >
@@ -1714,17 +1715,18 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
             {submitError}
           </div>
         )}
-
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={handleCancel}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Salvando...' : mediaPoint ? 'Salvar Alterações' : 'Salvar Ponto'}
-          </Button>
         </div>
-      
 
+        <div className="shrink-0 border-t px-6 py-4">
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={handleCancel}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? 'Salvando...' : mediaPoint ? 'Salvar Alterações' : 'Salvar Ponto'}
+            </Button>
+          </div>
+        </div>
 
       <Dialog
         open={addCategoryOpen}
