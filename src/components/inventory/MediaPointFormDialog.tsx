@@ -915,7 +915,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[min(1100px,calc(100vw-1rem))] max-w-[1100px] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
@@ -939,7 +939,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
             <div className="space-y-4">
               <h3 className="text-gray-900 border-b pb-2">Informações Básicas</h3>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Nome do Ponto *</Label>
                   <Input
@@ -1213,7 +1213,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
             <div className="space-y-4">
               <h3 className="text-gray-900 border-b pb-2">Localização</h3>
               
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>CEP</Label>
                   <Input
@@ -1222,7 +1222,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     onChange={(e) => updateField('addressZipcode', normalizeZipcodeInput(e.target.value))}
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Rua/Avenida</Label>
                   <Input
                     placeholder="Ex: Avenida Paulista"
@@ -1232,7 +1232,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Número</Label>
                   <Input
@@ -1241,7 +1241,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     onChange={(e) => updateField('addressNumber', normalizeAddressNumberInput(e.target.value))}
                   />
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Bairro</Label>
                   <Input
                     placeholder="Ex: Bela Vista"
@@ -1251,7 +1251,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Cidade *</Label>
@@ -1329,7 +1329,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Latitude *</Label>
                   <Input
@@ -1361,7 +1361,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
             <div className="space-y-4">
               <h3 className="text-gray-900 border-b pb-2">Dados Comerciais e Audiência</h3>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Impactos Diários</Label>
                   <Input
@@ -1375,7 +1375,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     <p className="text-xs text-amber-600">⚠️ Recomendado preencher</p>
                   )}
                 </div>
-                <div className="space-y-2 col-span-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>Ambiente</Label>
                   <Select
   value={formData.environment || ''}
@@ -1413,7 +1413,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Preço Mensal (R$)</Label>
                   <Input
@@ -1462,7 +1462,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                         serão usados como referência para orçamentos e cálculos de custo.
                       </p>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label>Lona (R$)</Label>
                           <Input
@@ -1567,7 +1567,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     </div>
                   ) : null}
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Tipo da transação</Label>
                       <Select value={pointFinancialForm.flowType} onValueChange={(value: string) => setPointFinancialForm((prev) => ({ ...prev, flowType: value as CashFlowType }))}>
@@ -1587,7 +1587,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Descrição *</Label>
                       <Input value={pointFinancialForm.description} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Ex.: Aluguel mensal do ponto" />
@@ -1598,7 +1598,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <Label>Categoria</Label>
@@ -1622,7 +1622,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Tipo de pagamento</Label>
                       <Select value={pointFinancialForm.paymentType} onValueChange={(value: string) => setPointFinancialForm((prev) => ({ ...prev, paymentType: value as PaymentType }))}>
@@ -1648,7 +1648,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Vencimento (opcional)</Label>
                       <Input type="date" value={pointFinancialForm.dueDate} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, dueDate: e.target.value }))} />
