@@ -12,6 +12,11 @@ import { apiClient } from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
+type CompanySettingsResponse = {
+  agencyMarkupPercent?: number | string | null;
+  reservationStartCutoffTime?: string | null;
+};
+
 export function SuperAdmin() {
   const { user } = useAuth();
 
@@ -38,7 +43,7 @@ export function SuperAdmin() {
   const loadCompany = async () => {
     setCompanyLoading(true);
     try {
-      const res = await apiClient.get('/company');
+      const res = await apiClient.get<CompanySettingsResponse>('/company');
       const p = Number(res?.data?.agencyMarkupPercent ?? 0);
       const cutoffRaw = String(res?.data?.reservationStartCutoffTime ?? '').trim();
       setAgencyMarkupPercent(String(Number.isFinite(p) ? p : 0));

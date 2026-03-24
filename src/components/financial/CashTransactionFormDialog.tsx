@@ -138,8 +138,10 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
     try {
       setIsAddingCategory(true);
       setAddCategoryError(null);
-      const created = await createCategory({ name });
-      setFormData((prev) => ({ ...prev, categoryId: created.id }));
+      const created = (await createCategory({ name })) as { id?: string } | undefined;
+      if (created?.id) {
+        setFormData((prev) => ({ ...prev, categoryId: created.id || '' }));
+      }
       setAddCategoryOpen(false);
       setAddCategoryName('');
       toast.success('Categoria criada com sucesso.');

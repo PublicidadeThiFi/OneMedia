@@ -982,6 +982,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                     );
                   })}
                 </div>
+                </div>
               )}
             </div>
 
