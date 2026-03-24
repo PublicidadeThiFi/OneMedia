@@ -108,14 +108,23 @@ export function ProductFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent
+        className="overflow-hidden p-0 gap-0"
+        style={{
+          width: 'min(760px, calc(100vw - 2rem))',
+          maxWidth: 'min(760px, calc(100vw - 2rem))',
+          height: 'min(82vh, 720px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>
             {product ? 'Editar Produto/Serviço' : 'Cadastrar Produto/Serviço'}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Tipo */}
           <div className="space-y-2">
             <Label htmlFor="type">
@@ -236,14 +245,18 @@ export function ProductFormDialog({
             </Label>
           </div>
 
+          </div>
+
           {/* Botões */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={handleCancel}>
-              Cancelar
-            </Button>
-            <Button type="submit">
-              {product ? 'Atualizar' : 'Salvar'}
-            </Button>
+          <div className="shrink-0 border-t bg-background px-6 py-4">
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                Cancelar
+              </Button>
+              <Button type="submit">
+                {product ? 'Atualizar' : 'Salvar'}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

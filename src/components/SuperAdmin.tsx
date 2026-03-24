@@ -319,12 +319,21 @@ function OwnerCompanyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent
+        className="overflow-hidden p-0 gap-0"
+        style={{
+          width: 'min(720px, calc(100vw - 2rem))',
+          maxWidth: 'min(720px, calc(100vw - 2rem))',
+          height: 'min(82vh, 560px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>{editing ? 'Editar empresa proprietária' : 'Nova empresa proprietária'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-4">
           <div className="space-y-2">
             <Label>Nome *</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Prefeitura de ..." />
@@ -346,23 +355,24 @@ function OwnerCompanyDialog({
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="contato@empresa.com" />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={() =>
-                onSubmit({
-                  name: name.trim(),
-                  document: document.trim() || undefined,
-                  email: email.trim() || undefined,
-                  phone: phone.trim() || undefined,
-                })
-              }
-              disabled={!canSave}
-            >
-              {editing ? 'Salvar' : 'Criar'}
-            </Button>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() =>
+                  onSubmit({
+                    name: name.trim(),
+                    document: document.trim() || undefined,
+                    email: email.trim() || undefined,
+                    phone: phone.trim() || undefined,
+                  })
+                }
+                disabled={!canSave}
+              >
+                {editing ? 'Salvar' : 'Criar'}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>

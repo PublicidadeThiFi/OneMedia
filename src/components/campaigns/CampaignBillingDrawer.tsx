@@ -186,7 +186,13 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[1600px] max-h-[calc(100dvh-2rem)] p-0 overflow-hidden flex flex-col gap-0">
+      <DialogContent className="overflow-hidden p-0 gap-0 flex flex-col"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(82vh, 760px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}>
         <div className="flex flex-col min-h-0 flex-1">
           <div className="p-6 border-b">
             <DialogHeader>

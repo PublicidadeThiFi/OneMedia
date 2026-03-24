@@ -862,7 +862,8 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
                   {filteredPoints.map((point) => {
                     const unitsCount = point.unitsCount ?? point.units?.length ?? 0;
                     const occupiedUnitsCount = point.occupiedUnitsCount ?? 0;
@@ -1418,8 +1419,16 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       {/* Dialog de Compartilhamento (somente modo internal) */}
       {mode === 'internal' && (
         <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
+          <DialogContent
+            className="overflow-hidden p-0 gap-0"
+            style={{
+              width: 'min(760px, calc(100vw - 2rem))',
+              maxWidth: 'min(760px, calc(100vw - 2rem))',
+              height: 'min(82vh, 620px)',
+              maxHeight: 'calc(100vh - 2rem)',
+            }}
+          >
+            <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
               <DialogTitle>Compartilhar Mídia Kit</DialogTitle>
               <DialogDescription>
                 Compartilhe o link público do Mídia Kit com seus clientes. Se você tiver filtros ativos, o link já abre
@@ -1427,8 +1436,9 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
                 <div className="text-xs font-semibold text-gray-700">Link do Mídia Kit</div>
                 <div className="flex items-center gap-2">
                   <Input readOnly value={shareUrl || 'Gerando link...'} className="flex-1" />
@@ -1453,10 +1463,11 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                 </p>
               </div>
 
-              <p className="text-sm text-gray-500">
-                Qualquer pessoa com o link pode visualizar seu portfólio. Se o link incluir filtros, eles serão aplicados
-                inicialmente — e depois podem ser alterados normalmente.
-              </p>
+                <p className="text-sm text-gray-500">
+                  Qualquer pessoa com o link pode visualizar seu portfólio. Se o link incluir filtros, eles serão aplicados
+                  inicialmente — e depois podem ser alterados normalmente.
+                </p>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

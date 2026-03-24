@@ -307,12 +307,20 @@ export function CampaignCheckInDialog({ open, onOpenChange, campaign, onCheckInC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent
+        className="overflow-hidden p-0 gap-0"
+        style={{
+          width: 'min(980px, calc(100vw - 2rem))',
+          maxWidth: 'min(980px, calc(100vw - 2rem))',
+          height: 'min(82vh, 780px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>Check-in - {campaign.name}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-6">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-1">
             <p className="text-sm text-blue-900">
               Envie 1 foto por face/unidade. O check-in só será concluído quando todas as fotos estiverem presentes.

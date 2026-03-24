@@ -283,8 +283,16 @@ const handleSaveAndSend = async () => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen: boolean) => { if (!nextOpen) handleClose(); }}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent
+        className="overflow-hidden p-0 gap-0 flex flex-col"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(82vh, 820px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>
             {proposal ? 'Editar Proposta' : 'Nova Proposta'}
           </DialogTitle>
@@ -294,7 +302,7 @@ const handleSaveAndSend = async () => {
         </DialogHeader>
 
         {/* Barra de progresso */}
-        <div className="px-6">
+        <div className="shrink-0 px-6 py-4">
           <Progress value={progress} className="h-2" />
         </div>
 
@@ -322,7 +330,7 @@ const handleSaveAndSend = async () => {
         </div>
 
         {/* Rodapé com botões */}
-        <div className="border-t px-6 py-4 bg-gray-50">
+        <div className="shrink-0 border-t px-6 py-4 bg-gray-50">
           {step === 1 && (
             <div className="flex justify-between gap-3">
               <Button variant="outline" onClick={handleClose}>

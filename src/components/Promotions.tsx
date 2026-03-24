@@ -286,12 +286,21 @@ export function Promotions() {
       )}
 
       <Dialog open={open} onOpenChange={(v: boolean) => { setOpen(v); if (!v) resetForm(); }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent
+          className="overflow-hidden p-0 gap-0"
+          style={{
+            width: 'min(760px, calc(100vw - 2rem))',
+            maxWidth: 'min(760px, calc(100vw - 2rem))',
+            height: 'min(82vh, 680px)',
+            maxHeight: 'calc(100vh - 2rem)',
+          }}
+        >
+          <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
             <DialogTitle>{editing ? 'Editar promoção' : 'Nova promoção'}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Aplicar em</Label>
               <Select value={scope} onValueChange={(v: string) => { setScope(v as PromotionScope); setSelectedUnitIds([]); }} disabled={!!editing}>
@@ -397,10 +406,11 @@ export function Promotions() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={onSubmit}>{editing ? 'Salvar' : 'Criar'}</Button>
-          </DialogFooter>
+            <DialogFooter className="shrink-0 border-t bg-background px-0 pt-4">
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button onClick={onSubmit}>{editing ? 'Salvar' : 'Criar'}</Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

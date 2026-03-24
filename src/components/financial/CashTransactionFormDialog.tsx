@@ -268,15 +268,23 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         We solve it by making DialogContent itself scrollable (max-h + overflow-y-auto)
         and keeping the footer sticky so action buttons remain accessible.
       */}
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl !p-0 !gap-0 max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <div className="px-6 pt-6">
+      <DialogContent
+        className="overflow-hidden p-0 gap-0"
+        style={{
+          width: 'min(900px, calc(100vw - 2rem))',
+          maxWidth: 'min(900px, calc(100vw - 2rem))',
+          height: 'min(82vh, 820px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <div className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogHeader>
             <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
             <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="px-6 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-4 pb-4">
           <div className="space-y-2">
             <Label>Tipo de Transação (flowType) *</Label>
@@ -585,7 +593,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </div>
         </div>
 
-        <div className="sticky bottom-0 px-6 pb-6 pt-4 border-t bg-background flex justify-end gap-3">
+        <div className="shrink-0 border-t bg-background px-6 py-4 flex justify-end gap-3">
           <Button variant="outline" onClick={handleCancel}>Cancelar</Button>
           <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
         </div>
