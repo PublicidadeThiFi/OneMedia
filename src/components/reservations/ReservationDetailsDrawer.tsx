@@ -201,8 +201,8 @@ export function ReservationDetailsDrawer({ open, onOpenChange, reservation, clie
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 w-[96vw] max-w-5xl h-[90vh] overflow-hidden">
-        <div className="flex flex-col h-full">
+      <DialogContent className="p-0 w-[calc(100vw-2rem)] max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
+        <div className="flex flex-col min-h-0 flex-1">
           {/* Header */}
           <div className="px-6 py-5 border-b">
             <div className="flex items-start justify-between gap-4 pr-10">

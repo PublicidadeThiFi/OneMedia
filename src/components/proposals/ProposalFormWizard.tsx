@@ -283,7 +283,7 @@ const handleSaveAndSend = async () => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen: boolean) => { if (!nextOpen) handleClose(); }}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {proposal ? 'Editar Proposta' : 'Nova Proposta'}

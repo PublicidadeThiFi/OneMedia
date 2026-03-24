@@ -268,7 +268,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         We solve it by making DialogContent itself scrollable (max-h + overflow-y-auto)
         and keeping the footer sticky so action buttons remain accessible.
       */}
-      <DialogContent className="max-w-2xl !p-0 !gap-0 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl !p-0 !gap-0 max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <div className="px-6 pt-6">
           <DialogHeader>
             <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>

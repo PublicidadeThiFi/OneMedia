@@ -186,8 +186,8 @@ export function CampaignBillingDrawer({ open, onOpenChange, campaign }: Campaign
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[96vw] max-w-[1600px] h-[90vh] max-h-[90vh] p-0 overflow-hidden flex flex-col gap-0">
-        <div className="h-full flex flex-col min-h-0">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[1600px] max-h-[calc(100dvh-2rem)] p-0 overflow-hidden flex flex-col gap-0">
+        <div className="flex flex-col min-h-0 flex-1">
           <div className="p-6 border-b">
             <DialogHeader>
               <DialogTitle>Faturamento — {campaign.name}</DialogTitle>

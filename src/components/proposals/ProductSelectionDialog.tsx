@@ -138,7 +138,7 @@ export function ProductSelectionDialog({
         onOpenChange(true);
       }}
     >
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Adicionar Produto/Serviço</DialogTitle>
         </DialogHeader>
