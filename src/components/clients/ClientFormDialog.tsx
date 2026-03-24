@@ -267,7 +267,7 @@ export function ClientFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl h-[min(90dvh,820px)] overflow-hidden p-0 gap-0">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[900px] h-[min(82dvh,760px)] max-h-[calc(100dvh-2rem)] overflow-hidden p-0 gap-0">
         <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>{client ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           <DialogDescription>
