@@ -76,7 +76,8 @@ function isUnitCartSelectable(unit: any): boolean {
   if (unit.isActive === false) return false;
   if (unit.isAvailable === false) return false;
   if (unit.isOccupied === true) return false;
-  if (String(unit.availability || '').trim() === 'Ocupado') return false;
+  const availability = String(unit.availability || '').trim();
+  if (availability && availability !== 'Disponível') return false;
   return true;
 }
 

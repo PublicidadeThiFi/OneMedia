@@ -4,7 +4,7 @@ import { normalizeMenuFlow } from './menuFlow';
 
 export type Availability = 'Disponível' | 'Parcial' | 'Ocupado';
 
-export type UnitAvailability = 'Disponível' | 'Ocupado';
+export type UnitAvailability = 'Disponível' | 'Reservada' | 'Ocupado';
 
 export type PublicMediaKitUnit = {
   id: string;
@@ -21,6 +21,9 @@ export type PublicMediaKitUnit = {
   isOccupied?: boolean;
   isAvailable?: boolean;
   availability?: UnitAvailability;
+  availableOn?: string | null;
+  blockedFrom?: string | null;
+  blockedUntil?: string | null;
   effectivePromotion?: any;
   promotion?: any;
 };
