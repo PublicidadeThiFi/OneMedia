@@ -267,7 +267,15 @@ export function ClientFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[900px] h-[min(82dvh,760px)] max-h-[calc(100dvh-2rem)] overflow-hidden p-0 gap-0">
+      <DialogContent
+        className="overflow-hidden p-0 gap-0"
+        style={{
+          width: 'min(900px, calc(100vw - 2rem))',
+          maxWidth: 'min(900px, calc(100vw - 2rem))',
+          height: 'min(82vh, 760px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
         <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>{client ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           <DialogDescription>

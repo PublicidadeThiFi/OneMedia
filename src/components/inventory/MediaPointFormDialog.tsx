@@ -915,7 +915,15 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-[1120px] h-[min(82dvh,820px)] max-h-[calc(100dvh-2rem)] overflow-hidden p-0 gap-0">
+      <DialogContent
+        className="overflow-hidden p-0 gap-0"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(82vh, 820px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
         <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogTitle>
             {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
