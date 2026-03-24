@@ -455,16 +455,20 @@ export function CashFlow() {
                                   variant="outline"
                                   size="sm"
                                   onClick={async () => {
+                                    const message = transaction.isRecurringInstance
+                                      ? 'Deseja encerrar esta recorrência a partir deste mês? As ocorrências futuras serão removidas.'
+                                      : 'Deseja realmente excluir esta transação?';
+                                    if (!window.confirm(message)) return;
                                     try {
                                       await deleteTransaction(transaction.id);
-                                      toast.success('Transação excluída');
+                                      toast.success(transaction.isRecurringInstance ? 'Recorrência encerrada a partir desta competência.' : 'Transação excluída');
                                       refetch();
                                     } catch (err) {
                                       toast.error('Falha ao excluir transação');
                                     }
                                   }}
                                 >
-                                  Excluir
+                                  {transaction.isRecurringInstance ? 'Encerrar recorrência' : 'Excluir'}
                                 </Button>
                               </td>
                             </tr>

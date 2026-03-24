@@ -10,6 +10,8 @@ export interface UseCashTransactionsParams {
   dateFrom?: string;
   /** formato YYYY-MM-DD */
   dateTo?: string;
+  mediaPointId?: string;
+  skip?: boolean;
 }
 
 // Resposta pode ser um array direto ou um objeto paginado
@@ -59,6 +61,7 @@ function pickPayload(payload: Partial<CashTransaction>) {
     dueDate: (payload as any).dueDate,
     isRecurring: (payload as any).isRecurring,
     recurringUntil: (payload as any).recurringUntil,
+    inventoryLinked: (payload as any).inventoryLinked,
   };
 
   // Batch create (múltiplos pontos)
@@ -81,6 +84,12 @@ export function useCashTransactions(params: UseCashTransactionsParams = {}) {
   const [error, setError] = useState<Error | null>(null);
 
   const fetchTransactions = async () => {
+    if (params.skip) {
+      setTransactions([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -103,7 +112,7 @@ export function useCashTransactions(params: UseCashTransactionsParams = {}) {
   useEffect(() => {
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.search, params.flowType, params.categoryId, params.dateFrom, params.dateTo]);
+  }, [params.search, params.flowType, params.categoryId, params.dateFrom, params.dateTo, params.mediaPointId, params.skip]);
 
   const createTransaction = async (payload: Partial<CashTransaction>) => {
     const response = await apiClient.post<CreateCashTransactionResponse>('/cash-transactions', pickPayload(payload));

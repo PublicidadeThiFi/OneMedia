@@ -10,10 +10,11 @@ import { Badge } from '../ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { X, ChevronDown, Package, ExternalLink, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
-import { MediaPoint, MediaType, ProductionCosts } from '../../types';
+import { MediaPoint, MediaType, ProductionCosts, CashFlowType, PaymentMethod, PaymentType, CashTransaction } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
 import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
+import { useTransactionCategories } from '../../hooks/useTransactionCategories';
 import apiClient from '../../lib/apiClient';
 import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
@@ -128,6 +129,36 @@ function formatBytes(value: number) {
   return `${size.toFixed(decimals)} ${units[unitIndex]}`;
 }
 
+function dateInputValue(value?: string | Date | null) {
+  if (!value) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+function transactionDateToHtml(value?: Date | string | null) {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+function buildEmptyPointFinancialForm() {
+  return {
+    flowType: CashFlowType.DESPESA as CashFlowType,
+    date: new Date().toISOString().slice(0, 10),
+    dueDate: '',
+    description: '',
+    partnerName: '',
+    categoryId: '',
+    amount: '',
+    paymentType: PaymentType.A_VISTA as PaymentType,
+    paymentMethod: '' as '' | PaymentMethod,
+    isPaid: false,
+    isRecurring: true,
+    recurringUntil: '',
+  };
+}
+
 
 function computePointStorageBytes(point?: Partial<MediaPoint> | null) {
   const pointBytes = parseBytes((point as any)?.storageUsedBytes);
@@ -192,6 +223,16 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   const [addCityError, setAddCityError] = useState<string | null>(null);
   const [isAddingCity, setIsAddingCity] = useState(false);
 
+  const { categories: transactionCategories, createCategory: createTransactionCategory } = useTransactionCategories();
+  const pointFinancialMediaPointId = (mediaPoint?.id ?? (initialData as any)?.id) || undefined;
+  const [pointTransactions, setPointTransactions] = useState<CashTransaction[]>([]);
+  const [pointFinancialEnabled, setPointFinancialEnabled] = useState(false);
+  const [pointFinancialForm, setPointFinancialForm] = useState(buildEmptyPointFinancialForm());
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [addCategoryName, setAddCategoryName] = useState('');
+  const [addCategoryError, setAddCategoryError] = useState<string | null>(null);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+
   const syncExistingAssets = (point?: Partial<MediaPoint> | null) => {
     const mediaAssets = Array.isArray((point as any)?.mediaAssets) ? (point as any).mediaAssets : [];
 
@@ -234,6 +275,133 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     return match?.id as string | undefined;
   };
 
+
+
+  const linkedPointTransaction = useMemo(() => {
+    const candidates = (pointTransactions ?? []).filter((tx) => !tx.billingInvoiceId);
+    if (!candidates.length) return null;
+    return [...candidates].sort((a, b) => {
+      const inventoryWeight = Number(Boolean((b as any).inventoryLinked)) - Number(Boolean((a as any).inventoryLinked));
+      if (inventoryWeight !== 0) return inventoryWeight;
+      const recurringWeight = Number(Boolean(b.isRecurring)) - Number(Boolean(a.isRecurring));
+      if (recurringWeight !== 0) return recurringWeight;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })[0] as CashTransaction;
+  }, [pointTransactions]);
+
+  const otherPointTransactionsCount = useMemo(() => {
+    if (!linkedPointTransaction) return 0;
+    return (pointTransactions ?? []).filter((tx) => tx.id !== linkedPointTransaction.id && !tx.billingInvoiceId).length;
+  }, [pointTransactions, linkedPointTransaction]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPointTransactions = async () => {
+      if (!open || !pointFinancialMediaPointId) {
+        setPointTransactions([]);
+        return;
+      }
+      try {
+        const response = await apiClient.get('/cash-transactions', { params: { mediaPointId: pointFinancialMediaPointId } });
+        const data = Array.isArray(response.data) ? response.data : response.data?.data;
+        if (!cancelled) setPointTransactions(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setPointTransactions([]);
+      }
+    };
+    void loadPointTransactions();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, pointFinancialMediaPointId]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!linkedPointTransaction) {
+      setPointFinancialEnabled(false);
+      setPointFinancialForm(buildEmptyPointFinancialForm());
+      return;
+    }
+    setPointFinancialEnabled(true);
+    setPointFinancialForm({
+      flowType: linkedPointTransaction.flowType || CashFlowType.DESPESA,
+      date: transactionDateToHtml(linkedPointTransaction.date) || new Date().toISOString().slice(0, 10),
+      dueDate: dateInputValue((linkedPointTransaction as any).dueDate),
+      description: linkedPointTransaction.description || '',
+      partnerName: linkedPointTransaction.partnerName || '',
+      categoryId: linkedPointTransaction.categoryId || '',
+      amount: linkedPointTransaction.amount !== undefined && linkedPointTransaction.amount !== null ? String(linkedPointTransaction.amount) : '',
+      paymentType: linkedPointTransaction.paymentType || PaymentType.A_VISTA,
+      paymentMethod: (linkedPointTransaction.paymentMethod as any) || '',
+      isPaid: Boolean(linkedPointTransaction.isPaid),
+      isRecurring: Boolean(linkedPointTransaction.isRecurring),
+      recurringUntil: dateInputValue(linkedPointTransaction.recurringUntil),
+    });
+  }, [open, linkedPointTransaction]);
+
+  const handleAddTransactionCategory = async () => {
+    const name = addCategoryName.trim();
+    if (!name) {
+      setAddCategoryError('Informe o nome da categoria.');
+      return;
+    }
+    try {
+      setIsAddingCategory(true);
+      setAddCategoryError(null);
+      const created = await createTransactionCategory({ name });
+      setPointFinancialForm((prev) => ({ ...prev, categoryId: created.id }));
+      setAddCategoryOpen(false);
+      setAddCategoryName('');
+      toast.success('Categoria criada com sucesso.');
+    } catch (err: any) {
+      setAddCategoryError(err?.response?.data?.message || err?.message || 'Não foi possível criar a categoria.');
+    } finally {
+      setIsAddingCategory(false);
+    }
+  };
+
+  const syncPointFinancial = async (targetPointId: string) => {
+    if (!targetPointId) return;
+
+    if (!pointFinancialEnabled) {
+      if (linkedPointTransaction?.id) {
+        await apiClient.delete(`/cash-transactions/${linkedPointTransaction.id}`);
+      }
+      return;
+    }
+
+    if (!pointFinancialForm.description.trim()) {
+      throw new Error('Informe a descrição do vínculo financeiro do ponto.');
+    }
+
+    const amount = Number(pointFinancialForm.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Informe um valor financeiro válido para o ponto.');
+    }
+
+    const payload: any = {
+      date: `${pointFinancialForm.date || new Date().toISOString().slice(0, 10)}T12:00:00.000Z`,
+      description: pointFinancialForm.description.trim(),
+      partnerName: pointFinancialForm.partnerName.trim() || undefined,
+      categoryId: pointFinancialForm.categoryId || undefined,
+      amount,
+      flowType: pointFinancialForm.flowType,
+      paymentType: pointFinancialForm.paymentType,
+      paymentMethod: pointFinancialForm.paymentMethod || undefined,
+      isPaid: pointFinancialForm.isRecurring ? false : Boolean(pointFinancialForm.isPaid),
+      mediaPointId: targetPointId,
+      dueDate: pointFinancialForm.dueDate || undefined,
+      isRecurring: Boolean(pointFinancialForm.isRecurring),
+      recurringUntil: pointFinancialForm.isRecurring ? (pointFinancialForm.recurringUntil || undefined) : undefined,
+      inventoryLinked: true,
+    };
+
+    if (linkedPointTransaction?.id) {
+      await apiClient.put(`/cash-transactions/${linkedPointTransaction.id}`, payload);
+    } else {
+      await apiClient.post('/cash-transactions', payload);
+    }
+  };
 
   useEffect(() => {
     geoAbortRef.current?.abort();
@@ -673,6 +841,12 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       );
 
       const targetId = result?.id ?? mediaPoint?.id;
+      if (!targetId) {
+        throw new Error('O ponto foi salvo, mas o retorno não trouxe o ID do ponto.');
+      }
+
+      await syncPointFinancial(targetId);
+
       if ((imageFiles.length || videoFiles.length) && !targetId) {
         throw new Error('O ponto foi salvo, mas o retorno não trouxe o ID para enviar as mídias.');
       }
@@ -722,6 +896,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setExistingVideoAssets([]);
     setPointSnapshot(null);
     setPinPos(null);
+    setPointFinancialEnabled(false);
+    setPointFinancialForm(buildEmptyPointFinancialForm());
     onOpenChange(false);
   };
 
@@ -1365,6 +1541,144 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
               </Collapsible>
             )}
 
+
+            {/* Financeiro vinculado ao ponto */}
+            <div className="space-y-4">
+              <h3 className="text-gray-900 border-b pb-2">Financeiro vinculado ao ponto</h3>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="pointFinancialEnabled"
+                  checked={pointFinancialEnabled}
+                  onChange={(e) => setPointFinancialEnabled(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="pointFinancialEnabled" className="cursor-pointer">
+                  Criar/atualizar uma transação vinculada a este ponto no Financeiro
+                </Label>
+              </div>
+
+              {pointFinancialEnabled ? (
+                <div className="rounded-lg border bg-slate-50 p-4 space-y-4">
+                  {otherPointTransactionsCount > 0 ? (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      Existem {otherPointTransactionsCount} outra(s) transação(ões) vinculadas a este ponto no Financeiro. Esta edição controla apenas o vínculo principal exibido aqui.
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tipo da transação</Label>
+                      <Select value={pointFinancialForm.flowType} onValueChange={(value: string) => setPointFinancialForm((prev) => ({ ...prev, flowType: value as CashFlowType }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={CashFlowType.RECEITA}>Receita</SelectItem>
+                          <SelectItem value={CashFlowType.DESPESA}>Despesa</SelectItem>
+                          <SelectItem value={CashFlowType.PESSOAS}>Pessoas</SelectItem>
+                          <SelectItem value={CashFlowType.IMPOSTO}>Imposto</SelectItem>
+                          <SelectItem value={CashFlowType.TRANSFERENCIA}>Transferência</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data base *</Label>
+                      <Input type="date" value={pointFinancialForm.date} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, date: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Descrição *</Label>
+                      <Input value={pointFinancialForm.description} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Ex.: Aluguel mensal do ponto" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Valor (R$) *</Label>
+                      <Input type="number" min="0" step="0.01" value={pointFinancialForm.amount} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, amount: e.target.value }))} placeholder="0,00" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Categoria</Label>
+                        <Button type="button" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setAddCategoryError(null); setAddCategoryOpen(true); }}>
+                          + Adicionar
+                        </Button>
+                      </div>
+                      <Select value={pointFinancialForm.categoryId || undefined} onValueChange={(value: string) => { if (value === '__add__') { setAddCategoryError(null); setAddCategoryOpen(true); return; } setPointFinancialForm((prev) => ({ ...prev, categoryId: value })); }}>
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>
+                          {transactionCategories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                          ))}
+                          <SelectItem value="__add__">+ Adicionar nova categoria</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Parceiro</Label>
+                      <Input value={pointFinancialForm.partnerName} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, partnerName: e.target.value }))} placeholder="Cliente ou fornecedor" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tipo de pagamento</Label>
+                      <Select value={pointFinancialForm.paymentType} onValueChange={(value: string) => setPointFinancialForm((prev) => ({ ...prev, paymentType: value as PaymentType }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={PaymentType.A_VISTA}>À vista</SelectItem>
+                          <SelectItem value={PaymentType.PARCELADO}>Parcelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Modo de pagamento</Label>
+                      <Select value={pointFinancialForm.paymentMethod || 'none'} onValueChange={(value: string) => setPointFinancialForm((prev) => ({ ...prev, paymentMethod: value === 'none' ? '' : (value as PaymentMethod) }))}>
+                        <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          <SelectItem value={PaymentMethod.PIX}>PIX</SelectItem>
+                          <SelectItem value={PaymentMethod.BOLETO}>Boleto</SelectItem>
+                          <SelectItem value={PaymentMethod.CARTAO}>Cartão</SelectItem>
+                          <SelectItem value={PaymentMethod.TRANSFERENCIA}>Transferência</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Vencimento (opcional)</Label>
+                      <Input type="date" value={pointFinancialForm.dueDate} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, dueDate: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Recorrência até (opcional)</Label>
+                      <Input type="date" value={pointFinancialForm.recurringUntil} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, recurringUntil: e.target.value }))} disabled={!pointFinancialForm.isRecurring} />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" checked={pointFinancialForm.isRecurring} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, isRecurring: e.target.checked, isPaid: e.target.checked ? false : prev.isPaid, recurringUntil: e.target.checked ? prev.recurringUntil : '' }))} className="rounded" />
+                      Recorrente (mensal)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" checked={pointFinancialForm.isPaid} onChange={(e) => setPointFinancialForm((prev) => ({ ...prev, isPaid: e.target.checked }))} disabled={pointFinancialForm.isRecurring} className="rounded" />
+                      Já pago
+                    </label>
+                  </div>
+
+                  <p className="text-xs text-gray-500">
+                    Este vínculo fica sincronizado com o módulo Financeiro. Alterações feitas aqui ou no Financeiro serão refletidas quando o ponto for reaberto para edição.
+                  </p>
+                </div>
+              ) : linkedPointTransaction ? (
+                <p className="text-xs text-gray-500">Ao salvar com a integração financeira desativada, a transação principal vinculada a este ponto será removida do Financeiro.</p>
+              ) : null}
+            </div>
+
             {/* Mídia Kit */}
             <div className="space-y-4">
               <h3 className="text-gray-900 border-b pb-2">Visibilidade</h3>
@@ -1410,6 +1724,36 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
           </Button>
         </div>
       
+
+
+      <Dialog
+        open={addCategoryOpen}
+        onOpenChange={(v: boolean) => {
+          setAddCategoryOpen(v);
+          if (!v) setAddCategoryError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar categoria</DialogTitle>
+            <DialogDescription>Cadastre uma nova categoria para aparecer na lista do Financeiro.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome da categoria *</Label>
+              <Input value={addCategoryName} onChange={(e) => setAddCategoryName(e.target.value)} placeholder="Ex.: Aluguel, Energia, DER" />
+            </div>
+
+            {addCategoryError && <p className="text-red-500 text-sm">{addCategoryError}</p>}
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAddCategoryOpen(false)} disabled={isAddingCategory}>Cancelar</Button>
+              <Button type="button" onClick={handleAddTransactionCategory} disabled={isAddingCategory}>{isAddingCategory ? 'Salvando...' : 'Adicionar'}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={addCityOpen}

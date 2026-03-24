@@ -7,6 +7,8 @@ import { Button } from '../ui/button';
 import { CashTransaction, CashFlowType, PaymentType, PaymentMethod } from '../../types';
 import { parseDateFromHtmlInput } from '../../lib/dateUtils';
 import { useTransactionCategories } from '../../hooks/useTransactionCategories';
+import { Dialog as InnerDialog, DialogContent as InnerDialogContent, DialogHeader as InnerDialogHeader, DialogTitle as InnerDialogTitle, DialogDescription as InnerDialogDescription } from '../ui/dialog';
+import { toast } from 'sonner';
 import { useMediaPoints } from '../../hooks/useMediaPoints';
 import { Checkbox } from '../ui/checkbox';
 import { Plus, Trash2 } from 'lucide-react';
@@ -19,7 +21,7 @@ interface CashTransactionFormDialogProps {
 }
 
 export function CashTransactionFormDialog({ open, onOpenChange, transaction, onSave }: CashTransactionFormDialogProps) {
-  const { categories, loading: categoriesLoading, error: categoriesError } = useTransactionCategories();
+  const { categories, loading: categoriesLoading, error: categoriesError, createCategory } = useTransactionCategories();
   const { mediaPoints } = useMediaPoints({});
 
   const isEditing = Boolean(transaction);
@@ -48,6 +50,10 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
   type MediaPointLink = { key: string; mediaPointId: string; dueDate: string };
   const [mediaLinks, setMediaLinks] = useState<MediaPointLink[]>([]);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [addCategoryName, setAddCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [addCategoryError, setAddCategoryError] = useState<string | null>(null);
 
   const usedMediaPointIds = useMemo(() => {
     return new Set(mediaLinks.map((l) => l.mediaPointId).filter((id) => id && id !== 'none'));
@@ -121,6 +127,27 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         return { ...l, ...next };
       }),
     );
+  };
+
+  const handleAddCategory = async () => {
+    const name = addCategoryName.trim();
+    if (!name) {
+      setAddCategoryError('Informe o nome da categoria.');
+      return;
+    }
+    try {
+      setIsAddingCategory(true);
+      setAddCategoryError(null);
+      const created = await createCategory({ name });
+      setFormData((prev) => ({ ...prev, categoryId: created.id }));
+      setAddCategoryOpen(false);
+      setAddCategoryName('');
+      toast.success('Categoria criada com sucesso.');
+    } catch (err: any) {
+      setAddCategoryError(err?.response?.data?.message || err?.message || 'Não foi possível criar a categoria.');
+    } finally {
+      setIsAddingCategory(false);
+    }
   };
 
   const handleSave = () => {
@@ -342,10 +369,15 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Categoria (categoryId)</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Categoria (categoryId)</Label>
+                <Button type="button" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setAddCategoryError(null); setAddCategoryOpen(true); }}>
+                  + Adicionar
+                </Button>
+              </div>
               <Select
                 value={formData.categoryId || undefined}
-                onValueChange={(value: string) => setFormData({ ...formData, categoryId: value })}
+                onValueChange={(value: string) => { if (value === '__add__') { setAddCategoryError(null); setAddCategoryOpen(true); return; } setFormData({ ...formData, categoryId: value }); }}
               >
 
                 <SelectTrigger>
@@ -368,6 +400,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                       {cat.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="__add__">+ Adicionar nova categoria</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -557,6 +590,33 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           <Button onClick={handleSave}>{transaction ? 'Salvar Alterações' : 'Salvar Transação'}</Button>
         </div>
       </DialogContent>
+
+      <InnerDialog
+        open={addCategoryOpen}
+        onOpenChange={(v: boolean) => {
+          setAddCategoryOpen(v);
+          if (!v) setAddCategoryError(null);
+        }}
+      >
+        <InnerDialogContent>
+          <InnerDialogHeader>
+            <InnerDialogTitle>Adicionar categoria</InnerDialogTitle>
+            <InnerDialogDescription>Cadastre uma nova categoria para usar no Financeiro.</InnerDialogDescription>
+          </InnerDialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome da categoria *</Label>
+              <Input value={addCategoryName} onChange={(e) => setAddCategoryName(e.target.value)} placeholder="Ex.: Aluguel, Energia, DER" />
+            </div>
+            {addCategoryError && <p className="text-sm text-red-600">{addCategoryError}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAddCategoryOpen(false)} disabled={isAddingCategory}>Cancelar</Button>
+              <Button type="button" onClick={handleAddCategory} disabled={isAddingCategory}>{isAddingCategory ? 'Salvando...' : 'Adicionar'}</Button>
+            </div>
+          </div>
+        </InnerDialogContent>
+      </InnerDialog>
+
     </Dialog>
   );
 }
