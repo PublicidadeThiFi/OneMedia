@@ -70,6 +70,16 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+
+function isUnitCartSelectable(unit: any): boolean {
+  if (!unit) return true;
+  if (unit.isActive === false) return false;
+  if (unit.isAvailable === false) return false;
+  if (unit.isOccupied === true) return false;
+  if (String(unit.availability || '').trim() === 'Ocupado') return false;
+  return true;
+}
+
 function makeId(): string {
   try {
     const anyCrypto = (globalThis as any).crypto;
@@ -209,6 +219,28 @@ export function addToCart(input: {
   const durationDays = durationPartsToDays(duration);
 
   const point = input.point;
+  if (!isUnitCartSelectable(unit)) {
+    const snapshot: MenuCartItemSnapshot = {
+      pointName: String(point.name || '').trim() || 'Ponto',
+      pointType: point.type,
+      imageUrl: (unit?.imageUrl ?? point.mainImageUrl) || undefined,
+      unitLabel: unit?.label ? String(unit.label) : undefined,
+      unitType: unit?.unitType,
+    };
+    return {
+      added: false,
+      item: {
+        id: makeId(),
+        pointId: point.id,
+        unitId: unit?.id ?? null,
+        duration,
+        durationDays,
+        addedAt: nowIso(),
+        snapshot,
+      },
+    };
+  }
+
   const pointName = String(point.name || '').trim() || 'Ponto';
 
   const addressLine = [

@@ -30,6 +30,16 @@ function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
 }
 
+
+function isUnitSelectable(unit: any): boolean {
+  if (!unit) return false;
+  if (unit.isActive === false) return false;
+  if (unit.isAvailable === false) return false;
+  if (unit.isOccupied === true) return false;
+  if (String(unit.availability || '').trim() === 'Ocupado') return false;
+  return true;
+}
+
 export default function MenuFaces() {
   const navigate = useNavigation();
 
@@ -62,7 +72,7 @@ export default function MenuFaces() {
     return list as MediaUnit[];
   }, [point]);
 
-  const selectableUnits = useMemo(() => units.filter((u: any) => (u as any)?.isAvailable !== false && (u as any)?.isOccupied !== true), [units]);
+  const selectableUnits = useMemo(() => units.filter((u: any) => isUnitSelectable(u)), [units]);
 
   const monthSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'month') : null), [point]);
   const weekSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'week') : null), [point]);
@@ -97,7 +107,7 @@ export default function MenuFaces() {
     let addedCount = 0;
     ids.forEach((id) => {
       const unit = units.find((u: any) => u.id === id) ?? null;
-      if (!unit || (unit as any)?.isAvailable === false || (unit as any)?.isOccupied === true) return;
+      if (!isUnitSelectable(unit)) return;
       const res = addToCart({ point, unit, duration: { years: 0, months: 1, days: 0 } });
       if (res.added) addedCount += 1;
     });
@@ -223,7 +233,7 @@ export default function MenuFaces() {
                   {units.length > 0 ? (
                     units.map((u: any) => {
                       const checked = !!selected[u.id];
-                      const isUnavailable = (u as any)?.isAvailable === false || (u as any)?.isOccupied === true || (u as any)?.availability === 'Ocupado';
+                      const isUnavailable = !isUnitSelectable(u);
 
                       const baseMonthRaw = u.priceMonth ?? point.basePriceMonth;
                       const baseWeekRaw = u.priceWeek ?? point.basePriceWeek;

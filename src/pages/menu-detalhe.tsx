@@ -67,6 +67,16 @@ function makeMapsUrl(point: PublicMediaKitPoint): string {
   return 'https://www.google.com/maps';
 }
 
+
+function isUnitSelectable(unit: any): boolean {
+  if (!unit) return false;
+  if (unit.isActive === false) return false;
+  if (unit.isAvailable === false) return false;
+  if (unit.isOccupied === true) return false;
+  if (String(unit.availability || '').trim() === 'Ocupado') return false;
+  return true;
+}
+
 function makeMapsEmbedUrl(point: PublicMediaKitPoint): string | null {
   const coords = readCoords(point);
   if (coords) {
@@ -177,7 +187,7 @@ export default function MenuDetalhe() {
     if (!point) return;
 
     const units = Array.isArray(point.units) ? point.units.filter((u: any) => u?.isActive !== false) : [];
-    const selectableUnits = units.filter((u: any) => (u as any)?.isAvailable !== false && (u as any)?.isOccupied !== true);
+    const selectableUnits = units.filter((u: any) => isUnitSelectable(u));
     if (selectableUnits.length > 1) {
       navigate(`/menu/faces${buildQuery({ token, id: point.id, uf, city, flow, ownerCompanyId })}`);
       return;
@@ -210,7 +220,7 @@ export default function MenuDetalhe() {
     return list;
   }, [point]);
 
-  const selectableUnitsCount = useMemo(() => units.filter((u: any) => (u as any)?.isAvailable !== false && (u as any)?.isOccupied !== true).length, [units]);
+  const selectableUnitsCount = useMemo(() => units.filter((u: any) => isUnitSelectable(u)).length, [units]);
 
   const gallery = useMemo(() => {
     const urls = [point?.mainImageUrl, ...units.map((u) => u.imageUrl || '')]
@@ -487,12 +497,18 @@ export default function MenuDetalhe() {
                         const promoMonthOk = promoMonth && promoMonth.from !== null && promoMonth.to !== null ? promoMonth : null;
                         const promoWeekOk = promoWeek && promoWeek.from !== null && promoWeek.to !== null ? promoWeek : null;
 
+                        const isUnavailable = !isUnitSelectable(u);
                         return (
-                          <div key={u.id} className="rounded-xl border border-gray-200 p-3">
+                          <div key={u.id} className={`rounded-xl border p-3 ${isUnavailable ? 'border-amber-300 bg-amber-50/60' : 'border-gray-200'}`}>
                             <div className="flex items-center gap-2">
                               <div className="text-sm font-semibold text-gray-900">
                                 {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
                               </div>
+                              {isUnavailable && (
+                                <Badge variant="secondary" className="rounded-full bg-amber-100 text-amber-900 hover:bg-amber-100">
+                                  Ocupada
+                                </Badge>
+                              )}
                               {isPromotions && promoBadge && (
                                 <Badge variant="secondary" className="rounded-full">
                                   {promoBadge}
@@ -502,6 +518,7 @@ export default function MenuDetalhe() {
                             <div className="mt-1 text-xs text-gray-600">
                               {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
                               {u.orientation ? ` • ${u.orientation}` : ''}
+                              {!isUnitSelectable(u) ? ' • indisponível no momento' : ''}
                             </div>
 
                             <div className="mt-2 text-xs text-gray-700">
