@@ -816,6 +816,8 @@ export interface CashTransaction {
   isRecurring?: boolean;
   /** Data final da recorrência (YYYY-MM-DD) */
   recurringUntil?: string | null;
+  /** Marcador interno para transação vinculada ao inventário do ponto */
+  inventoryLinked?: boolean;
   /** Indica se esta linha é uma instância recorrente “virtual” (não existe como registro separado no DB) */
   isRecurringInstance?: boolean;
   createdAt: Date;
