@@ -267,7 +267,7 @@ export function ClientFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{client ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
           <DialogDescription>
@@ -275,11 +275,11 @@ export function ClientFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pr-1">
           <div className="space-y-4">
             <h3 className="text-gray-900">Informações de Contato</h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="contactName">Nome do Contato *</Label>
                 <Input
@@ -301,7 +301,7 @@ export function ClientFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
                 <Input id="phone" {...form.register('phone')} placeholder="(11) 98765-4321" />
@@ -317,7 +317,7 @@ export function ClientFormDialog({
           <div className="space-y-4">
             <h3 className="text-gray-900">Informações da Empresa</h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Nome da Empresa</Label>
                 <Input id="companyName" {...form.register('companyName')} placeholder="Empresa Ltda" />
@@ -351,7 +351,7 @@ export function ClientFormDialog({
           <div className="space-y-4">
             <h3 className="text-gray-900">Status e Gestão</h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="status">Status *</Label>
                 <Select
@@ -404,19 +404,19 @@ export function ClientFormDialog({
           <div className="space-y-4">
             <h3 className="text-gray-900">Endereço</h3>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="addressZipcode">CEP</Label>
                 <Input id="addressZipcode" {...form.register('addressZipcode')} placeholder="01310-100" />
               </div>
 
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="addressStreet">Rua</Label>
                 <Input id="addressStreet" {...form.register('addressStreet')} placeholder="Av. Paulista" />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="addressNumber">Número</Label>
                 <Input id="addressNumber" {...form.register('addressNumber')} placeholder="1000" />
@@ -433,7 +433,7 @@ export function ClientFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="addressState">Estado</Label>
                 <Select
@@ -453,7 +453,7 @@ export function ClientFormDialog({
                 </Select>
               </div>
 
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="addressCountry">País</Label>
                 <Input id="addressCountry" {...form.register('addressCountry')} placeholder="Brasil" />
               </div>
