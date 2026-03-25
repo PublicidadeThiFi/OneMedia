@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Checkbox } from '../components/ui/checkbox';
-import { ArrowLeft, CheckCircle2, Layers, ShoppingCart, Tag } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronRight, Layers, ShoppingCart, Sparkles, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { computePointPriceSummary, PublicMediaKitPoint } from '../lib/publicMediaKit';
@@ -27,6 +27,14 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
+}
+
+function buildSavingsMeta(from: number | null | undefined, to: number | null | undefined) {
+  if (typeof from !== 'number' || typeof to !== 'number') return null;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from <= to || from <= 0) return null;
+  const amount = from - to;
+  const percent = Math.max(1, Math.round((amount / from) * 100));
+  return { amount, percent };
 }
 
 function isUnitSelectable(unit: any): boolean {
@@ -96,6 +104,7 @@ export default function MenuFaces() {
 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
+  const selectionProgress = selectableUnits.length > 0 ? Math.min(100, Math.round((selectedCount / selectableUnits.length) * 100)) : 0;
 
   const backUrl = useMemo(
     () => `/menu/detalhe${buildQuery({ token, pointId, uf, city, flow, ownerCompanyId })}`,
@@ -165,11 +174,14 @@ export default function MenuFaces() {
         )}
 
         {loading && (
-          <Card className="mt-5 animate-pulse rounded-[28px] border-slate-200 bg-white/90">
+          <Card className="mt-5 animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
             <CardContent className="py-6">
               <div className="h-5 w-56 rounded bg-slate-200" />
               <div className="mt-3 h-3 w-80 rounded bg-slate-200" />
-              <div className="mt-6 h-40 w-full rounded-[22px] bg-slate-200" />
+              <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_320px]">
+                <div className="h-48 rounded-[24px] bg-slate-200" />
+                <div className="h-48 rounded-[24px] bg-slate-100" />
+              </div>
             </CardContent>
           </Card>
         )}
@@ -220,30 +232,50 @@ export default function MenuFaces() {
                         <div className="mt-1 text-sm text-slate-600">Use este bloco para conferir preço-base, seleção atual e condição da oferta antes de enviar ao carrinho.</div>
                       </div>
 
-                      <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                      <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Condição</div>
                             <div className="mt-1 text-sm font-medium text-slate-900">{isPromotions ? 'Condição promocional por face/tela' : isAgency ? 'Leitura com markup da agência' : 'Seleção em tabela padrão'}</div>
                           </div>
-                          <Badge variant="secondary" className="rounded-full bg-slate-100 px-3 text-slate-700">{isPromotions ? 'Promoção' : isAgency ? 'Agência' : 'Padrão'}</Badge>
+                          <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">{isPromotions ? 'Promoção' : isAgency ? 'Agência' : 'Padrão'}</Badge>
+                        </div>
+                        <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                          Compare antes de enviar ao carrinho
                         </div>
                       </div>
 
                       <div className="mt-4 grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
                           <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
-                          <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(baseMonth)}</div>
+                          <div className="mt-2 text-xl font-semibold text-slate-900">{formatCurrencyBRL(baseMonth)}</div>
+                          {hasStartingFrom && startingMonth !== null && startingMonth !== undefined && <div className="mt-2 text-xs text-emerald-700">A partir de {formatCurrencyBRL(startingMonth)}</div>}
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
                           <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
-                          <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(baseWeek)}</div>
+                          <div className="mt-2 text-xl font-semibold text-slate-900">{formatCurrencyBRL(baseWeek)}</div>
+                          {hasStartingFrom && startingWeek !== null && startingWeek !== undefined && <div className="mt-2 text-xs text-emerald-700">A partir de {formatCurrencyBRL(startingWeek)}</div>}
                         </div>
                       </div>
 
                       <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                        <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Seleção atual</div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Seleção atual</div>
+                          <div className="text-xs font-medium text-slate-500">{selectedCount}/{selectableUnits.length || 0}</div>
+                        </div>
                         <div className="mt-2 text-sm text-slate-700">{selectedCount > 0 ? `${selectedCount} face(s)/tela(s) pronta(s) para ir ao carrinho.` : 'Escolha uma ou mais faces para montar a proposta.'}</div>
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full rounded-full bg-slate-900 transition-all duration-300" style={{ width: `${selectionProgress}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-[22px] bg-slate-950 px-4 py-3 text-white">
+                        <div>
+                          <div className="text-sm font-semibold">Pronto para o carrinho</div>
+                          <div className="text-xs text-white/70">Confira as faces e avance quando a seleção estiver fechada.</div>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-white/75" />
                       </div>
 
                       <Button className="h-11 w-full gap-2 rounded-2xl" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
@@ -265,14 +297,16 @@ export default function MenuFaces() {
                 const promoWeekRaw = unitPromo ? buildPromoPrice((u as any).priceWeek ?? (point as any).basePriceWeek, unitPromo) : null;
                 const promoMonth = promoMonthRaw ? { from: applyAgencyMarkup(promoMonthRaw.from, markupPct), to: applyAgencyMarkup(promoMonthRaw.to, markupPct) } : null;
                 const promoWeek = promoWeekRaw ? { from: applyAgencyMarkup(promoWeekRaw.from, markupPct), to: applyAgencyMarkup(promoWeekRaw.to, markupPct) } : null;
+                const promoMonthSavings = buildSavingsMeta(promoMonth?.from, promoMonth?.to);
+                const promoWeekSavings = buildSavingsMeta(promoWeek?.from, promoWeek?.to);
                 const baseMonthUnit = applyAgencyMarkup((u as any).priceMonth ?? (point as any).basePriceMonth, markupPct);
                 const baseWeekUnit = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
                 const isUnavailable = !isUnitSelectable(u);
 
                 return (
-                  <Card key={u.id} className={`overflow-hidden rounded-[28px] border shadow-[0_16px_45px_rgba(15,23,42,0.06)] ${checked ? 'border-slate-900 bg-slate-900 text-white' : isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white/95'}`}>
+                  <Card key={u.id} className={`group overflow-hidden rounded-[28px] border shadow-[0_16px_45px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_60px_rgba(15,23,42,0.12)] ${checked ? 'border-slate-900 bg-slate-900 text-white' : isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white/95 hover:border-slate-300'}`}>
                     <div className="relative h-48 overflow-hidden bg-slate-100">
-                      <ImageWithFallback src={u.imageUrl || point.mainImageUrl || ''} alt={u.label} className="h-full w-full object-cover" />
+                      <ImageWithFallback src={u.imageUrl || point.mainImageUrl || ''} alt={u.label} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
                       <div className={`absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t ${checked ? 'from-slate-950/80' : 'from-slate-950/70'} to-transparent`} />
                       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                         {isUnavailable && (
@@ -303,6 +337,7 @@ export default function MenuFaces() {
                               <>
                                 <span className={`${checked ? 'text-white/55' : 'text-slate-400'} mr-2 line-through`}>{formatCurrencyBRL(promoMonth.from)}</span>
                                 <span className="text-lg font-semibold">{formatCurrencyBRL(promoMonth.to)}</span>
+                                {promoMonthSavings && <div className={`mt-2 text-xs font-medium ${checked ? 'text-emerald-200' : 'text-emerald-700'}`}>Economia de {formatCurrencyBRL(promoMonthSavings.amount)}</div>}
                               </>
                             ) : (
                               <span className="text-lg font-semibold">{formatCurrencyBRL(baseMonthUnit)}</span>
@@ -316,6 +351,7 @@ export default function MenuFaces() {
                               <>
                                 <span className={`${checked ? 'text-white/55' : 'text-slate-400'} mr-2 line-through`}>{formatCurrencyBRL(promoWeek.from)}</span>
                                 <span className="text-lg font-semibold">{formatCurrencyBRL(promoWeek.to)}</span>
+                                {promoWeekSavings && <div className={`mt-2 text-xs font-medium ${checked ? 'text-emerald-200' : 'text-emerald-700'}`}>Economia de {formatCurrencyBRL(promoWeekSavings.amount)}</div>}
                               </>
                             ) : (
                               <span className="text-lg font-semibold">{formatCurrencyBRL(baseWeekUnit)}</span>
@@ -334,6 +370,13 @@ export default function MenuFaces() {
                         <div className="mt-4 flex items-center gap-2 text-sm text-white/85">
                           <CheckCircle2 className="h-4 w-4" />
                           Selecionada para o carrinho.
+                        </div>
+                      )}
+
+                      {!isUnavailable && !checked && (
+                        <div className="mt-1 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                          <span>Marque esta unidade para comparar no carrinho.</span>
+                          <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-300 group-hover:translate-x-1" />
                         </div>
                       )}
                     </CardContent>
