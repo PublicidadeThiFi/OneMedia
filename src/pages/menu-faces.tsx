@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Checkbox } from '../components/ui/checkbox';
-import { ArrowLeft, CheckCircle2, Layers, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Layers, ShoppingCart, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { computePointPriceSummary, PublicMediaKitPoint } from '../lib/publicMediaKit';
@@ -82,6 +82,7 @@ export default function MenuFaces() {
   }, [point]);
 
   const selectableUnits = useMemo(() => units.filter((u: any) => isUnitSelectable(u)), [units]);
+  const sortedUnits = useMemo(() => [...units].sort((a: any, b: any) => Number(isUnitSelectable(b)) - Number(isUnitSelectable(a))), [units]);
 
   const monthSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'month') : null), [point]);
   const weekSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'week') : null), [point]);
@@ -202,15 +203,33 @@ export default function MenuFaces() {
                     <div className="mt-4 flex flex-wrap gap-2">
                       <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{units.length} unidade(s)</Badge>
                       <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{selectableUnits.length} disponíveis</Badge>
+                      <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{selectedCount} selecionada(s)</Badge>
                       {hasStartingFrom && startingMonth !== null && startingMonth !== undefined && (
-                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">A partir de {formatCurrencyBRL(startingMonth)}</Badge>
+                        <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 text-emerald-700">
+                          <Tag className="mr-1 h-3.5 w-3.5" />
+                          A partir de {formatCurrencyBRL(startingMonth)}
+                        </Badge>
                       )}
                     </div>
                   </div>
 
                   <Card className="rounded-[28px] border-slate-200 bg-slate-50/80 shadow-none">
-                    <CardContent className="p-5">
-                      <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo comercial</div>
+                    <CardContent className="space-y-4 p-5">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo comercial</div>
+                        <div className="mt-1 text-sm text-slate-600">Use este bloco para conferir preço-base, seleção atual e condição da oferta antes de enviar ao carrinho.</div>
+                      </div>
+
+                      <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Condição</div>
+                            <div className="mt-1 text-sm font-medium text-slate-900">{isPromotions ? 'Condição promocional por face/tela' : isAgency ? 'Leitura com markup da agência' : 'Seleção em tabela padrão'}</div>
+                          </div>
+                          <Badge variant="secondary" className="rounded-full bg-slate-100 px-3 text-slate-700">{isPromotions ? 'Promoção' : isAgency ? 'Agência' : 'Padrão'}</Badge>
+                        </div>
+                      </div>
+
                       <div className="mt-4 grid grid-cols-2 gap-3">
                         <div className="rounded-2xl border border-slate-200 bg-white p-4">
                           <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
@@ -222,7 +241,12 @@ export default function MenuFaces() {
                         </div>
                       </div>
 
-                      <Button className="mt-5 h-11 w-full gap-2 rounded-2xl" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
+                      <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                        <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Seleção atual</div>
+                        <div className="mt-2 text-sm text-slate-700">{selectedCount > 0 ? `${selectedCount} face(s)/tela(s) pronta(s) para ir ao carrinho.` : 'Escolha uma ou mais faces para montar a proposta.'}</div>
+                      </div>
+
+                      <Button className="h-11 w-full gap-2 rounded-2xl" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
                         <ShoppingCart className="h-4 w-4" />
                         Adicionar selecionadas
                       </Button>
@@ -233,7 +257,7 @@ export default function MenuFaces() {
             </Card>
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {units.map((u) => {
+              {sortedUnits.map((u) => {
                 const checked = !!selected[u.id];
                 const unitPromo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
                 const promoBadge = unitPromo ? formatPromotionBadge(unitPromo) : null;
@@ -265,7 +289,12 @@ export default function MenuFaces() {
                       </div>
                     </div>
 
-                    <CardContent className="p-5">
+                    <CardContent className="space-y-4 p-5">
+                      <div className={`rounded-[22px] border p-4 ${checked ? 'border-white/10 bg-white/10 text-white/90' : isUnavailable ? 'border-amber-200 bg-white text-amber-900' : 'border-slate-200 bg-slate-50/80 text-slate-700'}`}>
+                        <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : isUnavailable ? 'text-amber-700' : 'text-slate-500'}`}>Leitura rápida</div>
+                        <div className="mt-2 text-sm font-medium">{isUnavailable ? 'Indisponível para seleção imediata' : checked ? 'Selecionada para a proposta' : 'Disponível para compor a proposta'}</div>
+                      </div>
+
                       <div className={`grid grid-cols-2 gap-3 ${checked ? 'text-white/90' : 'text-slate-700'}`}>
                         <div className={`rounded-2xl border p-4 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
                           <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : 'text-slate-500'}`}>Mensal</div>

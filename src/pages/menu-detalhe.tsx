@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, ExternalLink, MapPin, ShoppingCart, Layers, GalleryHorizontal } from 'lucide-react';
+import { ArrowLeft, ExternalLink, MapPin, ShoppingCart, Layers, GalleryHorizontal, Tag, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
@@ -314,7 +314,11 @@ export default function MenuDetalhe() {
 
               <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
                 <CardContent className="p-6">
-                  <div className="flex items-center gap-2 text-slate-900"><GalleryHorizontal className="h-4 w-4" /><span className="text-sm font-semibold">Galeria do ponto</span></div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-slate-900"><GalleryHorizontal className="h-4 w-4" /><span className="text-sm font-semibold">Galeria do ponto</span></div>
+                    <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Visual principal</div>
+                  </div>
+                  <div className="mt-2 text-sm text-slate-600">Use esta galeria para validar o contexto visual do inventário antes de escolher faces ou adicionar ao carrinho.</div>
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {gallery.length > 0 ? gallery.slice(0, 6).map((url, idx) => (
                       <div key={`${url}-${idx}`} className="h-40 overflow-hidden rounded-[22px] bg-slate-100">
@@ -327,7 +331,11 @@ export default function MenuDetalhe() {
 
               <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
                 <CardContent className="p-6">
-                  <div className="text-sm font-semibold text-slate-900">Mapa</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-900">Mapa</div>
+                    <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Localização do inventário</div>
+                  </div>
+                  <div className="mt-2 text-sm text-slate-600">Confirme o entorno do ponto e utilize o atalho para o Maps quando precisar validar o endereço completo.</div>
                   <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-100">
                     {mapsEmbed ? <iframe title="Mapa" src={mapsEmbed} className="h-72 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /> : <div className="flex h-72 w-full items-center justify-center text-sm text-slate-600">Coordenadas não informadas — use o botão “Abrir no Maps”.</div>}
                   </div>
@@ -337,13 +345,20 @@ export default function MenuDetalhe() {
 
             <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
               <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
-                <CardContent className="p-6">
-                  <div className="text-sm font-semibold text-slate-900">Resumo do ponto</div>
-                  <div className="mt-4 space-y-3">
+                <CardContent className="space-y-4 p-6">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Resumo do ponto</div>
+                    <div className="mt-1 text-sm text-slate-600">Bloco pensado para leitura rápida de disponibilidade, localização e impacto antes da decisão.</div>
+                  </div>
+                  <div className="space-y-3">
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-center gap-2 text-slate-700"><Layers className="h-4 w-4" /><span className="font-semibold">Faces/Telas</span></div>
                       <div className="mt-2 text-sm text-slate-600">{units.length > 0 ? `${units.length} unidade(s) ativa(s)` : '—'}</div>
                       {typeof point.dailyImpressions === 'number' && <div className="mt-2 text-sm text-slate-600"><span className="font-semibold">Impacto/dia:</span> {point.dailyImpressions}</div>}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-3 text-slate-600">{selectableUnitsCount} disponível(is)</Badge>
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-3 text-slate-600">{isPromotions ? 'Condição promocional' : 'Tabela ativa'}</Badge>
+                      </div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-center gap-2 text-slate-700"><MapPin className="h-4 w-4" /><span className="font-semibold">Localização</span></div>
@@ -355,9 +370,12 @@ export default function MenuDetalhe() {
               </Card>
 
               <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
-                <CardContent className="p-6">
-                  <div className="text-sm font-semibold text-slate-900">Faces/telas cadastradas</div>
-                  <div className="mt-4 space-y-3">
+                <CardContent className="space-y-4 p-6">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Faces/telas cadastradas</div>
+                    <div className="mt-1 text-sm text-slate-600">Cada unidade fica organizada como subcard para manter preço, status e imagem visíveis sem misturar informações.</div>
+                  </div>
+                  <div className="space-y-3">
                     {units.length > 0 ? units.map((u) => {
                       const unitPromo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
                       const promoBadge = unitPromo ? formatPromotionBadge(unitPromo) : null;

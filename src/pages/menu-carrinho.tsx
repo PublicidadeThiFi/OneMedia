@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, ShoppingCart, Trash2 } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Tag, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import {
@@ -145,6 +145,16 @@ export default function MenuCarrinho() {
   const uniquePointsCount = useMemo(() => new Set(itemsEnriched.map((entry) => entry.item.pointId)).size, [itemsEnriched]);
   const withFacesCount = useMemo(() => itemsEnriched.filter((entry) => !!entry.unitLabel).length, [itemsEnriched]);
 
+  const summaryTotals = useMemo(() => {
+    return itemsEnriched.reduce((acc, entry) => {
+      const month = isPromotions && entry.promoMonthTo !== null && entry.promoMonthTo !== undefined ? entry.promoMonthTo : entry.priceMonth;
+      const week = isPromotions && entry.promoWeekTo !== null && entry.promoWeekTo !== undefined ? entry.promoWeekTo : entry.priceWeek;
+      acc.month += Number(month) || 0;
+      acc.week += Number(week) || 0;
+      return acc;
+    }, { month: 0, week: 0 });
+  }, [itemsEnriched, isPromotions]);
+
   return (
     <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_40%,#f8fafc_100%)]">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -240,7 +250,13 @@ export default function MenuCarrinho() {
               <div className="space-y-4">
                 {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo }) => (
                   <Card key={item.id} className="overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)]">
-                    <CardContent className="p-5">
+                    <CardContent className="space-y-4 p-5">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{unitLabel ? 'Face/Tela selecionada' : 'Ponto selecionado'}</Badge>
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{item.durationDays >= 30 ? 'Período mensal' : 'Período curto'}</Badge>
+                        {isPromotions && promo && <Badge className="rounded-full border-0 bg-rose-500 text-white hover:bg-rose-500">{formatPromotionBadge(promo)}</Badge>}
+                      </div>
+
                       <div className="flex flex-col gap-4 lg:flex-row">
                         <div className="w-full lg:w-72 lg:shrink-0">
                           <div className="aspect-[16/10] w-full overflow-hidden rounded-[24px] bg-slate-100">
@@ -262,6 +278,11 @@ export default function MenuCarrinho() {
                             <Button variant="ghost" size="icon" className="rounded-2xl" onClick={() => onRemove(item.id)} title="Remover">
                               <Trash2 className="h-4 w-4" />
                             </Button>
+                          </div>
+
+                          <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
+                            <div className="flex items-center gap-2 text-slate-700"><Tag className="h-4 w-4" /><span className="text-sm font-semibold">Condição comercial</span></div>
+                            <div className="mt-2 text-sm text-slate-600">{isPromotions && promo ? 'A condição promocional já aparece refletida nos preços do item.' : isAgency ? 'Este item está sendo exibido com markup de agência aplicado.' : 'Este item segue a tabela padrão do inventário.'}</div>
                           </div>
 
                           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -313,11 +334,30 @@ export default function MenuCarrinho() {
 
               <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
                 <Card className="rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)]">
-                  <CardContent className="p-6">
-                    <div className="text-sm font-semibold text-slate-900">Próximo passo</div>
-                    <div className="mt-2 text-sm leading-6 text-slate-600">Com o carrinho revisado, avance para o checkout para enviar o pedido de proposta.</div>
-                    <Button className="mt-5 h-11 w-full rounded-2xl" onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>Ir para o checkout</Button>
-                    <Button variant="outline" className="mt-3 h-11 w-full rounded-2xl border-slate-200 bg-white" onClick={() => navigate(backUrl)}>Adicionar mais itens</Button>
+                  <CardContent className="space-y-4 p-6">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Resumo do pedido</div>
+                      <div className="mt-1 text-sm leading-6 text-slate-600">Conferência rápida dos itens selecionados antes de avançar para o checkout.</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal estimado</div>
+                        <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(summaryTotals.month)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana estimado</div>
+                        <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(summaryTotals.week)}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
+                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Próximo passo</div>
+                      <div className="mt-2 text-sm leading-6 text-slate-600">Com o carrinho revisado, avance para o checkout para enviar o pedido de proposta.</div>
+                    </div>
+
+                    <Button className="h-11 w-full rounded-2xl" onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>Ir para o checkout</Button>
+                    <Button variant="outline" className="h-11 w-full rounded-2xl border-slate-200 bg-white" onClick={() => navigate(backUrl)}>Adicionar mais itens</Button>
                   </CardContent>
                 </Card>
               </div>
