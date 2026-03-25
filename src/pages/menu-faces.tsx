@@ -115,6 +115,12 @@ export default function MenuFaces() {
     setSelected((prev) => ({ ...prev, [unitId]: next }));
   };
 
+  const toggleUnitSelection = (unit: MediaUnit) => {
+    if (!isUnitSelectable(unit)) return;
+    const current = !!selected[unit.id];
+    onToggle(unit.id, !current);
+  };
+
   const onAddSelected = () => {
     if (!point) return;
     const ids = Object.keys(selected).filter((k) => selected[k]);
@@ -202,17 +208,17 @@ export default function MenuFaces() {
 
         {point && (
           <>
-            <Card className="mt-5 overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.07)]">
-              <CardContent className="p-6">
-                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+            <Card className="mt-5 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+              <CardContent className="p-5">
+                <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
                   <div>
                     <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                       <Layers className="h-3.5 w-3.5" />
                       Selecione uma ou mais faces/telas
                     </div>
-                    <div className="mt-4 text-2xl font-semibold text-slate-900">{point.name}</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-900">{point.name}</div>
                     <div className="mt-2 text-sm text-slate-600">{formatAddress(point) || 'Endereço não informado'}</div>
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{units.length} unidade(s)</Badge>
                       <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{selectableUnits.length} disponíveis</Badge>
                       <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{selectedCount} selecionada(s)</Badge>
@@ -225,14 +231,14 @@ export default function MenuFaces() {
                     </div>
                   </div>
 
-                  <Card className="rounded-[28px] border-slate-200 bg-slate-50/80 shadow-none">
-                    <CardContent className="space-y-4 p-5">
+                  <Card className="rounded-[22px] border-slate-200 bg-slate-50/80 shadow-none">
+                    <CardContent className="space-y-3 p-4">
                       <div>
                         <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo comercial</div>
                         <div className="mt-1 text-sm text-slate-600">Use este bloco para conferir preço-base, seleção atual e condição da oferta antes de enviar ao carrinho.</div>
                       </div>
 
-                      <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
+                      <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Condição</div>
@@ -242,24 +248,24 @@ export default function MenuFaces() {
                         </div>
                         <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
                           <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-                          Compare antes de enviar ao carrinho
+                          Seleção clara antes do carrinho
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-2 gap-3">
-                        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                           <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
                           <div className="mt-2 text-xl font-semibold text-slate-900">{formatCurrencyBRL(baseMonth)}</div>
                           {hasStartingFrom && startingMonth !== null && startingMonth !== undefined && <div className="mt-2 text-xs text-emerald-700">A partir de {formatCurrencyBRL(startingMonth)}</div>}
                         </div>
-                        <div className="rounded-[22px] border border-slate-200 bg-white p-4">
+                        <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                           <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
                           <div className="mt-2 text-xl font-semibold text-slate-900">{formatCurrencyBRL(baseWeek)}</div>
                           {hasStartingFrom && startingWeek !== null && startingWeek !== undefined && <div className="mt-2 text-xs text-emerald-700">A partir de {formatCurrencyBRL(startingWeek)}</div>}
                         </div>
                       </div>
 
-                      <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                      <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Seleção atual</div>
                           <div className="text-xs font-medium text-slate-500">{selectedCount}/{selectableUnits.length || 0}</div>
@@ -270,7 +276,7 @@ export default function MenuFaces() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between rounded-[22px] bg-slate-950 px-4 py-3 text-white">
+                      <div className="flex items-center justify-between hidden">
                         <div>
                           <div className="text-sm font-semibold">Pronto para o carrinho</div>
                           <div className="text-xs text-white/70">Confira as faces e avance quando a seleção estiver fechada.</div>
@@ -278,15 +284,31 @@ export default function MenuFaces() {
                         <ChevronRight className="h-5 w-5 text-white/75" />
                       </div>
 
-                      <Button className="h-11 w-full gap-2 rounded-2xl" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
-                        <ShoppingCart className="h-4 w-4" />
-                        Adicionar selecionadas
-                      </Button>
+                      <div className="text-xs text-slate-500">Use os cards abaixo para selecionar as faces e depois avance pelo resumo fixo.</div>
                     </CardContent>
                   </Card>
                 </div>
               </CardContent>
             </Card>
+
+            <div className="sticky top-3 z-20 mt-5 rounded-[18px] border border-slate-200 bg-white/95 p-3 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Seleção atual</div>
+                  <div className="mt-1 text-xs text-slate-600">{selectedCount > 0 ? `${selectedCount} face(s)/tela(s) pronta(s) para ir ao carrinho.` : 'Clique em um card para selecionar a face/tela.'}</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="min-w-[96px] text-right text-xs font-medium text-slate-500">{selectedCount}/{selectableUnits.length || 0}</div>
+                  <Button className="h-10 gap-2 rounded-2xl" onClick={onAddSelected} disabled={selectedCount === 0}>
+                    <ShoppingCart className="h-4 w-4" />
+                    Adicionar selecionadas
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-slate-900 transition-all duration-300" style={{ width: `${selectionProgress}%` }} />
+              </div>
+            </div>
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {sortedUnits.map((u) => {
@@ -304,8 +326,12 @@ export default function MenuFaces() {
                 const isUnavailable = !isUnitSelectable(u);
 
                 return (
-                  <Card key={u.id} className={`group overflow-hidden rounded-[28px] border shadow-[0_16px_45px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_60px_rgba(15,23,42,0.12)] ${checked ? 'border-slate-900 bg-slate-900 text-white' : isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white/95 hover:border-slate-300'}`}>
-                    <div className="relative h-48 overflow-hidden bg-slate-100">
+                  <Card
+                    key={u.id}
+                    onClick={() => toggleUnitSelection(u as MediaUnit)}
+                    className={`group overflow-hidden rounded-[22px] border shadow-[0_12px_34px_rgba(15,23,42,0.06)] transition-all duration-200 ${isUnavailable ? 'cursor-not-allowed border-amber-200 bg-amber-50/80' : 'cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(15,23,42,0.10)]'} ${checked ? 'border-slate-900 bg-slate-900 text-white ring-1 ring-slate-900' : isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white hover:border-indigo-300'}`}
+                  >
+                    <div className="relative h-44 overflow-hidden bg-slate-100">
                       <ImageWithFallback src={u.imageUrl || point.mainImageUrl || ''} alt={u.label} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
                       <div className={`absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t ${checked ? 'from-slate-950/80' : 'from-slate-950/70'} to-transparent`} />
                       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
@@ -314,47 +340,49 @@ export default function MenuFaces() {
                         )}
                         {isPromotions && promoBadge && <Badge className="rounded-full border-0 bg-rose-500 text-white hover:bg-rose-500">{promoBadge}</Badge>}
                       </div>
-                      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-3 text-white">
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-3 text-white">
                         <div>
-                          <div className="text-lg font-semibold">{u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}</div>
+                          <div className="text-base font-semibold">{u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}</div>
                           <div className="mt-1 text-xs text-white/80">{u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}{u.orientation ? ` • ${u.orientation}` : ''}</div>
                         </div>
-                        <Checkbox checked={checked} disabled={isUnavailable} onCheckedChange={(value) => onToggle(u.id, Boolean(value))} className="border-white/70 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-slate-900" />
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={checked} disabled={isUnavailable} onCheckedChange={(value) => onToggle(u.id, Boolean(value))} className="border-white/70 bg-white/10 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-slate-900" />
+                        </div>
                       </div>
                     </div>
 
-                    <CardContent className="space-y-4 p-5">
-                      <div className={`rounded-[22px] border p-4 ${checked ? 'border-white/10 bg-white/10 text-white/90' : isUnavailable ? 'border-amber-200 bg-white text-amber-900' : 'border-slate-200 bg-slate-50/80 text-slate-700'}`}>
+                    <CardContent className="space-y-3 p-4">
+                      <div className={`rounded-[18px] border p-3 ${checked ? 'border-white/10 bg-white/10 text-white/90' : isUnavailable ? 'border-amber-200 bg-white text-amber-900' : 'border-slate-200 bg-slate-50/80 text-slate-700'}`}>
                         <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : isUnavailable ? 'text-amber-700' : 'text-slate-500'}`}>Leitura rápida</div>
                         <div className="mt-2 text-sm font-medium">{isUnavailable ? 'Indisponível para seleção imediata' : checked ? 'Selecionada para a proposta' : 'Disponível para compor a proposta'}</div>
                       </div>
 
-                      <div className={`grid grid-cols-2 gap-3 ${checked ? 'text-white/90' : 'text-slate-700'}`}>
-                        <div className={`rounded-2xl border p-4 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
+                      <div className={`grid grid-cols-2 gap-2 ${checked ? 'text-white/90' : 'text-slate-700'}`}>
+                        <div className={`rounded-[16px] border p-3 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
                           <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : 'text-slate-500'}`}>Mensal</div>
                           <div className="mt-2 text-sm">
                             {isPromotions && promoMonth ? (
                               <>
                                 <span className={`${checked ? 'text-white/55' : 'text-slate-400'} mr-2 line-through`}>{formatCurrencyBRL(promoMonth.from)}</span>
-                                <span className="text-lg font-semibold">{formatCurrencyBRL(promoMonth.to)}</span>
+                                <span className="text-base font-semibold">{formatCurrencyBRL(promoMonth.to)}</span>
                                 {promoMonthSavings && <div className={`mt-2 text-xs font-medium ${checked ? 'text-emerald-200' : 'text-emerald-700'}`}>Economia de {formatCurrencyBRL(promoMonthSavings.amount)}</div>}
                               </>
                             ) : (
-                              <span className="text-lg font-semibold">{formatCurrencyBRL(baseMonthUnit)}</span>
+                              <span className="text-base font-semibold">{formatCurrencyBRL(baseMonthUnit)}</span>
                             )}
                           </div>
                         </div>
-                        <div className={`rounded-2xl border p-4 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className={`rounded-[16px] border p-3 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
                           <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : 'text-slate-500'}`}>Bi-semana</div>
                           <div className="mt-2 text-sm">
                             {isPromotions && promoWeek ? (
                               <>
                                 <span className={`${checked ? 'text-white/55' : 'text-slate-400'} mr-2 line-through`}>{formatCurrencyBRL(promoWeek.from)}</span>
-                                <span className="text-lg font-semibold">{formatCurrencyBRL(promoWeek.to)}</span>
+                                <span className="text-base font-semibold">{formatCurrencyBRL(promoWeek.to)}</span>
                                 {promoWeekSavings && <div className={`mt-2 text-xs font-medium ${checked ? 'text-emerald-200' : 'text-emerald-700'}`}>Economia de {formatCurrencyBRL(promoWeekSavings.amount)}</div>}
                               </>
                             ) : (
-                              <span className="text-lg font-semibold">{formatCurrencyBRL(baseWeekUnit)}</span>
+                              <span className="text-base font-semibold">{formatCurrencyBRL(baseWeekUnit)}</span>
                             )}
                           </div>
                         </div>
@@ -369,13 +397,13 @@ export default function MenuFaces() {
                       {!isUnavailable && checked && (
                         <div className="mt-4 flex items-center gap-2 text-sm text-white/85">
                           <CheckCircle2 className="h-4 w-4" />
-                          Selecionada para o carrinho.
+                          Selecionada para o carrinho. Clique novamente para remover.
                         </div>
                       )}
 
                       {!isUnavailable && !checked && (
                         <div className="mt-1 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                          <span>Marque esta unidade para comparar no carrinho.</span>
+                          <span>Clique no card para selecionar esta unidade.</span>
                           <ChevronRight className="h-4 w-4 text-slate-400 transition-transform duration-300 group-hover:translate-x-1" />
                         </div>
                       )}

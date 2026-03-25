@@ -64,14 +64,14 @@ export default function MenuHome() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_38%,#f8fafc_100%)]">
-      <div className="relative overflow-hidden border-b border-white/40 bg-slate-950 text-white">
+    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#f5f7fb_40%,#f8fafc_100%)]">
+      <div className="relative overflow-hidden border-b border-slate-200 bg-slate-950 text-white">
         <div className="absolute inset-0">
-          <img src={OUTDOOR_BG_SRC} alt="" className="h-full w-full object-cover opacity-20" loading="lazy" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(15,23,42,0.78))]" />
+          <img src={OUTDOOR_BG_SRC} alt="" className="h-full w-full object-cover opacity-45" loading="lazy" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.90),rgba(15,23,42,0.72))]" />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-10 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-8 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/15 bg-white/10 backdrop-blur-sm">
               <img src={ONE_MEDIA_LOGO_SRC} alt="OneMedia" className="h-7 w-7" />
@@ -83,30 +83,30 @@ export default function MenuHome() {
             <Badge className="ml-auto rounded-full border border-white/20 bg-white/10 text-white hover:bg-white/10">Protótipo</Badge>
           </div>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+          <div className="mt-8 grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs text-white/80 backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-slate-900/45 px-3 py-1 text-xs text-white/90 backdrop-blur-sm">
                 <Sparkles className="h-3.5 w-3.5" />
                 Navegação mais clara para decidir mais rápido
               </div>
-              <h1 className="mt-5 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-[2.85rem]">
                 Escolha o fluxo ideal e monte sua proposta com leitura comercial e objetiva.
               </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/85 sm:text-[15px]">
                 Você escolhe o caminho, avança por estado, cidade, ponto e face, e chega ao carrinho com tudo organizado visualmente para comparar melhor.
               </p>
             </div>
 
-            <Card className="rounded-3xl border border-white/15 bg-white/10 text-white shadow-2xl shadow-slate-950/30 backdrop-blur-md">
-              <CardContent className="p-6">
+            <Card className="rounded-[26px] border border-white/15 bg-slate-900/45 text-white shadow-2xl shadow-slate-950/30 backdrop-blur-md">
+              <CardContent className="p-5">
                 <div className="text-xs uppercase tracking-[0.16em] text-white/60">Como funciona</div>
-                <div className="mt-4 space-y-4">
+                <div className="mt-4 space-y-3">
                   {[
                     ['1', 'Escolha o modo de navegação', 'Cardápio, promoções ou agência.'],
                     ['2', 'Filtre por região', 'Selecione UF e cidade com poucos cliques.'],
                     ['3', 'Compare e envie', 'Veja detalhes, adicione ao carrinho e avance.'],
                   ].map(([step, title, desc]) => (
-                    <div key={step} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+                    <div key={step} className="flex items-start gap-3 rounded-[20px] border border-white/10 bg-white/5 p-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-semibold text-slate-900">{step}</div>
                       <div>
                         <div className="text-sm font-semibold text-white">{title}</div>
@@ -128,9 +128,9 @@ export default function MenuHome() {
             return (
               <Card
                 key={mode.title}
-                className="group rounded-[28px] border border-slate-200/70 bg-white/90 shadow-[0_16px_50px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_22px_65px_rgba(15,23,42,0.12)]"
+                className="group rounded-[24px] border border-slate-200/80 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_46px_rgba(15,23,42,0.10)]"
               >
-                <CardContent className="flex h-full flex-col p-6">
+                <CardContent className="flex h-full flex-col p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/20 transition-transform duration-200 group-hover:scale-105">
                       <Icon className="h-5 w-5" />
@@ -171,7 +171,7 @@ export default function MenuHome() {
           })}
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-[28px] border border-slate-200 bg-white/85 p-5 shadow-[0_14px_40px_rgba(15,23,42,0.05)] backdrop-blur">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
           <div>
             <div className="text-sm font-semibold text-slate-900">Quer voltar para o Mídia Kit?</div>
             <div className="mt-1 text-sm text-slate-600">Você pode sair agora e retornar depois pelo mesmo link de acesso.</div>
