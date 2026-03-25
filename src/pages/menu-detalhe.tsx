@@ -247,7 +247,7 @@ export default function MenuDetalhe() {
 
   return (
     <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_42%,#f8fafc_100%)]">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">Protótipo</Badge>
           <div className="text-sm text-slate-600">Detalhes do ponto</div>
@@ -270,10 +270,10 @@ export default function MenuDetalhe() {
         {!loading && !error && !point && <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>Voltar para os pontos</Button></div></CardContent></Card>}
 
         {point && (
-          <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_0.9fr]">
+          <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.95fr]">
             <div className="space-y-5">
-              <Card className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.07)]">
-                <div className="relative h-[320px] bg-slate-100 sm:h-[380px]">
+              <Card className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_14px_38px_rgba(15,23,42,0.06)]">
+                <div className="relative h-[260px] bg-slate-100 sm:h-[310px]">
                   <ImageWithFallback src={gallery[0] || ''} alt={point.name} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
                   <div className="absolute left-5 top-5 flex flex-wrap gap-2">
@@ -288,9 +288,9 @@ export default function MenuDetalhe() {
                     )}
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                    <div className="text-3xl font-semibold tracking-tight">{point.name}</div>
+                    <div className="text-xl font-semibold tracking-tight">{point.name}</div>
                     <div className="mt-2 max-w-3xl text-sm text-white/80">{formatAddress(point) || 'Endereço não informado ainda'}</div>
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <div className="inline-flex items-center gap-1 rounded-full bg-white/12 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur">
                         <Sparkles className="h-3.5 w-3.5" />
                         Leitura comercial refinada
@@ -302,18 +302,18 @@ export default function MenuDetalhe() {
                   </div>
                 </div>
 
-                <CardContent className="p-6">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
+                <CardContent className="p-5">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{priceLabel}</div>
                         {promoPointMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoPointMonthSavings.percent}%</Badge>}
                       </div>
-                      <div className="mt-2 text-2xl font-semibold text-slate-900">{isPromotions && bestPromoPointMonth ? formatCurrencyBRL(bestPromoPointMonth.to) : formatCurrencyBRL(displayMonth)}</div>
+                      <div className="mt-2 text-xl font-semibold text-slate-900">{isPromotions && bestPromoPointMonth ? formatCurrencyBRL(bestPromoPointMonth.to) : formatCurrencyBRL(displayMonth)}</div>
                       {isPromotions && bestPromoPointMonth ? <div className="mt-1 text-sm text-slate-500 line-through">{formatCurrencyBRL(bestPromoPointMonth.from)}</div> : showStartingFrom && baseMonth !== null && baseMonth !== undefined ? <div className="mt-1 text-sm text-slate-500">Padrão {formatCurrencyBRL(baseMonth)}</div> : null}
                       {promoPointMonthSavings && <div className="mt-3 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(promoPointMonthSavings.amount)}</div>}
                     </div>
-                    <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
+                    <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
                         {promoPointWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoPointWeekSavings.percent}%</Badge>}
@@ -322,7 +322,7 @@ export default function MenuDetalhe() {
                       {isPromotions && bestPromoPointWeek ? <div className="mt-1 text-sm text-slate-500 line-through">{formatCurrencyBRL(bestPromoPointWeek.from)}</div> : showStartingFrom && baseWeek !== null && baseWeek !== undefined ? <div className="mt-1 text-sm text-slate-500">Padrão {formatCurrencyBRL(baseWeek)}</div> : null}
                       {promoPointWeekSavings && <div className="mt-3 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(promoPointWeekSavings.amount)}</div>}
                     </div>
-                    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                       <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Unidades ativas</div>
                       <div className="mt-2 text-2xl font-semibold text-slate-900">{units.length}</div>
                       <div className="mt-1 text-sm text-slate-500">{selectableUnitsCount} disponível(is)</div>
@@ -342,46 +342,46 @@ export default function MenuDetalhe() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
-                <CardContent className="p-6">
+              <Card className="rounded-[24px] border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
+                <CardContent className="p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-slate-900"><GalleryHorizontal className="h-4 w-4" /><span className="text-sm font-semibold">Galeria do ponto</span></div>
                     <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Visual principal</div>
                   </div>
                   <div className="mt-2 text-sm text-slate-600">Use esta galeria para validar o contexto visual do inventário antes de escolher faces ou adicionar ao carrinho.</div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {gallery.length > 0 ? gallery.slice(0, 6).map((url, idx) => (
-                      <div key={`${url}-${idx}`} className="h-40 overflow-hidden rounded-[22px] bg-slate-100">
+                      <div key={`${url}-${idx}`} className="h-32 overflow-hidden rounded-[18px] bg-slate-100">
                         <ImageWithFallback src={url} alt={`${point.name} ${idx + 1}`} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" />
                       </div>
-                    )) : <div className="col-span-full flex h-40 items-center justify-center rounded-[22px] bg-slate-100 text-sm text-slate-500">Nenhuma imagem disponível</div>}
+                    )) : <div className="col-span-full flex h-32 items-center justify-center rounded-[18px] bg-slate-100 text-sm text-slate-500">Nenhuma imagem disponível</div>}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
-                <CardContent className="p-6">
+              <Card className="rounded-[24px] border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
+                <CardContent className="p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-slate-900">Mapa</div>
                     <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Localização do inventário</div>
                   </div>
                   <div className="mt-2 text-sm text-slate-600">Confirme o entorno do ponto e utilize o atalho para o Maps quando precisar validar o endereço completo.</div>
-                  <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-100">
-                    {mapsEmbed ? <iframe title="Mapa" src={mapsEmbed} className="h-72 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /> : <div className="flex h-72 w-full items-center justify-center text-sm text-slate-600">Coordenadas não informadas — use o botão “Abrir no Maps”.</div>}
+                  <div className="mt-4 overflow-hidden rounded-[18px] border border-slate-200 bg-slate-100">
+                    {mapsEmbed ? <iframe title="Mapa" src={mapsEmbed} className="h-56 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /> : <div className="flex h-56 w-full items-center justify-center text-sm text-slate-600">Coordenadas não informadas — use o botão “Abrir no Maps”.</div>}
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
-              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+            <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+              <Card className="rounded-[24px] border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
                 <CardContent className="space-y-4 p-6">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Resumo do ponto</div>
                     <div className="mt-1 text-sm text-slate-600">Bloco pensado para leitura rápida de disponibilidade, localização e impacto antes da decisão.</div>
                   </div>
                   <div className="space-y-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                       <div className="flex items-center gap-2 text-slate-700"><Layers className="h-4 w-4" /><span className="font-semibold">Faces/Telas</span></div>
                       <div className="mt-2 text-sm text-slate-600">{units.length > 0 ? `${units.length} unidade(s) ativa(s)` : '—'}</div>
                       {typeof point.dailyImpressions === 'number' && <div className="mt-2 text-sm text-slate-600"><span className="font-semibold">Impacto/dia:</span> {point.dailyImpressions}</div>}
@@ -391,7 +391,7 @@ export default function MenuDetalhe() {
                         {promoPointMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-3 text-emerald-700 hover:bg-emerald-500/10">Economia mensal {formatCurrencyBRL(promoPointMonthSavings.amount)}</Badge>}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3">
                       <div className="flex items-center gap-2 text-slate-700"><MapPin className="h-4 w-4" /><span className="font-semibold">Localização</span></div>
                       <div className="mt-2 text-sm leading-6 text-slate-600">{point.addressDistrict ? `${point.addressDistrict} • ` : ''}{point.addressCity || ''}{point.addressState ? `/${point.addressState}` : ''}</div>
                       <div className="mt-3"><a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 hover:text-slate-700">Abrir no Maps<ExternalLink className="h-4 w-4" /></a></div>
@@ -400,7 +400,7 @@ export default function MenuDetalhe() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+              <Card className="rounded-[24px] border border-slate-200 bg-white shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
                 <CardContent className="space-y-4 p-6">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Faces/telas cadastradas</div>
@@ -420,7 +420,7 @@ export default function MenuDetalhe() {
                       const baseWeekUnit = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
                       const isUnavailable = !isUnitSelectable(u);
                       return (
-                        <div key={u.id} className={`rounded-[24px] border p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_35px_rgba(15,23,42,0.08)] ${isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'}`}>
+                        <div key={u.id} className={`rounded-[18px] border p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(15,23,42,0.07)] ${isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'}`}>
                           <div className="flex items-center gap-2">
                             <div className="text-sm font-semibold text-slate-900">{u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}</div>
                             {isUnavailable && <Badge className="rounded-full border-0 bg-amber-100 text-amber-900 hover:bg-amber-100">{String(u.availability || '').trim() === 'Reservada' ? 'Reservada' : 'Ocupada'}</Badge>}
@@ -433,7 +433,7 @@ export default function MenuDetalhe() {
                             <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><div className="text-slate-500">Mensal</div>{promoMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2 text-emerald-700 hover:bg-emerald-500/10">-{promoMonthSavings.percent}%</Badge>}</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoMonth ? formatCurrencyBRL(promoMonth.to) : formatCurrencyBRL(baseMonthUnit)}</div>{promoMonth && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoMonth.from)}</div>}{promoMonthSavings && <div className="mt-1 text-[11px] font-medium text-emerald-700">Economia {formatCurrencyBRL(promoMonthSavings.amount)}</div>}</div>
                             <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><div className="text-slate-500">Bi-semana</div>{promoWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2 text-emerald-700 hover:bg-emerald-500/10">-{promoWeekSavings.percent}%</Badge>}</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoWeek ? formatCurrencyBRL(promoWeek.to) : formatCurrencyBRL(baseWeekUnit)}</div>{promoWeek && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoWeek.from)}</div>}{promoWeekSavings && <div className="mt-1 text-[11px] font-medium text-emerald-700">Economia {formatCurrencyBRL(promoWeekSavings.amount)}</div>}</div>
                           </div>
-                          {u.imageUrl && <div className="mt-3 h-28 overflow-hidden rounded-xl bg-slate-100"><ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" /></div>}
+                          {u.imageUrl && <div className="mt-3 h-24 overflow-hidden rounded-[14px] bg-slate-100"><ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" /></div>}
                         </div>
                       );
                     }) : <div className="text-sm text-slate-600">Nenhuma face/tela cadastrada neste ponto.</div>}

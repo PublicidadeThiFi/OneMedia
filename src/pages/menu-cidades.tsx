@@ -67,21 +67,21 @@ export default function MenuSelectCity() {
           </div>
         </div>
 
-        <div className="mt-5 rounded-[30px] border border-slate-200 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur">
-          <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start">
+        <div className="mt-5 rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
+          <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:items-start">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                 <Building2 className="h-3.5 w-3.5" />
                 Agora refine a busca pela cidade
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">Escolha a cidade para ver os pontos disponíveis</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">Escolha a cidade para ver os pontos disponíveis</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                 Mostramos apenas as cidades com pontos publicados nesse estado. Assim a leitura fica enxuta e o próximo passo fica mais objetivo.
               </p>
             </div>
 
-            <Card className="rounded-[28px] border-slate-200 bg-slate-50/80 shadow-none">
-              <CardContent className="p-5">
+            <Card className="rounded-[22px] border-slate-200 bg-slate-50/80 shadow-none">
+              <CardContent className="p-4">
                 <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo da seleção</div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -97,12 +97,12 @@ export default function MenuSelectCity() {
             </Card>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cidade" className="h-12 rounded-2xl border-slate-200 bg-white pl-11" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cidade" className="h-11 rounded-2xl border-slate-200 bg-white pl-11" />
             </div>
-            <Button variant="outline" className="h-12 gap-2 rounded-2xl border-slate-200 bg-white px-5" onClick={reload} disabled={loading}>
+            <Button variant="outline" className="h-11 gap-2 rounded-2xl border-slate-200 bg-white px-4" onClick={reload} disabled={loading}>
               <RefreshCcw className="h-4 w-4" />
               Atualizar lista
             </Button>
@@ -118,11 +118,11 @@ export default function MenuSelectCity() {
           </Card>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {loading && cities.length === 0
             ? Array.from({ length: 6 }).map((_, idx) => (
                 <Card key={idx} className="animate-pulse rounded-[28px] border-slate-200 bg-white/90">
-                  <CardContent className="p-5">
+                  <CardContent className="p-4">
                     <div className="h-5 w-24 rounded bg-slate-200" />
                     <div className="mt-3 h-3 w-32 rounded bg-slate-200" />
                     <div className="mt-5 h-11 w-full rounded-2xl bg-slate-200" />
@@ -132,16 +132,16 @@ export default function MenuSelectCity() {
             : cities.map((item) => (
                 <Card
                   key={item.city}
-                  className="group rounded-[28px] border border-slate-200 bg-white/92 shadow-[0_16px_50px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_22px_65px_rgba(15,23,42,0.12)]"
+                  className="group rounded-[22px] border border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.09)]"
                 >
-                  <CardContent className="p-5">
+                  <CardContent className="p-4">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15">
                         <Building2 className="h-5 w-5" />
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="text-lg font-semibold text-slate-900">{item.city}</div>
+                        <div className="text-base font-semibold text-slate-900">{item.city}</div>
                         <div className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
                           {item.pointsCount} ponto(s) publicado(s)
                         </div>

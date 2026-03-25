@@ -90,20 +90,20 @@ export default function MenuSelectPoints() {
           </div>
         </div>
 
-        <div className="mt-5 rounded-[30px] border border-slate-200 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur">
-          <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
+        <div className="mt-5 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
+          <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:items-start">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
                 <SquareStack className="h-3.5 w-3.5" />
                 Compare os pontos antes de abrir os detalhes
               </div>
-              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">Escolha o ponto que mais combina com a proposta</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">Escolha o ponto que mais combina com a proposta</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                 Reforçamos a leitura comercial com destaque para imagem, preço e disponibilidade. Toque em um ponto para ver fotos, mapa e faces.
               </p>
             </div>
 
-            <Card className="rounded-[28px] border-slate-200 bg-slate-50/80 shadow-none">
+            <Card className="rounded-[22px] border-slate-200 bg-slate-50/80 shadow-none">
               <CardContent className="p-5">
                 <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo desta cidade</div>
                 <div className="mt-4 grid grid-cols-3 gap-3">
@@ -122,12 +122,12 @@ export default function MenuSelectPoints() {
             </Card>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, bairro ou rua" className="h-12 rounded-2xl border-slate-200 bg-white pl-11" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nome, bairro ou rua" className="h-11 rounded-2xl border-slate-200 bg-white pl-11" />
             </div>
-            <Button variant="outline" className="h-12 gap-2 rounded-2xl border-slate-200 bg-white px-5" onClick={reload} disabled={loading}>
+            <Button variant="outline" className="h-11 gap-2 rounded-2xl border-slate-200 bg-white px-4" onClick={reload} disabled={loading}>
               <RefreshCcw className="h-4 w-4" />
               Atualizar lista
             </Button>
@@ -143,10 +143,10 @@ export default function MenuSelectPoints() {
           </Card>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {loading && points.length === 0
             ? Array.from({ length: 9 }).map((_, idx) => (
-                <Card key={idx} className="animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+                <Card key={idx} className="animate-pulse rounded-[24px] border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
                   <CardContent className="p-5">
                     <div className="h-48 w-full rounded-[24px] bg-slate-200" />
                     <div className="mt-4 flex gap-2">
@@ -156,7 +156,7 @@ export default function MenuSelectPoints() {
                     <div className="mt-4 h-5 w-40 rounded bg-slate-200" />
                     <div className="mt-3 h-3 w-44 rounded bg-slate-200" />
                     <div className="mt-5 h-20 rounded-[24px] bg-slate-100" />
-                    <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="mt-4 grid grid-cols-2 gap-2">
                       <div className="h-24 rounded-2xl bg-slate-200" />
                       <div className="h-24 rounded-2xl bg-slate-200" />
                     </div>
@@ -216,10 +216,10 @@ export default function MenuSelectPoints() {
                 return (
                   <Card
                     key={p.id}
-                    className="group cursor-pointer overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_75px_rgba(15,23,42,0.12)]"
+                    className="group cursor-pointer overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_12px_34px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(15,23,42,0.10)]"
                     onClick={() => navigate(`/menu/detalhe${buildQuery({ token, pointId: p.id, flow, ownerCompanyId })}`)}
                   >
-                    <div className="relative h-52 overflow-hidden bg-slate-100">
+                    <div className="relative h-44 overflow-hidden bg-slate-100">
                       <ImageWithFallback src={(p as any).mainImageUrl || ''} alt={p.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
                       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/70 to-transparent" />
                       <div className="absolute left-4 top-4 flex flex-wrap gap-2">
@@ -230,7 +230,7 @@ export default function MenuSelectPoints() {
                       </div>
                       <div className="absolute bottom-4 left-4 right-4 text-white">
                         <div className="min-w-0">
-                          <div className="truncate text-xl font-semibold">{p.name}</div>
+                          <div className="truncate text-lg font-semibold">{p.name}</div>
                           <div className="mt-1 flex items-center gap-1 text-sm text-white/80">
                             <Building2 className="h-3.5 w-3.5" />
                             <span className="truncate">{p.addressDistrict || '—'} • {p.addressStreet || '—'} {p.addressNumber || ''}</span>
@@ -239,7 +239,7 @@ export default function MenuSelectPoints() {
                       </div>
                     </div>
 
-                    <CardContent className="space-y-4 p-5">
+                    <CardContent className="space-y-3 p-4">
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">
                           <MapPin className="mr-1 h-3.5 w-3.5" />
@@ -257,7 +257,7 @@ export default function MenuSelectPoints() {
                         )}
                       </div>
 
-                      <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 p-4 transition-colors duration-300 group-hover:border-indigo-200">
+                      <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3 transition-colors duration-300 group-hover:border-slate-300">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Condição comercial</div>
@@ -272,16 +272,16 @@ export default function MenuSelectPoints() {
                         <div className="mt-4 flex flex-wrap gap-2">
                           <div className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
                             <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-                            Visual mais comercial
+                            Leitura comercial clara
                           </div>
                           <div className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
-                            Toque para ver faces, mapa e galeria
+                            Clique para abrir detalhes
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 transition-all duration-300 group-hover:border-slate-300 group-hover:bg-white">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
                             {promoMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoMonthSavings.percent}%</Badge>}
@@ -290,12 +290,12 @@ export default function MenuSelectPoints() {
                             {isPromotions && promoMonth && promoMonthFrom !== null && promoMonthTo !== null ? (
                               <>
                                 <span className="mr-2 text-slate-400 line-through">{formatCurrency(promoMonthFrom)}</span>
-                                <span className="text-xl font-semibold text-slate-900">{formatCurrency(promoMonthTo)}</span>
+                                <span className="text-lg font-semibold text-slate-900">{formatCurrency(promoMonthTo)}</span>
                                 {promoMonthSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrency(promoMonthSavings.amount)}</div>}
                               </>
                             ) : (
                               <>
-                                <div className="text-xl font-semibold text-slate-900">{formatCurrency(displayMonth)}</div>
+                                <div className="text-lg font-semibold text-slate-900">{formatCurrency(displayMonth)}</div>
                                 {showStartingFromMonth && baseMonth !== null && baseMonth !== undefined && (
                                   <div className="mt-2 text-xs text-slate-500">Padrão {formatCurrency(baseMonth)}</div>
                                 )}
@@ -304,7 +304,7 @@ export default function MenuSelectPoints() {
                           </div>
                         </div>
 
-                        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 transition-all duration-300 group-hover:border-slate-300 group-hover:bg-white">
+                        <div className="rounded-[18px] border border-slate-200 bg-white p-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
                             {promoWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoWeekSavings.percent}%</Badge>}
@@ -313,12 +313,12 @@ export default function MenuSelectPoints() {
                             {isPromotions && promoWeek && promoWeekFrom !== null && promoWeekTo !== null ? (
                               <>
                                 <span className="mr-2 text-slate-400 line-through">{formatCurrency(promoWeekFrom)}</span>
-                                <span className="text-xl font-semibold text-slate-900">{formatCurrency(promoWeekTo)}</span>
+                                <span className="text-lg font-semibold text-slate-900">{formatCurrency(promoWeekTo)}</span>
                                 {promoWeekSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrency(promoWeekSavings.amount)}</div>}
                               </>
                             ) : (
                               <>
-                                <div className="text-xl font-semibold text-slate-900">{formatCurrency(displayWeek)}</div>
+                                <div className="text-lg font-semibold text-slate-900">{formatCurrency(displayWeek)}</div>
                                 {showStartingFromWeek && baseWeek !== null && baseWeek !== undefined && (
                                   <div className="mt-2 text-xs text-slate-500">Padrão {formatCurrency(baseWeek)}</div>
                                 )}
@@ -328,12 +328,12 @@ export default function MenuSelectPoints() {
                         </div>
                       </div>
 
-                      <div className="grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 transition-all duration-300 group-hover:border-slate-300 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <div className="grid gap-3 rounded-[18px] border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
                         <div>
                           <div className="text-sm font-semibold text-slate-900">Leitura rápida do ponto</div>
                           <div className="mt-1 text-xs leading-5 text-slate-500">Abra o detalhe para ver galeria, mapa, faces e toda a condição comercial deste inventário.</div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 sm:min-w-[220px]">
+                        <div className="grid grid-cols-2 gap-3 sm:min-w-[190px]">
                           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                             <div className="text-lg font-semibold text-slate-900">{p.unitsCount ?? 0}</div>
                             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Faces</div>
@@ -343,7 +343,7 @@ export default function MenuSelectPoints() {
                             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Disponíveis</div>
                           </div>
                         </div>
-                        <div className="sm:col-span-2 flex items-center justify-between rounded-[20px] bg-slate-950 px-4 py-3 text-white">
+                        <div className="sm:col-span-2 flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-white">
                           <div>
                             <div className="text-sm font-semibold">Abrir detalhe completo</div>
                             <div className="text-xs text-white/70">Veja mapa, galeria e todas as faces sem perder o contexto comercial.</div>
