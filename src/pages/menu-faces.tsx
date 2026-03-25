@@ -4,8 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Checkbox } from '../components/ui/checkbox';
-import { Separator } from '../components/ui/separator';
-import { ArrowLeft, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Layers, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { computePointPriceSummary, PublicMediaKitPoint } from '../lib/publicMediaKit';
@@ -29,7 +28,6 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
 }
-
 
 function isUnitSelectable(unit: any): boolean {
   if (!unit) return false;
@@ -73,7 +71,6 @@ export default function MenuFaces() {
   const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
   const isPromotions = flow === 'promotions';
 
-
   const point: PublicMediaKitPoint | null = useMemo(() => {
     const points = data?.points ?? [];
     return points.find((p) => String(p.id) === String(pointId)) ?? null;
@@ -100,7 +97,7 @@ export default function MenuFaces() {
   const selectedCount = useMemo(() => Object.values(selected).filter(Boolean).length, [selected]);
 
   const backUrl = useMemo(
-    () => `/menu/detalhe${buildQuery({ token, id: pointId, uf, city, flow, ownerCompanyId })}`,
+    () => `/menu/detalhe${buildQuery({ token, pointId, uf, city, flow, ownerCompanyId })}`,
     [token, pointId, uf, city, flow, ownerCompanyId],
   );
 
@@ -138,24 +135,19 @@ export default function MenuFaces() {
   const cartCount = useMemo(() => getCartCount(), [selectedCount, pointId]);
 
   return (
-    <div className="min-h-screen w-full bg-gray-50">
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Seleção de faces/telas</div>
-
+    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_40%,#f8fafc_100%)]">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">Protótipo</Badge>
+          <div className="text-sm text-slate-600">Seleção de faces/telas</div>
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
-              >
+              <Button variant="outline" className="gap-2 rounded-2xl border-slate-200 bg-white" onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})
               </Button>
             )}
-            <Button variant="ghost" className="gap-2" onClick={() => navigate(backUrl)}>
+            <Button variant="ghost" className="gap-2 rounded-2xl" onClick={() => navigate(backUrl)}>
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
@@ -163,7 +155,7 @@ export default function MenuFaces() {
         </div>
 
         {error && (
-          <Card className="mt-5 border-amber-200 bg-amber-50">
+          <Card className="mt-5 rounded-[28px] border-amber-200 bg-amber-50 shadow-[0_16px_40px_rgba(245,158,11,0.08)]">
             <CardContent className="py-4">
               <div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div>
               <div className="mt-1 text-sm text-amber-800">{error}</div>
@@ -172,22 +164,22 @@ export default function MenuFaces() {
         )}
 
         {loading && (
-          <Card className="mt-5 animate-pulse">
+          <Card className="mt-5 animate-pulse rounded-[28px] border-slate-200 bg-white/90">
             <CardContent className="py-6">
-              <div className="h-5 w-56 bg-gray-200 rounded" />
-              <div className="mt-3 h-3 w-80 bg-gray-200 rounded" />
-              <div className="mt-6 h-40 w-full bg-gray-200 rounded" />
+              <div className="h-5 w-56 rounded bg-slate-200" />
+              <div className="mt-3 h-3 w-80 rounded bg-slate-200" />
+              <div className="mt-6 h-40 w-full rounded-[22px] bg-slate-200" />
             </CardContent>
           </Card>
         )}
 
         {!loading && !error && !point && (
-          <Card className="mt-5">
+          <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90">
             <CardContent className="py-6">
-              <div className="text-sm font-semibold text-gray-900">Ponto não encontrado</div>
-              <div className="mt-1 text-sm text-gray-600">Volte e selecione outro ponto.</div>
+              <div className="text-sm font-semibold text-slate-900">Ponto não encontrado</div>
+              <div className="mt-1 text-sm text-slate-600">Volte e selecione outro ponto.</div>
               <div className="mt-4">
-                <Button variant="outline" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
+                <Button variant="outline" className="rounded-2xl" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
                   Voltar para a lista
                 </Button>
               </div>
@@ -197,148 +189,129 @@ export default function MenuFaces() {
 
         {point && (
           <>
-            <Card className="mt-5">
-              <CardContent className="py-6">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-lg font-bold text-gray-900">{point.name}</div>
-                    <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado'}</div>
-
-                    {baseMonth !== null && baseMonth !== undefined && (
-                      <div className="mt-2 text-xs text-gray-600">
-                        Preço padrão do ponto:{' '}
-                        <span className="font-semibold text-gray-900">{formatCurrencyBRL(baseMonth)}</span>
-                        {baseWeek !== null && baseWeek !== undefined && (
-                          <>
-                            {' '}• semanal <span className="font-semibold text-gray-900">{formatCurrencyBRL(baseWeek)}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {hasStartingFrom && startingMonth !== null && startingMonth !== undefined && (
-                      <div className="mt-1 text-xs text-gray-500">
-                        Algumas faces têm preço menor. A partir de{' '}
-                        <span className="font-semibold text-gray-700">{formatCurrencyBRL(startingMonth)}</span>
-                        {startingWeek !== null && startingWeek !== undefined && (
-                          <>
-                            {' '}• semanal <span className="font-semibold text-gray-700">{formatCurrencyBRL(startingWeek)}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-3 text-xs text-gray-600">
-                      Escolha as faces/telas que deseja incluir no carrinho.
+            <Card className="mt-5 overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.07)]">
+              <CardContent className="p-6">
+                <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                      <Layers className="h-3.5 w-3.5" />
+                      Selecione uma ou mais faces/telas
+                    </div>
+                    <div className="mt-4 text-2xl font-semibold text-slate-900">{point.name}</div>
+                    <div className="mt-2 text-sm text-slate-600">{formatAddress(point) || 'Endereço não informado'}</div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{units.length} unidade(s)</Badge>
+                      <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{selectableUnits.length} disponíveis</Badge>
+                      {hasStartingFrom && startingMonth !== null && startingMonth !== undefined && (
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">A partir de {formatCurrencyBRL(startingMonth)}</Badge>
+                      )}
                     </div>
                   </div>
 
-                  <Button className="gap-2" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
-                    <ShoppingCart className="h-4 w-4" />
-                    Adicionar selecionadas ({selectedCount})
-                  </Button>
-                </div>
-
-                <Separator className="my-5" />
-
-                <div className="space-y-3">
-                  {units.length > 0 ? (
-                    units.map((u: any) => {
-                      const checked = !!selected[u.id];
-                      const isUnavailable = !isUnitSelectable(u);
-
-                      const baseMonthRaw = u.priceMonth ?? point.basePriceMonth;
-                      const baseWeekRaw = u.priceWeek ?? point.basePriceWeek;
-
-                      const promo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
-                      const promoMonthRaw = promo ? buildPromoPrice(baseMonthRaw, promo) : null;
-                      const promoWeekRaw = promo ? buildPromoPrice(baseWeekRaw, promo) : null;
-
-                      const priceMonth = applyAgencyMarkup(baseMonthRaw, markupPct);
-                      const priceWeek = applyAgencyMarkup(baseWeekRaw, markupPct);
-
-                      const promoMonthFrom = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.from, markupPct) : null;
-                      const promoMonthTo = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.to, markupPct) : null;
-                      const promoWeekFrom = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.from, markupPct) : null;
-                      const promoWeekTo = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.to, markupPct) : null;
-
-                      const promoBadge = formatPromotionBadge(promo);
-                      return (
-                        <div key={u.id} className={`rounded-xl border p-3 ${isUnavailable ? 'border-amber-300 bg-amber-50/60' : 'border-gray-200'}`}>
-                          <div className="flex items-start gap-3">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v: boolean | 'indeterminate') => !isUnavailable && onToggle(u.id, v === true)}
-                              className="mt-1"
-                              disabled={isUnavailable}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-semibold text-gray-900">
-                                  {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
-                                </div>
-                                {isUnavailable ? (
-                                  <Badge variant="secondary" className="rounded-full bg-amber-100 text-amber-900 hover:bg-amber-100">
-                                    {String(u.availability || '').trim() === 'Reservada' ? 'Reservada' : 'Ocupada'}
-                                  </Badge>
-                                ) : null}
-                                {isPromotions && promo && (
-                                  <Badge variant="secondary" className="rounded-full">{promoBadge || 'Promoção'}</Badge>
-                                )}
-                              </div>
-                              <div className="mt-1 text-xs text-gray-600">
-                                {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
-                                {u.orientation ? ` • ${u.orientation}` : ''}
-                                {isUnavailable ? ` • ${String(u.availability || '').trim() === 'Reservada' ? 'reservada' : 'indisponível no momento'}` : ''}
-                              </div>
-                              {isUnavailable && formatAvailabilityDate((u as any).availableOn) && (
-                                <div className="mt-2 text-xs text-amber-800">
-                                  Livre para nova seleção em <span className="font-semibold">{formatAvailabilityDate((u as any).availableOn)}</span>.
-                                </div>
-                              )}
-
-                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-700">
-                                <div>
-                                  <span className="text-gray-500">Mensal:</span>{' '}
-                                  {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
-                                    <>
-                                      <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
-                                      <span className="font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
-                                    </>
-                                  ) : (
-                                    <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
-                                  )}
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">Bi-semana:</span>{' '}
-                                  {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
-                                    <>
-                                      <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
-                                      <span className="font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
-                                    </>
-                                  ) : (
-                                    <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="h-20 w-28 overflow-hidden rounded-lg bg-gray-100">
-                              <ImageWithFallback
-                                src={(u.imageUrl || point.mainImageUrl || '') as string}
-                                alt={u.label}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                          </div>
+                  <Card className="rounded-[28px] border-slate-200 bg-slate-50/80 shadow-none">
+                    <CardContent className="p-5">
+                      <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo comercial</div>
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
+                          <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(baseMonth)}</div>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-sm text-gray-600">Nenhuma face/tela ativa cadastrada neste ponto.</div>
-                  )}
+                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                          <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(baseWeek)}</div>
+                        </div>
+                      </div>
+
+                      <Button className="mt-5 h-11 w-full gap-2 rounded-2xl" onClick={onAddSelected} disabled={selectableUnits.length === 0}>
+                        <ShoppingCart className="h-4 w-4" />
+                        Adicionar selecionadas
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </div>
               </CardContent>
             </Card>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {units.map((u) => {
+                const checked = !!selected[u.id];
+                const unitPromo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
+                const promoBadge = unitPromo ? formatPromotionBadge(unitPromo) : null;
+                const promoMonthRaw = unitPromo ? buildPromoPrice((u as any).priceMonth ?? (point as any).basePriceMonth, unitPromo) : null;
+                const promoWeekRaw = unitPromo ? buildPromoPrice((u as any).priceWeek ?? (point as any).basePriceWeek, unitPromo) : null;
+                const promoMonth = promoMonthRaw ? { from: applyAgencyMarkup(promoMonthRaw.from, markupPct), to: applyAgencyMarkup(promoMonthRaw.to, markupPct) } : null;
+                const promoWeek = promoWeekRaw ? { from: applyAgencyMarkup(promoWeekRaw.from, markupPct), to: applyAgencyMarkup(promoWeekRaw.to, markupPct) } : null;
+                const baseMonthUnit = applyAgencyMarkup((u as any).priceMonth ?? (point as any).basePriceMonth, markupPct);
+                const baseWeekUnit = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
+                const isUnavailable = !isUnitSelectable(u);
+
+                return (
+                  <Card key={u.id} className={`overflow-hidden rounded-[28px] border shadow-[0_16px_45px_rgba(15,23,42,0.06)] ${checked ? 'border-slate-900 bg-slate-900 text-white' : isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-white/95'}`}>
+                    <div className="relative h-48 overflow-hidden bg-slate-100">
+                      <ImageWithFallback src={u.imageUrl || point.mainImageUrl || ''} alt={u.label} className="h-full w-full object-cover" />
+                      <div className={`absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t ${checked ? 'from-slate-950/80' : 'from-slate-950/70'} to-transparent`} />
+                      <div className="absolute left-4 top-4 flex flex-wrap gap-2">
+                        {isUnavailable && (
+                          <Badge className="rounded-full border-0 bg-amber-100 text-amber-900 hover:bg-amber-100">{String((u as any).availability || '').trim() === 'Reservada' ? 'Reservada' : 'Indisponível'}</Badge>
+                        )}
+                        {isPromotions && promoBadge && <Badge className="rounded-full border-0 bg-rose-500 text-white hover:bg-rose-500">{promoBadge}</Badge>}
+                      </div>
+                      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between gap-3 text-white">
+                        <div>
+                          <div className="text-lg font-semibold">{u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}</div>
+                          <div className="mt-1 text-xs text-white/80">{u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}{u.orientation ? ` • ${u.orientation}` : ''}</div>
+                        </div>
+                        <Checkbox checked={checked} disabled={isUnavailable} onCheckedChange={(value) => onToggle(u.id, Boolean(value))} className="border-white/70 data-[state=checked]:border-white data-[state=checked]:bg-white data-[state=checked]:text-slate-900" />
+                      </div>
+                    </div>
+
+                    <CardContent className="p-5">
+                      <div className={`grid grid-cols-2 gap-3 ${checked ? 'text-white/90' : 'text-slate-700'}`}>
+                        <div className={`rounded-2xl border p-4 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
+                          <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : 'text-slate-500'}`}>Mensal</div>
+                          <div className="mt-2 text-sm">
+                            {isPromotions && promoMonth ? (
+                              <>
+                                <span className={`${checked ? 'text-white/55' : 'text-slate-400'} mr-2 line-through`}>{formatCurrencyBRL(promoMonth.from)}</span>
+                                <span className="text-lg font-semibold">{formatCurrencyBRL(promoMonth.to)}</span>
+                              </>
+                            ) : (
+                              <span className="text-lg font-semibold">{formatCurrencyBRL(baseMonthUnit)}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className={`rounded-2xl border p-4 ${checked ? 'border-white/10 bg-white/10' : 'border-slate-200 bg-slate-50'}`}>
+                          <div className={`text-[11px] uppercase tracking-[0.12em] ${checked ? 'text-white/65' : 'text-slate-500'}`}>Bi-semana</div>
+                          <div className="mt-2 text-sm">
+                            {isPromotions && promoWeek ? (
+                              <>
+                                <span className={`${checked ? 'text-white/55' : 'text-slate-400'} mr-2 line-through`}>{formatCurrencyBRL(promoWeek.from)}</span>
+                                <span className="text-lg font-semibold">{formatCurrencyBRL(promoWeek.to)}</span>
+                              </>
+                            ) : (
+                              <span className="text-lg font-semibold">{formatCurrencyBRL(baseWeekUnit)}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {isUnavailable && formatAvailabilityDate((u as any).availableOn) && (
+                        <div className={`mt-4 rounded-2xl px-4 py-3 text-sm ${checked ? 'bg-white/10 text-white/85' : 'bg-amber-100 text-amber-900'}`}>
+                          Livre para nova seleção em <span className="font-semibold">{formatAvailabilityDate((u as any).availableOn)}</span>.
+                        </div>
+                      )}
+
+                      {!isUnavailable && checked && (
+                        <div className="mt-4 flex items-center gap-2 text-sm text-white/85">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Selecionada para o carrinho.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </>
         )}
       </div>
