@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Building2, MapPin, RefreshCcw, Search, ShoppingCart, SquareStack, Tag } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronRight, MapPin, RefreshCcw, Search, ShoppingCart, Sparkles, SquareStack, Tag } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -13,6 +13,14 @@ import { formatBRL } from '../lib/format';
 
 function formatCurrency(v: number | null | undefined) {
   return formatBRL(v, '—');
+}
+
+function buildSavingsMeta(from: number | null | undefined, to: number | null | undefined) {
+  if (typeof from !== 'number' || typeof to !== 'number') return null;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from <= to || from <= 0) return null;
+  const amount = from - to;
+  const percent = Math.max(1, Math.round((amount / from) * 100));
+  return { amount, percent };
 }
 
 function buildQuery(params: Record<string, string | undefined | null>) {
@@ -138,15 +146,21 @@ export default function MenuSelectPoints() {
         <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {loading && points.length === 0
             ? Array.from({ length: 9 }).map((_, idx) => (
-                <Card key={idx} className="animate-pulse rounded-[28px] border-slate-200 bg-white/90">
+                <Card key={idx} className="animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
                   <CardContent className="p-5">
-                    <div className="h-44 w-full rounded-[22px] bg-slate-200" />
+                    <div className="h-48 w-full rounded-[24px] bg-slate-200" />
+                    <div className="mt-4 flex gap-2">
+                      <div className="h-7 w-20 rounded-full bg-slate-200" />
+                      <div className="h-7 w-24 rounded-full bg-slate-200" />
+                    </div>
                     <div className="mt-4 h-5 w-40 rounded bg-slate-200" />
                     <div className="mt-3 h-3 w-44 rounded bg-slate-200" />
-                    <div className="mt-5 grid grid-cols-2 gap-3">
-                      <div className="h-16 rounded-2xl bg-slate-200" />
-                      <div className="h-16 rounded-2xl bg-slate-200" />
+                    <div className="mt-5 h-20 rounded-[24px] bg-slate-100" />
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="h-24 rounded-2xl bg-slate-200" />
+                      <div className="h-24 rounded-2xl bg-slate-200" />
                     </div>
+                    <div className="mt-4 h-16 rounded-[24px] bg-slate-100" />
                   </CardContent>
                 </Card>
               ))
@@ -192,6 +206,8 @@ export default function MenuSelectPoints() {
                 const promoMonthTo = promoMonth ? applyAgencyMarkup(promoMonth.to, markupPct) : null;
                 const promoWeekFrom = promoWeek ? applyAgencyMarkup(promoWeek.from, markupPct) : null;
                 const promoWeekTo = promoWeek ? applyAgencyMarkup(promoWeek.to, markupPct) : null;
+                const promoMonthSavings = buildSavingsMeta(promoMonthFrom, promoMonthTo);
+                const promoWeekSavings = buildSavingsMeta(promoWeekFrom, promoWeekTo);
 
                 const badgeText =
                   formatPromotionBadge(promoMonth?.promotion || promoWeek?.promotion || (p as any).promotion) ||
@@ -241,7 +257,7 @@ export default function MenuSelectPoints() {
                         )}
                       </div>
 
-                      <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
+                      <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 p-4 transition-colors duration-300 group-hover:border-indigo-200">
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Condição comercial</div>
@@ -253,41 +269,58 @@ export default function MenuSelectPoints() {
                             {isPromotions ? 'Promoção' : isAgency ? 'Agência' : 'Tabela'}
                           </Badge>
                         </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <div className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+                            <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                            Visual mais comercial
+                          </div>
+                          <div className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+                            Toque para ver faces, mapa e galeria
+                          </div>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
-                          <div className="mt-2 text-sm text-slate-700">
+                        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 transition-all duration-300 group-hover:border-slate-300 group-hover:bg-white">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
+                            {promoMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoMonthSavings.percent}%</Badge>}
+                          </div>
+                          <div className="mt-3 text-sm text-slate-700">
                             {isPromotions && promoMonth && promoMonthFrom !== null && promoMonthTo !== null ? (
                               <>
                                 <span className="mr-2 text-slate-400 line-through">{formatCurrency(promoMonthFrom)}</span>
-                                <span className="text-lg font-semibold text-slate-900">{formatCurrency(promoMonthTo)}</span>
+                                <span className="text-xl font-semibold text-slate-900">{formatCurrency(promoMonthTo)}</span>
+                                {promoMonthSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrency(promoMonthSavings.amount)}</div>}
                               </>
                             ) : (
                               <>
-                                <div className="text-lg font-semibold text-slate-900">{formatCurrency(displayMonth)}</div>
+                                <div className="text-xl font-semibold text-slate-900">{formatCurrency(displayMonth)}</div>
                                 {showStartingFromMonth && baseMonth !== null && baseMonth !== undefined && (
-                                  <div className="mt-1 text-xs text-slate-500">Padrão {formatCurrency(baseMonth)}</div>
+                                  <div className="mt-2 text-xs text-slate-500">Padrão {formatCurrency(baseMonth)}</div>
                                 )}
                               </>
                             )}
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                          <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
-                          <div className="mt-2 text-sm text-slate-700">
+                        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 transition-all duration-300 group-hover:border-slate-300 group-hover:bg-white">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                            {promoWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoWeekSavings.percent}%</Badge>}
+                          </div>
+                          <div className="mt-3 text-sm text-slate-700">
                             {isPromotions && promoWeek && promoWeekFrom !== null && promoWeekTo !== null ? (
                               <>
                                 <span className="mr-2 text-slate-400 line-through">{formatCurrency(promoWeekFrom)}</span>
-                                <span className="text-lg font-semibold text-slate-900">{formatCurrency(promoWeekTo)}</span>
+                                <span className="text-xl font-semibold text-slate-900">{formatCurrency(promoWeekTo)}</span>
+                                {promoWeekSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrency(promoWeekSavings.amount)}</div>}
                               </>
                             ) : (
                               <>
-                                <div className="text-lg font-semibold text-slate-900">{formatCurrency(displayWeek)}</div>
+                                <div className="text-xl font-semibold text-slate-900">{formatCurrency(displayWeek)}</div>
                                 {showStartingFromWeek && baseWeek !== null && baseWeek !== undefined && (
-                                  <div className="mt-1 text-xs text-slate-500">Padrão {formatCurrency(baseWeek)}</div>
+                                  <div className="mt-2 text-xs text-slate-500">Padrão {formatCurrency(baseWeek)}</div>
                                 )}
                               </>
                             )}
@@ -295,7 +328,7 @@ export default function MenuSelectPoints() {
                         </div>
                       </div>
 
-                      <div className="grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <div className="grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 transition-all duration-300 group-hover:border-slate-300 sm:grid-cols-[1fr_auto] sm:items-center">
                         <div>
                           <div className="text-sm font-semibold text-slate-900">Leitura rápida do ponto</div>
                           <div className="mt-1 text-xs leading-5 text-slate-500">Abra o detalhe para ver galeria, mapa, faces e toda a condição comercial deste inventário.</div>
@@ -310,6 +343,13 @@ export default function MenuSelectPoints() {
                             <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Disponíveis</div>
                           </div>
                         </div>
+                        <div className="sm:col-span-2 flex items-center justify-between rounded-[20px] bg-slate-950 px-4 py-3 text-white">
+                          <div>
+                            <div className="text-sm font-semibold">Abrir detalhe completo</div>
+                            <div className="text-xs text-white/70">Veja mapa, galeria e todas as faces sem perder o contexto comercial.</div>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-white/80 transition-transform duration-300 group-hover:translate-x-1" />
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -318,8 +358,12 @@ export default function MenuSelectPoints() {
         </div>
 
         {!loading && !error && points.length === 0 && (
-          <div className="mt-6 rounded-[28px] border border-dashed border-slate-300 bg-white/70 px-5 py-8 text-center text-sm text-slate-600">
-            Nenhum ponto encontrado. Ajuste a busca ou volte para escolher outra cidade.
+          <div className="mt-6 rounded-[30px] border border-dashed border-slate-300 bg-white/80 px-5 py-10 text-center shadow-[0_16px_40px_rgba(15,23,42,0.04)]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
+              <Search className="h-5 w-5 text-slate-500" />
+            </div>
+            <div className="mt-4 text-base font-semibold text-slate-900">Nenhum ponto encontrado</div>
+            <div className="mt-2 text-sm text-slate-600">Ajuste a busca ou volte para escolher outra cidade.</div>
           </div>
         )}
       </div>

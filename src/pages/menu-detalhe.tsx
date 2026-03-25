@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, ExternalLink, MapPin, ShoppingCart, Layers, GalleryHorizontal, Tag, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ExternalLink, GalleryHorizontal, Layers, MapPin, ShoppingCart, Sparkles, Tag, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
@@ -26,6 +26,14 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
+}
+
+function buildSavingsMeta(from: number | null | undefined, to: number | null | undefined) {
+  if (typeof from !== 'number' || typeof to !== 'number') return null;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from <= to || from <= 0) return null;
+  const amount = from - to;
+  const percent = Math.max(1, Math.round((amount / from) * 100));
+  return { amount, percent };
 }
 
 function parseCoord(value: any): number | null {
@@ -144,6 +152,8 @@ export default function MenuDetalhe() {
 
   const priceMonthSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'month') : null), [point]);
   const priceWeekSummary = useMemo(() => (point ? computePointPriceSummary(point as any, 'week') : null), [point]);
+  const promoPointMonthSavings = buildSavingsMeta(bestPromoPointMonth?.from, bestPromoPointMonth?.to);
+  const promoPointWeekSavings = buildSavingsMeta(bestPromoPointWeek?.from, bestPromoPointWeek?.to);
 
   const showStartingFrom = !!priceMonthSummary?.isStartingFrom && !isPromotions;
   const priceLabel = (isPromotions || showStartingFrom) ? 'A partir de' : 'Preço';
@@ -256,7 +266,7 @@ export default function MenuDetalhe() {
         </div>
 
         {error && <Card className="mt-5 rounded-[28px] border-amber-200 bg-amber-50"><CardContent className="py-4"><div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div><div className="mt-1 text-sm text-amber-800">{error}</div></CardContent></Card>}
-        {loading && !point && <Card className="mt-5 animate-pulse rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="h-5 w-56 rounded bg-slate-200" /><div className="mt-3 h-3 w-80 rounded bg-slate-200" /><div className="mt-6 h-40 w-full rounded-[22px] bg-slate-200" /></CardContent></Card>}
+        {loading && !point && <Card className="mt-5 animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.05)]"><CardContent className="py-6"><div className="h-5 w-56 rounded bg-slate-200" /><div className="mt-3 h-3 w-80 rounded bg-slate-200" /><div className="mt-6 h-64 w-full rounded-[24px] bg-slate-200" /><div className="mt-4 grid grid-cols-3 gap-3"><div className="h-24 rounded-2xl bg-slate-200" /><div className="h-24 rounded-2xl bg-slate-200" /><div className="h-24 rounded-2xl bg-slate-200" /></div></CardContent></Card>}
         {!loading && !error && !point && <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>Voltar para os pontos</Button></div></CardContent></Card>}
 
         {point && (
@@ -264,7 +274,7 @@ export default function MenuDetalhe() {
             <div className="space-y-5">
               <Card className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.07)]">
                 <div className="relative h-[320px] bg-slate-100 sm:h-[380px]">
-                  <ImageWithFallback src={gallery[0] || ''} alt={point.name} className="h-full w-full object-cover" />
+                  <ImageWithFallback src={gallery[0] || ''} alt={point.name} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
                   <div className="absolute left-5 top-5 flex flex-wrap gap-2">
                     {mediaType && <Badge className="rounded-full border border-white/20 bg-white/90 text-slate-800 hover:bg-white/90">{mediaType}</Badge>}
@@ -280,25 +290,45 @@ export default function MenuDetalhe() {
                   <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                     <div className="text-3xl font-semibold tracking-tight">{point.name}</div>
                     <div className="mt-2 max-w-3xl text-sm text-white/80">{formatAddress(point) || 'Endereço não informado ainda'}</div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="inline-flex items-center gap-1 rounded-full bg-white/12 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Leitura comercial refinada
+                      </div>
+                      <div className="inline-flex items-center gap-1 rounded-full bg-white/12 px-3 py-1 text-xs font-medium text-white/90 backdrop-blur">
+                        Veja galeria, mapa e unidades no mesmo fluxo
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <CardContent className="p-6">
                   <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{priceLabel}</div>
+                    <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{priceLabel}</div>
+                        {promoPointMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoPointMonthSavings.percent}%</Badge>}
+                      </div>
                       <div className="mt-2 text-2xl font-semibold text-slate-900">{isPromotions && bestPromoPointMonth ? formatCurrencyBRL(bestPromoPointMonth.to) : formatCurrencyBRL(displayMonth)}</div>
                       {isPromotions && bestPromoPointMonth ? <div className="mt-1 text-sm text-slate-500 line-through">{formatCurrencyBRL(bestPromoPointMonth.from)}</div> : showStartingFrom && baseMonth !== null && baseMonth !== undefined ? <div className="mt-1 text-sm text-slate-500">Padrão {formatCurrencyBRL(baseMonth)}</div> : null}
+                      {promoPointMonthSavings && <div className="mt-3 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(promoPointMonthSavings.amount)}</div>}
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                    <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                        {promoPointWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoPointWeekSavings.percent}%</Badge>}
+                      </div>
                       <div className="mt-2 text-2xl font-semibold text-slate-900">{isPromotions && bestPromoPointWeek ? formatCurrencyBRL(bestPromoPointWeek.to) : formatCurrencyBRL(displayWeek)}</div>
                       {isPromotions && bestPromoPointWeek ? <div className="mt-1 text-sm text-slate-500 line-through">{formatCurrencyBRL(bestPromoPointWeek.from)}</div> : showStartingFrom && baseWeek !== null && baseWeek !== undefined ? <div className="mt-1 text-sm text-slate-500">Padrão {formatCurrencyBRL(baseWeek)}</div> : null}
+                      {promoPointWeekSavings && <div className="mt-3 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(promoPointWeekSavings.amount)}</div>}
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
                       <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Unidades ativas</div>
                       <div className="mt-2 text-2xl font-semibold text-slate-900">{units.length}</div>
                       <div className="mt-1 text-sm text-slate-500">{selectableUnitsCount} disponível(is)</div>
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full rounded-full bg-slate-900" style={{ width: `${units.length > 0 ? Math.max(8, Math.round((selectableUnitsCount / units.length) * 100)) : 8}%` }} />
+                      </div>
                     </div>
                   </div>
 
@@ -322,7 +352,7 @@ export default function MenuDetalhe() {
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {gallery.length > 0 ? gallery.slice(0, 6).map((url, idx) => (
                       <div key={`${url}-${idx}`} className="h-40 overflow-hidden rounded-[22px] bg-slate-100">
-                        <ImageWithFallback src={url} alt={`${point.name} ${idx + 1}`} className="h-full w-full object-cover" />
+                        <ImageWithFallback src={url} alt={`${point.name} ${idx + 1}`} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" />
                       </div>
                     )) : <div className="col-span-full flex h-40 items-center justify-center rounded-[22px] bg-slate-100 text-sm text-slate-500">Nenhuma imagem disponível</div>}
                   </div>
@@ -358,6 +388,7 @@ export default function MenuDetalhe() {
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-3 text-slate-600">{selectableUnitsCount} disponível(is)</Badge>
                         <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-3 text-slate-600">{isPromotions ? 'Condição promocional' : 'Tabela ativa'}</Badge>
+                        {promoPointMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-3 text-emerald-700 hover:bg-emerald-500/10">Economia mensal {formatCurrencyBRL(promoPointMonthSavings.amount)}</Badge>}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -383,11 +414,13 @@ export default function MenuDetalhe() {
                       const promoWeekRaw = unitPromo ? buildPromoPrice((u as any).priceWeek ?? (point as any).basePriceWeek, unitPromo) : null;
                       const promoMonth = promoMonthRaw ? { from: applyAgencyMarkup(promoMonthRaw.from, markupPct), to: applyAgencyMarkup(promoMonthRaw.to, markupPct) } : null;
                       const promoWeek = promoWeekRaw ? { from: applyAgencyMarkup(promoWeekRaw.from, markupPct), to: applyAgencyMarkup(promoWeekRaw.to, markupPct) } : null;
+                      const promoMonthSavings = buildSavingsMeta(promoMonth?.from, promoMonth?.to);
+                      const promoWeekSavings = buildSavingsMeta(promoWeek?.from, promoWeek?.to);
                       const baseMonthUnit = applyAgencyMarkup((u as any).priceMonth ?? (point as any).basePriceMonth, markupPct);
                       const baseWeekUnit = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
                       const isUnavailable = !isUnitSelectable(u);
                       return (
-                        <div key={u.id} className={`rounded-2xl border p-4 ${isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50/70'}`}>
+                        <div key={u.id} className={`rounded-[24px] border p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_35px_rgba(15,23,42,0.08)] ${isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-white'}`}>
                           <div className="flex items-center gap-2">
                             <div className="text-sm font-semibold text-slate-900">{u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}</div>
                             {isUnavailable && <Badge className="rounded-full border-0 bg-amber-100 text-amber-900 hover:bg-amber-100">{String(u.availability || '').trim() === 'Reservada' ? 'Reservada' : 'Ocupada'}</Badge>}
@@ -397,10 +430,10 @@ export default function MenuDetalhe() {
                           {isUnavailable && formatAvailabilityDate((u as any).availableOn) && <div className="mt-2 text-xs text-amber-800">Livre para nova seleção em <span className="font-semibold">{formatAvailabilityDate((u as any).availableOn)}</span>.</div>}
                           <Separator className="my-3" />
                           <div className="grid grid-cols-2 gap-3 text-xs text-slate-700">
-                            <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-slate-500">Mensal</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoMonth ? formatCurrencyBRL(promoMonth.to) : formatCurrencyBRL(baseMonthUnit)}</div>{promoMonth && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoMonth.from)}</div>}</div>
-                            <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-slate-500">Bi-semana</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoWeek ? formatCurrencyBRL(promoWeek.to) : formatCurrencyBRL(baseWeekUnit)}</div>{promoWeek && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoWeek.from)}</div>}</div>
+                            <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><div className="text-slate-500">Mensal</div>{promoMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2 text-emerald-700 hover:bg-emerald-500/10">-{promoMonthSavings.percent}%</Badge>}</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoMonth ? formatCurrencyBRL(promoMonth.to) : formatCurrencyBRL(baseMonthUnit)}</div>{promoMonth && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoMonth.from)}</div>}{promoMonthSavings && <div className="mt-1 text-[11px] font-medium text-emerald-700">Economia {formatCurrencyBRL(promoMonthSavings.amount)}</div>}</div>
+                            <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><div className="text-slate-500">Bi-semana</div>{promoWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2 text-emerald-700 hover:bg-emerald-500/10">-{promoWeekSavings.percent}%</Badge>}</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoWeek ? formatCurrencyBRL(promoWeek.to) : formatCurrencyBRL(baseWeekUnit)}</div>{promoWeek && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoWeek.from)}</div>}{promoWeekSavings && <div className="mt-1 text-[11px] font-medium text-emerald-700">Economia {formatCurrencyBRL(promoWeekSavings.amount)}</div>}</div>
                           </div>
-                          {u.imageUrl && <div className="mt-3 h-28 overflow-hidden rounded-xl bg-slate-100"><ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover" /></div>}
+                          {u.imageUrl && <div className="mt-3 h-28 overflow-hidden rounded-xl bg-slate-100"><ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" /></div>}
                         </div>
                       );
                     }) : <div className="text-sm text-slate-600">Nenhuma face/tela cadastrada neste ponto.</div>}

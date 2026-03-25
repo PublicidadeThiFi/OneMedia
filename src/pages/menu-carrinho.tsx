@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, ShoppingCart, Tag, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ShoppingCart, Sparkles, Tag, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import {
@@ -34,6 +34,14 @@ function buildQuery(params: Record<string, string | undefined | null>) {
 
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
+}
+
+function buildSavingsMeta(from: number | null | undefined, to: number | null | undefined) {
+  if (typeof from !== 'number' || typeof to !== 'number') return null;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from <= to || from <= 0) return null;
+  const amount = from - to;
+  const percent = Math.max(1, Math.round((amount / from) * 100));
+  return { amount, percent };
 }
 
 export default function MenuCarrinho() {
@@ -122,6 +130,8 @@ export default function MenuCarrinho() {
       const promoMonthTo = promoMonthRaw ? applyAgencyMarkup(promoMonthRaw.to, markupPct) : null;
       const promoWeekFrom = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.from, markupPct) : null;
       const promoWeekTo = promoWeekRaw ? applyAgencyMarkup(promoWeekRaw.to, markupPct) : null;
+      const promoMonthSavings = buildSavingsMeta(promoMonthFrom, promoMonthTo);
+      const promoWeekSavings = buildSavingsMeta(promoWeekFrom, promoWeekTo);
 
       return {
         item,
@@ -138,6 +148,8 @@ export default function MenuCarrinho() {
         promoMonthTo,
         promoWeekFrom,
         promoWeekTo,
+        promoMonthSavings,
+        promoWeekSavings,
       };
     });
   }, [cart.items, data?.points, isAgency, markupPct, isPromotions]);
@@ -149,11 +161,18 @@ export default function MenuCarrinho() {
     return itemsEnriched.reduce((acc, entry) => {
       const month = isPromotions && entry.promoMonthTo !== null && entry.promoMonthTo !== undefined ? entry.promoMonthTo : entry.priceMonth;
       const week = isPromotions && entry.promoWeekTo !== null && entry.promoWeekTo !== undefined ? entry.promoWeekTo : entry.priceWeek;
+      const monthCompare = isPromotions && entry.promoMonthFrom !== null && entry.promoMonthFrom !== undefined ? entry.promoMonthFrom : null;
+      const weekCompare = isPromotions && entry.promoWeekFrom !== null && entry.promoWeekFrom !== undefined ? entry.promoWeekFrom : null;
       acc.month += Number(month) || 0;
       acc.week += Number(week) || 0;
+      acc.monthCompare += Number(monthCompare) || 0;
+      acc.weekCompare += Number(weekCompare) || 0;
       return acc;
-    }, { month: 0, week: 0 });
+    }, { month: 0, week: 0, monthCompare: 0, weekCompare: 0 });
   }, [itemsEnriched, isPromotions]);
+
+  const summaryMonthSavings = buildSavingsMeta(summaryTotals.monthCompare || null, summaryTotals.month || null);
+  const summaryWeekSavings = buildSavingsMeta(summaryTotals.weekCompare || null, summaryTotals.week || null);
 
   return (
     <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_40%,#f8fafc_100%)]">
@@ -248,8 +267,8 @@ export default function MenuCarrinho() {
 
             <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_0.7fr]">
               <div className="space-y-4">
-                {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo }) => (
-                  <Card key={item.id} className="overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)]">
+                {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo, promoMonthSavings, promoWeekSavings }) => (
+                  <Card key={item.id} className="group overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
                     <CardContent className="space-y-4 p-5">
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">{unitLabel ? 'Face/Tela selecionada' : 'Ponto selecionado'}</Badge>
@@ -260,7 +279,7 @@ export default function MenuCarrinho() {
                       <div className="flex flex-col gap-4 lg:flex-row">
                         <div className="w-full lg:w-72 lg:shrink-0">
                           <div className="aspect-[16/10] w-full overflow-hidden rounded-[24px] bg-slate-100">
-                            <ImageWithFallback src={img} alt={pointName} className="h-full w-full object-cover" />
+                            <ImageWithFallback src={img} alt={pointName} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
                           </div>
                         </div>
 
@@ -280,32 +299,38 @@ export default function MenuCarrinho() {
                             </Button>
                           </div>
 
-                          <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
+                          <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 p-4">
                             <div className="flex items-center gap-2 text-slate-700"><Tag className="h-4 w-4" /><span className="text-sm font-semibold">Condição comercial</span></div>
                             <div className="mt-2 text-sm text-slate-600">{isPromotions && promo ? 'A condição promocional já aparece refletida nos preços do item.' : isAgency ? 'Este item está sendo exibido com markup de agência aplicado.' : 'Este item segue a tabela padrão do inventário.'}</div>
+                            <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-slate-600 shadow-sm">
+                              <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                              Releitura comercial pronta para aprovação
+                            </div>
                           </div>
 
                           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
+                            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-center justify-between gap-2"><div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>{promoMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoMonthSavings.percent}%</Badge>}</div>
                               <div className="mt-2 text-sm text-slate-900">
                                 {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
                                   <>
                                     <span className="mr-2 text-slate-400 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
                                     <span className="text-lg font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
+                                    {promoMonthSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(promoMonthSavings.amount)}</div>}
                                   </>
                                 ) : (
                                   <span className="text-lg font-semibold">{formatCurrencyBRL(priceMonth)}</span>
                                 )}
                               </div>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                            <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                              <div className="flex items-center justify-between gap-2"><div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>{promoWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/10">-{promoWeekSavings.percent}%</Badge>}</div>
                               <div className="mt-2 text-sm text-slate-900">
                                 {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
                                   <>
                                     <span className="mr-2 text-slate-400 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
                                     <span className="text-lg font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
+                                    {promoWeekSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(promoWeekSavings.amount)}</div>}
                                   </>
                                 ) : (
                                   <span className="text-lg font-semibold">{formatCurrencyBRL(priceWeek)}</span>
@@ -341,19 +366,25 @@ export default function MenuCarrinho() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal estimado</div>
+                      <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between gap-2"><div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal estimado</div>{summaryMonthSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2 text-emerald-700 hover:bg-emerald-500/10">-{summaryMonthSavings.percent}%</Badge>}</div>
                         <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(summaryTotals.month)}</div>
+                        {summaryMonthSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(summaryMonthSavings.amount)}</div>}
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana estimado</div>
+                      <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between gap-2"><div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana estimado</div>{summaryWeekSavings && <Badge className="rounded-full border-0 bg-emerald-500/10 px-2 text-emerald-700 hover:bg-emerald-500/10">-{summaryWeekSavings.percent}%</Badge>}</div>
                         <div className="mt-2 text-lg font-semibold text-slate-900">{formatCurrencyBRL(summaryTotals.week)}</div>
+                        {summaryWeekSavings && <div className="mt-2 text-xs font-medium text-emerald-700">Economia de {formatCurrencyBRL(summaryWeekSavings.amount)}</div>}
                       </div>
                     </div>
 
-                    <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
-                      <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Próximo passo</div>
+                    <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-indigo-50/60 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Sparkles className="h-4 w-4 text-indigo-500" />Próximo passo</div>
                       <div className="mt-2 text-sm leading-6 text-slate-600">Com o carrinho revisado, avance para o checkout para enviar o pedido de proposta.</div>
+                      <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-950 px-4 py-3 text-white">
+                        <span className="text-sm">Resumo pronto para envio</span>
+                        <ChevronRight className="h-4 w-4 text-white/75" />
+                      </div>
                     </div>
 
                     <Button className="h-11 w-full rounded-2xl" onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>Ir para o checkout</Button>
