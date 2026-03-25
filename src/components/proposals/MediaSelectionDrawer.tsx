@@ -963,11 +963,16 @@ export function MediaSelectionDrawer({
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">Este ponto não possui empresa vinculada. Vincule uma empresa ao ponto no Inventário para poder adicioná-lo à proposta.</div>
+                                  <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
+                                    Este ponto não possui empresa vinculada. Vincule uma empresa ao ponto no Inventário para poder adicioná-lo à proposta.
+                                  </div>
                                 )
                               )}
-                              <p className="text-xs text-gray-500 mt-1">A empresa selecionada será usada como referência do item (e no PDF na próxima etapa).</p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                A empresa selecionada será usada como referência do item (e no PDF na próxima etapa).
+                              </p>
                             </div>
+
                             <div>
                               <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
                               <Input
@@ -1010,7 +1015,6 @@ export function MediaSelectionDrawer({
                                     variant={occupationMode === 'custom' ? 'default' : 'outline'}
                                     onClick={() => {
                                       setOccupationMode('custom');
-                                      // começa com 15 para evitar estado inválido
                                       setOccupationDays((prev) => (prev >= 15 ? prev : 15));
                                     }}
                                   >
@@ -1049,7 +1053,9 @@ export function MediaSelectionDrawer({
                                       >
                                         Limpar
                                       </Button>
-                                      <span className="text-sm text-gray-700">Total: <b>{occupationDays}</b> dias</span>
+                                      <span className="text-sm text-gray-700">
+                                        Total: <b>{occupationDays}</b> dias
+                                      </span>
                                     </div>
                                   ) : (
                                     <p className="text-xs text-gray-500">Total: {occupationDays} dias</p>
@@ -1119,43 +1125,127 @@ export function MediaSelectionDrawer({
 
                               <div>
                                 <label className="text-sm text-gray-600 mb-1 block">Preço por unidade (calculado)</label>
-                                <Input
-                                  value={formatPrice(unitPrice)}
-                                  readOnly
-                                  disabled
-                                />
+                                <Input value={formatPrice(unitPrice)} readOnly disabled />
                               </div>
                             </div>
+
                             <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                               <div className="flex items-center gap-2 text-sm text-amber-800">
                                 <Gift className="h-4 w-4" />
                                 Adicionar como brinde
                               </div>
-                              <Checkbox checked={isGift} onCheckedChange={(v: boolean | 'indeterminate') => setIsGift(v === true)} />
+                              <Checkbox
+                                checked={isGift}
+                                onCheckedChange={(v: boolean | 'indeterminate') => setIsGift(v === true)}
+                              />
                             </div>
+
                             <div className="grid gap-4 lg:grid-cols-3">
                               <div className="rounded-lg border p-3 space-y-3">
                                 <div className="font-medium text-gray-900">Desconto no aluguel</div>
                                 <div className="grid gap-3">
-                                  <Input type="number" min="0" step="0.01" value={rentDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setRentDiscountPercent(v); if (v > 0) setRentDiscountAmount(0); }} disabled={isGift || !!rentDiscountAmount} placeholder="%" />
-                                  <Input type="number" min="0" step="0.01" value={rentDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setRentDiscountAmount(v); if (v > 0) setRentDiscountPercent(0); }} disabled={isGift || !!rentDiscountPercent} placeholder="R$" />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={rentDiscountPercent || 0}
+                                    onChange={(e) => {
+                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                      setRentDiscountPercent(v);
+                                      if (v > 0) setRentDiscountAmount(0);
+                                    }}
+                                    disabled={isGift || !!rentDiscountAmount}
+                                    placeholder="%"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={rentDiscountAmount || 0}
+                                    onChange={(e) => {
+                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                      setRentDiscountAmount(v);
+                                      if (v > 0) setRentDiscountPercent(0);
+                                    }}
+                                    disabled={isGift || !!rentDiscountPercent}
+                                    placeholder="R$"
+                                  />
                                 </div>
                               </div>
+
                               <div className="rounded-lg border p-3 space-y-3">
                                 <div className="font-medium text-gray-900">Desconto nos custos</div>
                                 <div className="grid gap-3">
-                                  <Input type="number" min="0" step="0.01" value={costDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setCostDiscountPercent(v); if (v > 0) setCostDiscountAmount(0); }} disabled={isGift || !!costDiscountAmount} placeholder="%" />
-                                  <Input type="number" min="0" step="0.01" value={costDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setCostDiscountAmount(v); if (v > 0) setCostDiscountPercent(0); }} disabled={isGift || !!costDiscountPercent} placeholder="R$" />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={costDiscountPercent || 0}
+                                    onChange={(e) => {
+                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                      setCostDiscountPercent(v);
+                                      if (v > 0) setCostDiscountAmount(0);
+                                    }}
+                                    disabled={isGift || !!costDiscountAmount}
+                                    placeholder="%"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={costDiscountAmount || 0}
+                                    onChange={(e) => {
+                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                      setCostDiscountAmount(v);
+                                      if (v > 0) setCostDiscountPercent(0);
+                                    }}
+                                    disabled={isGift || !!costDiscountPercent}
+                                    placeholder="R$"
+                                  />
                                 </div>
                               </div>
+
                               <div className="rounded-lg border p-3 space-y-3">
                                 <div className="font-medium text-gray-900">Desconto geral adicional</div>
                                 <div className="grid gap-3">
-                                  <Input type="number" min="0" step="0.01" value={totalDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setTotalDiscountPercent(v); setDiscountPercent(v); if (v > 0) { setTotalDiscountAmount(0); setDiscountAmount(0); } }} disabled={isGift || !!totalDiscountAmount} placeholder="%" />
-                                  <Input type="number" min="0" step="0.01" value={totalDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setTotalDiscountAmount(v); setDiscountAmount(v); if (v > 0) { setTotalDiscountPercent(0); setDiscountPercent(0); } }} disabled={isGift || !!totalDiscountPercent} placeholder="R$" />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={totalDiscountPercent || 0}
+                                    onChange={(e) => {
+                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                      setTotalDiscountPercent(v);
+                                      setDiscountPercent(v);
+                                      if (v > 0) {
+                                        setTotalDiscountAmount(0);
+                                        setDiscountAmount(0);
+                                      }
+                                    }}
+                                    disabled={isGift || !!totalDiscountAmount}
+                                    placeholder="%"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={totalDiscountAmount || 0}
+                                    onChange={(e) => {
+                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
+                                      setTotalDiscountAmount(v);
+                                      setDiscountAmount(v);
+                                      if (v > 0) {
+                                        setTotalDiscountPercent(0);
+                                        setDiscountPercent(0);
+                                      }
+                                    }}
+                                    disabled={isGift || !!totalDiscountPercent}
+                                    placeholder="R$"
+                                  />
                                 </div>
                               </div>
                             </div>
+
                             <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
                               <div className="flex justify-between items-center">
                                 <span className="text-indigo-900">Total do Item:</span>
@@ -1166,11 +1256,15 @@ export function MediaSelectionDrawer({
                               </p>
                               {computedDiscountValue > 0 && (
                                 <div className="mt-2 text-xs text-indigo-800">
-                                  <div className="flex justify-between"><span>Original:</span><span>{formatPrice(baseTotal)}</span></div>
-                                  <div className="flex justify-between"><span>Desconto total aplicado:</span><span>-{formatPrice(computedDiscountValue)}</span></div>
+                                  <div className="flex justify-between">
+                                    <span>Original:</span>
+                                    <span>{formatPrice(baseTotal)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Desconto total aplicado:</span>
+                                    <span>-{formatPrice(computedDiscountValue)}</span>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
                               )}
                             </div>
                           </div>
