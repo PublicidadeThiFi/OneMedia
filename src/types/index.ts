@@ -645,6 +645,16 @@ export interface ProposalItem {
   discountPercent?: number;
   /** Base do desconto do item (aluguel, custos ou total). Default: TOTAL */
   discountApplyTo?: ProposalItemDiscountApplyTo;
+
+  /** Transientes do frontend (novo passo 2 de Propostas) */
+  isGift?: boolean;
+  rentDiscountPercent?: number;
+  rentDiscountAmount?: number;
+  costDiscountPercent?: number;
+  costDiscountAmount?: number;
+  totalDiscountPercent?: number;
+  totalDiscountAmount?: number;
+  nextAvailableAt?: Date | string | null;
   createdAt: Date;
   updatedAt: Date;
 }

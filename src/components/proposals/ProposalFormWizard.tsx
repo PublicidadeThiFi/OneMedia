@@ -244,6 +244,13 @@ const preparePayload = (status: ProposalStatus) => {
       discountPercent: Number((item as any).discountPercent || 0),
       discountAmount: Number((item as any).discountAmount || 0),
       discountApplyTo: (item as any).discountApplyTo ?? "TOTAL",
+      rentDiscountPercent: (item as any).rentDiscountPercent ?? undefined,
+      rentDiscountAmount: (item as any).rentDiscountAmount ?? undefined,
+      costDiscountPercent: (item as any).costDiscountPercent ?? undefined,
+      costDiscountAmount: (item as any).costDiscountAmount ?? undefined,
+      totalDiscountPercent: (item as any).totalDiscountPercent ?? undefined,
+      totalDiscountAmount: (item as any).totalDiscountAmount ?? undefined,
+      isGift: (item as any).isGift ?? undefined,
       // Novo fluxo (midia)
       occupationDays: (item as any).occupationDays ?? undefined,
       clientProvidesBanner: (item as any).clientProvidesBanner ?? undefined,
