@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Building2, RefreshCcw, Search, ShoppingCart, SquareStack } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, RefreshCcw, Search, ShoppingCart, SquareStack, Tag } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -212,7 +212,7 @@ export default function MenuSelectPoints() {
                           <Badge className="rounded-full border-0 bg-rose-500/95 text-white hover:bg-rose-500/95">{badgeText}</Badge>
                         )}
                       </div>
-                      <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between gap-3 text-white">
+                      <div className="absolute bottom-4 left-4 right-4 text-white">
                         <div className="min-w-0">
                           <div className="truncate text-xl font-semibold">{p.name}</div>
                           <div className="mt-1 flex items-center gap-1 text-sm text-white/80">
@@ -223,7 +223,38 @@ export default function MenuSelectPoints() {
                       </div>
                     </div>
 
-                    <CardContent className="p-5">
+                    <CardContent className="space-y-4 p-5">
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">
+                          <MapPin className="mr-1 h-3.5 w-3.5" />
+                          {p.addressDistrict || p.addressCity || 'Localização não informada'}
+                        </Badge>
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 text-slate-600">
+                          <SquareStack className="mr-1 h-3.5 w-3.5" />
+                          {p.unitsCount ?? 0} face(s)
+                        </Badge>
+                        {showStartingFromMonth && (
+                          <Badge variant="outline" className="rounded-full border-emerald-200 bg-emerald-50 px-3 text-emerald-700">
+                            <Tag className="mr-1 h-3.5 w-3.5" />
+                            A partir de
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-xs uppercase tracking-[0.12em] text-slate-500">Condição comercial</div>
+                            <div className="mt-1 text-sm font-medium text-slate-900">
+                              {isPromotions ? 'Oferta promocional disponível' : isAgency ? 'Leitura com markup de agência aplicado' : 'Leitura padrão do ponto'}
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">
+                            {isPromotions ? 'Promoção' : isAgency ? 'Agência' : 'Tabela'}
+                          </Badge>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
@@ -264,14 +295,20 @@ export default function MenuSelectPoints() {
                         </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                      <div className="grid gap-3 rounded-[24px] border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_auto] sm:items-center">
                         <div>
-                          <div className="text-sm font-semibold text-slate-900">Faces e disponibilidade</div>
-                          <div className="mt-1 text-xs text-slate-500">Veja detalhes completos ao abrir o ponto</div>
+                          <div className="text-sm font-semibold text-slate-900">Leitura rápida do ponto</div>
+                          <div className="mt-1 text-xs leading-5 text-slate-500">Abra o detalhe para ver galeria, mapa, faces e toda a condição comercial deste inventário.</div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-lg font-semibold text-slate-900">{p.unitsCount ?? 0}</div>
-                          <div className="text-xs text-slate-500">{p.availableUnitsCount ?? 0} disponíveis</div>
+                        <div className="grid grid-cols-2 gap-3 sm:min-w-[220px]">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                            <div className="text-lg font-semibold text-slate-900">{p.unitsCount ?? 0}</div>
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Faces</div>
+                          </div>
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                            <div className="text-lg font-semibold text-slate-900">{p.availableUnitsCount ?? 0}</div>
+                            <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Disponíveis</div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
