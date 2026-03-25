@@ -4,13 +4,13 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, ExternalLink, MapPin, ShoppingCart, Layers } from 'lucide-react';
+import { ArrowLeft, ExternalLink, MapPin, ShoppingCart, Layers, GalleryHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { computePointPriceSummary, normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
-import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from "../lib/menuFlow";
+import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion, pickBestPromoForPoint } from '../lib/menuPromotions';
 import { formatBRL } from '../lib/format';
 
@@ -44,11 +44,8 @@ function readCoords(point: PublicMediaKitPoint): { lat: number; lng: number } | 
   const lng = parseCoord(p.longitude ?? p.lng ?? p.location?.lng ?? p.location?.lon);
 
   if (lat === null || lng === null) return null;
-
-  // ranges válidos
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
 
-  // evita (0,0) quando temos endereço (sinal clássico de dado quebrado)
   const addr = formatAddress(point);
   if (addr && lat == 0 && lng == 0) return null;
 
@@ -66,7 +63,6 @@ function makeMapsUrl(point: PublicMediaKitPoint): string {
 
   return 'https://www.google.com/maps';
 }
-
 
 function isUnitSelectable(unit: any): boolean {
   if (!unit) return false;
@@ -122,7 +118,6 @@ export default function MenuDetalhe() {
     return points.find((p) => String(p.id) === String(pointId)) ?? null;
   }, [data?.points, pointId]);
 
-
   const isAgency = isAgencyFlow(flow);
   const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
   const isPromotions = flow === 'promotions';
@@ -171,13 +166,11 @@ export default function MenuDetalhe() {
   });
 
   useEffect(() => {
-    // Keep count in sync when returning to this screen via navigation
     try {
       setCartCount(getCartCount());
     } catch {
       setCartCount(0);
     }
-    // Note: storage event only fires across tabs; we still listen for completeness
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'menu_cart') {
         try {
@@ -191,9 +184,7 @@ export default function MenuDetalhe() {
     return () => window.removeEventListener('storage', onStorage);
   }, [pointId]);
 
-  const backUrl = useMemo(() => {
-    return `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`;
-  }, [token, uf, city, flow, ownerCompanyId]);
+  const backUrl = useMemo(() => `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`,[token, uf, city, flow, ownerCompanyId]);
 
   const onAdd = () => {
     if (!point) return;
@@ -201,7 +192,7 @@ export default function MenuDetalhe() {
     const units = Array.isArray(point.units) ? point.units.filter((u: any) => u?.isActive !== false) : [];
     const selectableUnits = units.filter((u: any) => isUnitSelectable(u));
     if (selectableUnits.length > 1) {
-      navigate(`/menu/faces${buildQuery({ token, id: point.id, uf, city, flow, ownerCompanyId })}`);
+      navigate(`/menu/faces${buildQuery({ token, pointId: point.id, uf, city, flow, ownerCompanyId })}`);
       return;
     }
 
@@ -245,335 +236,156 @@ export default function MenuDetalhe() {
   const mapsEmbed = point ? makeMapsEmbedUrl(point) : null;
 
   return (
-    <div className="min-h-screen w-full bg-gray-50">
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Detalhes</div>
-
+    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_42%,#f8fafc_100%)]">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">Protótipo</Badge>
+          <div className="text-sm text-slate-600">Detalhes do ponto</div>
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
-              >
+              <Button variant="outline" className="gap-2 rounded-2xl border-slate-200 bg-white" onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})
               </Button>
             )}
-
-            <Button variant="ghost" className="gap-2" onClick={() => navigate(backUrl)}>
+            <Button variant="ghost" className="gap-2 rounded-2xl" onClick={() => navigate(backUrl)}>
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
           </div>
         </div>
 
-        {error && (
-          <Card className="mt-5 border-amber-200 bg-amber-50">
-            <CardContent className="py-4">
-              <div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div>
-              <div className="mt-1 text-sm text-amber-800">{error}</div>
-            </CardContent>
-          </Card>
-        )}
-
-        {loading && !point && (
-          <Card className="mt-5 animate-pulse">
-            <CardContent className="py-6">
-              <div className="h-5 w-56 bg-gray-200 rounded" />
-              <div className="mt-3 h-3 w-80 bg-gray-200 rounded" />
-              <div className="mt-6 h-40 w-full bg-gray-200 rounded" />
-            </CardContent>
-          </Card>
-        )}
-
-        {!loading && !error && !point && (
-          <Card className="mt-5">
-            <CardContent className="py-6">
-              <div className="text-sm font-semibold text-gray-900">Não achei esse ponto</div>
-              <div className="mt-1 text-sm text-gray-600">Volte para a lista e escolha outro ponto.</div>
-              <div className="mt-4">
-                <Button variant="outline" onClick={() => navigate(backUrl)}>
-                  Voltar para os pontos
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {error && <Card className="mt-5 rounded-[28px] border-amber-200 bg-amber-50"><CardContent className="py-4"><div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div><div className="mt-1 text-sm text-amber-800">{error}</div></CardContent></Card>}
+        {loading && !point && <Card className="mt-5 animate-pulse rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="h-5 w-56 rounded bg-slate-200" /><div className="mt-3 h-3 w-80 rounded bg-slate-200" /><div className="mt-6 h-40 w-full rounded-[22px] bg-slate-200" /></CardContent></Card>}
+        {!loading && !error && !point && <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>Voltar para os pontos</Button></div></CardContent></Card>}
 
         {point && (
-          <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <Card>
-                <CardContent className="py-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h1 className="text-2xl font-bold text-gray-900">{point.name}</h1>
-                      <div className="mt-1 text-sm text-gray-600">{formatAddress(point) || 'Endereço não informado ainda'}</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {mediaType && <Badge variant="secondary" className="rounded-full">{mediaType}</Badge>}
-                        {isPromotions && (bestPromoPointMonth || bestPromoPointWeek || (point as any)?.promotion) && (
-                          <Badge variant="secondary" className="rounded-full">
-                            {formatPromotionBadge((bestPromoPointMonth?.promotion || bestPromoPointWeek?.promotion || (point as any).promotion) as any) || 'Promoção'}
-                          </Badge>
-                        )}
-                        {availability && (
-                          <Badge
-                            className={
-                              availability === 'Disponível'
-                                ? 'rounded-full bg-emerald-100 text-emerald-900 hover:bg-emerald-100'
-                                : availability === 'Parcial'
-                                  ? 'rounded-full bg-amber-100 text-amber-900 hover:bg-amber-100'
-                                  : 'rounded-full bg-rose-100 text-rose-900 hover:bg-rose-100'
-                            }
-                          >
-                            {availability}
-                          </Badge>
-                        )}
-                        {point.subcategory && <Badge variant="outline" className="rounded-full">{point.subcategory}</Badge>}
-                        {point.environment && <Badge variant="outline" className="rounded-full">{point.environment}</Badge>}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:items-end">
-                      <div className="text-sm text-gray-600">{priceLabel}</div>
-                      {isPromotions && bestPromoPointMonth ? (
-                        <div className="text-lg font-bold text-gray-900">
-                          <span className="mr-2 text-gray-500 line-through">
-                            {formatCurrencyBRL(bestPromoPointMonth.from)}
-                          </span>
-                          {formatCurrencyBRL(bestPromoPointMonth.to)}
-                        </div>
-                      ) : (
-                        <div className="text-lg font-bold text-gray-900">
-                          {formatCurrencyBRL(displayMonth)}
-                        </div>
-                      )}
-                      <div className="text-xs text-gray-600">
-                        {isPromotions && bestPromoPointWeek ? (
-                          <>
-                            Bi-semana •{' '}
-                            <span className="mr-2 text-gray-500 line-through">
-                              {formatCurrencyBRL(bestPromoPointWeek.from)}
-                            </span>
-                            <span className="font-semibold text-gray-900">
-                              {formatCurrencyBRL(bestPromoPointWeek.to)}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            Bi-semana •{' '}
-                            <span className="font-semibold text-gray-900">
-                              {formatCurrencyBRL(displayWeek)}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      {showStartingFrom && baseMonth !== null && baseMonth !== undefined && (
-                        <div className="text-xs text-gray-500">
-                          Preço padrão do ponto: <span className="font-semibold text-gray-700">{formatCurrencyBRL(baseMonth)}</span>
-                          {baseWeek !== null && baseWeek !== undefined && (
-                            <>
-                              {' '}• semanal <span className="font-semibold text-gray-700">{formatCurrencyBRL(baseWeek)}</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-5">
-                    {gallery.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {gallery.slice(0, 6).map((url, idx) => (
-                          <div key={`${url}-${idx}`} className="h-40 w-full overflow-hidden rounded-xl bg-gray-100">
-                            <ImageWithFallback
-                              src={url}
-                              alt={`${point.name} ${idx + 1}`}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="h-40 w-full rounded-xl bg-gray-100 flex items-center justify-center text-sm text-gray-500">
-                        Nenhuma imagem disponível
-                      </div>
+          <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.5fr_0.9fr]">
+            <div className="space-y-5">
+              <Card className="overflow-hidden rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.07)]">
+                <div className="relative h-[320px] bg-slate-100 sm:h-[380px]">
+                  <ImageWithFallback src={gallery[0] || ''} alt={point.name} className="h-full w-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/20 to-transparent" />
+                  <div className="absolute left-5 top-5 flex flex-wrap gap-2">
+                    {mediaType && <Badge className="rounded-full border border-white/20 bg-white/90 text-slate-800 hover:bg-white/90">{mediaType}</Badge>}
+                    {isPromotions && (bestPromoPointMonth || bestPromoPointWeek || (point as any)?.promotion) && (
+                      <Badge className="rounded-full border-0 bg-rose-500 text-white hover:bg-rose-500">{formatPromotionBadge((bestPromoPointMonth?.promotion || bestPromoPointWeek?.promotion || (point as any).promotion) as any) || 'Promoção'}</Badge>
+                    )}
+                    {availability && (
+                      <Badge className={availability === 'Disponível' ? 'rounded-full border-0 bg-emerald-500 text-white hover:bg-emerald-500' : availability === 'Parcial' ? 'rounded-full border-0 bg-amber-400 text-amber-950 hover:bg-amber-400' : 'rounded-full border-0 bg-rose-400 text-rose-950 hover:bg-rose-400'}>
+                        {availability}
+                      </Badge>
                     )}
                   </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                    <div className="text-3xl font-semibold tracking-tight">{point.name}</div>
+                    <div className="mt-2 max-w-3xl text-sm text-white/80">{formatAddress(point) || 'Endereço não informado ainda'}</div>
+                  </div>
+                </div>
 
-                  <Separator className="my-5" />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-xl border border-gray-200 p-4">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <Layers className="h-4 w-4" />
-                        <span className="font-semibold">Faces/Telas</span>
-                      </div>
-                      <div className="mt-2 text-gray-600">
-                        {units.length > 0 ? `${units.length} unidade(s) ativa(s)` : '—'}
-                      </div>
-                      {typeof point.dailyImpressions === 'number' && (
-                        <div className="mt-2 text-gray-600">
-                          <span className="font-semibold">Impacto/dia:</span> {point.dailyImpressions}
-                        </div>
-                      )}
+                <CardContent className="p-6">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{priceLabel}</div>
+                      <div className="mt-2 text-2xl font-semibold text-slate-900">{isPromotions && bestPromoPointMonth ? formatCurrencyBRL(bestPromoPointMonth.to) : formatCurrencyBRL(displayMonth)}</div>
+                      {isPromotions && bestPromoPointMonth ? <div className="mt-1 text-sm text-slate-500 line-through">{formatCurrencyBRL(bestPromoPointMonth.from)}</div> : showStartingFrom && baseMonth !== null && baseMonth !== undefined ? <div className="mt-1 text-sm text-slate-500">Padrão {formatCurrencyBRL(baseMonth)}</div> : null}
                     </div>
-
-                    <div className="rounded-xl border border-gray-200 p-4">
-                      <div className="flex items-center gap-2 text-gray-700">
-                        <MapPin className="h-4 w-4" />
-                        <span className="font-semibold">Localização</span>
-                      </div>
-                      <div className="mt-2 text-gray-600">
-                        {point.addressDistrict ? `${point.addressDistrict} • ` : ''}{point.addressCity || ''}{point.addressState ? `/${point.addressState}` : ''}
-                      </div>
-                      <div className="mt-3">
-                        <a
-                          href={mapsUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800"
-                        >
-                          Abrir no Maps
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                      <div className="mt-2 text-2xl font-semibold text-slate-900">{isPromotions && bestPromoPointWeek ? formatCurrencyBRL(bestPromoPointWeek.to) : formatCurrencyBRL(displayWeek)}</div>
+                      {isPromotions && bestPromoPointWeek ? <div className="mt-1 text-sm text-slate-500 line-through">{formatCurrencyBRL(bestPromoPointWeek.from)}</div> : showStartingFrom && baseWeek !== null && baseWeek !== undefined ? <div className="mt-1 text-sm text-slate-500">Padrão {formatCurrencyBRL(baseWeek)}</div> : null}
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Unidades ativas</div>
+                      <div className="mt-2 text-2xl font-semibold text-slate-900">{units.length}</div>
+                      <div className="mt-1 text-sm text-slate-500">{selectableUnitsCount} disponível(is)</div>
                     </div>
                   </div>
 
-                  <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    <Button className="gap-2" onClick={onAdd} disabled={units.length > 0 && selectableUnitsCount === 0}>
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <Button className="h-11 gap-2 rounded-2xl" onClick={onAdd} disabled={units.length > 0 && selectableUnitsCount === 0}>
                       <ShoppingCart className="h-4 w-4" />
                       {units.length > 1 ? 'Escolher faces/telas' : 'Adicionar no carrinho'}
                     </Button>
-                    <Button variant="outline" onClick={() => navigate(backUrl)}>
-                      Voltar para os pontos
-                    </Button>
+                    <Button variant="outline" className="h-11 rounded-2xl border-slate-200 bg-white" onClick={() => navigate(backUrl)}>Voltar para os pontos</Button>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="mt-4">
-                <CardContent className="py-6">
-                  <div className="text-sm font-semibold text-gray-900">Mapa (visualização)</div>
-                  <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
-                    {mapsEmbed ? (
-                      <iframe
-                        title="Mapa"
-                        src={mapsEmbed}
-                        className="h-64 w-full"
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
-                    ) : (
-                      <div className="h-64 w-full flex items-center justify-center text-sm text-gray-600">
-                        Coordenadas não informadas — use o botão “Abrir no Maps”.
+              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 text-slate-900"><GalleryHorizontal className="h-4 w-4" /><span className="text-sm font-semibold">Galeria do ponto</span></div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {gallery.length > 0 ? gallery.slice(0, 6).map((url, idx) => (
+                      <div key={`${url}-${idx}`} className="h-40 overflow-hidden rounded-[22px] bg-slate-100">
+                        <ImageWithFallback src={url} alt={`${point.name} ${idx + 1}`} className="h-full w-full object-cover" />
                       </div>
-                    )}
+                    )) : <div className="col-span-full flex h-40 items-center justify-center rounded-[22px] bg-slate-100 text-sm text-slate-500">Nenhuma imagem disponível</div>}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+                <CardContent className="p-6">
+                  <div className="text-sm font-semibold text-slate-900">Mapa</div>
+                  <div className="mt-4 overflow-hidden rounded-[22px] border border-slate-200 bg-slate-100">
+                    {mapsEmbed ? <iframe title="Mapa" src={mapsEmbed} className="h-72 w-full" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /> : <div className="flex h-72 w-full items-center justify-center text-sm text-slate-600">Coordenadas não informadas — use o botão “Abrir no Maps”.</div>}
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div>
-              <Card>
-                <CardContent className="py-6">
-                  <div className="text-sm font-semibold text-gray-900">Unidades</div>
-                  <div className="mt-3 space-y-3">
-                    {units.length > 0 ? (
-                      units.map((u) => {
-                        const unitPromo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
-                        const promoBadge = unitPromo ? formatPromotionBadge(unitPromo) : null;
+            <div className="space-y-5 xl:sticky xl:top-6 xl:self-start">
+              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+                <CardContent className="p-6">
+                  <div className="text-sm font-semibold text-slate-900">Resumo do ponto</div>
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-slate-700"><Layers className="h-4 w-4" /><span className="font-semibold">Faces/Telas</span></div>
+                      <div className="mt-2 text-sm text-slate-600">{units.length > 0 ? `${units.length} unidade(s) ativa(s)` : '—'}</div>
+                      {typeof point.dailyImpressions === 'number' && <div className="mt-2 text-sm text-slate-600"><span className="font-semibold">Impacto/dia:</span> {point.dailyImpressions}</div>}
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-slate-700"><MapPin className="h-4 w-4" /><span className="font-semibold">Localização</span></div>
+                      <div className="mt-2 text-sm leading-6 text-slate-600">{point.addressDistrict ? `${point.addressDistrict} • ` : ''}{point.addressCity || ''}{point.addressState ? `/${point.addressState}` : ''}</div>
+                      <div className="mt-3"><a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 hover:text-slate-700">Abrir no Maps<ExternalLink className="h-4 w-4" /></a></div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                        // Promo deve ser aplicada antes do markup de agência, para manter o "de/por" consistente.
-                        const promoMonthRaw = unitPromo
-                          ? buildPromoPrice((u as any).priceMonth ?? (point as any).basePriceMonth, unitPromo)
-                          : null;
-                        const promoWeekRaw = unitPromo
-                          ? buildPromoPrice((u as any).priceWeek ?? (point as any).basePriceWeek, unitPromo)
-                          : null;
-
-                        const promoMonth = promoMonthRaw
-                          ? { from: applyAgencyMarkup(promoMonthRaw.from, markupPct), to: applyAgencyMarkup(promoMonthRaw.to, markupPct) }
-                          : null;
-                        const promoWeek = promoWeekRaw
-                          ? { from: applyAgencyMarkup(promoWeekRaw.from, markupPct), to: applyAgencyMarkup(promoWeekRaw.to, markupPct) }
-                          : null;
-
-                        const baseMonth = applyAgencyMarkup((u as any).priceMonth ?? (point as any).basePriceMonth, markupPct);
-                        const baseWeek = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
-
-                        const promoMonthOk = promoMonth && promoMonth.from !== null && promoMonth.to !== null ? promoMonth : null;
-                        const promoWeekOk = promoWeek && promoWeek.from !== null && promoWeek.to !== null ? promoWeek : null;
-
-                        const isUnavailable = !isUnitSelectable(u);
-                        return (
-                          <div key={u.id} className={`rounded-xl border p-3 ${isUnavailable ? 'border-amber-300 bg-amber-50/60' : 'border-gray-200'}`}>
-                            <div className="flex items-center gap-2">
-                              <div className="text-sm font-semibold text-gray-900">
-                                {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
-                              </div>
-                              {isUnavailable && (
-                                <Badge variant="secondary" className="rounded-full bg-amber-100 text-amber-900 hover:bg-amber-100">
-                                  {String(u.availability || '').trim() === 'Reservada' ? 'Reservada' : 'Ocupada'}
-                                </Badge>
-                              )}
-                              {isPromotions && promoBadge && (
-                                <Badge variant="secondary" className="rounded-full">
-                                  {promoBadge}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="mt-1 text-xs text-gray-600">
-                              {u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}
-                              {u.orientation ? ` • ${u.orientation}` : ''}
-                              {!isUnitSelectable(u) ? ` • ${String(u.availability || '').trim() === 'Reservada' ? 'reservada' : 'indisponível no momento'}` : ''}
-                            </div>
-
-                            {isUnavailable && formatAvailabilityDate((u as any).availableOn) && (
-                              <div className="mt-2 text-xs text-amber-800">
-                                Livre para nova seleção em <span className="font-semibold">{formatAvailabilityDate((u as any).availableOn)}</span>.
-                              </div>
-                            )}
-
-                            <div className="mt-2 text-xs text-gray-700">
-                              <span className="text-gray-500">Mensal:</span>{' '}
-                              {isPromotions && promoMonthOk ? (
-                                <>
-                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthOk.from)}</span>
-                                  <span className="font-semibold text-gray-900">{formatCurrencyBRL(promoMonthOk.to)}</span>
-                                </>
-                              ) : (
-                                <span className="font-semibold">{formatCurrencyBRL(baseMonth)}</span>
-                              )}
-                            </div>
-
-                            <div className="mt-1 text-xs text-gray-700">
-                              <span className="text-gray-500">Bi-semana:</span>{' '}
-                              {isPromotions && promoWeekOk ? (
-                                <>
-                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekOk.from)}</span>
-                                  <span className="font-semibold text-gray-900">{formatCurrencyBRL(promoWeekOk.to)}</span>
-                                </>
-                              ) : (
-                                <span className="font-semibold">{formatCurrencyBRL(baseWeek)}</span>
-                              )}
-                            </div>
-
-                            {u.imageUrl && (
-                              <div className="mt-3 h-28 w-full overflow-hidden rounded-lg bg-gray-100">
-                                <ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover" />
-                              </div>
-                            )}
+              <Card className="rounded-[32px] border border-slate-200 bg-white/95 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
+                <CardContent className="p-6">
+                  <div className="text-sm font-semibold text-slate-900">Faces/telas cadastradas</div>
+                  <div className="mt-4 space-y-3">
+                    {units.length > 0 ? units.map((u) => {
+                      const unitPromo = isPromotions ? getEffectivePromotion(u as any, point as any) : null;
+                      const promoBadge = unitPromo ? formatPromotionBadge(unitPromo) : null;
+                      const promoMonthRaw = unitPromo ? buildPromoPrice((u as any).priceMonth ?? (point as any).basePriceMonth, unitPromo) : null;
+                      const promoWeekRaw = unitPromo ? buildPromoPrice((u as any).priceWeek ?? (point as any).basePriceWeek, unitPromo) : null;
+                      const promoMonth = promoMonthRaw ? { from: applyAgencyMarkup(promoMonthRaw.from, markupPct), to: applyAgencyMarkup(promoMonthRaw.to, markupPct) } : null;
+                      const promoWeek = promoWeekRaw ? { from: applyAgencyMarkup(promoWeekRaw.from, markupPct), to: applyAgencyMarkup(promoWeekRaw.to, markupPct) } : null;
+                      const baseMonthUnit = applyAgencyMarkup((u as any).priceMonth ?? (point as any).basePriceMonth, markupPct);
+                      const baseWeekUnit = applyAgencyMarkup((u as any).priceWeek ?? (point as any).basePriceWeek, markupPct);
+                      const isUnavailable = !isUnitSelectable(u);
+                      return (
+                        <div key={u.id} className={`rounded-2xl border p-4 ${isUnavailable ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50/70'}`}>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-semibold text-slate-900">{u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}</div>
+                            {isUnavailable && <Badge className="rounded-full border-0 bg-amber-100 text-amber-900 hover:bg-amber-100">{String(u.availability || '').trim() === 'Reservada' ? 'Reservada' : 'Ocupada'}</Badge>}
+                            {isPromotions && promoBadge && <Badge className="rounded-full border-0 bg-rose-500 text-white hover:bg-rose-500">{promoBadge}</Badge>}
                           </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-sm text-gray-600">Nenhuma face/tela cadastrada neste ponto.</div>
-                    )}
+                          <div className="mt-1 text-xs text-slate-600">{u.widthM && u.heightM ? `${u.widthM}m × ${u.heightM}m` : 'Dimensões não informadas'}{u.orientation ? ` • ${u.orientation}` : ''}{!isUnitSelectable(u) ? ` • ${String(u.availability || '').trim() === 'Reservada' ? 'reservada' : 'indisponível no momento'}` : ''}</div>
+                          {isUnavailable && formatAvailabilityDate((u as any).availableOn) && <div className="mt-2 text-xs text-amber-800">Livre para nova seleção em <span className="font-semibold">{formatAvailabilityDate((u as any).availableOn)}</span>.</div>}
+                          <Separator className="my-3" />
+                          <div className="grid grid-cols-2 gap-3 text-xs text-slate-700">
+                            <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-slate-500">Mensal</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoMonth ? formatCurrencyBRL(promoMonth.to) : formatCurrencyBRL(baseMonthUnit)}</div>{promoMonth && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoMonth.from)}</div>}</div>
+                            <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-slate-500">Bi-semana</div><div className="mt-1 text-sm font-semibold text-slate-900">{promoWeek ? formatCurrencyBRL(promoWeek.to) : formatCurrencyBRL(baseWeekUnit)}</div>{promoWeek && <div className="text-slate-400 line-through">{formatCurrencyBRL(promoWeek.from)}</div>}</div>
+                          </div>
+                          {u.imageUrl && <div className="mt-3 h-28 overflow-hidden rounded-xl bg-slate-100"><ImageWithFallback src={u.imageUrl} alt={u.label} className="h-full w-full object-cover" /></div>}
+                        </div>
+                      );
+                    }) : <div className="text-sm text-slate-600">Nenhuma face/tela cadastrada neste ponto.</div>}
                   </div>
                 </CardContent>
               </Card>

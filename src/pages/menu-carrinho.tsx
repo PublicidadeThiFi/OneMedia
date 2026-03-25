@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, Trash2, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import {
@@ -36,7 +36,6 @@ function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
 }
 
-
 export default function MenuCarrinho() {
   const navigate = useNavigation();
 
@@ -57,7 +56,6 @@ export default function MenuCarrinho() {
   const markupPct = isAgency ? getAgencyMarkupPercent(data?.company) : 0;
   const isPromotions = flow === 'promotions';
 
-
   const [cartVersion, setCartVersion] = useState(0);
   const cart = useMemo(() => readCart(), [cartVersion]);
 
@@ -71,9 +69,7 @@ export default function MenuCarrinho() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const backUrl = useMemo(() => {
-    return `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`;
-  }, [token, uf, city, flow, ownerCompanyId]);
+  const backUrl = useMemo(() => `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`,[token, uf, city, flow, ownerCompanyId]);
 
   const [bulkYears, setBulkYears] = useState<string>('0');
   const [bulkMonths, setBulkMonths] = useState<string>('1');
@@ -144,220 +140,187 @@ export default function MenuCarrinho() {
         promoWeekTo,
       };
     });
-  }, [cart.items, data?.points, isAgency, markupPct]);
+  }, [cart.items, data?.points, isAgency, markupPct, isPromotions]);
+
+  const uniquePointsCount = useMemo(() => new Set(itemsEnriched.map((entry) => entry.item.pointId)).size, [itemsEnriched]);
+  const withFacesCount = useMemo(() => itemsEnriched.filter((entry) => !!entry.unitLabel).length, [itemsEnriched]);
 
   return (
-    <div className="min-h-screen w-full bg-gray-50">
-      <div className="mx-auto max-w-5xl px-4 py-8">
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Carrinho</div>
-
+    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_40%,#f8fafc_100%)]">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">Protótipo</Badge>
+          <div className="text-sm text-slate-600">Carrinho</div>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" className="gap-2" onClick={() => navigate(backUrl)}>
+            <Button variant="ghost" className="gap-2 rounded-2xl" onClick={() => navigate(backUrl)}>
               <ArrowLeft className="h-4 w-4" />
               Voltar
             </Button>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-900">Seu carrinho</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Seu carrinho fica salvo neste dispositivo. No próximo passo, você envia o pedido de proposta.
-            </p>
-          </div>
-
-          {cart.items.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="gap-2" onClick={onClear}>
-                <Trash2 className="h-4 w-4" />
-                Limpar
-              </Button>
+        <div className="mt-5 rounded-[30px] border border-slate-200 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] backdrop-blur">
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                <ShoppingCart className="h-3.5 w-3.5" />
+                Revise os itens antes do checkout
+              </div>
+              <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900">Seu carrinho está mais organizado para conferência final</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                Ajuste a duração, confira os itens selecionados e avance para o checkout quando estiver tudo certo.
+              </p>
             </div>
-          )}
+
+            <Card className="rounded-[28px] border-slate-200 bg-slate-50/80 shadow-none">
+              <CardContent className="p-5">
+                <div className="text-xs uppercase tracking-[0.14em] text-slate-500">Resumo rápido</div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {[
+                    ['Itens', String(cart.items.length)],
+                    ['Pontos', String(uniquePointsCount)],
+                    ['Faces', String(withFacesCount)],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-slate-200 bg-white p-3 text-center">
+                      <div className="text-lg font-semibold text-slate-900">{value}</div>
+                      <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-500">{label}</div>
+                    </div>
+                  ))}
+                </div>
+                {cart.items.length > 0 && (
+                  <Button variant="outline" className="mt-5 h-11 w-full gap-2 rounded-2xl border-slate-200 bg-white" onClick={onClear}>
+                    <Trash2 className="h-4 w-4" />
+                    Limpar carrinho
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {cart.items.length === 0 ? (
-          <Card className="mt-5">
-            <CardContent className="py-8">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center">
-                  <ShoppingCart className="h-5 w-5 text-gray-600" />
+          <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/92 shadow-[0_16px_50px_rgba(15,23,42,0.06)]">
+            <CardContent className="py-10">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100">
+                  <ShoppingCart className="h-5 w-5 text-slate-600" />
                 </div>
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">Seu carrinho está vazio</div>
-                  <div className="mt-1 text-sm text-gray-600">Volte para a lista e escolha pelo menos um item.</div>
+                  <div className="text-base font-semibold text-slate-900">Seu carrinho está vazio</div>
+                  <div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha pelo menos um item.</div>
                 </div>
               </div>
-              <div className="mt-5">
-                <Button onClick={() => navigate(backUrl)}>
-                  Escolher pontos
-                </Button>
+              <div className="mt-6">
+                <Button className="rounded-2xl" onClick={() => navigate(backUrl)}>Escolher pontos</Button>
               </div>
             </CardContent>
           </Card>
         ) : (
           <>
-            <Card className="mt-5">
-              <CardContent className="py-5">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="text-sm text-gray-700">
-                    <span className="font-semibold">{cart.items.length}</span> item(ns)
+            <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/92 shadow-[0_16px_50px_rgba(15,23,42,0.06)]">
+              <CardContent className="p-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Aplicar duração em todos</div>
+                    <div className="mt-1 text-sm text-slate-600">Padronize o período antes de avançar.</div>
                   </div>
-
-                  <div className="sm:ml-auto flex flex-col sm:flex-row gap-2">
+                  <div className="xl:ml-auto flex flex-col gap-3 sm:flex-row sm:items-end">
                     <div className="grid grid-cols-3 gap-2">
-                      <div className="space-y-1">
-                        <div className="text-[11px] text-gray-500">Anos</div>
-                        <Input type="number" min={0} value={bulkYears} onChange={(e) => setBulkYears(e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-[11px] text-gray-500">Meses</div>
-                        <Input type="number" min={0} value={bulkMonths} onChange={(e) => setBulkMonths(e.target.value)} />
-                      </div>
-                      <div className="space-y-1">
-                        <div className="text-[11px] text-gray-500">Dias</div>
-                        <Input type="number" min={0} value={bulkDays} onChange={(e) => setBulkDays(e.target.value)} />
-                      </div>
+                      <div className="space-y-1"><div className="text-[11px] text-slate-500">Anos</div><Input type="number" min={0} className="h-11 rounded-2xl border-slate-200" value={bulkYears} onChange={(e) => setBulkYears(e.target.value)} /></div>
+                      <div className="space-y-1"><div className="text-[11px] text-slate-500">Meses</div><Input type="number" min={0} className="h-11 rounded-2xl border-slate-200" value={bulkMonths} onChange={(e) => setBulkMonths(e.target.value)} /></div>
+                      <div className="space-y-1"><div className="text-[11px] text-slate-500">Dias</div><Input type="number" min={0} className="h-11 rounded-2xl border-slate-200" value={bulkDays} onChange={(e) => setBulkDays(e.target.value)} /></div>
                     </div>
-
-                    <Button variant="outline" onClick={onApplyAll}>
-                      Aplicar em todos
-                    </Button>
+                    <Button variant="outline" className="h-11 rounded-2xl border-slate-200 bg-white px-5" onClick={onApplyAll}>Aplicar em todos</Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo }) => (
-                <Card key={item.id} className="hover:shadow-sm transition-shadow">
-                  <CardContent className="py-4">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      {/*
-                        IMPORTANTE:
-                        Alguns builds podem acabar não emitindo utilitários com `flex-[...]` conforme esperado.
-                        Para garantir comportamento consistente no desktop, usamos largura fixa + shrink-0.
-                      */}
-                      <div className="w-full sm:w-64 lg:w-72 sm:shrink-0">
-                        <div className="aspect-[16/10] w-full overflow-hidden rounded-xl bg-gray-100">
-                          <ImageWithFallback src={img} alt={pointName} className="h-full w-full object-cover" />
-                        </div>
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-base font-semibold text-gray-900 break-words">{pointName}</div>
-                              {isPromotions && promo && (
-                                <Badge variant="secondary" className="rounded-full whitespace-nowrap">
-                                  {formatPromotionBadge(promo) || 'Promoção'}
-                                </Badge>
-                              )}
-                            </div>
-
-                            {unitLabel && <div className="mt-1 text-xs text-gray-700">{unitLabel}</div>}
-                            {address && <div className="mt-1 text-xs text-gray-600 break-words">{address}</div>}
-                          </div>
-
-                          <Button variant="ghost" size="icon" onClick={() => onRemove(item.id)} title="Remover">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <div className="rounded-lg bg-gray-50 px-3 py-2">
-                            <div className="text-[11px] text-gray-500">Mensal</div>
-                            <div className="mt-0.5 text-sm text-gray-900">
-                              {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
-                                <>
-                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
-                                  <span className="font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
-                                </>
-                              ) : (
-                                <span className="font-semibold">{formatCurrencyBRL(priceMonth)}</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="rounded-lg bg-gray-50 px-3 py-2">
-                            <div className="text-[11px] text-gray-500">Bi-semana</div>
-                            <div className="mt-0.5 text-sm text-gray-900">
-                              {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
-                                <>
-                                  <span className="mr-2 text-gray-500 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
-                                  <span className="font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
-                                </>
-                              ) : (
-                                <span className="font-semibold">{formatCurrencyBRL(priceWeek)}</span>
-                              )}
-                            </div>
+            <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+              <div className="space-y-4">
+                {itemsEnriched.map(({ item, pointName, unitLabel, address, img, priceMonth, priceWeek, promo, promoMonthRaw, promoWeekRaw, promoMonthFrom, promoMonthTo, promoWeekFrom, promoWeekTo }) => (
+                  <Card key={item.id} className="overflow-hidden rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)]">
+                    <CardContent className="p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row">
+                        <div className="w-full lg:w-72 lg:shrink-0">
+                          <div className="aspect-[16/10] w-full overflow-hidden rounded-[24px] bg-slate-100">
+                            <ImageWithFallback src={img} alt={pointName} className="h-full w-full object-cover" />
                           </div>
                         </div>
 
-                        <Separator className="my-3" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="text-lg font-semibold text-slate-900 break-words">{pointName}</div>
+                                {isPromotions && promo && <Badge className="rounded-full border-0 bg-rose-500 text-white hover:bg-rose-500">{formatPromotionBadge(promo)}</Badge>}
+                              </div>
+                              {unitLabel && <div className="mt-1 text-sm text-slate-700">{unitLabel}</div>}
+                              {address && <div className="mt-1 text-sm text-slate-600 break-words">{address}</div>}
+                            </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <div className="text-xs text-gray-600 shrink-0">Duração</div>
-
-                          <div className="grid grid-cols-3 gap-2 w-full sm:max-w-[420px]">
-                            <Input
-                              type="number"
-                              min={0}
-                              value={String(item.duration?.years ?? 0)}
-                              onChange={(e) => {
-                                updateItemDurationParts(item.id, { ...item.duration, years: Number(e.target.value || 0) });
-                                setCartVersion((vv) => vv + 1);
-                              }}
-                              placeholder="Anos"
-                            />
-                            <Input
-                              type="number"
-                              min={0}
-                              value={String(item.duration?.months ?? 0)}
-                              onChange={(e) => {
-                                updateItemDurationParts(item.id, { ...item.duration, months: Number(e.target.value || 0) });
-                                setCartVersion((vv) => vv + 1);
-                              }}
-                              placeholder="Meses"
-                            />
-                            <Input
-                              type="number"
-                              min={0}
-                              value={String(item.duration?.days ?? 0)}
-                              onChange={(e) => {
-                                updateItemDurationParts(item.id, { ...item.duration, days: Number(e.target.value || 0) });
-                                setCartVersion((vv) => vv + 1);
-                              }}
-                              placeholder="Dias"
-                            />
+                            <Button variant="ghost" size="icon" className="rounded-2xl" onClick={() => onRemove(item.id)} title="Remover">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
 
-                          <div className="sm:ml-auto text-xs text-gray-600">
-                            {formatDurationParts(item.duration)}
-                            {item.durationDays >= 30 ? ' • Mensal' : ' • Período curto'}
+                          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Mensal</div>
+                              <div className="mt-2 text-sm text-slate-900">
+                                {isPromotions && promoMonthRaw && promoMonthFrom !== null && promoMonthTo !== null ? (
+                                  <>
+                                    <span className="mr-2 text-slate-400 line-through">{formatCurrencyBRL(promoMonthFrom)}</span>
+                                    <span className="text-lg font-semibold">{formatCurrencyBRL(promoMonthTo)}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-lg font-semibold">{formatCurrencyBRL(priceMonth)}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Bi-semana</div>
+                              <div className="mt-2 text-sm text-slate-900">
+                                {isPromotions && promoWeekRaw && promoWeekFrom !== null && promoWeekTo !== null ? (
+                                  <>
+                                    <span className="mr-2 text-slate-400 line-through">{formatCurrencyBRL(promoWeekFrom)}</span>
+                                    <span className="text-lg font-semibold">{formatCurrencyBRL(promoWeekTo)}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-lg font-semibold">{formatCurrencyBRL(priceWeek)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <Separator className="my-4" />
+
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                            <div className="text-sm font-semibold text-slate-700">Duração</div>
+                            <div className="grid w-full grid-cols-3 gap-2 lg:max-w-[420px]">
+                              <Input type="number" min={0} className="h-11 rounded-2xl border-slate-200" value={String(item.duration?.years ?? 0)} onChange={(e) => { updateItemDurationParts(item.id, { ...item.duration, years: Number(e.target.value || 0) }); setCartVersion((vv) => vv + 1); }} placeholder="Anos" />
+                              <Input type="number" min={0} className="h-11 rounded-2xl border-slate-200" value={String(item.duration?.months ?? 0)} onChange={(e) => { updateItemDurationParts(item.id, { ...item.duration, months: Number(e.target.value || 0) }); setCartVersion((vv) => vv + 1); }} placeholder="Meses" />
+                              <Input type="number" min={0} className="h-11 rounded-2xl border-slate-200" value={String(item.duration?.days ?? 0)} onChange={(e) => { updateItemDurationParts(item.id, { ...item.duration, days: Number(e.target.value || 0) }); setCartVersion((vv) => vv + 1); }} placeholder="Dias" />
+                            </div>
+                            <div className="lg:ml-auto rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{formatDurationParts(item.duration)}{item.durationDays >= 30 ? ' • Mensal' : ' • Período curto'}</div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+                <Card className="rounded-[30px] border border-slate-200 bg-white/95 shadow-[0_16px_55px_rgba(15,23,42,0.07)]">
+                  <CardContent className="p-6">
+                    <div className="text-sm font-semibold text-slate-900">Próximo passo</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-600">Com o carrinho revisado, avance para o checkout para enviar o pedido de proposta.</div>
+                    <Button className="mt-5 h-11 w-full rounded-2xl" onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>Ir para o checkout</Button>
+                    <Button variant="outline" className="mt-3 h-11 w-full rounded-2xl border-slate-200 bg-white" onClick={() => navigate(backUrl)}>Adicionar mais itens</Button>
                   </CardContent>
                 </Card>
-))}
-            </div>
-
-            <div className="mt-6 flex flex-col sm:flex-row gap-3">
-              <Button onClick={() => navigate(backUrl)} variant="outline">
-                Adicionar mais itens
-              </Button>
-              <Button
-                onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
-                className="gap-2"
-              >
-                Ir para o checkout
-              </Button>
+              </div>
             </div>
           </>
         )}
