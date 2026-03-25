@@ -53,8 +53,8 @@ export function ProposalStep2Items({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialMediaPointId, initialMediaPointIds]);
 
-  const handleAddProductItem = (newItem: ProposalItem) => {
-    onItemsChange([...formData.items, newItem]);
+  const handleAddProductItems = (newItems: ProposalItem[]) => {
+    onItemsChange([...(formData.items ?? []), ...newItems]);
     setShowProductDialog(false);
   };
 
@@ -399,6 +399,7 @@ export function ProposalStep2Items({
         open={showMediaDrawer}
         onOpenChange={setShowMediaDrawer}
         onAddItem={handleAddMediaItem}
+        onReferenceStartDateChange={(nextDate) => onMetaChange({ campaignStartDate: nextDate } as any)}
         referenceStartDate={formData.campaignStartDate ?? null}
         initialMediaPointId={firstId ?? undefined}
         allowedMediaPointIds={initialMediaPointIds ?? undefined}
@@ -411,7 +412,8 @@ export function ProposalStep2Items({
         defaultPeriod={{
           startDate: formData.campaignStartDate,
         }}
-        onAddItem={handleAddProductItem}
+        existingProductIds={(formData.items ?? []).filter((i) => !!i.productId).map((i) => String(i.productId))}
+        onAddItems={handleAddProductItems}
       />
 
       <ProposalItemEditDialog

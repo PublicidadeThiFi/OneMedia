@@ -62,6 +62,7 @@ function normalizeProposal(p: any): Proposal {
           endDate: i.endDate ? new Date(i.endDate) : undefined,
           createdAt: i.createdAt ? new Date(i.createdAt) : undefined,
           updatedAt: i.updatedAt ? new Date(i.updatedAt) : undefined,
+          ...deriveMediaDiscountBreakdown(i),
         }))
       : p.items,
   } as Proposal;
@@ -78,6 +79,44 @@ function cleanUuid(value: any): string | undefined {
   if (value === null || value === undefined) return undefined;
   const s = String(value).trim();
   return s.length > 0 ? s : undefined;
+}
+
+function deriveMediaDiscountBreakdown(i: any) {
+  if (!i?.mediaUnitId) {
+    return {
+      rentDiscountAmount: undefined,
+      costDiscountAmount: undefined,
+      totalDiscountAmount: undefined,
+      isGift: false,
+    };
+  }
+
+  const qty = typeof i.quantity === 'number' ? i.quantity : Number(i.quantity ?? 1) || 1;
+  const occupationDays = typeof i.occupationDays === 'number' ? i.occupationDays : Number(i.occupationDays ?? 0) || 0;
+  const blocks30 = Math.floor(Math.max(0, occupationDays) / 30);
+  const blocks15 = Math.floor((Math.max(0, occupationDays) % 30) / 15);
+  const priceMonth = typeof i.priceMonthSnapshot === 'number' ? i.priceMonthSnapshot : Number(i.priceMonthSnapshot ?? 0) || 0;
+  const priceBiweekly = typeof i.priceBiweeklySnapshot === 'number' ? i.priceBiweeklySnapshot : Number(i.priceBiweeklySnapshot ?? 0) || 0;
+  const bannerCost = typeof i.productionCostSnapshot === 'number' ? i.productionCostSnapshot : Number(i.productionCostSnapshot ?? 0) || 0;
+  const otherCosts = typeof i.installationCostSnapshot === 'number' ? i.installationCostSnapshot : Number(i.installationCostSnapshot ?? 0) || 0;
+  const rawRent = qty * ((blocks30 * priceMonth) + (blocks15 * priceBiweekly));
+  const rawCostsPerUnit = otherCosts + ((i.clientProvidesBanner ? 0 : bannerCost));
+  const rawCosts = qty * rawCostsPerUnit;
+
+  const finalRent = typeof i.rentTotalSnapshot === 'number' ? i.rentTotalSnapshot : Number(i.rentTotalSnapshot ?? rawRent) || 0;
+  const finalCosts = typeof i.upfrontTotalSnapshot === 'number' ? i.upfrontTotalSnapshot : Number(i.upfrontTotalSnapshot ?? rawCosts) || 0;
+  const finalTotal = typeof i.totalPrice === 'number' ? i.totalPrice : Number(i.totalPrice ?? (finalRent + finalCosts)) || 0;
+
+  const rentDiscountAmount = Math.max(0, rawRent - finalRent);
+  const costDiscountAmount = Math.max(0, rawCosts - finalCosts);
+  const totalDiscountAmount = Math.max(0, rawRent + rawCosts - finalTotal - rentDiscountAmount - costDiscountAmount);
+
+  return {
+    rentDiscountAmount: rentDiscountAmount > 0 ? rentDiscountAmount : undefined,
+    costDiscountAmount: costDiscountAmount > 0 ? costDiscountAmount : undefined,
+    totalDiscountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
+    isGift: finalTotal <= 0 && (rawRent + rawCosts) > 0,
+  };
 }
 
 function stripUndefined<T extends Record<string, any>>(obj: T): T {
@@ -102,10 +141,27 @@ function serializeProposalForApi(data: Partial<Proposal>) {
             description: String(i.description ?? '').trim(),
             startDate: toIso(i.startDate),
             endDate: toIso(i.endDate),
+            occupationDays: mediaUnitId ? (i.occupationDays !== undefined ? Number(i.occupationDays) : undefined) : undefined,
+            clientProvidesBanner: mediaUnitId ? (i.clientProvidesBanner === true) : undefined,
+            priceMonthSnapshot: mediaUnitId ? (i.priceMonthSnapshot !== undefined ? Number(i.priceMonthSnapshot) : undefined) : undefined,
+            priceBiweeklySnapshot: mediaUnitId ? (i.priceBiweeklySnapshot !== undefined ? Number(i.priceBiweeklySnapshot) : undefined) : undefined,
+            productionCostSnapshot: mediaUnitId ? (i.productionCostSnapshot !== undefined ? Number(i.productionCostSnapshot) : undefined) : undefined,
+            installationCostSnapshot: mediaUnitId ? (i.installationCostSnapshot !== undefined ? Number(i.installationCostSnapshot) : undefined) : undefined,
+            rentTotalSnapshot: mediaUnitId ? (i.rentTotalSnapshot !== undefined ? Number(i.rentTotalSnapshot) : undefined) : undefined,
+            upfrontTotalSnapshot: mediaUnitId ? (i.upfrontTotalSnapshot !== undefined ? Number(i.upfrontTotalSnapshot) : undefined) : undefined,
             quantity: typeof i.quantity === 'number' ? i.quantity : Number(i.quantity ?? 1),
             unitPrice: typeof i.unitPrice === 'number' ? i.unitPrice : Number(i.unitPrice ?? 0),
             discountAmount: i.discountAmount === null ? null : (typeof i.discountAmount === 'number' ? i.discountAmount : (i.discountAmount !== undefined ? Number(i.discountAmount) : undefined)),
             discountPercent: i.discountPercent === null ? null : (typeof i.discountPercent === 'number' ? i.discountPercent : (i.discountPercent !== undefined ? Number(i.discountPercent) : undefined)),
+            discountApplyTo: i.discountApplyTo ?? ProposalItemDiscountApplyTo.TOTAL,
+            rentDiscountAmount: mediaUnitId ? (i.rentDiscountAmount !== undefined ? Number(i.rentDiscountAmount) : undefined) : undefined,
+            rentDiscountPercent: mediaUnitId ? (i.rentDiscountPercent !== undefined ? Number(i.rentDiscountPercent) : undefined) : undefined,
+            costDiscountAmount: mediaUnitId ? (i.costDiscountAmount !== undefined ? Number(i.costDiscountAmount) : undefined) : undefined,
+            costDiscountPercent: mediaUnitId ? (i.costDiscountPercent !== undefined ? Number(i.costDiscountPercent) : undefined) : undefined,
+            totalDiscountAmount: mediaUnitId ? (i.totalDiscountAmount !== undefined ? Number(i.totalDiscountAmount) : undefined) : undefined,
+            totalDiscountPercent: mediaUnitId ? (i.totalDiscountPercent !== undefined ? Number(i.totalDiscountPercent) : undefined) : undefined,
+            isGift: i.isGift === true ? true : undefined,
+            totalPrice: i.totalPrice !== undefined ? Number(i.totalPrice) : undefined,
           });
         })
         .filter((i: any) => !!i.description && (!!i.mediaUnitId || !!i.productId))

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, MapPin, Search } from 'lucide-react';
+import { ChevronRight, MapPin, Search, Gift } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -27,9 +27,11 @@ interface MediaSelectionDrawerProps {
    * Se não for informada, usamos a data atual apenas para não permitir seleção sem verificação.
    */
   referenceStartDate?: Date | null;
+  onReferenceStartDateChange?: (date: Date) => void;
 }
 
 type AvailabilityStatus = 'checking' | 'available' | 'occupied' | 'unknown';
+type AvailabilityInfo = { status: AvailabilityStatus; nextAvailableAt?: string | null; conflictCount?: number };
 
 type MediaUnitWithPoint = MediaUnit & {
   pointId?: string;
@@ -47,6 +49,7 @@ export function MediaSelectionDrawer({
   initialMediaPointId,
   allowedMediaPointIds,
   referenceStartDate,
+  onReferenceStartDateChange,
 }: MediaSelectionDrawerProps) {
   const { company } = useCompany();
   // companyId é usado apenas para preencher o item local. A API usa o companyId do token.
@@ -77,7 +80,13 @@ export function MediaSelectionDrawer({
   const [unitPrice, setUnitPrice] = useState(0);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
-  const [discountApplyTo, setDiscountApplyTo] = useState<ProposalItemDiscountApplyTo>(ProposalItemDiscountApplyTo.TOTAL);
+  const [rentDiscountPercent, setRentDiscountPercent] = useState(0);
+  const [rentDiscountAmount, setRentDiscountAmount] = useState(0);
+  const [costDiscountPercent, setCostDiscountPercent] = useState(0);
+  const [costDiscountAmount, setCostDiscountAmount] = useState(0);
+  const [totalDiscountPercent, setTotalDiscountPercent] = useState(0);
+  const [totalDiscountAmount, setTotalDiscountAmount] = useState(0);
+  const [isGift, setIsGift] = useState(false);
 
   // Novo fluxo: tempo de ocupacao (multiplo de 15, max 360)
   const OCCUPATION_MAX_DAYS = 360;
@@ -86,8 +95,9 @@ export function MediaSelectionDrawer({
   const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
 
   // Disponibilidade (ocupação por reservas existentes)
-  const [availabilityByUnitId, setAvailabilityByUnitId] = useState<Record<string, AvailabilityStatus>>({});
+  const [availabilityByUnitId, setAvailabilityByUnitId] = useState<Record<string, AvailabilityInfo>>({});
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [useNextAvailableDate, setUseNextAvailableDate] = useState(false);
 
   const normalizeLocalDay = (d: Date) => {
     const x = new Date(d);
@@ -133,12 +143,14 @@ export function MediaSelectionDrawer({
     const point = selectedMediaUnit ? mediaPointById.get((selectedMediaUnit as any).mediaPointId) : undefined;
     const priceMonth = safeNumber(selectedMediaUnit?.priceMonth ?? point?.basePriceMonth ?? 0);
     const priceBiweekly = safeNumber((selectedMediaUnit as any)?.priceWeek ?? point?.basePriceWeek ?? 0);
-    const prod = safeNumber(selectedMediaUnit?.productionCosts?.lona ?? 0);
-    const inst = safeNumber(selectedMediaUnit?.productionCosts?.montagem ?? 0);
+    const bannerCost = safeNumber(selectedMediaUnit?.productionCosts?.lona ?? 0);
+    const adhesiveCost = safeNumber((selectedMediaUnit?.productionCosts as any)?.adesivo ?? 0);
+    const vinylCost = safeNumber((selectedMediaUnit?.productionCosts as any)?.vinil ?? 0);
+    const installationCost = safeNumber(selectedMediaUnit?.productionCosts?.montagem ?? 0);
 
     const { months, biweeks } = getOccupationBreakdown(occupationDays);
     const rentPerUnit = months * priceMonth + biweeks * priceBiweekly;
-    const upfrontPerUnit = inst + (clientProvidesBanner ? 0 : prod);
+    const upfrontPerUnit = installationCost + adhesiveCost + vinylCost + (clientProvidesBanner ? 0 : bannerCost);
     const perUnitTotal = rentPerUnit + upfrontPerUnit;
 
     return {
@@ -146,9 +158,11 @@ export function MediaSelectionDrawer({
       priceBiweekly,
       months,
       biweeks,
+      bannerCost,
+      adhesiveCost,
+      vinylCost,
+      installationCost,
       rentPerUnit,
-      prod,
-      inst,
       upfrontPerUnit,
       perUnitTotal,
     };
@@ -157,34 +171,46 @@ export function MediaSelectionDrawer({
   const discountCalc = useMemo(() => {
     const qty = Math.max(1, Number(quantity) || 1);
 
-    const rentTotal = qty * computedPricing.rentPerUnit;
-    const upfrontTotal = qty * computedPricing.upfrontPerUnit;
-    const baseTotal = rentTotal + upfrontTotal;
+    const rawRentTotal = qty * computedPricing.rentPerUnit;
+    const rawCostsTotal = qty * computedPricing.upfrontPerUnit;
+    const rawBaseTotal = rawRentTotal + rawCostsTotal;
 
-    const pct = safeNumber(discountPercent);
-    const amt = safeNumber(discountAmount);
+    const applyReduction = (baseValue: number, pct: number, amt: number) => {
+      let next = baseValue;
+      const safePct = safeNumber(pct);
+      const safeAmt = safeNumber(amt);
+      if (safePct > 0) next = next * (1 - safePct / 100);
+      if (safeAmt > 0) next = next - safeAmt;
+      if (!Number.isFinite(next)) next = 0;
+      return Math.max(0, next);
+    };
 
-    const discountBase =
-      discountApplyTo === ProposalItemDiscountApplyTo.RENT
-        ? rentTotal
-        : discountApplyTo === ProposalItemDiscountApplyTo.COSTS
-          ? upfrontTotal
-          : baseTotal;
+    let rentAfter = applyReduction(rawRentTotal, rentDiscountPercent, rentDiscountAmount);
+    let costsAfter = applyReduction(rawCostsTotal, costDiscountPercent, costDiscountAmount);
 
-    const discountValue =
-      pct > 0
-        ? (discountBase * pct) / 100
-        : amt > 0
-          ? Math.min(amt, discountBase)
-          : 0;
+    const subtotalBeforeGeneral = rentAfter + costsAfter;
+    let totalAfter = applyReduction(subtotalBeforeGeneral, totalDiscountPercent || discountPercent, totalDiscountAmount || discountAmount);
+    if (isGift) totalAfter = 0;
 
-    const totalPrice = Math.max(0, baseTotal - discountValue);
-    const computedDiscountValue = Math.max(0, discountValue);
+    const factor = subtotalBeforeGeneral > 0 ? totalAfter / subtotalBeforeGeneral : 0;
+    const finalRent = isGift ? 0 : rentAfter * factor;
+    const finalCosts = isGift ? 0 : costsAfter * factor;
+    const totalPrice = Math.max(0, finalRent + finalCosts);
+    const computedDiscountValue = Math.max(0, rawBaseTotal - totalPrice);
 
-    return { qty, rentTotal, upfrontTotal, baseTotal, discountBase, discountValue, totalPrice, computedDiscountValue };
-  }, [quantity, computedPricing.rentPerUnit, computedPricing.upfrontPerUnit, discountPercent, discountAmount, discountApplyTo]);
+    return {
+      qty,
+      rawRentTotal,
+      rawCostsTotal,
+      rawBaseTotal,
+      finalRent,
+      finalCosts,
+      totalPrice,
+      computedDiscountValue,
+    };
+  }, [quantity, computedPricing.rentPerUnit, computedPricing.upfrontPerUnit, rentDiscountPercent, rentDiscountAmount, costDiscountPercent, costDiscountAmount, totalDiscountPercent, totalDiscountAmount, discountPercent, discountAmount, isGift]);
 
-  const { baseTotal, totalPrice, computedDiscountValue } = discountCalc;
+  const { rawBaseTotal: baseTotal, totalPrice, computedDiscountValue } = discountCalc;
 
   useEffect(() => {
     if (!selectedMediaUnit) {
@@ -313,6 +339,14 @@ export function MediaSelectionDrawer({
       setQuantity(1);
       setDiscountPercent(0);
       setDiscountAmount(0);
+      setRentDiscountPercent(0);
+      setRentDiscountAmount(0);
+      setCostDiscountPercent(0);
+      setCostDiscountAmount(0);
+      setTotalDiscountPercent(0);
+      setTotalDiscountAmount(0);
+      setUseNextAvailableDate(false);
+      setIsGift(false);
       setOccupationMode('30');
       setOccupationDays(30);
       setClientProvidesBanner(false);
@@ -393,8 +427,8 @@ export function MediaSelectionDrawer({
 
     // Marca todas como "verificando" antes do request.
     setAvailabilityByUnitId((prev) => {
-      const next: Record<string, AvailabilityStatus> = { ...prev };
-      for (const u of units) next[u.id] = 'checking';
+      const next: Record<string, AvailabilityInfo> = { ...prev };
+      for (const u of units) next[u.id] = { status: 'checking', nextAvailableAt: null, conflictCount: 0 };
       return next;
     });
     setAvailabilityError(null);
@@ -414,17 +448,29 @@ export function MediaSelectionDrawer({
 
       if (cancelled) return;
 
-      const next: Record<string, AvailabilityStatus> = {};
+      const next: Record<string, AvailabilityInfo> = {};
       let hadError = false;
 
       results.forEach((r, idx) => {
         const unitId = units[idx]?.id;
         if (!unitId) return;
         if (r.status === 'fulfilled') {
-          const available = Boolean((r.value as any)?.data?.available);
-          next[unitId] = available ? 'available' : 'occupied';
+          const payload = (r.value as any)?.data ?? {};
+          const available = Boolean(payload?.available);
+          const conflicts = Array.isArray(payload?.conflicts) ? payload.conflicts : [];
+          const nextAvailableAt = !available && conflicts.length
+            ? conflicts
+                .map((c: any) => c?.endDate ? new Date(c.endDate) : null)
+                .filter((d: any) => d && !Number.isNaN(d.getTime()))
+                .sort((a: any, b: any) => b.getTime() - a.getTime())[0]
+            : null;
+          next[unitId] = {
+            status: available ? 'available' : 'occupied',
+            nextAvailableAt: nextAvailableAt ? new Date(nextAvailableAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
+            conflictCount: conflicts.length,
+          };
         } else {
-          next[unitId] = 'unknown';
+          next[unitId] = { status: 'unknown', nextAvailableAt: null, conflictCount: 0 };
           hadError = true;
         }
       });
@@ -435,8 +481,8 @@ export function MediaSelectionDrawer({
       }
     })().catch(() => {
       if (cancelled) return;
-      const next: Record<string, AvailabilityStatus> = {};
-      for (const u of units) next[u.id] = 'unknown';
+      const next: Record<string, AvailabilityInfo> = {};
+      for (const u of units) next[u.id] = { status: 'unknown', nextAvailableAt: null, conflictCount: 0 };
       setAvailabilityByUnitId(next);
       setAvailabilityError('Não foi possível verificar a disponibilidade das faces.');
     });
@@ -456,7 +502,7 @@ export function MediaSelectionDrawer({
     if (!Object.keys(availabilityByUnitId).length) return;
 
     const pickFirstAvailable = () => {
-      const nextUnit = selectedPointUnits.find((u) => availabilityByUnitId[u.id] === 'available');
+      const nextUnit = selectedPointUnits.find((u) => availabilityByUnitId[u.id]?.status === 'available');
       if (nextUnit) handleSelectMediaUnit(nextUnit);
       else setSelectedMediaUnit(null);
     };
@@ -466,7 +512,7 @@ export function MediaSelectionDrawer({
       return;
     }
 
-    const st = availabilityByUnitId[selectedMediaUnit.id];
+    const st = availabilityByUnitId[selectedMediaUnit.id]?.status;
     if (st === 'occupied' || st === 'unknown') {
       pickFirstAvailable();
     }
@@ -477,6 +523,14 @@ export function MediaSelectionDrawer({
     setDescription(`${media.pointName || 'Ponto'} - ${media.label}`);
     setDiscountPercent(0);
     setDiscountAmount(0);
+    setRentDiscountPercent(0);
+    setRentDiscountAmount(0);
+    setCostDiscountPercent(0);
+    setCostDiscountAmount(0);
+    setTotalDiscountPercent(0);
+    setTotalDiscountAmount(0);
+    setUseNextAvailableDate(false);
+    setIsGift(false);
     setQuantity(1);
     setOccupationMode('30');
     setOccupationDays(30);
@@ -529,6 +583,14 @@ export function MediaSelectionDrawer({
     setUnitPrice(0);
     setDiscountPercent(0);
     setDiscountAmount(0);
+    setRentDiscountPercent(0);
+    setRentDiscountAmount(0);
+    setCostDiscountPercent(0);
+    setCostDiscountAmount(0);
+    setTotalDiscountPercent(0);
+    setTotalDiscountAmount(0);
+    setUseNextAvailableDate(false);
+    setIsGift(false);
     setQuantity(1);
     setOccupationMode('30');
     setOccupationDays(30);
@@ -566,8 +628,9 @@ export function MediaSelectionDrawer({
     if (!selectedMediaUnit) return;
 
     const days = occupationDays;
-    const rentTotalSnapshot = quantity * computedPricing.rentPerUnit;
-    const upfrontTotalSnapshot = quantity * computedPricing.upfrontPerUnit;
+    const effectiveStartDate = useNextAvailableDate && selectedNextAvailableAt ? new Date(selectedNextAvailableAt) : (referenceStartDate ? new Date(referenceStartDate) : undefined);
+    const rentTotalSnapshot = discountCalc.finalRent;
+    const upfrontTotalSnapshot = discountCalc.finalCosts;
 
     const item: ProposalItem = {
       id: `item${Date.now()}${Math.random()}`,
@@ -576,24 +639,38 @@ export function MediaSelectionDrawer({
       mediaUnitId: selectedMediaUnit.id,
       productId: undefined,
       mediaPointOwnerId: selectedMediaUnit.id ? (selectedMediaPointOwnerId || null) : null,
-      description,
+      description: isGift ? `${description} (Brinde)` : description,
+      startDate: effectiveStartDate,
+      endDate: effectiveStartDate ? new Date(effectiveStartDate.getTime() + days * 24 * 60 * 60 * 1000) : undefined,
       occupationDays: days,
       clientProvidesBanner,
       priceMonthSnapshot: computedPricing.priceMonth,
       priceBiweeklySnapshot: computedPricing.priceBiweekly,
-      productionCostSnapshot: computedPricing.prod,
-      installationCostSnapshot: computedPricing.inst,
+      productionCostSnapshot: computedPricing.bannerCost,
+      installationCostSnapshot: computedPricing.adhesiveCost + computedPricing.vinylCost + computedPricing.installationCost,
       rentTotalSnapshot,
       upfrontTotalSnapshot,
       quantity,
       unitPrice,
-      discountPercent: discountPercent > 0 ? discountPercent : undefined,
-      discountAmount: discountAmount > 0 ? discountAmount : undefined,
-      discountApplyTo,
+      discountPercent: totalDiscountPercent > 0 ? totalDiscountPercent : (discountPercent > 0 ? discountPercent : undefined),
+      discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : (discountAmount > 0 ? discountAmount : undefined),
+      discountApplyTo: ProposalItemDiscountApplyTo.TOTAL,
+      rentDiscountPercent: rentDiscountPercent > 0 ? rentDiscountPercent : undefined,
+      rentDiscountAmount: rentDiscountAmount > 0 ? rentDiscountAmount : undefined,
+      costDiscountPercent: costDiscountPercent > 0 ? costDiscountPercent : undefined,
+      costDiscountAmount: costDiscountAmount > 0 ? costDiscountAmount : undefined,
+      totalDiscountPercent: totalDiscountPercent > 0 ? totalDiscountPercent : undefined,
+      totalDiscountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
+      isGift,
+      nextAvailableAt: selectedAvailability?.nextAvailableAt ?? null,
       totalPrice,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    if (useNextAvailableDate && selectedNextAvailableAt) {
+      onReferenceStartDateChange?.(new Date(selectedNextAvailableAt));
+    }
 
     onAddItem(item);
     handleClose();
@@ -614,6 +691,14 @@ export function MediaSelectionDrawer({
     setUnitPrice(0);
     setDiscountPercent(0);
     setDiscountAmount(0);
+    setRentDiscountPercent(0);
+    setRentDiscountAmount(0);
+    setCostDiscountPercent(0);
+    setCostDiscountAmount(0);
+    setTotalDiscountPercent(0);
+    setTotalDiscountAmount(0);
+    setUseNextAvailableDate(false);
+    setIsGift(false);
     setOccupationMode('30');
     setOccupationDays(30);
     setClientProvidesBanner(false);
@@ -623,7 +708,9 @@ export function MediaSelectionDrawer({
   const hasOwners = mediaPointOwners.length > 0;
   const isOccupationValid = occupationDays >= 15 && occupationDays % 15 === 0 && occupationDays <= OCCUPATION_MAX_DAYS;
   const selectedAvailability = selectedMediaUnit ? availabilityByUnitId[selectedMediaUnit.id] : undefined;
-  const isSelectedUnitAvailable = selectedAvailability === 'available';
+  const selectedAvailabilityStatus = selectedAvailability?.status;
+  const selectedNextAvailableAt = selectedAvailability?.nextAvailableAt ? new Date(selectedAvailability.nextAvailableAt) : null;
+  const isSelectedUnitAvailable = selectedAvailabilityStatus === 'available' || (!!useNextAvailableDate && !!selectedNextAvailableAt);
   const isValid =
     !!selectedMediaUnit &&
     !!description &&
@@ -635,13 +722,6 @@ export function MediaSelectionDrawer({
     !!selectedMediaPointOwnerId &&
     !ownersLoading &&
     !ownersError;
-
-  const discountBaseLabel =
-    discountApplyTo === ProposalItemDiscountApplyTo.RENT
-      ? 'o aluguel'
-      : discountApplyTo === ProposalItemDiscountApplyTo.COSTS
-        ? 'os custos (produção/instalação)'
-        : 'o total do item';
 
   const mediaTypes = useMemo(() => {
     const types = new Set(mediaPoints.map((p: any) => p.type));
@@ -802,21 +882,13 @@ export function MediaSelectionDrawer({
                               </SelectTrigger>
                               <SelectContent>
                                 {selectedPointUnits.map((u) => {
-                                  const st = availabilityByUnitId[u.id];
-                                  const disabled = st !== 'available';
-                                  const suffix =
-                                    st === 'occupied'
-                                      ? ' (Ocupado)'
-                                      : st === 'unknown'
-                                        ? ' (Indisponível)'
-                                        : st === 'checking'
-                                          ? ' (Verificando...)'
-                                          : '';
+                                  const info = availabilityByUnitId[u.id];
+                                  const st = info?.status;
+                                  const nextDate = info?.nextAvailableAt ? new Date(info.nextAvailableAt) : null;
 
                                   return (
-                                    <SelectItem key={u.id} value={u.id} disabled={disabled}>
-                                      {u.label}
-                                      {suffix}
+                                    <SelectItem key={u.id} value={u.id}>
+                                      {u.label}{st === 'occupied' ? ' (Ocupada)' : st === 'unknown' ? ' (Indisponível)' : st === 'checking' ? ' (Verificando...)' : ''}{nextDate ? ` • livre em ${formatShortDate(nextDate)}` : ''}
                                     </SelectItem>
                                   );
                                 })}
@@ -842,12 +914,25 @@ export function MediaSelectionDrawer({
                                 Período considerado: {formatShortDate(availabilityWindow.start)} – {formatShortDate(availabilityWindow.end)}
                               </div>
                             )}
-                            {selectedAvailability === 'checking' && <div className="text-gray-500 mt-1">Verificando ocupação...</div>}
-                            {selectedAvailability === 'occupied' && (
-                              <div className="text-red-600 mt-1">Esta face está ocupada no período selecionado.</div>
+                            {selectedAvailabilityStatus === 'checking' && <div className="text-gray-500 mt-1">Verificando ocupação...</div>}
+                            {selectedAvailabilityStatus === 'occupied' && (
+                              <div className="space-y-2">
+                                <div className="text-amber-700 mt-1">Esta face está ocupada no período selecionado.</div>
+                                {selectedNextAvailableAt ? (
+                                  <div className="flex items-start gap-2">
+                                    <Checkbox id="use-next-available-date" checked={useNextAvailableDate} onCheckedChange={(v: boolean | 'indeterminate') => setUseNextAvailableDate(v === true)} />
+                                    <label htmlFor="use-next-available-date" className="text-gray-700">
+                                      Definir automaticamente a data de início para {formatShortDate(selectedNextAvailableAt)}.
+                                    </label>
+                                  </div>
+                                ) : null}
+                              </div>
                             )}
-                            {selectedAvailability === 'unknown' && (
+                            {selectedAvailabilityStatus === 'unknown' && (
                               <div className="text-red-600 mt-1">Não foi possível verificar a ocupação desta face.</div>
+                            )}
+                            {selectedAvailabilityStatus === 'available' && (
+                              <div className="text-emerald-700 mt-1">Face disponível para o período selecionado.</div>
                             )}
                           </div>
                         )}
@@ -1041,81 +1126,51 @@ export function MediaSelectionDrawer({
                                 />
                               </div>
                             </div>
-
-                            
-
-                            <div>
-                              <label className="text-sm text-gray-600 mb-1 block">Aplicar desconto em</label>
-                              <Select value={discountApplyTo} onValueChange={(v: string) => setDiscountApplyTo(v as ProposalItemDiscountApplyTo)}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value={ProposalItemDiscountApplyTo.TOTAL}>Total (aluguel + custos)</SelectItem>
-                                  <SelectItem value={ProposalItemDiscountApplyTo.RENT}>Aluguel</SelectItem>
-                                  <SelectItem value={ProposalItemDiscountApplyTo.COSTS}>Custos (produção/instalação)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <p className="text-xs text-gray-500 mt-1">
-                                Define sobre qual parte do item o desconto será aplicado.
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Desconto em %</label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={discountPercent || 0}
-                                  onChange={(e) => {
-                                    const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                    setDiscountPercent(v);
-                                    if (v > 0) setDiscountAmount(0);
-                                  }}
-                                  disabled={!!discountAmount}
-                                />
+                            <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                              <div className="flex items-center gap-2 text-sm text-amber-800">
+                                <Gift className="h-4 w-4" />
+                                Adicionar como brinde
                               </div>
-
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Desconto em R$</label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={discountAmount || 0}
-                                  onChange={(e) => {
-                                    const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                    setDiscountAmount(v);
-                                    if (v > 0) setDiscountPercent(0);
-                                  }}
-                                  disabled={!!discountPercent}
-                                />
+                              <Checkbox checked={isGift} onCheckedChange={(v: boolean | 'indeterminate') => setIsGift(v === true)} />
+                            </div>
+                            <div className="grid gap-4 lg:grid-cols-3">
+                              <div className="rounded-lg border p-3 space-y-3">
+                                <div className="font-medium text-gray-900">Desconto no aluguel</div>
+                                <div className="grid gap-3">
+                                  <Input type="number" min="0" step="0.01" value={rentDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setRentDiscountPercent(v); if (v > 0) setRentDiscountAmount(0); }} disabled={isGift || !!rentDiscountAmount} placeholder="%" />
+                                  <Input type="number" min="0" step="0.01" value={rentDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setRentDiscountAmount(v); if (v > 0) setRentDiscountPercent(0); }} disabled={isGift || !!rentDiscountPercent} placeholder="R$" />
+                                </div>
+                              </div>
+                              <div className="rounded-lg border p-3 space-y-3">
+                                <div className="font-medium text-gray-900">Desconto nos custos</div>
+                                <div className="grid gap-3">
+                                  <Input type="number" min="0" step="0.01" value={costDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setCostDiscountPercent(v); if (v > 0) setCostDiscountAmount(0); }} disabled={isGift || !!costDiscountAmount} placeholder="%" />
+                                  <Input type="number" min="0" step="0.01" value={costDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setCostDiscountAmount(v); if (v > 0) setCostDiscountPercent(0); }} disabled={isGift || !!costDiscountPercent} placeholder="R$" />
+                                </div>
+                              </div>
+                              <div className="rounded-lg border p-3 space-y-3">
+                                <div className="font-medium text-gray-900">Desconto geral adicional</div>
+                                <div className="grid gap-3">
+                                  <Input type="number" min="0" step="0.01" value={totalDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setTotalDiscountPercent(v); setDiscountPercent(v); if (v > 0) { setTotalDiscountAmount(0); setDiscountAmount(0); } }} disabled={isGift || !!totalDiscountAmount} placeholder="%" />
+                                  <Input type="number" min="0" step="0.01" value={totalDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setTotalDiscountAmount(v); setDiscountAmount(v); if (v > 0) { setTotalDiscountPercent(0); setDiscountPercent(0); } }} disabled={isGift || !!totalDiscountPercent} placeholder="R$" />
+                                </div>
                               </div>
                             </div>
-                            <p className="text-xs text-gray-500">
-                              💡 Preencha apenas um campo. O desconto será aplicado sobre {discountBaseLabel}.
-                            </p>
                             <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
                               <div className="flex justify-between items-center">
                                 <span className="text-indigo-900">Total do Item:</span>
                                 <span className="text-indigo-900 font-medium">{formatPrice(totalPrice)}</span>
                               </div>
                               <p className="text-sm text-indigo-700 mt-1">
-                                {quantity} x {formatPrice(unitPrice)}
+                                {isGift ? 'Item marcado como brinde.' : `${quantity} x ${formatPrice(unitPrice)}`}
                               </p>
                               {computedDiscountValue > 0 && (
                                 <div className="mt-2 text-xs text-indigo-800">
-                                  <div className="flex justify-between">
-                                    <span>Original:</span>
-                                    <span>{formatPrice(baseTotal)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Desconto{discountPercent > 0 ? ` (${discountPercent}%)` : ''} ({discountBaseLabel}):</span>
-                                    <span>-{formatPrice(computedDiscountValue)}</span>
-                                  </div>
+                                  <div className="flex justify-between"><span>Original:</span><span>{formatPrice(baseTotal)}</span></div>
+                                  <div className="flex justify-between"><span>Desconto total aplicado:</span><span>-{formatPrice(computedDiscountValue)}</span></div>
                                 </div>
+                              )}
+                            </div>
                               )}
                             </div>
                           </div>
