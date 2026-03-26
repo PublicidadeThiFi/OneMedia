@@ -405,6 +405,17 @@ export function MediaSelectionDrawer({
     return unitsByPointId.get(selectedMediaPointId) ?? [];
   }, [unitsByPointId, selectedMediaPointId]);
 
+  useEffect(() => {
+    if (!selectedMediaUnit) return;
+    const info = availabilityByUnitId[selectedMediaUnit.id];
+    if (!info) return;
+    if (info.status === 'occupied' && info.nextAvailableAt) {
+      setUseNextAvailableDate(true);
+    } else if (info.status === 'available') {
+      setUseNextAvailableDate(false);
+    }
+  }, [selectedMediaUnit, availabilityByUnitId]);
+
   // Checa ocupação das faces (unidades) do ponto selecionado no período considerado.
   useEffect(() => {
     if (!open) return;
@@ -462,7 +473,7 @@ export function MediaSelectionDrawer({
             ? conflicts
                 .map((c: any) => c?.endDate ? new Date(c.endDate) : null)
                 .filter((d: any) => d && !Number.isNaN(d.getTime()))
-                .sort((a: any, b: any) => b.getTime() - a.getTime())[0]
+                .sort((a: any, b: any) => a.getTime() - b.getTime())[0]
             : null;
           next[unitId] = {
             status: available ? 'available' : 'occupied',
@@ -492,29 +503,27 @@ export function MediaSelectionDrawer({
     };
   }, [open, selectedMediaPointId, selectedPointUnits, availabilityWindow.start, availabilityWindow.end]);
 
-  // Se a unidade selecionada ficar ocupada/indisponível, troca automaticamente para a primeira disponível.
+  // Mantém a seleção consistente entre pontos com faces livres ou ocupadas.
+  // Se houver face livre, prefere a primeira disponível; se todas estiverem ocupadas,
+  // mantém a primeira unidade visível/selecionável para o usuário decidir a data.
   useEffect(() => {
     if (!open) return;
     if (!selectedMediaPointId) return;
     if (!selectedPointUnits.length) return;
 
-    // ainda não verificou nada
     if (!Object.keys(availabilityByUnitId).length) return;
 
-    const pickFirstAvailable = () => {
-      const nextUnit = selectedPointUnits.find((u) => availabilityByUnitId[u.id]?.status === 'available');
-      if (nextUnit) handleSelectMediaUnit(nextUnit);
-      else setSelectedMediaUnit(null);
-    };
+    const firstAvailable = selectedPointUnits.find((u) => availabilityByUnitId[u.id]?.status === 'available');
+    const fallbackUnit = firstAvailable ?? selectedPointUnits[0];
 
     if (!selectedMediaUnit) {
-      pickFirstAvailable();
+      handleSelectMediaUnit(fallbackUnit);
       return;
     }
 
-    const st = availabilityByUnitId[selectedMediaUnit.id]?.status;
-    if (st === 'occupied' || st === 'unknown') {
-      pickFirstAvailable();
+    const stillExists = selectedPointUnits.some((u) => u.id === selectedMediaUnit.id);
+    if (!stillExists) {
+      handleSelectMediaUnit(fallbackUnit);
     }
   }, [open, selectedMediaPointId, selectedPointUnits, availabilityByUnitId, selectedMediaUnit]);
 
@@ -628,7 +637,10 @@ export function MediaSelectionDrawer({
     if (!selectedMediaUnit) return;
 
     const days = occupationDays;
-    const effectiveStartDate = useNextAvailableDate && selectedNextAvailableAt ? new Date(selectedNextAvailableAt) : (referenceStartDate ? new Date(referenceStartDate) : undefined);
+    const shouldAutoUseNextAvailable = !!selectedNextAvailableAt && (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
+    const effectiveStartDate = shouldAutoUseNextAvailable
+      ? new Date(selectedNextAvailableAt)
+      : (referenceStartDate ? new Date(referenceStartDate) : new Date(availabilityWindow.start));
     const rentTotalSnapshot = discountCalc.finalRent;
     const upfrontTotalSnapshot = discountCalc.finalCosts;
 
@@ -668,7 +680,7 @@ export function MediaSelectionDrawer({
       updatedAt: new Date(),
     };
 
-    if (useNextAvailableDate && selectedNextAvailableAt) {
+    if (shouldAutoUseNextAvailable && selectedNextAvailableAt) {
       onReferenceStartDateChange?.(new Date(selectedNextAvailableAt));
     }
 
@@ -710,7 +722,11 @@ export function MediaSelectionDrawer({
   const selectedAvailability = selectedMediaUnit ? availabilityByUnitId[selectedMediaUnit.id] : undefined;
   const selectedAvailabilityStatus = selectedAvailability?.status;
   const selectedNextAvailableAt = selectedAvailability?.nextAvailableAt ? new Date(selectedAvailability.nextAvailableAt) : null;
-  const isSelectedUnitAvailable = selectedAvailabilityStatus === 'available' || (!!useNextAvailableDate && !!selectedNextAvailableAt);
+  const canAutoScheduleFromNextAvailable = !!selectedNextAvailableAt && (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
+  const isSelectedUnitAvailable =
+    selectedAvailabilityStatus === 'available' ||
+    canAutoScheduleFromNextAvailable ||
+    (!selectedAvailabilityStatus && !!selectedMediaUnit);
   const isValid =
     !!selectedMediaUnit &&
     !!description &&
@@ -867,8 +883,7 @@ export function MediaSelectionDrawer({
                           </div>
                         </div>
 
-                        {selectedPointUnits.length > 1 && (
-                          <div>
+                        <div>
                             <label className="text-sm text-gray-600 mb-1 block">Unidade</label>
                             <Select
                               value={selectedMediaUnit?.id ?? ''}
@@ -900,24 +915,18 @@ export function MediaSelectionDrawer({
                             </div>
                             {!referenceStartDate && (
                               <div className="mt-1 text-xs text-amber-700">
-                                Defina a <b>Data de Início</b> no passo 1 para checar com precisão.
+                                Você pode selecionar a face agora. Se necessário, a proposta será ajustada para a próxima data livre.
                               </div>
                             )}
                             {availabilityError && <div className="mt-1 text-xs text-red-600">{availabilityError}</div>}
                           </div>
-                        )}
 
                         {selectedMediaUnit && (
                           <div className="text-xs">
-                            {selectedPointUnits.length <= 1 && (
-                              <div className="text-gray-500">
-                                Período considerado: {formatShortDate(availabilityWindow.start)} – {formatShortDate(availabilityWindow.end)}
-                              </div>
-                            )}
                             {selectedAvailabilityStatus === 'checking' && <div className="text-gray-500 mt-1">Verificando ocupação...</div>}
                             {selectedAvailabilityStatus === 'occupied' && (
                               <div className="space-y-2">
-                                <div className="text-amber-700 mt-1">Esta face está ocupada no período selecionado.</div>
+                                <div className="text-amber-700 mt-1">Esta face está ocupada no período analisado.</div>
                                 {selectedNextAvailableAt ? (
                                   <div className="flex items-start gap-2">
                                     <Checkbox id="use-next-available-date" checked={useNextAvailableDate} onCheckedChange={(v: boolean | 'indeterminate') => setUseNextAvailableDate(v === true)} />
@@ -932,7 +941,7 @@ export function MediaSelectionDrawer({
                               <div className="text-red-600 mt-1">Não foi possível verificar a ocupação desta face.</div>
                             )}
                             {selectedAvailabilityStatus === 'available' && (
-                              <div className="text-emerald-700 mt-1">Face disponível para o período selecionado.</div>
+                              <div className="text-emerald-700 mt-1">Face disponível para o período analisado.</div>
                             )}
                           </div>
                         )}

@@ -197,14 +197,14 @@ export function ProductSelectionDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen: boolean) => onOpenChange(nextOpen)}>
       <DialogContent
-        style={{ width: '96vw', maxWidth: 'min(1180px, 96vw)', height: '88vh', maxHeight: '88vh' }}
+        style={{ width: '96vw', maxWidth: 'min(1320px, 96vw)', height: '90vh', maxHeight: '90vh' }}
         className="flex flex-col p-0 gap-0 overflow-hidden"
       >
-        <DialogHeader className="px-6 py-4 border-b">
+        <DialogHeader className="px-6 py-4 border-b bg-white">
           <DialogTitle>Adicionar Produto/Serviço</DialogTitle>
         </DialogHeader>
 
-        <div className="px-6 py-4 border-b space-y-4">
+        <div className="px-6 py-4 border-b bg-gray-50/60 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2">
               <Button type="button" variant={segment === 'ALL' ? 'default' : 'outline'} size="sm" onClick={() => setSegment('ALL' as const)}>
@@ -236,7 +236,7 @@ export function ProductSelectionDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {filteredProducts.map((product) => {
               const selected = selectedIds.includes(product.id);
               const draft = drafts[product.id] ?? ensureDraft(product);
