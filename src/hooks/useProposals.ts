@@ -35,6 +35,24 @@ type ProposalsResponse =
       stats?: ProposalsStats;
     };
 
+function computeRentPerUnit(days: number, priceMonth: number, priceBiweekly: number): number {
+  const normalizedDays = Math.max(0, Math.floor(Number(days) || 0));
+  const month = Math.max(0, Number(priceMonth) || 0);
+  const biweekly = Math.max(0, Number(priceBiweekly) || 0);
+
+  if (normalizedDays <= 0) return 0;
+  if (normalizedDays <= 15 && biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  if (month > 0) {
+    return month * Math.max(1, normalizedDays / 30);
+  }
+  if (biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  return 0;
+}
+
 function normalizeProposal(p: any): Proposal {
   return {
     ...p,
@@ -93,13 +111,11 @@ function deriveMediaDiscountBreakdown(i: any) {
 
   const qty = typeof i.quantity === 'number' ? i.quantity : Number(i.quantity ?? 1) || 1;
   const occupationDays = typeof i.occupationDays === 'number' ? i.occupationDays : Number(i.occupationDays ?? 0) || 0;
-  const blocks30 = Math.floor(Math.max(0, occupationDays) / 30);
-  const blocks15 = Math.floor((Math.max(0, occupationDays) % 30) / 15);
   const priceMonth = typeof i.priceMonthSnapshot === 'number' ? i.priceMonthSnapshot : Number(i.priceMonthSnapshot ?? 0) || 0;
   const priceBiweekly = typeof i.priceBiweeklySnapshot === 'number' ? i.priceBiweeklySnapshot : Number(i.priceBiweeklySnapshot ?? 0) || 0;
   const bannerCost = typeof i.productionCostSnapshot === 'number' ? i.productionCostSnapshot : Number(i.productionCostSnapshot ?? 0) || 0;
   const otherCosts = typeof i.installationCostSnapshot === 'number' ? i.installationCostSnapshot : Number(i.installationCostSnapshot ?? 0) || 0;
-  const rawRent = qty * ((blocks30 * priceMonth) + (blocks15 * priceBiweekly));
+  const rawRent = qty * computeRentPerUnit(occupationDays, priceMonth, priceBiweekly);
   const rawCostsPerUnit = otherCosts + ((i.clientProvidesBanner ? 0 : bannerCost));
   const rawCosts = qty * rawCostsPerUnit;
 

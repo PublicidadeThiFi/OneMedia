@@ -89,8 +89,8 @@ export function MediaSelectionDrawer({
   const [totalDiscountAmount, setTotalDiscountAmount] = useState(0);
   const [isGift, setIsGift] = useState(false);
 
-  // Novo fluxo: tempo de ocupacao (multiplo de 15, max 360)
-  const OCCUPATION_MAX_DAYS = 360;
+  // Novo fluxo: tempo de ocupação com duração flexível (seguindo a lógica do cardápio)
+  const OCCUPATION_MAX_DAYS = 365 * 10 + 30 * 24 + 31;
   const [occupationMode, setOccupationMode] = useState<'15' | '30' | 'custom'>('30');
   const [occupationDays, setOccupationDays] = useState<number>(30);
   const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
@@ -186,12 +186,22 @@ export function MediaSelectionDrawer({
     return { start, end };
   }, [referenceStartDate, occupationDays, occupationMode, customStartDate]);
 
-  const getOccupationBreakdown = (days: number) => {
-    const d = Math.max(0, Math.floor(days));
-    const months = Math.floor(d / 30);
-    const rem = d % 30;
-    const biweeks = rem === 15 ? 1 : 0;
-    return { months, biweeks };
+  const computeRentPerUnit = (days: number, priceMonth: number, priceBiweekly: number) => {
+    const normalizedDays = Math.max(0, Math.floor(days));
+    const month = Math.max(0, safeNumber(priceMonth));
+    const biweekly = Math.max(0, safeNumber(priceBiweekly));
+
+    if (normalizedDays <= 0) return 0;
+    if (normalizedDays <= 15 && biweekly > 0) {
+      return biweekly * Math.max(1, normalizedDays / 15);
+    }
+    if (month > 0) {
+      return month * Math.max(1, normalizedDays / 30);
+    }
+    if (biweekly > 0) {
+      return biweekly * Math.max(1, normalizedDays / 15);
+    }
+    return 0;
   };
 
   const safeNumber = (v: any) => {
@@ -216,16 +226,13 @@ export function MediaSelectionDrawer({
     const vinylCost = safeNumber((selectedMediaUnit?.productionCosts as any)?.vinil ?? 0);
     const installationCost = safeNumber(selectedMediaUnit?.productionCosts?.montagem ?? 0);
 
-    const { months, biweeks } = getOccupationBreakdown(occupationDays);
-    const rentPerUnit = months * priceMonth + biweeks * priceBiweekly;
+    const rentPerUnit = computeRentPerUnit(occupationDays, priceMonth, priceBiweekly);
     const upfrontPerUnit = installationCost + adhesiveCost + vinylCost + (clientProvidesBanner ? 0 : bannerCost);
     const perUnitTotal = rentPerUnit + upfrontPerUnit;
 
     return {
       priceMonth,
       priceBiweekly,
-      months,
-      biweeks,
       bannerCost,
       adhesiveCost,
       vinylCost,
@@ -905,8 +912,7 @@ export function MediaSelectionDrawer({
           ? `O período customizado cruza uma ocupação em ${formatShortDate(customRangeConflictDate)}. Ajuste o início ou a duração.`
           : null;
   const isOccupationValid =
-    occupationDays >= 15 &&
-    occupationDays % 15 === 0 &&
+    occupationDays > 0 &&
     occupationDays <= OCCUPATION_MAX_DAYS &&
     (occupationMode !== 'custom' || !customSelectionError);
   const canAutoScheduleFromNextAvailable =
@@ -1287,8 +1293,8 @@ export function MediaSelectionDrawer({
                                           <label className="text-xs font-medium text-gray-600 mb-1 block">Duração (dias)</label>
                                           <Input
                                             type="number"
-                                            min={15}
-                                            step={15}
+                                            min={1}
+                                            step={1}
                                             max={OCCUPATION_MAX_DAYS}
                                             value={occupationDays}
                                             onChange={(e) => {
@@ -1297,7 +1303,7 @@ export function MediaSelectionDrawer({
                                             }}
                                           />
                                           <p className="mt-1 text-[11px] text-gray-500">
-                                            Use blocos de 15 dias. O calendário marca automaticamente o intervalo.
+                                            Informe a quantidade de dias. O calendário marca automaticamente o intervalo.
                                           </p>
                                         </div>
                                       </div>
@@ -1356,7 +1362,7 @@ export function MediaSelectionDrawer({
 
                                   {!isOccupationValid && (
                                     <p className="text-xs text-red-600 mt-1">
-                                      Selecione um tempo válido (múltiplo de 15, máximo {OCCUPATION_MAX_DAYS} dias).
+                                      Selecione um tempo válido (mínimo de 1 dia).
                                     </p>
                                   )}
                                 </div>

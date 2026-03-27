@@ -20,15 +20,15 @@ function Calendar({
       classNames={{
         months: "flex flex-col gap-4 sm:flex-row sm:gap-4",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center w-full",
-        caption_label: "text-sm font-medium",
-        nav: "flex items-center gap-1",
+        caption: "relative flex items-center justify-center pt-1 px-10 w-full",
+        caption_label: "text-sm font-medium pointer-events-none",
+        nav: "absolute inset-y-0 left-0 right-0 flex items-center justify-between px-1",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-60 hover:opacity-100",
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
+        nav_button_previous: "relative left-0",
+        nav_button_next: "relative right-0",
         table: "mx-auto border-collapse space-y-1",
         head_row: "flex w-full",
         head_cell:
