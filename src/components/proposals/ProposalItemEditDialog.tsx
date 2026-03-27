@@ -125,6 +125,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
   const [occupationDays, setOccupationDays] = useState<number>(30);
   const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customCalendarMonth, setCustomCalendarMonth] = useState<Date>(new Date());
   const [reservationRanges, setReservationRanges] = useState<Array<{ startDate: string; endDate: string }>>([]);
   const [reservationRangesLoading, setReservationRangesLoading] = useState(false);
   const [reservationRangesError, setReservationRangesError] = useState<string | null>(null);
@@ -149,7 +150,9 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
       setOccupationDays(days);
       setOccupationMode(days === 15 ? '15' : days === 30 ? '30' : 'custom');
       setClientProvidesBanner(!!item.clientProvidesBanner);
-      setCustomStartDate(item.startDate ? normalizeLocalDay(new Date(item.startDate as any)) : null);
+      const normalizedStartDate = item.startDate ? normalizeLocalDay(new Date(item.startDate as any)) : null;
+      setCustomStartDate(normalizedStartDate);
+      setCustomCalendarMonth(normalizedStartDate ?? new Date());
       setReservationRanges([]);
       setReservationRangesError(null);
       // unitPrice será recalculado via useMemo
@@ -214,9 +217,22 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
       const nextAvailableStart = findNextAvailableStartOnOrAfter(nextCandidate, reservationRanges);
       if (!customStartDate || nextAvailableStart.getTime() !== normalizeLocalDay(customStartDate).getTime()) {
         setCustomStartDate(nextAvailableStart);
+        setCustomCalendarMonth(nextAvailableStart);
       }
     }
   }, [open, item?.mediaUnitId, item?.startDate, occupationMode, customStartDate, reservationRanges]);
+
+  useEffect(() => {
+    if (!open || !item?.mediaUnitId || occupationMode !== 'custom') return;
+
+    const baseMonth = customStartDate
+      ? normalizeLocalDay(customStartDate)
+      : item.startDate
+        ? normalizeLocalDay(new Date(item.startDate as any))
+        : normalizeLocalDay(new Date());
+
+    setCustomCalendarMonth(baseMonth);
+  }, [open, item?.mediaUnitId, item?.startDate, occupationMode, customStartDate]);
 
   const pricing = useMemo(() => {
     if (!item || !item.mediaUnitId) {
@@ -402,6 +418,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                       setOccupationDays((prev) => (prev >= 15 ? prev : 15));
                       const nextAvailableStart = findNextAvailableStartOnOrAfter(customStartDate ?? minimumCustomStartDate, reservationRanges);
                       setCustomStartDate(nextAvailableStart);
+                      setCustomCalendarMonth(nextAvailableStart);
                     }}
                   >
                     Personalizado
@@ -430,11 +447,14 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                               : pickedDate;
 
                             if (isDayOccupied(safeStart, reservationRanges)) {
-                              setCustomStartDate(findNextAvailableStartOnOrAfter(safeStart, reservationRanges));
+                              const nextAvailableStart = findNextAvailableStartOnOrAfter(safeStart, reservationRanges);
+                              setCustomStartDate(nextAvailableStart);
+                              setCustomCalendarMonth(nextAvailableStart);
                               return;
                             }
 
                             setCustomStartDate(safeStart);
+                            setCustomCalendarMonth(safeStart);
                           }}
                         />
                       </div>
@@ -459,7 +479,18 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                     <div className="rounded-lg border bg-white">
                       <Calendar
                         mode="range"
-                        month={resolvedCustomStartDate ?? minimumCustomStartDate}
+                        month={customCalendarMonth}
+                        onMonthChange={(date: Date) => setCustomCalendarMonth(normalizeLocalDay(date))}
+                        className="w-full"
+                        classNames={{
+                          month: 'w-full space-y-4',
+                          table: 'mx-auto w-full max-w-[340px] border-collapse space-y-1',
+                          head_row: 'grid grid-cols-7',
+                          row: 'mt-2 grid grid-cols-7',
+                          cell: 'relative h-10 w-full p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-range-start)]:rounded-l-md',
+                          head_cell: 'flex h-10 w-full items-center justify-center rounded-md text-[0.8rem] font-normal text-muted-foreground',
+                          day: 'h-10 w-10 p-0 font-normal aria-selected:opacity-100',
+                        }}
                         selected={resolvedCustomStartDate ? { from: resolvedCustomStartDate, to: resolvedCustomEndDate ?? resolvedCustomStartDate } : undefined}
                         onDayClick={(date: Date) => {
                           const pickedDate = normalizeLocalDay(date);
@@ -469,6 +500,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
 
                           if (isDayOccupied(safeStart, reservationRanges)) return;
                           setCustomStartDate(safeStart);
+                          setCustomCalendarMonth(safeStart);
                         }}
                         disabled={(date: Date) => {
                           const localDate = normalizeLocalDay(date);

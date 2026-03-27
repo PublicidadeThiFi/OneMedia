@@ -103,6 +103,7 @@ export function MediaSelectionDrawer({
   const [reservationRangesLoading, setReservationRangesLoading] = useState(false);
   const [reservationRangesError, setReservationRangesError] = useState<string | null>(null);
   const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customCalendarMonth, setCustomCalendarMonth] = useState<Date>(referenceStartDate ? new Date(referenceStartDate) : new Date());
 
   const normalizeLocalDay = (d: Date) => {
     const x = new Date(d);
@@ -637,9 +638,20 @@ export function MediaSelectionDrawer({
       const nextAvailableStart = findNextAvailableStartOnOrAfter(nextCandidate, ranges);
       if (!customStartDate || nextAvailableStart.getTime() !== normalizeLocalDay(customStartDate).getTime()) {
         setCustomStartDate(nextAvailableStart);
+        setCustomCalendarMonth(nextAvailableStart);
       }
     }
   }, [open, occupationMode, selectedMediaUnit?.id, reservationRangesByUnitId, referenceStartDate, customStartDate]);
+
+  useEffect(() => {
+    if (!open || occupationMode !== 'custom') return;
+
+    const baseMonth = customStartDate
+      ? normalizeLocalDay(customStartDate)
+      : normalizeLocalDay(referenceStartDate ?? new Date());
+
+    setCustomCalendarMonth(baseMonth);
+  }, [open, occupationMode, customStartDate, referenceStartDate, selectedMediaUnit?.id]);
 
   // Mantém a seleção consistente entre pontos com faces livres ou ocupadas.
   // Se houver face livre, prefere a primeira disponível; se todas estiverem ocupadas,
@@ -682,6 +694,7 @@ export function MediaSelectionDrawer({
     setOccupationMode('30');
     setOccupationDays(30);
     setCustomStartDate(null);
+    setCustomCalendarMonth(referenceStartDate ? new Date(referenceStartDate) : new Date());
     setClientProvidesBanner(false);
   };
 
@@ -1228,6 +1241,7 @@ export function MediaSelectionDrawer({
                                       const safeStart = preferredStart.getTime() < baseStart.getTime() ? baseStart : preferredStart;
                                       const nextAvailableStart = findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges);
                                       setCustomStartDate(nextAvailableStart);
+                                      setCustomCalendarMonth(nextAvailableStart);
                                     }}
                                   >
                                     Personalizado
@@ -1257,11 +1271,14 @@ export function MediaSelectionDrawer({
                                                 : pickedDate;
 
                                               if (isDayOccupied(safeStart, selectedReservationRanges)) {
-                                                setCustomStartDate(findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges));
+                                                const nextAvailableStart = findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges);
+                                                setCustomStartDate(nextAvailableStart);
+                                                setCustomCalendarMonth(nextAvailableStart);
                                                 return;
                                               }
 
                                               setCustomStartDate(safeStart);
+                                              setCustomCalendarMonth(safeStart);
                                             }}
                                           />
                                         </div>
@@ -1288,7 +1305,18 @@ export function MediaSelectionDrawer({
                                       <div className="rounded-lg border bg-white">
                                         <Calendar
                                           mode="range"
-                                          month={resolvedCustomStartDate ?? minimumCustomStartDate}
+                                          month={customCalendarMonth}
+                                          onMonthChange={(date: Date) => setCustomCalendarMonth(normalizeLocalDay(date))}
+                                          className="w-full"
+                                          classNames={{
+                                            month: 'w-full space-y-4',
+                                            table: 'mx-auto w-full max-w-[340px] border-collapse space-y-1',
+                                            head_row: 'grid grid-cols-7',
+                                            row: 'mt-2 grid grid-cols-7',
+                                            cell: 'relative h-10 w-full p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-range-start)]:rounded-l-md',
+                                            head_cell: 'flex h-10 w-full items-center justify-center rounded-md text-[0.8rem] font-normal text-muted-foreground',
+                                            day: 'h-10 w-10 p-0 font-normal aria-selected:opacity-100',
+                                          }}
                                           selected={resolvedCustomStartDate ? { from: resolvedCustomStartDate, to: resolvedCustomEndDate ?? resolvedCustomStartDate } : undefined}
                                           onDayClick={(date: Date) => {
                                             const pickedDate = normalizeLocalDay(date);
@@ -1298,6 +1326,7 @@ export function MediaSelectionDrawer({
 
                                             if (isDayOccupied(safeStart, selectedReservationRanges)) return;
                                             setCustomStartDate(safeStart);
+                                            setCustomCalendarMonth(safeStart);
                                           }}
                                           disabled={(date: Date) => {
                                             const localDate = normalizeLocalDay(date);
