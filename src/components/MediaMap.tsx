@@ -383,7 +383,7 @@ function DrawEvents({
 
 export function MediaMap() {
   const navigate = useNavigation();
-  const { maybeOpenModuleTutorial } = useTutorial();
+  const { activeTutorial, currentStep, maybeOpenModuleTutorial } = useTutorial();
 
   const mapRef = useRef<LeafletMap | null>(null);
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
@@ -1019,6 +1019,56 @@ export function MediaMap() {
     setCreatePromptOpen(false);
     setCreateDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (activeTutorial?.moduleKey !== 'mediamap') return;
+    const stepId = currentStep?.id;
+    if (!stepId) return;
+
+    const openTutorialDetails = async () => {
+      const pointId = details?.point?.id ?? selectedPointId ?? points[0]?.id;
+      if (!pointId) return;
+      if (panelOpen && panelMode === 'details' && details?.point?.id === pointId) return;
+      await openPointDetails(pointId, { center: false });
+    };
+
+    if (stepId === 'mediamap-create') {
+      if (moveMode) cancelMovePoint();
+      if (panelOpen) setPanelOpen(false);
+      if (!createPromptOpen) {
+        const fallbackPos = details?.point?.latitude && details?.point?.longitude
+          ? { lat: Number(details.point.latitude), lng: Number(details.point.longitude) }
+          : defaultCenter;
+        void openCreatePrompt(fallbackPos);
+      }
+      return;
+    }
+
+    if (createPromptOpen) {
+      setCreatePromptOpen(false);
+    }
+
+    if (stepId === 'mediamap-point-details' || stepId === 'mediamap-move' || stepId === 'mediamap-proposals') {
+      void openTutorialDetails();
+    }
+
+    if (stepId === 'mediamap-move' || stepId === 'mediamap-proposals') {
+      if (moveMode) cancelMovePoint();
+    }
+  }, [
+    activeTutorial?.moduleKey,
+    createPromptOpen,
+    currentStep?.id,
+    defaultCenter,
+    details?.point?.id,
+    details?.point?.latitude,
+    details?.point?.longitude,
+    moveMode,
+    panelMode,
+    panelOpen,
+    points,
+    selectedPointId,
+  ]);
 
   const handleSavePointFromMap = async (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => {
     // Remove campos não aceitos/necessários pela API

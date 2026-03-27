@@ -195,7 +195,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   mediamap: createTutorial({
     moduleKey: 'mediamap',
     title: 'Mídia Map',
-    version: 2,
+    version: 3,
     steps: [
       step({
         id: 'mediamap-overview',
@@ -473,7 +473,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   reservations: createTutorial({
     moduleKey: 'reservations',
     title: 'Reservas',
-    version: 2,
+    version: 3,
     steps: [
       step({
         id: 'reservations-calendar',
@@ -586,7 +586,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   messages: createTutorial({
     moduleKey: 'messages',
     title: 'Mensagens',
-    version: 2,
+    version: 3,
     steps: [
       step({
         id: 'messages-list',
@@ -943,7 +943,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
     moduleKey: 'mediamap-move-flow',
     scopeModuleKey: 'mediamap',
     title: 'Mover ponto no mapa',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'mediamap-move-start',
@@ -987,7 +987,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
     moduleKey: 'mediamap-create-flow',
     scopeModuleKey: 'mediamap',
     title: 'Criar ponto pelo mapa',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'mediamap-create-overview',
@@ -1057,7 +1057,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
     moduleKey: 'reservations-conflicts-flow',
     scopeModuleKey: 'reservations',
     title: 'Leitura de conflitos em reservas',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'reservations-conflicts-overview',

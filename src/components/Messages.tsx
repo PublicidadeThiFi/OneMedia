@@ -13,14 +13,49 @@ import {
 } from '../types';
 import { useMessages } from '../hooks/useMessages';
 import { useAuth } from '../contexts/AuthContext';
+import { useTutorial } from '../contexts/TutorialContext';
 
 type UrlTarget = { type: 'proposal' | 'campaign'; id: string } | null;
 
 export function Messages() {
   const { user } = useAuth();
+  const { activeTutorial } = useTutorial();
   const { messages, loading, error, refetch, sendMessage } = useMessages({});
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummary | null>(null);
+  const isMessagesTutorial = activeTutorial?.moduleKey === 'messages';
+  const tutorialConversationId = 'tutorial:messages';
+  const [tutorialMessages, setTutorialMessages] = useState<Message[]>(() => {
+    const now = Date.now();
+    return [
+      {
+        id: 'tutorial-msg-1',
+        companyId: 'tutorial',
+        proposalId: 'tutorial-proposal-001',
+        direction: MessageDirection.IN,
+        channel: MessageChannel.EMAIL,
+        senderType: MessageSenderType.CLIENTE,
+        senderName: 'Cliente exemplo',
+        senderContact: 'cliente@exemplo.com',
+        contentText: 'Olá! Gostaria de confirmar a disponibilidade desta proposta para a próxima semana.',
+        createdAt: new Date(now - 1000 * 60 * 18),
+        updatedAt: new Date(now - 1000 * 60 * 18),
+      },
+      {
+        id: 'tutorial-msg-2',
+        companyId: 'tutorial',
+        proposalId: 'tutorial-proposal-001',
+        direction: MessageDirection.OUT,
+        channel: MessageChannel.EMAIL,
+        senderType: MessageSenderType.USER,
+        senderName: 'Equipe OneMedia',
+        senderContact: 'comercial@onemedia.test',
+        contentText: 'Temos disponibilidade, sim. Posso seguir com a proposta e os próximos passos?',
+        createdAt: new Date(now - 1000 * 60 * 10),
+        updatedAt: new Date(now - 1000 * 60 * 10),
+      },
+    ];
+  });
 
   const [urlTarget, setUrlTarget] = useState<UrlTarget>(null);
   const [targetLabel, setTargetLabel] = useState<string | null>(null);
@@ -79,6 +114,16 @@ export function Messages() {
     };
     run();
   }, [urlTarget?.type, urlTarget?.id]);
+
+  const tutorialConversation = useMemo<ConversationSummary>(() => ({
+    id: tutorialConversationId,
+    type: 'proposal',
+    clientName: 'Cliente exemplo • Tutorial',
+    proposalId: 'tutorial-proposal-001',
+    lastMessage: tutorialMessages[tutorialMessages.length - 1]?.contentText ?? 'Sem mensagens ainda',
+    lastMessageAt: new Date(tutorialMessages[tutorialMessages.length - 1]?.createdAt ?? new Date()),
+    unreadCount: 1,
+  }), [tutorialMessages]);
 
   // Gerar lista de conversas a partir das mensagens atuais
   const conversations = useMemo(() => {
@@ -166,8 +211,14 @@ export function Messages() {
       }
     }
 
-    return conversationsList.sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
-  }, [messages, urlTarget, targetLabel]);
+    if (isMessagesTutorial) {
+      conversationsList.unshift(tutorialConversation);
+    }
+
+    return conversationsList
+      .filter((conversation, index, list) => list.findIndex((item) => item.id === conversation.id) === index)
+      .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+  }, [isMessagesTutorial, messages, targetLabel, tutorialConversation, urlTarget]);
 
   // Selecionar conversa pelo querystring (?proposalId / ?campaignId)
   useEffect(() => {
@@ -186,9 +237,25 @@ export function Messages() {
     }
   }, [urlTarget, conversations, selectedConversation]);
 
+  useEffect(() => {
+    if (!isMessagesTutorial) {
+      setSelectedConversation((current) => {
+        if (current?.id !== tutorialConversationId) return current;
+        return conversations[0] ?? null;
+      });
+      return;
+    }
+
+    setSelectedConversation((current) => current ?? tutorialConversation);
+  }, [conversations, isMessagesTutorial, tutorialConversation]);
+
   // Mensagens da conversa selecionada
   const currentMessages = useMemo(() => {
     if (!selectedConversation) return [];
+
+    if (selectedConversation.id === tutorialConversationId) {
+      return tutorialMessages.slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    }
 
     const filtered = messages.filter((msg) => {
       if (selectedConversation.proposalId) {
@@ -201,7 +268,7 @@ export function Messages() {
     });
 
     return filtered.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [messages, selectedConversation]);
+  }, [messages, selectedConversation, tutorialMessages]);
 
   const handleSelectConversation = (conversation: ConversationSummary) => {
     setSelectedConversation({ ...conversation, unreadCount: 0 });
@@ -212,6 +279,45 @@ export function Messages() {
       toast.error('Nenhuma conversa selecionada');
       return;
     }
+
+    if (selectedConversation.id === tutorialConversationId) {
+      const now = Date.now();
+      const outgoingMessage: Message = {
+        id: `tutorial-msg-${now}`,
+        companyId: 'tutorial',
+        proposalId: 'tutorial-proposal-001',
+        direction: MessageDirection.OUT,
+        channel: MessageChannel.EMAIL,
+        senderType: MessageSenderType.USER,
+        senderName: user?.name || 'Usuário',
+        senderContact: user?.email || '',
+        contentText: messageText,
+        createdAt: new Date(now),
+        updatedAt: new Date(now),
+      };
+
+      setTutorialMessages((current) => [...current, outgoingMessage]);
+      window.setTimeout(() => {
+        setTutorialMessages((current) => [
+          ...current,
+          {
+            id: `tutorial-msg-reply-${now}`,
+            companyId: 'tutorial',
+            proposalId: 'tutorial-proposal-001',
+            direction: MessageDirection.IN,
+            channel: MessageChannel.WHATSAPP,
+            senderType: MessageSenderType.CLIENTE,
+            senderName: 'Cliente exemplo',
+            senderContact: 'cliente@exemplo.com',
+            contentText: 'Perfeito! Essa resposta é apenas um mock do tutorial e some quando você fechar o guia.',
+            createdAt: new Date(now + 1000),
+            updatedAt: new Date(now + 1000),
+          },
+        ]);
+      }, 500);
+      return;
+    }
+
     try {
       await sendMessage({
         proposalId: selectedConversation.proposalId,
