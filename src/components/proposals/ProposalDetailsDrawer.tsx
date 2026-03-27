@@ -27,6 +27,24 @@ function toNumber(value: any, fallback = 0): number {
   return fallback;
 }
 
+function computeRentPerUnit(days: number, priceMonth: number, priceBiweekly: number): number {
+  const normalizedDays = Math.max(0, Math.floor(Number(days) || 0));
+  const month = Math.max(0, Number(priceMonth) || 0);
+  const biweekly = Math.max(0, Number(priceBiweekly) || 0);
+
+  if (normalizedDays <= 0) return 0;
+  if (normalizedDays <= 15 && biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  if (month > 0) {
+    return month * Math.max(1, normalizedDays / 30);
+  }
+  if (biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  return 0;
+}
+
 function formatDateBR(value: any): string {
   if (!value) return '—';
   const d = new Date(value as any);
@@ -401,9 +419,6 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                       // Media items: recompute "orig" usando snapshots (aluguel + custos).
                       if ((item as any).mediaUnitId) {
                         const occDays = toNumber((item as any).occupationDays, 0);
-                        const blocks30 = Math.floor(occDays / 30);
-                        const blocks15 = Math.round((occDays % 30) / 15);
-
                         const priceMonth = toNumber((item as any).priceMonthSnapshot, 0);
                         const priceBiweekly = toNumber((item as any).priceBiweeklySnapshot, 0);
 
@@ -411,7 +426,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                         const inst = toNumber((item as any).installationCostSnapshot, 0);
                         const clientProvidesBanner = !!(item as any).clientProvidesBanner;
 
-                        const rentPerUnit = blocks30 * priceMonth + blocks15 * priceBiweekly;
+                        const rentPerUnit = computeRentPerUnit(occDays, priceMonth, priceBiweekly);
                         const upfrontPerUnit = inst + (clientProvidesBanner ? 0 : prod);
 
                         rawRentTotal = rentPerUnit * qty;
@@ -476,9 +491,6 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                   {item.mediaUnitId ? (() => {
                     const qty = Math.max(1, toNumber(item.quantity, 1));
                     const occDays = toNumber(item.occupationDays, 0);
-                    const blocks30 = Math.floor(occDays / 30);
-                    const blocks15 = Math.round((occDays % 30) / 15);
-
                     const priceMonth = toNumber((item as any).priceMonthSnapshot, 0);
                     const priceBiweekly = toNumber((item as any).priceBiweeklySnapshot, 0);
 
@@ -486,7 +498,7 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
                     const inst = toNumber((item as any).installationCostSnapshot, 0);
                     const clientProvidesBanner = !!(item as any).clientProvidesBanner;
 
-                    const rawRentTotal = (blocks30 * priceMonth + blocks15 * priceBiweekly) * qty;
+                    const rawRentTotal = computeRentPerUnit(occDays, priceMonth, priceBiweekly) * qty;
                     const rawUpfrontTotal = (inst + (clientProvidesBanner ? 0 : prod)) * qty;
 
                     const dp = toNumber((item as any).discountPercent, 0);

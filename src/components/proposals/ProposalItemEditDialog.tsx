@@ -16,7 +16,7 @@ interface ProposalItemEditDialogProps {
   onSave: (item: ProposalItem) => void;
 }
 
-const OCCUPATION_MAX_DAYS = 360;
+const OCCUPATION_MAX_DAYS = 365 * 10 + 30 * 24 + 31;
 
 type OccupationMode = '15' | '30' | 'custom';
 
@@ -39,6 +39,25 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + Math.max(0, Math.floor(days)));
   return next;
+}
+
+
+function computeRentPerUnit(days: number, priceMonth: number, priceBiweekly: number) {
+  const normalizedDays = Math.max(0, Math.floor(days));
+  const month = Math.max(0, Number.isFinite(priceMonth) ? priceMonth : 0);
+  const biweekly = Math.max(0, Number.isFinite(priceBiweekly) ? priceBiweekly : 0);
+
+  if (normalizedDays <= 0) return 0;
+  if (normalizedDays <= 15 && biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  if (month > 0) {
+    return month * Math.max(1, normalizedDays / 30);
+  }
+  if (biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  return 0;
 }
 
 function formatShortDate(value: Date) {
@@ -241,14 +260,12 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
 
     const days = Number.isFinite(occupationDays) ? occupationDays : 0;
     const clamped = Math.min(Math.max(0, days), OCCUPATION_MAX_DAYS);
-    const isValid = clamped >= 15 && clamped % 15 == 0;
+    const isValid = clamped > 0;
 
     const priceMonth = Number(item.priceMonthSnapshot) || 0;
     const priceBiweekly = Number(item.priceBiweeklySnapshot) || 0;
 
-    const months = Math.floor(clamped / 30);
-    const biweeks = Math.floor((clamped % 30) / 15);
-    const rentPerUnit = (months * priceMonth) + (biweeks * priceBiweekly);
+    const rentPerUnit = computeRentPerUnit(clamped, priceMonth, priceBiweekly);
 
     const bannerCost = Number(item.productionCostSnapshot) || 0;
     const otherCosts = Number(item.installationCostSnapshot) || 0;
@@ -308,9 +325,8 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
           ? `O período customizado cruza uma ocupação em ${formatShortDate(customRangeConflictDate)}. Ajuste o início ou a duração.`
           : null;
   const isOccupationValid = !isMedia || (
-    occupationDays >= 15 &&
+    occupationDays > 0 &&
     occupationDays <= OCCUPATION_MAX_DAYS &&
-    occupationDays % 15 === 0 &&
     (occupationMode !== 'custom' || !customSelectionError)
   );
 
@@ -463,8 +479,8 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                         <Label className="mb-1 block text-xs font-medium text-gray-600">Duração (dias)</Label>
                         <Input
                           type="number"
-                          min={15}
-                          step={15}
+                          min={1}
+                          step={1}
                           max={OCCUPATION_MAX_DAYS}
                           value={occupationDays}
                           onChange={(e) => {
@@ -472,7 +488,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                             setOccupationDays(nextValue);
                           }}
                         />
-                        <p className="mt-1 text-[11px] text-gray-500">Use blocos de 15 dias. O calendário marca automaticamente o intervalo.</p>
+                        <p className="mt-1 text-[11px] text-gray-500">Informe a quantidade de dias. O calendário marca automaticamente o intervalo.</p>
                       </div>
                     </div>
 
@@ -527,7 +543,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
 
                 {!isOccupationValid && (
                   <p className="text-xs text-red-600">
-                    Selecione um tempo válido (múltiplo de 15, máximo {OCCUPATION_MAX_DAYS} dias).
+                    Selecione um tempo válido (mínimo de 1 dia).
                   </p>
                 )}
               </div>
