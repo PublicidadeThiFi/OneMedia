@@ -114,13 +114,13 @@ export function Products() {
       {!loading && error && <div>Erro ao carregar produtos.</div>}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8" data-tour="products-overview">
         <div>
           <h1 className="text-gray-900 mb-2">Produtos e Serviços</h1>
           <p className="text-gray-600">Gerencie produtos e serviços adicionais (Product)</p>
         </div>
 
-        <Button className="gap-2" onClick={handleNewProduct}>
+        <Button className="gap-2" onClick={handleNewProduct} data-tour="products-create">
           <Plus className="w-4 h-4" />
           Novo Produto/Serviço
         </Button>

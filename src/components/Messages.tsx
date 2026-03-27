@@ -242,14 +242,14 @@ export function Messages() {
 
   return (
     <div className="p-8 flex flex-col h-screen">
-      <div className="mb-8">
+      <div className="mb-8" data-tour="messages-context">
         <h1 className="text-gray-900 mb-2">Mensagens</h1>
         <p className="text-gray-600">Central de conversas (Message) por Proposta/Campanha</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
         <div className="lg:col-span-1">
-          <Card className="h-full">
+          <Card className="h-full" data-tour="messages-list">
             <CardContent className="pt-6 h-full">
               <ConversationsList
                 conversations={conversations}
@@ -263,7 +263,7 @@ export function Messages() {
         </div>
 
         <div className="lg:col-span-2">
-          <Card className="h-full flex flex-col">
+          <Card className="h-full flex flex-col" data-tour="messages-thread">
             {selectedConversation ? (
               <>
                 <div className="p-6 border-b border-gray-200">
@@ -284,7 +284,7 @@ export function Messages() {
                   <MessageThread messages={currentMessages} />
                 </CardContent>
 
-                <div className="p-6 border-t border-gray-200">
+                <div className="p-6 border-t border-gray-200" data-tour="messages-send">
                   <MessageInputBar onSend={handleSendMessage} onAttach={handleAttach} disabled={loading} />
                 </div>
               </>

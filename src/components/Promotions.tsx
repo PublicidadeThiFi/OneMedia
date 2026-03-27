@@ -226,14 +226,14 @@ export function Promotions() {
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={reload} variant="outline">Atualizar</Button>
-          <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2" /> Nova promoção</Button>
+          <Button onClick={openCreate} data-tour="promotions-create"><Plus className="w-4 h-4 mr-2" /> Nova promoção</Button>
         </div>
       </div>
 
       {loading ? (
         <div className="text-sm text-gray-500">Carregando...</div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4" data-tour="promotions-list">
           {grouped.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-sm text-gray-600">Nenhuma promoção cadastrada.</CardContent>
@@ -247,14 +247,15 @@ export function Promotions() {
                 <CardContent className="pb-5">
                   <div className="space-y-3">
                     {list.map((p) => (
-                      <div key={p.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border rounded-lg p-3">
+                      <div key={p.id} className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 border rounded-lg p-3" data-tour="promotions-validity">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="secondary">{p.mediaUnitId ? `Face: ${p.mediaUnit?.label ?? p.mediaUnitId}` : 'Ponto inteiro'}</Badge>
+                            <Badge variant="secondary" data-tour="promotions-scope">{p.mediaUnitId ? `Face: ${p.mediaUnit?.label ?? p.mediaUnitId}` : 'Ponto inteiro'}</Badge>
                             <Badge>{formatPromotion(p)}</Badge>
                             {p.showInMediaKit && <Badge variant="outline">Mídia Kit</Badge>}
                             {p.showInOutsideProposals && <Badge variant="outline">Propostas fora do MK</Badge>}
                           </div>
+                          <div className="mt-1 text-xs text-blue-700" data-tour="promotions-impact">Promoções podem impactar o Mídia Kit e a criação de propostas.</div>
                           <div className="mt-1 text-xs text-gray-600">
                             {p.startsAt || p.endsAt ? (
                               <>

@@ -101,7 +101,7 @@ export function Campaigns() {
       {loading && <div>Carregando campanhas...</div>}
       {!loading && error && <div>Erro ao carregar campanhas.</div>}
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8" data-tour="campaigns-overview">
         <h1 className="text-gray-900 mb-2">Campanhas</h1>
         <p className="text-gray-600">
           Acompanhe campanhas em execução (Campaign + CampaignItem)
@@ -143,7 +143,7 @@ export function Campaigns() {
 
       {/* Tabs */}
       <Tabs defaultValue="active" className="space-y-6">
-        <TabsList>
+        <TabsList data-tour="campaigns-filters">
           <TabsTrigger value="active">Em Andamento</TabsTrigger>
           <TabsTrigger value="finished">Finalizadas</TabsTrigger>
           <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
@@ -151,7 +151,7 @@ export function Campaigns() {
         </TabsList>
 
         {/* Tab: Em Andamento */}
-        <TabsContent value="active">
+        <TabsContent value="active" data-tour="campaigns-tracking">
           <CampaignList
             campaigns={activeCampaigns}
             showAllActions={true}
@@ -194,8 +194,8 @@ export function Campaigns() {
 
       {/* Info do Fluxo */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-900 mb-2">💡 Fluxo de Campanhas</p>
-        <p className="text-sm text-blue-700">
+        <p className="text-sm text-blue-900 mb-2" data-tour="campaigns-create">💡 Fluxo de Campanhas</p>
+        <p className="text-sm text-blue-700" data-tour="campaigns-reports">
           Campanha é criada automaticamente quando Proposta é aprovada. Status:{' '}
           <strong>EM_INSTALACAO</strong> (OOH sendo instalado) → <strong>EM_VEICULACAO</strong> (no
           ar) → <strong>FINALIZADA</strong> (ou <strong>CANCELADA</strong> por inadimplência)

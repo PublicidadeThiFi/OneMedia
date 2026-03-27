@@ -163,6 +163,7 @@ export function ProposalsTable({
                     <Button type="button"
                       variant="ghost"
                       size="sm"
+                      data-tour="proposals-details"
                       onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); onViewDetails(proposal); }}
                       aria-label="Ver detalhes"
                     >
@@ -183,6 +184,7 @@ export function ProposalsTable({
                         <Button type="button"
                           variant="ghost"
                           size="sm"
+                          data-tour="proposals-sharing"
                           onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); onSendProposal(proposal); }}
                           aria-label="Enviar proposta"
                         >
@@ -195,6 +197,7 @@ export function ProposalsTable({
                       <Button type="button"
                         variant="ghost"
                         size="sm"
+                        data-tour="proposals-sharing"
                         title={`Copiar link público: /p/${proposal.publicHash}`}
                         onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); openPublicLink(proposal.publicHash!); }}
                         aria-label="Link público"

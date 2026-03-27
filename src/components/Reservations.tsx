@@ -230,7 +230,7 @@ export function Reservations() {
       </div>
 
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" data-tour="reservations-status">
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Reservas Ativas</p>
@@ -274,13 +274,13 @@ export function Reservations() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendário */}
         <div className="lg:col-span-2">
-          <Card>
+          <Card data-tour="reservations-calendar">
             <CardContent className="pt-6">
               {loading && <div>Carregando reservas...</div>}
               {!loading && error && <div>Erro ao carregar reservas.</div>}
 
               {/* Cabeçalho do Calendário */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6" data-tour="reservations-period">
                 <Button variant="ghost" size="sm" onClick={previousMonth}>
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
@@ -358,13 +358,13 @@ export function Reservations() {
 
         {/* Painel Lateral - Reservas do Dia */}
         <div className="space-y-4">
-          <Card>
+          <Card data-tour="reservations-create">
             <CardContent className="pt-6">
               <div className="mb-4">
                 <h3 className="text-gray-900 mb-2">
                   Reservas do dia {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
                 </h3>
-                <div className="relative">
+                <div className="relative" data-tour="reservations-filters">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
                     placeholder="Buscar ponto, cliente, proposta..."
@@ -375,7 +375,7 @@ export function Reservations() {
                 </div>
               </div>
 
-              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto" data-tour="reservations-conflicts">
                 {dayReservations.length > 0 ? (
                   dayReservations.map((reservation) => {
                     const amount = estimateReservationAmount(reservation);

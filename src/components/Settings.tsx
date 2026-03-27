@@ -49,16 +49,16 @@ export function Settings() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
+      <Card data-tour="settings-preferences">
+        <CardHeader data-tour="settings-users">
           <CardTitle>Configurações</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="company">Empresa</TabsTrigger>
-              <TabsTrigger value="subscription">Assinatura</TabsTrigger>
-              <TabsTrigger value="profile">Perfil</TabsTrigger>
+              <TabsTrigger value="company" data-tour="settings-company">Empresa</TabsTrigger>
+              <TabsTrigger value="subscription" data-tour="settings-subscription">Assinatura</TabsTrigger>
+              <TabsTrigger value="profile" data-tour="settings-profile">Perfil</TabsTrigger>
             </TabsList>
 
             <TabsContent value="company" className="mt-6">

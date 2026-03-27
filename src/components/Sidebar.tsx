@@ -56,7 +56,7 @@ export function Sidebar({ currentPage, onNavigate, isSuperAdmin, isMobile = fals
         <p className="text-gray-500 text-sm mt-1">Gestão de Mídia Exterior</p>
       </div>
       
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto" data-tour="home-sidebar-navigation">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.id;

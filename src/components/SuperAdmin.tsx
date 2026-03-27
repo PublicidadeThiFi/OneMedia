@@ -98,7 +98,7 @@ export function SuperAdmin() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card data-tour="superadmin-overview">
         <CardHeader>
           <CardTitle>Cardápio público — Markup “Sou Agência”</CardTitle>
         </CardHeader>
@@ -136,7 +136,7 @@ export function SuperAdmin() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-tour="superadmin-actions">
               <Button
                 onClick={saveCompanySettings}
                 disabled={!isSuperAdmin || companyLoading || companySaving}
@@ -158,13 +158,13 @@ export function SuperAdmin() {
             </div>
           </div>
 
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500" data-tour="superadmin-impact">
             Check-ins feitos até o horário de corte contam no mesmo dia. Depois desse horário, a vigência começa no dia seguinte.
           </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card data-tour="superadmin-sensitive-areas">
         <CardHeader>
           <CardTitle>Super Admin (Interno) – Empresas Proprietárias</CardTitle>
         </CardHeader>

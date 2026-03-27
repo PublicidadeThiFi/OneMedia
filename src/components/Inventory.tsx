@@ -282,7 +282,7 @@ export function Inventory() {
     <div className="p-8">
       {loading && <div>Carregando inventário...</div>}
       {!loading && error && <div>Erro ao carregar inventário.</div>}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8" data-tour="inventory-overview">
         <div>
           <h1 className="text-gray-900 mb-2">Inventário</h1>
           <p className="text-gray-600">Gerencie pontos de mídia (MediaPoint) e unidades (MediaUnit)</p>
@@ -290,6 +290,7 @@ export function Inventory() {
         
         <Button 
           className="gap-2"
+          data-tour="inventory-create"
           onClick={() => {
             setEditingPoint(null);
             setIsFormDialogOpen(true);
@@ -301,7 +302,7 @@ export function Inventory() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" data-tour="inventory-commercial-usage">
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Total de Pontos</p>
@@ -331,7 +332,7 @@ export function Inventory() {
             </p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow">
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" data-tour="inventory-faces">
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Unidades (Faces/Telas)</p>
             <p className="text-gray-900">{totalUnits}</p>
@@ -340,7 +341,7 @@ export function Inventory() {
       </div>
 
       {/* Filters and Actions */}
-      <Card className="mb-6">
+      <Card className="mb-6" data-tour="inventory-filters">
         <CardContent className="pt-6">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1 relative">
@@ -409,13 +410,13 @@ export function Inventory() {
       ) : null}
 
       {/* Media Points Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6" data-tour="inventory-list">
         {filteredPoints.map((point: MediaPoint) => {
           const unitStats = getUnitStats(point);
           const unitLabel = point.type === MediaType.OOH ? 'Faces' : 'Telas';
 
           return (
-            <Card key={point.id} className="hover:shadow-lg transition-shadow">
+            <Card key={point.id} className="hover:shadow-lg transition-shadow" data-tour="inventory-details">
               <div className="aspect-video bg-gray-100 relative overflow-hidden rounded-t-xl">
                 <MediaPointImageCarousel
                   point={point}

@@ -1006,7 +1006,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     <DashboardErrorBoundary fallback={runtimeFallback} onError={handleRuntimeError}>
       <div className="p-6 md:p-8">
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-4">
+      <div className="mb-6 flex flex-col gap-4" data-tour="dashboard-overview">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-gray-900 mb-1">Dashboard</h1>
@@ -1014,7 +1014,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
 
           {/* Quick Actions */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap" data-tour="dashboard-sections">
             <Button className="h-9 flex items-center gap-2" onClick={() => onNavigate('proposals')}>
               <Plus className="w-4 h-4" />
               Nova Proposta
@@ -1067,7 +1067,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         ) : null}
 
         {/* Global Filter Bar */}
-        <Card>
+        <Card data-tour="dashboard-filters">
           <CardContent className="pt-5">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
@@ -1286,9 +1286,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       {/* Tab Content */}
       {tab === 'executivo' ? (
-        <div id="dashboard-export-root" className="space-y-6">
+        <div id="dashboard-export-root" className="space-y-6" data-tour="dashboard-reading">
           {/* KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="dashboard-kpis">
             <KpiCard
               label="Receita reconhecida"
               value={overview ? formatCurrency(overview.revenueRecognizedCents) : undefined}
