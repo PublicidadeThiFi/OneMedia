@@ -20,7 +20,12 @@ const HIGHLIGHT_PADDING = 10;
 const MOBILE_BREAKPOINT = 768;
 const OVERLAY_Z_INDEX = 2147483000;
 
-const swallowPointerEvent = (event: { stopPropagation: () => void; preventDefault?: () => void }) => {
+const stopEvent = (event: { stopPropagation: () => void; preventDefault?: () => void }) => {
+  event.stopPropagation();
+};
+
+const blockUnderlyingEvent = (event: { stopPropagation: () => void; preventDefault?: () => void }) => {
+  event.preventDefault?.();
   event.stopPropagation();
 };
 
@@ -131,30 +136,6 @@ export function TutorialOverlay() {
   const previousRectRef = useRef<HighlightRect | null>(null);
   const lastSelectorRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-
-    const appRoot = document.getElementById('root') as HTMLElement | null;
-    if (!appRoot) return;
-
-    const previousInert = (appRoot as any).inert;
-    const previousAriaHidden = appRoot.getAttribute('aria-hidden');
-
-    if (isOpen) {
-      (appRoot as any).inert = true;
-      appRoot.setAttribute('aria-hidden', 'true');
-    } else {
-      (appRoot as any).inert = previousInert ?? false;
-      if (previousAriaHidden === null) appRoot.removeAttribute('aria-hidden');
-      else appRoot.setAttribute('aria-hidden', previousAriaHidden);
-    }
-
-    return () => {
-      (appRoot as any).inert = previousInert ?? false;
-      if (previousAriaHidden === null) appRoot.removeAttribute('aria-hidden');
-      else appRoot.setAttribute('aria-hidden', previousAriaHidden);
-    };
-  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !currentStep) {
@@ -270,18 +251,32 @@ export function TutorialOverlay() {
 
   return createPortal(
     <div
-      className="fixed inset-0"
+      className="fixed inset-0 pointer-events-none"
       aria-live="polite"
       aria-modal="true"
       role="dialog"
       style={{ zIndex: OVERLAY_Z_INDEX }}
     >
+      <div
+        className="absolute inset-0 pointer-events-auto"
+        aria-hidden="true"
+        onClick={blockUnderlyingEvent}
+        onDoubleClick={blockUnderlyingEvent}
+        onMouseDown={blockUnderlyingEvent}
+        onMouseUp={blockUnderlyingEvent}
+        onPointerDown={blockUnderlyingEvent}
+        onPointerUp={blockUnderlyingEvent}
+        onTouchStart={blockUnderlyingEvent}
+        onTouchEnd={blockUnderlyingEvent}
+        onWheel={blockUnderlyingEvent}
+      />
+
       {overlaySegments ? (
         <>
           {Object.values(overlaySegments).map((segment, index) => (
             <div
               key={index}
-              className="absolute bg-slate-950/45 pointer-events-auto"
+              className="absolute bg-slate-950/45 pointer-events-none"
               style={{
                 top: segment.top,
                 left: segment.left,
@@ -295,7 +290,7 @@ export function TutorialOverlay() {
         </>
       ) : (
         <div
-          className="absolute inset-0 bg-slate-950/45 pointer-events-auto"
+          className="absolute inset-0 bg-slate-950/45 pointer-events-none"
           style={{ backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)' }}
         />
       )}
@@ -326,9 +321,9 @@ export function TutorialOverlay() {
           left: cardPosition.left,
           width: cardPosition.width,
         }}
-        onClickCapture={swallowPointerEvent}
-        onMouseDownCapture={swallowPointerEvent}
-        onPointerDownCapture={swallowPointerEvent}
+        onClick={stopEvent}
+        onMouseDown={stopEvent}
+        onPointerDown={stopEvent}
       >
         <CardHeader className="gap-3 pb-4">
           <div className="flex items-start justify-between gap-3">
@@ -346,7 +341,7 @@ export function TutorialOverlay() {
             </div>
             <button
               type="button"
-              onClick={(event) => { swallowPointerEvent(event); closeTutorial(); }}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}
               className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
               aria-label="Fechar tutorial"
             >
@@ -362,7 +357,7 @@ export function TutorialOverlay() {
             </span>
             <button
               type="button"
-              onClick={(event) => { swallowPointerEvent(event); restartTutorial(); }}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); restartTutorial(); }}
               className="inline-flex items-center gap-1 font-medium text-indigo-600 transition-colors hover:text-indigo-700"
             >
               <RefreshCcw className="h-3.5 w-3.5" />
@@ -388,15 +383,15 @@ export function TutorialOverlay() {
         </CardContent>
 
         <CardFooter className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-          <Button variant="ghost" onClick={(event) => { swallowPointerEvent(event); closeTutorial(); }}>
+          <Button variant="ghost" onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}>
             Pular
           </Button>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={(event) => { swallowPointerEvent(event); previousStep(); }} disabled={!hasPreviousStep}>
+            <Button variant="outline" onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); previousStep(); }} disabled={!hasPreviousStep}>
               Voltar
             </Button>
-            <Button onClick={(event) => { swallowPointerEvent(event); nextStep(); }}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
+            <Button onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); nextStep(); }}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
           </div>
         </CardFooter>
       </Card>
