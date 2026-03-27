@@ -406,7 +406,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   campaigns: createTutorial({
     moduleKey: 'campaigns',
     title: 'Campanhas',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'campaigns-overview',
@@ -458,7 +458,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   reservations: createTutorial({
     moduleKey: 'reservations',
     title: 'Reservas',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'reservations-calendar',
@@ -571,7 +571,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   messages: createTutorial({
     moduleKey: 'messages',
     title: 'Mensagens',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'messages-list',
@@ -675,7 +675,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   promotions: createTutorial({
     moduleKey: 'promotions',
     title: 'Promoções',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'promotions-list',
@@ -727,7 +727,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   activities: createTutorial({
     moduleKey: 'activities',
     title: 'Atividades',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'activities-feed',
@@ -822,7 +822,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   superadmin: createTutorial({
     moduleKey: 'superadmin',
     title: 'Super Admin',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'superadmin-overview',
@@ -864,8 +864,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   }),
 };
 
-// Etapa 7: liberar apenas os tours prioritários.
-// Os módulos complementares permanecem definidos, mas serão ativados só na Etapa 8.
+// Etapa 8: liberar também os tours complementares previstos no escopo.
 const activeTutorialModuleKeys = new Set<TutorialModuleKey>([
   'home',
   'dashboard',
@@ -874,9 +873,15 @@ const activeTutorialModuleKeys = new Set<TutorialModuleKey>([
   'clients',
   'products',
   'proposals',
+  'campaigns',
+  'reservations',
   'financial',
+  'messages',
   'mediakit',
+  'promotions',
+  'activities',
   'settings',
+  'superadmin',
 ]);
 
 export function listTutorialDefinitions(): TutorialDefinition[] {
