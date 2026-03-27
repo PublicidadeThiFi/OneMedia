@@ -18,6 +18,8 @@ export type TutorialModuleKey =
 
 export type TutorialPlacement = 'top' | 'right' | 'bottom' | 'left' | 'center';
 
+export type TutorialProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED';
+
 export interface TutorialStep {
   id: string;
   order: number;
@@ -35,7 +37,29 @@ export interface TutorialDefinition {
   steps: TutorialStep[];
 }
 
+export interface TutorialProgress {
+  id: string | null;
+  userId: string;
+  moduleKey: string;
+  tutorialVersion: number;
+  status: TutorialProgressStatus;
+  currentStep: number;
+  startedAt: string | Date | null;
+  completedAt: string | Date | null;
+  skippedAt: string | Date | null;
+  lastSeenAt: string | Date | null;
+  createdAt: string | Date | null;
+  updatedAt: string | Date | null;
+}
+
 export interface TutorialSession extends TutorialDefinition {
+  initialStepIndex?: number;
   onComplete?: () => void;
   onClose?: () => void;
+}
+
+export interface OpenModuleTutorialOptions {
+  onClose?: () => void;
+  onComplete?: () => void;
+  initialStepIndex?: number;
 }
