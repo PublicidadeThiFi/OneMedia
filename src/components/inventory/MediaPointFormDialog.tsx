@@ -95,7 +95,7 @@ function MapViewportSync({ center, zoom, open }: { center: LatLng | null; zoom: 
   const map = useMap();
 
   useEffect(() => {
-    const target = center ?? { lat: -23.55052, lng: -46.633308 };
+    const target = center ?? BRAZILIA_CENTER;
     map.setView([target.lat, target.lng] as any, zoom, { animate: false });
   }, [map, center?.lat, center?.lng, zoom]);
 
@@ -179,9 +179,7 @@ interface MediaPointFormDialogProps {
 }
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave, onDeleteAsset, onEnqueueUploads }: MediaPointFormDialogProps) {
-  const company = useCompany() as any;
-  const entitlements = company?.entitlements;
-  const refreshEntitlements = company?.refreshEntitlements;
+  const { company, entitlements, refreshEntitlements } = useCompany() as any;
   const fileLimits = (entitlements as any)?.limits?.file;
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
@@ -207,6 +205,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   // Mapa (Etapa 6)
   // =====================
   const [mapMode, setMapMode] = useState<'map' | 'satellite'>('map');
+  const [defaultMapCenter, setDefaultMapCenter] = useState<LatLng>(BRAZILIA_CENTER);
   const [pinPos, setPinPos] = useState<LatLng | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -418,7 +417,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       syncExistingAssets(mediaPoint);
       const lat = Number((mediaPoint as any)?.latitude);
       const lng = Number((mediaPoint as any)?.longitude);
-      setPinPos(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
+      const nextPinPos = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+      setPinPos(nextPinPos);
+      setDefaultMapCenter(nextPinPos ?? BRAZILIA_CENTER);
     } else {
       const merged: Partial<MediaPoint> = {
         type: MediaType.OOH,
@@ -439,7 +440,9 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setExistingVideoAssets([]);
       const lat = Number((merged as any)?.latitude);
       const lng = Number((merged as any)?.longitude);
-      setPinPos(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
+      const nextPinPos = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+      setPinPos(nextPinPos);
+      setDefaultMapCenter(nextPinPos ?? BRAZILIA_CENTER);
     }
     // Reset do auto-fill quando abrir
     lastAutoRef.current = null;
@@ -496,29 +499,51 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   };
 
   useEffect(() => {
-    if (!open || mediaPoint) return;
-    if (Number.isFinite(Number(formData.latitude)) && Number.isFinite(Number(formData.longitude))) return;
+    if (!open) return;
 
-    const addressCity = String((company as any)?.addressCity || '').trim();
-    const addressState = String((company as any)?.addressState || '').trim();
-    if (!addressCity && !addressState) return;
+    const lat = Number(formData.latitude);
+    const lng = Number(formData.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setDefaultMapCenter({ lat, lng });
+      return;
+    }
+
+    const addressCity = String(company?.addressCity || '').trim();
+    const addressState = String(company?.addressState || '').trim();
+    if (!addressCity && !addressState) {
+      setDefaultMapCenter(BRAZILIA_CENTER);
+      return;
+    }
 
     let active = true;
 
     const resolveCompanyCenter = async () => {
       try {
         const query = [addressCity, addressState, 'Brasil'].filter(Boolean).join(', ');
+        if (!query) {
+          if (active) setDefaultMapCenter(BRAZILIA_CENTER);
+          return;
+        }
+
         const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(query)}`;
         const response = await fetch(searchUrl, { headers: { Accept: 'application/json' } });
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (active) setDefaultMapCenter(BRAZILIA_CENTER);
+          return;
+        }
+
         const results = await response.json();
         const first = Array.isArray(results) ? results[0] : null;
-        const lat = Number(first?.lat);
-        const lng = Number(first?.lon);
-        if (!active || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
-        applyPinPosition({ lat, lng }, { autoFill: false, forceAddressRefresh: false });
+        const resolvedLat = Number(first?.lat);
+        const resolvedLng = Number(first?.lon);
+        if (!active || !Number.isFinite(resolvedLat) || !Number.isFinite(resolvedLng)) {
+          if (active) setDefaultMapCenter(BRAZILIA_CENTER);
+          return;
+        }
+
+        setDefaultMapCenter({ lat: resolvedLat, lng: resolvedLng });
       } catch {
-        if (active) setPinPos(BRAZILIA_CENTER);
+        if (active) setDefaultMapCenter(BRAZILIA_CENTER);
       }
     };
 
@@ -527,7 +552,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     return () => {
       active = false;
     };
-  }, [open, mediaPoint, company, formData.latitude, formData.longitude]);
+  }, [open, company?.addressCity, company?.addressState, formData.latitude, formData.longitude]);
 
 
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -896,6 +921,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setExistingVideoAssets([]);
     setPointSnapshot(null);
     setPinPos(null);
+    setDefaultMapCenter(BRAZILIA_CENTER);
     setPointFinancialEnabled(false);
     setPointFinancialForm(buildEmptyPointFinancialForm());
     onOpenChange(false);
@@ -1179,12 +1205,12 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 <div className="border rounded-2xl overflow-hidden" style={{ height: 320 }}>
                   <MapContainer
                     key={`media-point-map-${mediaPoint?.id ?? 'new'}-${open ? 'open' : 'closed'}`}
-                    center={pinPos ? ([pinPos.lat, pinPos.lng] as any) : ([-23.55052, -46.633308] as any)}
+                    center={((pinPos ?? defaultMapCenter) ? [((pinPos ?? defaultMapCenter) as LatLng).lat, ((pinPos ?? defaultMapCenter) as LatLng).lng] : [BRAZILIA_CENTER.lat, BRAZILIA_CENTER.lng]) as any}
                     zoom={pinPos ? 17 : 12}
                     style={{ height: '100%', width: '100%' }}
                     zoomControl
                   >
-                    <MapViewportSync center={pinPos} zoom={pinPos ? 17 : 12} open={open} />
+                    <MapViewportSync center={pinPos ?? defaultMapCenter} zoom={pinPos ? 17 : 12} open={open} />
                     <TileLayer
                       attribution={mapMode === 'satellite' ? 'Tiles &copy; Esri' : '&copy; OpenStreetMap contributors'}
                       url={
