@@ -197,8 +197,13 @@ export function ProductSelectionDialog({
   return (
     <Dialog open={open} onOpenChange={(nextOpen: boolean) => onOpenChange(nextOpen)}>
       <DialogContent
-        style={{ width: '96vw', maxWidth: 'min(1320px, 96vw)', height: '90vh', maxHeight: '90vh' }}
-        className="flex flex-col p-0 gap-0 overflow-hidden"
+        className="overflow-hidden p-0 gap-0 flex flex-col"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(82vh, 780px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
       >
         <DialogHeader className="px-6 py-4 border-b bg-white">
           <DialogTitle>Adicionar Produto/Serviço</DialogTitle>

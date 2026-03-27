@@ -293,7 +293,15 @@ export function ProposalDetailsDrawer({ open, onOpenChange, proposal, onNavigate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 !w-[calc(100vw-2rem)] !max-w-[1400px] sm:!max-w-[1400px] max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col">
+      <DialogContent
+        className="overflow-hidden p-0 gap-0 flex flex-col"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(82vh, 760px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
         {!proposal ? (
           <div className="p-6">
             <p className="text-gray-600">Sem detalhes disponíveis.</p>
