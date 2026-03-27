@@ -326,7 +326,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      const progress = await refreshTutorialProgress(normalizedModuleKey, true);
+      const progress = await refreshTutorialProgress(normalizedModuleKey, false);
       const shouldReopenForVersion = !progress || progress.tutorialVersion < definition.version;
       const currentStatus = progress?.status ?? 'NOT_STARTED';
 
