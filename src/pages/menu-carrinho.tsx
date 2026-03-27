@@ -227,7 +227,7 @@ export default function MenuCarrinho() {
                 <ShoppingCart className="h-3.5 w-3.5" />
                 Revise os itens antes do checkout
               </div>
-              <h1 className="mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="menu-soft-title mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
                 Um carrinho mais claro para decidir duração, comparar valores e seguir com segurança.
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
@@ -392,14 +392,14 @@ export default function MenuCarrinho() {
                           <div className="space-y-3">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <h2 className="text-xl font-semibold leading-tight text-slate-950">{pointName}</h2>
+                                <h2 className="menu-copy-wrap text-xl font-semibold leading-tight text-slate-950">{pointName}</h2>
                                 {isPromotions && promo && (
                                   <Badge className="rounded-full border-0 bg-rose-500/10 text-rose-700 hover:bg-rose-500/10">
                                     {formatPromotionBadge(promo)}
                                   </Badge>
                                 )}
                               </div>
-                              {unitLabel && <div className="mt-1 text-sm font-medium text-slate-700">{unitLabel}</div>}
+                              {unitLabel && <div className="menu-copy-wrap mt-1 text-sm font-medium text-slate-700">{unitLabel}</div>}
                             </div>
 
                             {address && (

@@ -1448,7 +1448,7 @@ export default function MenuDonoWorkspace() {
                             <div key={itemKey} className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+                                  <div className="menu-copy-wrap text-sm font-semibold text-gray-900">{title}</div>
                                   <div className="mt-1 text-xs text-gray-600">Período: <span className="font-semibold">{durationLabel}</span></div>
                                   <div className="mt-1 text-xs text-gray-600">
                                     Base (origem: <span className="font-semibold">{origin}</span>)
@@ -1506,7 +1506,7 @@ export default function MenuDonoWorkspace() {
                                   {itemCosts.map((c) => (
                                     <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2">
                                       <div className="min-w-0">
-                                        <div className="text-sm text-gray-900 truncate">{c.name}</div>
+                                        <div className="menu-copy-wrap text-sm text-gray-900">{c.name}</div>
                                         <div className="text-xs text-gray-500">{c.scope === 'FACE' ? 'Face' : 'Ponto'} • entra em “Custos”</div>
                                       </div>
                                       <div className="flex items-center gap-2">
@@ -1798,7 +1798,7 @@ export default function MenuDonoWorkspace() {
                                                     <div key={d.id} className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                                                       <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0">
-                                                          <div className="text-sm font-semibold text-gray-900 truncate">{d.label || `${scopeLabel} (${appliesToLabel})`}</div>
+                                                          <div className="menu-copy-wrap text-sm font-semibold text-gray-900">{d.label || `${scopeLabel} (${appliesToLabel})`}</div>
                                                           <div className="text-[11px] text-gray-500">
                                                             {scopeLabel}
                                                             {d.scope !== 'GENERAL' && d.targetId ? ` • alvo: ${d.targetId}` : ''}
@@ -1948,7 +1948,7 @@ export default function MenuDonoWorkspace() {
                             <div key={g.id} className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-gray-900 truncate">
+                                  <div className="menu-copy-wrap text-sm font-semibold text-gray-900">
                                     {g.scope === 'FACE' ? 'Face' : 'Ponto'}: {g.label || g.targetId}
                                   </div>
                                   <div className="mt-0.5 text-xs text-gray-600">
@@ -2119,7 +2119,7 @@ export default function MenuDonoWorkspace() {
                             ) : null}
 
                             {(previewTotals.breakdown?.appliedDiscounts || []).map((d) => (
-                              <div key={d.id} className="truncate">
+                              <div key={d.id} className="menu-copy-wrap">
                                 {(d.label ||
                                   (d.scope === 'FACE'
                                     ? 'Face'
@@ -2137,7 +2137,7 @@ export default function MenuDonoWorkspace() {
                           <div className="text-sm font-semibold text-gray-900">{(draft.gifts || []).length} item(ns)</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">
                             {(draft.gifts || []).slice(0, 3).map((g) => (
-                              <div key={g.id} className="truncate">
+                              <div key={g.id} className="menu-copy-wrap">
                                 {(g.scope === 'FACE' ? 'Face' : 'Ponto')}: {g.label || g.targetId} • {formatPeriod(g.duration)}
                               </div>
                             ))}

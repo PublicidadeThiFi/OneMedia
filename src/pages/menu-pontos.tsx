@@ -391,10 +391,10 @@ export default function MenuSelectPoints() {
                           )}
                         </div>
                         <div className="absolute bottom-4 left-4 right-4 text-white">
-                          <div className="truncate text-xl font-semibold">{p.name}</div>
+                          <div className="menu-copy-wrap text-xl font-semibold">{p.name}</div>
                           <div className="mt-1 flex items-center gap-1.5 text-sm text-white/80">
                             <Building2 className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{addressLabel}</span>
+                            <span className="menu-copy-wrap">{addressLabel}</span>
                           </div>
                         </div>
                       </div>
