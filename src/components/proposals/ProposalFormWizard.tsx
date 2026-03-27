@@ -260,15 +260,10 @@ const preparePayload = (status: ProposalStatus) => {
       installationCostSnapshot: (item as any).installationCostSnapshot ?? undefined,
       rentTotalSnapshot: (item as any).rentTotalSnapshot ?? undefined,
       upfrontTotalSnapshot: (item as any).upfrontTotalSnapshot ?? undefined,
-      // Datas dos itens continuam apenas para produtos/servicos (ou modo legado)
-      startDate:
-        item.productId || !(item as any).occupationDays
-          ? (item.startDate ? new Date(item.startDate).toISOString() : undefined)
-          : undefined,
-      endDate:
-        item.productId || !(item as any).occupationDays
-          ? (item.endDate ? new Date(item.endDate).toISOString() : undefined)
-          : undefined,
+      // Datas dos itens são enviadas sempre que existirem.
+      // Para mídia com occupationDays, isso preserva o início efetivo ajustado para a próxima data livre.
+      startDate: item.startDate ? new Date(item.startDate).toISOString() : undefined,
+      endDate: item.endDate ? new Date(item.endDate).toISOString() : undefined,
     }))
   };
 };
