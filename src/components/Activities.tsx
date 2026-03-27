@@ -298,7 +298,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
 
   return (
     <div className="p-8">
-      <div className="mb-8">
+      <div className="mb-8" data-tour="activities-feed">
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">Atividades</h1>
         <p className="text-gray-600">Histórico de ações realizadas no sistema</p>
       </div>
@@ -311,7 +311,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
       )}
 
       {/* Filtros */}
-      <Card className="mb-6">
+      <Card className="mb-6" data-tour="activities-filters">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Campo de busca */}
@@ -404,7 +404,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
             const detailsNode = renderDetails(log);
             const actor = (log.userName || log.userEmail || '').trim() || 'Sistema';
             return (
-            <Card key={log.id} className="hover:shadow-md transition-shadow">
+            <Card key={log.id} className="hover:shadow-md transition-shadow" data-tour="activities-details">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -448,7 +448,7 @@ const getResourceLabel = (resource: ActivityResourceType): string => {
       </div>
 
       {/* Nota */}
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+      <div className="mt-6 p-4 bg-blue-50 rounded-lg" data-tour="activities-audit">
         <p className="text-sm text-blue-900 mb-1">💡 Auditoria</p>
         <p className="text-sm text-blue-700">
           Esta tela é somente leitura e mostra um histórico de ações realizadas no sistema.

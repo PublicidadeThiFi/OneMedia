@@ -1086,6 +1086,7 @@ export function MediaMap() {
     // ficar com altura 0 (e o Leaflet não renderiza).
     <div
       className="relative h-full w-full"
+      data-tour="mediamap-overview"
       // Garante que o mapa tenha altura “definida” mesmo quando o container pai
       // resolve height:100% de forma imprevisível (flex + overflow-y-auto).
       style={{ minHeight: 'calc(100vh - 64px)', isolation: 'isolate' }}
@@ -1096,7 +1097,7 @@ export function MediaMap() {
         // Mais largo (pra ocupar menos altura) e com z-index consistente acima do Leaflet.
         style={{ zIndex: 30, maxWidth: 980, pointerEvents: 'auto' }}
       >
-        <div className="bg-white border rounded-2xl shadow-sm p-4">
+        <div className="bg-white border rounded-2xl shadow-sm p-4" data-tour="mediamap-filters">
           <div className="flex items-start gap-2">
             <div className="relative flex-1" ref={searchBoxRef}>
               <div className="flex items-center gap-2 border rounded-lg px-3 py-2">
@@ -1335,6 +1336,7 @@ export function MediaMap() {
       </div>
 
       {/* Mapa */}
+      <div className="h-full w-full" data-tour="mediamap-navigation">
       <MapContainer
         center={[BRASILIA_CENTER.lat, BRASILIA_CENTER.lng]}
         zoom={DEFAULT_MAP_ZOOM}
@@ -1455,6 +1457,7 @@ export function MediaMap() {
           );
         })}
       </MapContainer>
+      </div>
 
       {/* Loading/errors */}
       {loading ? (
@@ -1523,7 +1526,7 @@ export function MediaMap() {
           className="p-0"
           style={{ width: 480, maxWidth: '92vw' }}
         >
-          <SheetHeader className="space-y-1 p-5 pb-0">
+          <SheetHeader className="space-y-1 p-5 pb-0" data-tour="mediamap-point-details">
             <SheetTitle>{panelMode === 'details' ? 'Detalhes do ponto' : panelMode === 'cluster' ? 'Pontos do cluster' : 'Selecionados'}</SheetTitle>
             <SheetDescription>
               {panelMode === 'details'
@@ -1660,6 +1663,7 @@ export function MediaMap() {
                           type="button"
                           size="sm"
                           className="gap-2 mm-indigo col-span-2"
+                          data-tour="mediamap-proposals"
                           disabled={moveMode}
                           onClick={handleCreateProposal}
                         >
@@ -1733,6 +1737,7 @@ export function MediaMap() {
                               size="sm"
                               variant="outline"
                               className="gap-2"
+                              data-tour="mediamap-move"
                               onClick={startMovePoint}
                             >
                               <Pencil className="w-4 h-4" /> Mover
@@ -1829,7 +1834,7 @@ export function MediaMap() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Criar um ponto aqui</DialogTitle>
+            <DialogTitle data-tour="mediamap-create">Criar um ponto aqui</DialogTitle>
             <DialogDescription>
               Vamos pré-preencher latitude/longitude e tentar completar o endereço automaticamente.
             </DialogDescription>

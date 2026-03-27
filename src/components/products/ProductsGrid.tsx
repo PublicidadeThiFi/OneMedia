@@ -41,7 +41,7 @@ export function ProductsGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-tour="products-proposals">
       {products.map((product) => (
         <Card key={product.id} className="hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
@@ -67,7 +67,7 @@ export function ProductsGrid({
               </div>
             </div>
 
-            <div className="border-t border-gray-100 pt-4 mb-4">
+            <div className="border-t border-gray-100 pt-4 mb-4" data-tour="products-pricing">
               <div className="flex items-baseline gap-2">
                 <span className="text-gray-900">
                   R$ {Number(product.basePrice).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -83,6 +83,7 @@ export function ProductsGrid({
                 variant="outline" 
                 size="sm" 
                 className="flex-1"
+                data-tour="products-edit"
                 onClick={() => onEditProduct(product)}
               >
                 <Edit className="w-4 h-4 mr-2" />

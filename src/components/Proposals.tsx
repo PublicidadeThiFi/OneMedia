@@ -324,7 +324,7 @@ const handleViewDetails = async (proposal: Proposal) => {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8" data-tour="proposals-overview">
         <div>
           <h1 className="text-gray-900 mb-2">Propostas</h1>
           <p className="text-gray-600">
@@ -332,7 +332,7 @@ const handleViewDetails = async (proposal: Proposal) => {
           </p>
         </div>
 
-        <Button type="button" className="gap-2" onClick={handleNewProposal} disabled={loadingSingle}>
+        <Button type="button" className="gap-2" onClick={handleNewProposal} disabled={loadingSingle} data-tour="proposals-create">
           <Plus className="w-4 h-4" />
           Nova Proposta
         </Button>
@@ -404,7 +404,7 @@ const handleViewDetails = async (proposal: Proposal) => {
       </div>
 
       {/* Filtros */}
-      <Card className="mb-6">
+      <Card className="mb-6" data-tour="proposals-filters">
         <CardContent className="pt-6">
           <ProposalFiltersBar
             searchQuery={searchQuery}

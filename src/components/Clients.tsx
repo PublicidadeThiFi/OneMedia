@@ -98,13 +98,13 @@ export function Clients() {
       {loading && <div>Carregando clientes...</div>}
       {!loading && error && <div>Erro ao carregar clientes.</div>}
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-8" data-tour="clients-overview">
         <div>
           <h1 className="text-gray-900 mb-2">Clientes</h1>
           <p className="text-gray-600">Gerencie clientes e anunciantes (Client)</p>
         </div>
         
-        <Button className="gap-2" onClick={handleNewClient}>
+        <Button className="gap-2" onClick={handleNewClient} data-tour="clients-create">
           <Plus className="w-4 h-4" />
           Novo Cliente
         </Button>
@@ -151,7 +151,7 @@ export function Clients() {
       </div>
 
       {/* Filtros */}
-      <div className="mb-6">
+      <div className="mb-6" data-tour="clients-filters">
         <ClientFiltersBar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -172,7 +172,7 @@ export function Clients() {
       )}
 
       {/* Tabela de Clientes */}
-      <Card>
+      <Card data-tour="clients-commercial-flow">
         <ClientsTable
           clients={clients}
           onViewDetails={handleViewDetails}

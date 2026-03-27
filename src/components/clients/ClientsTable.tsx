@@ -140,6 +140,7 @@ export function ClientsTable({
                     <Button
                       variant="ghost"
                       size="sm"
+                      data-tour="clients-details"
                       onClick={() => onViewDetails(client)}
                       title="Ver detalhes"
                     >

@@ -721,7 +721,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
             <div className="flex items-center gap-2">
               {mode === 'internal' && (
-                <Button variant="secondary" className="gap-2" onClick={handleShare}>
+                <Button variant="secondary" className="gap-2" onClick={handleShare} data-tour="mediakit-sharing">
                   <Share2 className="w-4 h-4" />
                   Compartilhar
                 </Button>
@@ -729,7 +729,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             </div>
           </div>
 
-          <div className="mt-14 md:mt-20 max-w-2xl">
+          <div className="mt-14 md:mt-20 max-w-2xl" data-tour="mediakit-overview">
             <h1 className="text-white text-3xl md:text-4xl font-semibold">Mídia Kit Digital</h1>
             {displayCompany?.name && (
               <p className="text-white/80 mt-2">
@@ -737,7 +737,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               </p>
             )}
 
-            <Button className="mt-6 gap-2" onClick={openBulkRequestDialog}>
+            <Button className="mt-6 gap-2" onClick={openBulkRequestDialog} data-tour="mediakit-sales-usage">
               <MessageCircle className="w-4 h-4" />
               Solicitar Proposta
             </Button>
@@ -746,7 +746,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
       </div>
 
       {/* FILTERS */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="bg-white border-b border-gray-200" data-tour="mediakit-filters">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3">
             <div className="flex-1 relative min-w-[220px]">
@@ -854,7 +854,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* LIST */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2" data-tour="mediakit-list">
               {filteredPoints.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
@@ -967,6 +967,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
                               <Button
                                 className="gap-2 self-end"
+                                data-tour="mediakit-details"
                                 onClick={() => {
                                   setSelectedMapPointId(point.id);
                                   openDetails(point);
