@@ -84,8 +84,21 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const autoOpenRequestRef = useRef(0);
   const lastStepSyncSignatureRef = useRef('');
   const sessionHandledRef = useRef(false);
+  const autoOpenSuppressionRef = useRef<{ moduleKey: TutorialScopeModuleKey | null; until: number }>({ moduleKey: null, until: 0 });
 
   const tutorialDefinitions = useMemo(() => listTutorialDefinitions(), []);
+
+function isAutoOpenSuppressed(moduleKey: TutorialScopeModuleKey): boolean {
+  const suppression = autoOpenSuppressionRef.current;
+  return suppression.moduleKey === moduleKey && suppression.until > Date.now();
+}
+
+function suppressAutoOpen(moduleKey: TutorialScopeModuleKey, durationMs = 1200) {
+  autoOpenSuppressionRef.current = {
+    moduleKey,
+    until: Date.now() + durationMs,
+  };
+}
   const isOpen = Boolean(activeTutorial && activeTutorial.steps.length > 0);
   const totalSteps = activeTutorial?.steps.length ?? 0;
   const currentStep = activeTutorial?.steps[currentStepIndex] ?? null;
@@ -225,6 +238,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       const initialStepIndex = clampStepIndex(options?.initialStepIndex, session.steps.length);
 
       const shouldTrackProgress = options?.trackProgress ?? true;
+      const scopeModuleKey = getTutorialScopeModuleKey(definition);
 
       const trackedSession: TutorialSession = {
         ...session,
@@ -233,6 +247,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         onClose: () => {
           if (!sessionHandledRef.current) {
             sessionHandledRef.current = true;
+            suppressAutoOpen(scopeModuleKey, shouldTrackProgress ? 1200 : 2500);
             if (shouldTrackProgress) {
               void persistTutorialProgress(definition.moduleKey, {
                 status: 'SKIPPED',
@@ -246,6 +261,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         onComplete: () => {
           if (!sessionHandledRef.current) {
             sessionHandledRef.current = true;
+            suppressAutoOpen(scopeModuleKey, shouldTrackProgress ? 1200 : 2500);
             if (shouldTrackProgress) {
               void persistTutorialProgress(definition.moduleKey, {
                 status: 'COMPLETED',
@@ -270,6 +286,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   const closeTutorial = useCallback(() => {
     setActiveTutorial((current) => {
+      if (current) {
+        suppressAutoOpen(getTutorialScopeModuleKey(current), current.trackProgress === false ? 2500 : 1200);
+      }
       current?.onClose?.();
       return null;
     });
@@ -282,6 +301,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
       const isLastStep = currentIndex >= activeTutorial.steps.length - 1;
       if (isLastStep) {
+        suppressAutoOpen(getTutorialScopeModuleKey(activeTutorial), activeTutorial.trackProgress === false ? 2500 : 1200);
         activeTutorial.onComplete?.();
         setActiveTutorial(null);
         return 0;
@@ -321,6 +341,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       const normalizedModuleKey = String(moduleKey) as TutorialModuleKey;
       const definition = getTutorialDefinition(normalizedModuleKey);
       if (!definition) return false;
+
+      const scopeModuleKey = getTutorialScopeModuleKey(definition);
+      if (isAutoOpenSuppressed(scopeModuleKey)) return false;
 
       if (isOpen && activeTutorial?.moduleKey !== normalizedModuleKey) {
         return false;
@@ -367,6 +390,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     lastStepSyncSignatureRef.current = '';
     lastTutorialRef.current = null;
     sessionHandledRef.current = false;
+    autoOpenSuppressionRef.current = { moduleKey: null, until: 0 };
   }, [user?.id]);
 
   useEffect(() => {
