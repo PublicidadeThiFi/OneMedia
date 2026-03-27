@@ -7,6 +7,7 @@
 import { useEffect, useState, useMemo, Component, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
+import { HomePage } from './HomePage';
 import { Dashboard } from './Dashboard';
 import { Inventory } from './Inventory';
 import { MediaMap } from './MediaMap';
@@ -28,6 +29,7 @@ import { useNavigation } from '../App';
 
 // Define all possible pages in the application
 export type Page =
+  | 'home'
   | 'dashboard'
   | 'inventory'
   | 'mediamap'
@@ -87,7 +89,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => 
   }
 }
 
-export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
+export function MainApp({ initialPage = 'home' }: MainAppProps) {
   const [currentPage, setCurrentPage] = useState<Page>(initialPage);
 
   // Sync with URL-based navigation (e.g. /app/settings?tab=subscription)
@@ -190,7 +192,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
     setCurrentPage(page);
     setIsMobileMenuOpen(false);
 
-    const targetPath = page === 'dashboard' ? '/app/dashboard' : `/app/${page}`;
+    const targetPath = `/app/${page}`;
     navigate(targetPath);
   };
 
@@ -198,6 +200,9 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
     // Render the current page content
   const renderContent = () => {
     switch (currentPage) {
+      case 'home':
+        return <HomePage />;
+
       case 'dashboard':
         return <Dashboard onNavigate={handleNavigate} />;
 
@@ -244,7 +249,7 @@ export function MainApp({ initialPage = 'dashboard' }: MainAppProps) {
         return <SuperAdmin />;
 
       default:
-        return <Dashboard onNavigate={handleNavigate} />;
+        return <HomePage />;
     }
   };
 
