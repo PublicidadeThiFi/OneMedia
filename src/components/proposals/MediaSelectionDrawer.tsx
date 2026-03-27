@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Calendar } from '../ui/calendar';
 import apiClient from '../../lib/apiClient';
 import { MediaPoint, MediaPointOwner, MediaType, MediaUnit, ProductionCosts, ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
@@ -98,6 +99,10 @@ export function MediaSelectionDrawer({
   const [availabilityByUnitId, setAvailabilityByUnitId] = useState<Record<string, AvailabilityInfo>>({});
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [useNextAvailableDate, setUseNextAvailableDate] = useState(false);
+  const [reservationRangesByUnitId, setReservationRangesByUnitId] = useState<Record<string, Array<{ startDate: string; endDate: string }>>>({});
+  const [reservationRangesLoading, setReservationRangesLoading] = useState(false);
+  const [reservationRangesError, setReservationRangesError] = useState<string | null>(null);
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
 
   const normalizeLocalDay = (d: Date) => {
     const x = new Date(d);
@@ -111,12 +116,74 @@ export function MediaSelectionDrawer({
     return x;
   };
 
+  const isDateWithinRange = (date: Date, start: Date, end: Date) => {
+    const current = normalizeLocalDay(date).getTime();
+    const from = normalizeLocalDay(start).getTime();
+    const to = normalizeLocalDay(end).getTime();
+    return current >= from && current <= to;
+  };
+
+  const findFirstConflictDateInRange = (
+    start: Date,
+    end: Date,
+    ranges: Array<{ startDate: string; endDate: string }>,
+  ) => {
+    const from = normalizeLocalDay(start);
+    const to = normalizeLocalDay(end);
+
+    for (const range of ranges) {
+      const rangeStart = normalizeLocalDay(new Date(range.startDate));
+      const rangeEnd = normalizeLocalDay(new Date(range.endDate));
+      const overlaps = !(rangeEnd.getTime() < from.getTime() || rangeStart.getTime() > to.getTime());
+      if (!overlaps) continue;
+      return rangeStart.getTime() < from.getTime() ? from : rangeStart;
+    }
+
+    return null;
+  };
+
+  const isDayOccupied = (date: Date, ranges: Array<{ startDate: string; endDate: string }>) => {
+    return ranges.some((range) => {
+      const rangeStart = new Date(range.startDate);
+      const rangeEnd = new Date(range.endDate);
+      if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) return false;
+      return isDateWithinRange(date, rangeStart, rangeEnd);
+    });
+  };
+
+  const findNextAvailableStartOnOrAfter = (
+    date: Date,
+    ranges: Array<{ startDate: string; endDate: string }>,
+  ) => {
+    const sorted = [...ranges]
+      .map((range) => ({
+        startDate: normalizeLocalDay(new Date(range.startDate)),
+        endDate: normalizeLocalDay(new Date(range.endDate)),
+      }))
+      .filter((range) => !Number.isNaN(range.startDate.getTime()) && !Number.isNaN(range.endDate.getTime()))
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+    let candidate = normalizeLocalDay(date);
+
+    for (const range of sorted) {
+      if (range.endDate.getTime() < candidate.getTime()) continue;
+      if (range.startDate.getTime() > candidate.getTime()) break;
+      candidate = addDays(range.endDate, 1);
+    }
+
+    return candidate;
+  };
+
   const availabilityWindow = useMemo(() => {
+    const resolvedCustomStart = occupationMode === 'custom' && customStartDate
+      ? normalizeLocalDay(customStartDate)
+      : null;
+
     // Se não vier a data de início, usamos hoje — e bloqueamos seleção até checar
-    const start = normalizeLocalDay(referenceStartDate ?? new Date());
+    const start = resolvedCustomStart ?? normalizeLocalDay(referenceStartDate ?? new Date());
     const end = addDays(start, occupationDays);
     return { start, end };
-  }, [referenceStartDate, occupationDays]);
+  }, [referenceStartDate, occupationDays, occupationMode, customStartDate]);
 
   const getOccupationBreakdown = (days: number) => {
     const d = Math.max(0, Math.floor(days));
@@ -334,6 +401,9 @@ export function MediaSelectionDrawer({
       setSelectedMediaUnit(null);
       setAvailabilityByUnitId({});
       setAvailabilityError(null);
+      setReservationRangesByUnitId({});
+      setReservationRangesError(null);
+      setCustomStartDate(null);
       setSelectedMediaPointOwnerId('');
       setDescription('');
       setQuantity(1);
@@ -502,6 +572,75 @@ export function MediaSelectionDrawer({
     };
   }, [open, selectedMediaPointId, selectedPointUnits, availabilityWindow.start, availabilityWindow.end]);
 
+  useEffect(() => {
+    if (!open || !selectedMediaUnit?.id) {
+      setReservationRangesError(null);
+      return;
+    }
+
+    if (reservationRangesByUnitId[selectedMediaUnit.id]) return;
+
+    let cancelled = false;
+    setReservationRangesLoading(true);
+    setReservationRangesError(null);
+
+    (async () => {
+      try {
+        const response = await apiClient.get<any>('/reservations/occupancy', {
+          params: {
+            mediaUnitId: selectedMediaUnit.id,
+          },
+        });
+
+        if (cancelled) return;
+
+        const payload = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
+        const ranges = Array.isArray(payload)
+          ? payload
+              .map((item: any) => ({
+                startDate: item?.startDate,
+                endDate: item?.endDate,
+              }))
+              .filter((item: any) => item.startDate && item.endDate)
+          : [];
+
+        setReservationRangesByUnitId((prev) => ({
+          ...prev,
+          [selectedMediaUnit.id]: ranges,
+        }));
+      } catch {
+        if (cancelled) return;
+        setReservationRangesError('Não foi possível carregar o calendário de ocupação desta face.');
+      } finally {
+        if (!cancelled) setReservationRangesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, selectedMediaUnit?.id, reservationRangesByUnitId]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (occupationMode !== 'custom') return;
+    if (!selectedMediaUnit?.id) return;
+
+    const ranges = reservationRangesByUnitId[selectedMediaUnit.id];
+    if (!ranges) return;
+
+    const minimumStart = normalizeLocalDay(referenceStartDate ?? new Date());
+    const baseStart = customStartDate ? normalizeLocalDay(customStartDate) : minimumStart;
+    const nextCandidate = baseStart.getTime() < minimumStart.getTime() ? minimumStart : baseStart;
+
+    if (!customStartDate || isDayOccupied(nextCandidate, ranges) || nextCandidate.getTime() < minimumStart.getTime()) {
+      const nextAvailableStart = findNextAvailableStartOnOrAfter(nextCandidate, ranges);
+      if (!customStartDate || nextAvailableStart.getTime() !== normalizeLocalDay(customStartDate).getTime()) {
+        setCustomStartDate(nextAvailableStart);
+      }
+    }
+  }, [open, occupationMode, selectedMediaUnit?.id, reservationRangesByUnitId, referenceStartDate, customStartDate]);
+
   // Mantém a seleção consistente entre pontos com faces livres ou ocupadas.
   // Se houver face livre, prefere a primeira disponível; se todas estiverem ocupadas,
   // mantém a primeira unidade visível/selecionável para o usuário decidir a data.
@@ -542,6 +681,7 @@ export function MediaSelectionDrawer({
     setQuantity(1);
     setOccupationMode('30');
     setOccupationDays(30);
+    setCustomStartDate(null);
     setClientProvidesBanner(false);
   };
 
@@ -602,6 +742,7 @@ export function MediaSelectionDrawer({
     setQuantity(1);
     setOccupationMode('30');
     setOccupationDays(30);
+    setCustomStartDate(null);
     setClientProvidesBanner(false);
   };
 
@@ -636,10 +777,18 @@ export function MediaSelectionDrawer({
     if (!selectedMediaUnit) return;
 
     const days = occupationDays;
-    const shouldAutoUseNextAvailable = !!selectedNextAvailableAt && (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
-    const effectiveStartDate = shouldAutoUseNextAvailable
-      ? new Date(selectedNextAvailableAt)
-      : (referenceStartDate ? new Date(referenceStartDate) : new Date(availabilityWindow.start));
+    const shouldAutoUseNextAvailable =
+      occupationMode !== 'custom' &&
+      !!selectedNextAvailableAt &&
+      (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
+    const effectiveStartDate = occupationMode === 'custom'
+      ? (resolvedCustomStartDate ? new Date(resolvedCustomStartDate) : null)
+      : shouldAutoUseNextAvailable
+        ? new Date(selectedNextAvailableAt)
+        : (referenceStartDate ? new Date(referenceStartDate) : new Date(availabilityWindow.start));
+
+    if (!effectiveStartDate) return;
+
     const rentTotalSnapshot = discountCalc.finalRent;
     const upfrontTotalSnapshot = discountCalc.finalCosts;
 
@@ -694,6 +843,8 @@ export function MediaSelectionDrawer({
     setSelectedMediaUnit(null);
     setAvailabilityByUnitId({});
     setAvailabilityError(null);
+    setReservationRangesByUnitId({});
+    setReservationRangesError(null);
     setMediaPointOwners([]);
     setOwnersError(null);
     setSelectedMediaPointOwnerId('');
@@ -712,20 +863,48 @@ export function MediaSelectionDrawer({
     setIsGift(false);
     setOccupationMode('30');
     setOccupationDays(30);
+    setCustomStartDate(null);
     setClientProvidesBanner(false);
     onOpenChange(false);
   };
 
   const hasOwners = mediaPointOwners.length > 0;
-  const isOccupationValid = occupationDays >= 15 && occupationDays % 15 === 0 && occupationDays <= OCCUPATION_MAX_DAYS;
   const selectedAvailability = selectedMediaUnit ? availabilityByUnitId[selectedMediaUnit.id] : undefined;
   const selectedAvailabilityStatus = selectedAvailability?.status;
   const selectedNextAvailableAt = selectedAvailability?.nextAvailableAt ? new Date(selectedAvailability.nextAvailableAt) : null;
-  const canAutoScheduleFromNextAvailable = !!selectedNextAvailableAt && (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
-  const isSelectedUnitAvailable =
-    selectedAvailabilityStatus === 'available' ||
-    canAutoScheduleFromNextAvailable ||
-    (!selectedAvailabilityStatus && !!selectedMediaUnit);
+  const selectedReservationRanges = selectedMediaUnit ? (reservationRangesByUnitId[selectedMediaUnit.id] ?? []) : [];
+  const minimumCustomStartDate = normalizeLocalDay(referenceStartDate ?? new Date());
+  const resolvedCustomStartDate = occupationMode === 'custom'
+    ? (customStartDate ? normalizeLocalDay(customStartDate) : null)
+    : null;
+  const resolvedCustomEndDate = resolvedCustomStartDate ? addDays(resolvedCustomStartDate, occupationDays) : null;
+  const customRangeConflictDate =
+    occupationMode === 'custom' && resolvedCustomStartDate && resolvedCustomEndDate
+      ? findFirstConflictDateInRange(resolvedCustomStartDate, resolvedCustomEndDate, selectedReservationRanges)
+      : null;
+  const customSelectionError = occupationMode !== 'custom'
+    ? null
+    : !resolvedCustomStartDate
+      ? 'Selecione a data inicial da ocupação.'
+      : resolvedCustomStartDate.getTime() < minimumCustomStartDate.getTime()
+        ? `A data inicial deve ser igual ou posterior a ${formatShortDate(minimumCustomStartDate)}.`
+        : customRangeConflictDate
+          ? `O período customizado cruza uma ocupação em ${formatShortDate(customRangeConflictDate)}. Ajuste o início ou a duração.`
+          : null;
+  const isOccupationValid =
+    occupationDays >= 15 &&
+    occupationDays % 15 === 0 &&
+    occupationDays <= OCCUPATION_MAX_DAYS &&
+    (occupationMode !== 'custom' || !customSelectionError);
+  const canAutoScheduleFromNextAvailable =
+    occupationMode !== 'custom' &&
+    !!selectedNextAvailableAt &&
+    (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
+  const isSelectedUnitAvailable = occupationMode === 'custom'
+    ? selectedAvailabilityStatus === 'available' && !customSelectionError
+    : selectedAvailabilityStatus === 'available' ||
+      canAutoScheduleFromNextAvailable ||
+      (!selectedAvailabilityStatus && !!selectedMediaUnit);
   const isValid =
     !!selectedMediaUnit &&
     !!description &&
@@ -928,7 +1107,7 @@ export function MediaSelectionDrawer({
                         {selectedMediaUnit && (
                           <div className="text-xs">
                             {selectedAvailabilityStatus === 'checking' && <div className="text-gray-500 mt-1">Verificando ocupação...</div>}
-                            {selectedAvailabilityStatus === 'occupied' && (
+                            {occupationMode !== 'custom' && selectedAvailabilityStatus === 'occupied' && (
                               <div className="space-y-2">
                                 <div className="text-amber-700 mt-1">Esta face está ocupada no período analisado.</div>
                                 {selectedNextAvailableAt ? (
@@ -946,10 +1125,16 @@ export function MediaSelectionDrawer({
                                 ) : null}
                               </div>
                             )}
+                            {occupationMode === 'custom' && customSelectionError && (
+                              <div className="text-amber-700 mt-1">{customSelectionError}</div>
+                            )}
+                            {occupationMode === 'custom' && !customSelectionError && selectedAvailabilityStatus === 'occupied' && (
+                              <div className="text-amber-700 mt-1">Ajuste a data inicial ou a duração para evitar o período já ocupado desta face.</div>
+                            )}
                             {selectedAvailabilityStatus === 'unknown' && (
                               <div className="text-red-600 mt-1">Não foi possível verificar a ocupação desta face.</div>
                             )}
-                            {selectedAvailabilityStatus === 'available' && (
+                            {selectedAvailabilityStatus === 'available' && !customSelectionError && (
                               <div className="text-emerald-700 mt-1">Face disponível para o período analisado.</div>
                             )}
                           </div>
@@ -1012,6 +1197,7 @@ export function MediaSelectionDrawer({
                                     onClick={() => {
                                       setOccupationMode('15');
                                       setOccupationDays(15);
+                                      setCustomStartDate(null);
                                     }}
                                   >
                                     15 dias
@@ -1023,6 +1209,7 @@ export function MediaSelectionDrawer({
                                     onClick={() => {
                                       setOccupationMode('30');
                                       setOccupationDays(30);
+                                      setCustomStartDate(null);
                                     }}
                                   >
                                     30 dias
@@ -1034,6 +1221,13 @@ export function MediaSelectionDrawer({
                                     onClick={() => {
                                       setOccupationMode('custom');
                                       setOccupationDays((prev) => (prev >= 15 ? prev : 15));
+                                      const baseStart = normalizeLocalDay(referenceStartDate ?? new Date());
+                                      const preferredStart = customStartDate
+                                        ? normalizeLocalDay(customStartDate)
+                                        : baseStart;
+                                      const safeStart = preferredStart.getTime() < baseStart.getTime() ? baseStart : preferredStart;
+                                      const nextAvailableStart = findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges);
+                                      setCustomStartDate(nextAvailableStart);
                                     }}
                                   >
                                     Personalizado
@@ -1042,38 +1236,90 @@ export function MediaSelectionDrawer({
 
                                 <div className="mt-2">
                                   {occupationMode === 'custom' ? (
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
-                                          setOccupationDays((d) => Math.min(OCCUPATION_MAX_DAYS, Math.max(0, d) + 15))
-                                        }
-                                      >
-                                        +15 dias
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() =>
-                                          setOccupationDays((d) => Math.min(OCCUPATION_MAX_DAYS, Math.max(0, d) + 30))
-                                        }
-                                      >
-                                        +30 dias
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => setOccupationDays(0)}
-                                      >
-                                        Limpar
-                                      </Button>
-                                      <span className="text-sm text-gray-700">
-                                        Total: <b>{occupationDays}</b> dias
-                                      </span>
+                                    <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                      <div className="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-600 mb-1 block">Data inicial</label>
+                                          <Input
+                                            type="date"
+                                            min={minimumCustomStartDate.toISOString().split('T')[0]}
+                                            value={resolvedCustomStartDate ? resolvedCustomStartDate.toISOString().split('T')[0] : ''}
+                                            onChange={(e) => {
+                                              const rawValue = e.target.value;
+                                              if (!rawValue) {
+                                                setCustomStartDate(null);
+                                                return;
+                                              }
+
+                                              const pickedDate = normalizeLocalDay(new Date(`${rawValue}T00:00:00`));
+                                              const safeStart = pickedDate.getTime() < minimumCustomStartDate.getTime()
+                                                ? minimumCustomStartDate
+                                                : pickedDate;
+
+                                              if (isDayOccupied(safeStart, selectedReservationRanges)) {
+                                                setCustomStartDate(findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges));
+                                                return;
+                                              }
+
+                                              setCustomStartDate(safeStart);
+                                            }}
+                                          />
+                                        </div>
+
+                                        <div>
+                                          <label className="text-xs font-medium text-gray-600 mb-1 block">Duração (dias)</label>
+                                          <Input
+                                            type="number"
+                                            min={15}
+                                            step={15}
+                                            max={OCCUPATION_MAX_DAYS}
+                                            value={occupationDays}
+                                            onChange={(e) => {
+                                              const nextValue = Math.max(0, Math.trunc(Number(e.target.value) || 0));
+                                              setOccupationDays(nextValue);
+                                            }}
+                                          />
+                                          <p className="mt-1 text-[11px] text-gray-500">
+                                            Use blocos de 15 dias. O calendário marca automaticamente o intervalo.
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="rounded-lg border bg-white">
+                                        <Calendar
+                                          mode="range"
+                                          month={resolvedCustomStartDate ?? minimumCustomStartDate}
+                                          selected={resolvedCustomStartDate ? { from: resolvedCustomStartDate, to: resolvedCustomEndDate ?? resolvedCustomStartDate } : undefined}
+                                          onDayClick={(date: Date) => {
+                                            const pickedDate = normalizeLocalDay(date);
+                                            const safeStart = pickedDate.getTime() < minimumCustomStartDate.getTime()
+                                              ? minimumCustomStartDate
+                                              : pickedDate;
+
+                                            if (isDayOccupied(safeStart, selectedReservationRanges)) return;
+                                            setCustomStartDate(safeStart);
+                                          }}
+                                          disabled={(date: Date) => {
+                                            const localDate = normalizeLocalDay(date);
+                                            return localDate.getTime() < minimumCustomStartDate.getTime() || isDayOccupied(localDate, selectedReservationRanges);
+                                          }}
+                                        />
+                                      </div>
+
+                                      <div className="space-y-1 text-xs text-gray-600">
+                                        <div>Datas ocupadas ficam bloqueadas no calendário.</div>
+                                        {resolvedCustomStartDate && resolvedCustomEndDate ? (
+                                          <div>
+                                            Período customizado: <span className="font-medium text-gray-800">{formatShortDate(resolvedCustomStartDate)} – {formatShortDate(resolvedCustomEndDate)}</span>
+                                          </div>
+                                        ) : null}
+                                        {reservationRangesLoading ? (
+                                          <div className="text-gray-500">Carregando calendário de ocupação...</div>
+                                        ) : null}
+                                        {reservationRangesError ? (
+                                          <div className="text-red-600">{reservationRangesError}</div>
+                                        ) : null}
+                                      </div>
                                     </div>
                                   ) : (
                                     <p className="text-xs text-gray-500">Total: {occupationDays} dias</p>

@@ -5,7 +5,8 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Checkbox } from '../ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Calendar } from '../ui/calendar';
+import apiClient from '../../lib/apiClient';
 import { ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 
 interface ProposalItemEditDialogProps {
@@ -26,6 +27,77 @@ function formatPrice(value: number): string {
 
 function parseLocalDate(yyyyMmDd: string) {
   return new Date(`${yyyyMmDd}T00:00:00`);
+}
+
+function normalizeLocalDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + Math.max(0, Math.floor(days)));
+  return next;
+}
+
+function formatShortDate(value: Date) {
+  return normalizeLocalDay(value).toLocaleDateString('pt-BR');
+}
+
+function isDateWithinRange(date: Date, start: Date, end: Date) {
+  const current = normalizeLocalDay(date).getTime();
+  const from = normalizeLocalDay(start).getTime();
+  const to = normalizeLocalDay(end).getTime();
+  return current >= from && current <= to;
+}
+
+function isDayOccupied(date: Date, ranges: Array<{ startDate: string; endDate: string }>) {
+  return ranges.some((range) => {
+    const start = new Date(range.startDate);
+    const end = new Date(range.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    return isDateWithinRange(date, start, end);
+  });
+}
+
+function findFirstConflictDateInRange(
+  start: Date,
+  end: Date,
+  ranges: Array<{ startDate: string; endDate: string }>,
+) {
+  const from = normalizeLocalDay(start);
+  const to = normalizeLocalDay(end);
+
+  for (const range of ranges) {
+    const rangeStart = normalizeLocalDay(new Date(range.startDate));
+    const rangeEnd = normalizeLocalDay(new Date(range.endDate));
+    const overlaps = !(rangeEnd.getTime() < from.getTime() || rangeStart.getTime() > to.getTime());
+    if (!overlaps) continue;
+    return rangeStart.getTime() < from.getTime() ? from : rangeStart;
+  }
+
+  return null;
+}
+
+function findNextAvailableStartOnOrAfter(date: Date, ranges: Array<{ startDate: string; endDate: string }>) {
+  const sorted = [...ranges]
+    .map((range) => ({
+      startDate: normalizeLocalDay(new Date(range.startDate)),
+      endDate: normalizeLocalDay(new Date(range.endDate)),
+    }))
+    .filter((range) => !Number.isNaN(range.startDate.getTime()) && !Number.isNaN(range.endDate.getTime()))
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+  let candidate = normalizeLocalDay(date);
+
+  for (const range of sorted) {
+    if (range.endDate.getTime() < candidate.getTime()) continue;
+    if (range.startDate.getTime() > candidate.getTime()) break;
+    candidate = addDays(range.endDate, 1);
+  }
+
+  return candidate;
 }
 
 export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: ProposalItemEditDialogProps) {
@@ -52,6 +124,10 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
   const [occupationMode, setOccupationMode] = useState<OccupationMode>('30');
   const [occupationDays, setOccupationDays] = useState<number>(30);
   const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [reservationRanges, setReservationRanges] = useState<Array<{ startDate: string; endDate: string }>>([]);
+  const [reservationRangesLoading, setReservationRangesLoading] = useState(false);
+  const [reservationRangesError, setReservationRangesError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !item) return;
@@ -73,6 +149,9 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
       setOccupationDays(days);
       setOccupationMode(days === 15 ? '15' : days === 30 ? '30' : 'custom');
       setClientProvidesBanner(!!item.clientProvidesBanner);
+      setCustomStartDate(item.startDate ? normalizeLocalDay(new Date(item.startDate as any)) : null);
+      setReservationRanges([]);
+      setReservationRangesError(null);
       // unitPrice será recalculado via useMemo
       setStartDate(undefined);
       setEndDate(undefined);
@@ -85,6 +164,59 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
       setUnitPrice(Number(item.unitPrice) || 0);
     }
   }, [open, item]);
+
+  useEffect(() => {
+    if (!open || !item?.mediaUnitId) return;
+
+    let cancelled = false;
+    setReservationRangesLoading(true);
+    setReservationRangesError(null);
+
+    (async () => {
+      try {
+        const response = await apiClient.get<any>('/reservations/occupancy', {
+          params: { mediaUnitId: item.mediaUnitId },
+        });
+
+        if (cancelled) return;
+
+        const payload = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
+        const ranges = Array.isArray(payload)
+          ? payload
+              .map((entry: any) => ({ startDate: entry?.startDate, endDate: entry?.endDate }))
+              .filter((entry: any) => entry.startDate && entry.endDate)
+          : [];
+        setReservationRanges(ranges);
+      } catch {
+        if (cancelled) return;
+        setReservationRangesError('Não foi possível carregar o calendário de ocupação desta face.');
+      } finally {
+        if (!cancelled) setReservationRangesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, item?.mediaUnitId]);
+
+  useEffect(() => {
+    if (!open || !item?.mediaUnitId) return;
+    if (occupationMode !== 'custom') return;
+
+    const minimumStart = item.startDate
+      ? normalizeLocalDay(new Date(item.startDate as any))
+      : normalizeLocalDay(new Date());
+    const baseStart = customStartDate ? normalizeLocalDay(customStartDate) : minimumStart;
+    const nextCandidate = baseStart.getTime() < minimumStart.getTime() ? minimumStart : baseStart;
+
+    if (!customStartDate || isDayOccupied(nextCandidate, reservationRanges) || nextCandidate.getTime() < minimumStart.getTime()) {
+      const nextAvailableStart = findNextAvailableStartOnOrAfter(nextCandidate, reservationRanges);
+      if (!customStartDate || nextAvailableStart.getTime() !== normalizeLocalDay(customStartDate).getTime()) {
+        setCustomStartDate(nextAvailableStart);
+      }
+    }
+  }, [open, item?.mediaUnitId, item?.startDate, occupationMode, customStartDate, reservationRanges]);
 
   const pricing = useMemo(() => {
     if (!item || !item.mediaUnitId) {
@@ -140,7 +272,31 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
   const discountedTotal = isGift ? 0 : applyReduction(subtotalBeforeGeneral, totalDiscountPercent || pct, totalDiscountAmount || amt);
   const computedDiscountValue = Math.max(0, baseTotal - discountedTotal);
 
-  const isOccupationValid = !isMedia || (occupationDays >= 15 && occupationDays <= OCCUPATION_MAX_DAYS && occupationDays % 15 === 0);
+  const minimumCustomStartDate = item?.startDate
+    ? normalizeLocalDay(new Date(item.startDate as any))
+    : normalizeLocalDay(new Date());
+  const resolvedCustomStartDate = occupationMode === 'custom'
+    ? (customStartDate ? normalizeLocalDay(customStartDate) : null)
+    : null;
+  const resolvedCustomEndDate = resolvedCustomStartDate ? addDays(resolvedCustomStartDate, occupationDays) : null;
+  const customRangeConflictDate = isMedia && occupationMode === 'custom' && resolvedCustomStartDate && resolvedCustomEndDate
+    ? findFirstConflictDateInRange(resolvedCustomStartDate, resolvedCustomEndDate, reservationRanges)
+    : null;
+  const customSelectionError = !isMedia || occupationMode !== 'custom'
+    ? null
+    : !resolvedCustomStartDate
+      ? 'Selecione a data inicial da ocupação.'
+      : resolvedCustomStartDate.getTime() < minimumCustomStartDate.getTime()
+        ? `A data inicial deve ser igual ou posterior a ${formatShortDate(minimumCustomStartDate)}.`
+        : customRangeConflictDate
+          ? `O período customizado cruza uma ocupação em ${formatShortDate(customRangeConflictDate)}. Ajuste o início ou a duração.`
+          : null;
+  const isOccupationValid = !isMedia || (
+    occupationDays >= 15 &&
+    occupationDays <= OCCUPATION_MAX_DAYS &&
+    occupationDays % 15 === 0 &&
+    (occupationMode !== 'custom' || !customSelectionError)
+  );
 
   const handleSave = () => {
     if (!item) return;
@@ -171,9 +327,15 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
     if (item.mediaUnitId) {
       updated.occupationDays = occupationDays;
       updated.clientProvidesBanner = clientProvidesBanner;
-      // No novo fluxo, datas não são relevantes para mídia
-      updated.startDate = undefined;
-      updated.endDate = undefined;
+
+      const baseStart = occupationMode === 'custom'
+        ? resolvedCustomStartDate
+        : item.startDate
+          ? normalizeLocalDay(new Date(item.startDate as any))
+          : null;
+
+      updated.startDate = baseStart ? new Date(baseStart) : undefined;
+      updated.endDate = baseStart ? addDays(baseStart, occupationDays) : undefined;
     } else {
       updated.startDate = startDate;
       updated.endDate = endDate;
@@ -214,6 +376,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                     onClick={() => {
                       setOccupationMode('15');
                       setOccupationDays(15);
+                      setCustomStartDate(null);
                     }}
                   >
                     15 dias
@@ -225,6 +388,7 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                     onClick={() => {
                       setOccupationMode('30');
                       setOccupationDays(30);
+                      setCustomStartDate(null);
                     }}
                   >
                     30 dias
@@ -236,6 +400,8 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                     onClick={() => {
                       setOccupationMode('custom');
                       setOccupationDays((prev) => (prev >= 15 ? prev : 15));
+                      const nextAvailableStart = findNextAvailableStartOnOrAfter(customStartDate ?? minimumCustomStartDate, reservationRanges);
+                      setCustomStartDate(nextAvailableStart);
                     }}
                   >
                     Personalizado
@@ -243,29 +409,85 @@ export function ProposalItemEditDialog({ open, onOpenChange, item, onSave }: Pro
                 </div>
 
                 {occupationMode === 'custom' ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setOccupationDays((d) => Math.min(OCCUPATION_MAX_DAYS, Math.max(0, d) + 15))}
-                    >
-                      +15 dias
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setOccupationDays((d) => Math.min(OCCUPATION_MAX_DAYS, Math.max(0, d) + 30))}
-                    >
-                      +30 dias
-                    </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => setOccupationDays(0)}>
-                      Limpar
-                    </Button>
-                    <span className="text-sm text-gray-700">
-                      Total: <b>{occupationDays}</b> dias
-                    </span>
+                  <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <Label className="mb-1 block text-xs font-medium text-gray-600">Data inicial</Label>
+                        <Input
+                          type="date"
+                          min={minimumCustomStartDate.toISOString().split('T')[0]}
+                          value={resolvedCustomStartDate ? resolvedCustomStartDate.toISOString().split('T')[0] : ''}
+                          onChange={(e) => {
+                            const rawValue = e.target.value;
+                            if (!rawValue) {
+                              setCustomStartDate(null);
+                              return;
+                            }
+
+                            const pickedDate = normalizeLocalDay(new Date(`${rawValue}T00:00:00`));
+                            const safeStart = pickedDate.getTime() < minimumCustomStartDate.getTime()
+                              ? minimumCustomStartDate
+                              : pickedDate;
+
+                            if (isDayOccupied(safeStart, reservationRanges)) {
+                              setCustomStartDate(findNextAvailableStartOnOrAfter(safeStart, reservationRanges));
+                              return;
+                            }
+
+                            setCustomStartDate(safeStart);
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="mb-1 block text-xs font-medium text-gray-600">Duração (dias)</Label>
+                        <Input
+                          type="number"
+                          min={15}
+                          step={15}
+                          max={OCCUPATION_MAX_DAYS}
+                          value={occupationDays}
+                          onChange={(e) => {
+                            const nextValue = Math.max(0, Math.trunc(Number(e.target.value) || 0));
+                            setOccupationDays(nextValue);
+                          }}
+                        />
+                        <p className="mt-1 text-[11px] text-gray-500">Use blocos de 15 dias. O calendário marca automaticamente o intervalo.</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border bg-white">
+                      <Calendar
+                        mode="range"
+                        month={resolvedCustomStartDate ?? minimumCustomStartDate}
+                        selected={resolvedCustomStartDate ? { from: resolvedCustomStartDate, to: resolvedCustomEndDate ?? resolvedCustomStartDate } : undefined}
+                        onDayClick={(date: Date) => {
+                          const pickedDate = normalizeLocalDay(date);
+                          const safeStart = pickedDate.getTime() < minimumCustomStartDate.getTime()
+                            ? minimumCustomStartDate
+                            : pickedDate;
+
+                          if (isDayOccupied(safeStart, reservationRanges)) return;
+                          setCustomStartDate(safeStart);
+                        }}
+                        disabled={(date: Date) => {
+                          const localDate = normalizeLocalDay(date);
+                          return localDate.getTime() < minimumCustomStartDate.getTime() || isDayOccupied(localDate, reservationRanges);
+                        }}
+                      />
+                    </div>
+
+                    <div className="space-y-1 text-xs text-gray-600">
+                      <div>Datas ocupadas ficam bloqueadas no calendário.</div>
+                      {resolvedCustomStartDate && resolvedCustomEndDate ? (
+                        <div>
+                          Período customizado: <span className="font-medium text-gray-800">{formatShortDate(resolvedCustomStartDate)} – {formatShortDate(resolvedCustomEndDate)}</span>
+                        </div>
+                      ) : null}
+                      {reservationRangesLoading ? <div className="text-gray-500">Carregando calendário de ocupação...</div> : null}
+                      {reservationRangesError ? <div className="text-red-600">{reservationRangesError}</div> : null}
+                      {customSelectionError ? <div className="text-amber-700">{customSelectionError}</div> : null}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500">Total: {occupationDays} dias</p>
