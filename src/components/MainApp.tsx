@@ -26,6 +26,8 @@ import { SuperAdmin } from './SuperAdmin';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useNavigation } from '../App';
+import { useTutorial } from '../contexts/TutorialContext';
+import { TutorialOverlay } from './tutorial/TutorialOverlay';
 
 // Define all possible pages in the application
 export type Page =
@@ -103,9 +105,14 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     setCurrentPage(initialPage);
   }, [initialPage]);
   const { user, logout, authReady } = useAuth();
+  const { setCurrentModule } = useTutorial();
   const navigate = useNavigation();
 
   const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
+
+  useEffect(() => {
+    setCurrentModule(currentPage);
+  }, [currentPage, setCurrentModule]);
 
 
   const pastDueGraceDaysLeft = useMemo(() => {
@@ -255,7 +262,8 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
 
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <>
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Desktop Sidebar - hidden on mobile */}
       <div className="hidden md:block">
         <Sidebar
@@ -389,5 +397,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
         </main>
       </div>
     </div>
+      <TutorialOverlay />
+    </>
   );
 }
