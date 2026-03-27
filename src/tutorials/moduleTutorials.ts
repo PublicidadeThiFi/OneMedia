@@ -15,7 +15,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   home: createTutorial({
     moduleKey: 'home',
     title: 'Página Inicial',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'home-welcome',
@@ -58,7 +58,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   dashboard: createTutorial({
     moduleKey: 'dashboard',
     title: 'Dashboard',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'dashboard-overview',
@@ -110,7 +110,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   inventory: createTutorial({
     moduleKey: 'inventory',
     title: 'Inventário',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'inventory-overview',
@@ -180,7 +180,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   mediamap: createTutorial({
     moduleKey: 'mediamap',
     title: 'Mídia Map',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'mediamap-overview',
@@ -250,7 +250,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   clients: createTutorial({
     moduleKey: 'clients',
     title: 'Clientes',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'clients-overview',
@@ -302,7 +302,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   products: createTutorial({
     moduleKey: 'products',
     title: 'Produtos e Serviços',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'products-overview',
@@ -354,7 +354,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   proposals: createTutorial({
     moduleKey: 'proposals',
     title: 'Propostas',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'proposals-overview',
@@ -519,7 +519,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   financial: createTutorial({
     moduleKey: 'financial',
     title: 'Financeiro',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'financial-overview',
@@ -614,7 +614,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   mediakit: createTutorial({
     moduleKey: 'mediakit',
     title: 'Mídia Kit',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'mediakit-overview',
@@ -770,7 +770,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   settings: createTutorial({
     moduleKey: 'settings',
     title: 'Configurações',
-    version: 1,
+    version: 2,
     steps: [
       step({
         id: 'settings-company',
@@ -864,13 +864,34 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   }),
 };
 
+// Etapa 7: liberar apenas os tours prioritários.
+// Os módulos complementares permanecem definidos, mas serão ativados só na Etapa 8.
+const activeTutorialModuleKeys = new Set<TutorialModuleKey>([
+  'home',
+  'dashboard',
+  'inventory',
+  'mediamap',
+  'clients',
+  'products',
+  'proposals',
+  'financial',
+  'mediakit',
+  'settings',
+]);
+
 export function listTutorialDefinitions(): TutorialDefinition[] {
-  return Object.values(tutorialDefinitions);
+  return Object.values(tutorialDefinitions).filter((definition) =>
+    activeTutorialModuleKeys.has(definition.moduleKey),
+  );
 }
 
 export function getTutorialDefinition(moduleKey: string | null | undefined): TutorialDefinition | null {
   if (!moduleKey) return null;
-  return tutorialDefinitions[moduleKey as TutorialModuleKey] ?? null;
+
+  const normalizedModuleKey = moduleKey as TutorialModuleKey;
+  if (!activeTutorialModuleKeys.has(normalizedModuleKey)) return null;
+
+  return tutorialDefinitions[normalizedModuleKey] ?? null;
 }
 
 export function hasTutorialDefinition(moduleKey: string | null | undefined): boolean {
