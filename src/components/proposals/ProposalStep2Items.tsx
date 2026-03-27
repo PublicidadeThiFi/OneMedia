@@ -153,7 +153,7 @@ export function ProposalStep2Items({
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('proposals-create-flow')} className="text-indigo-600 hover:text-indigo-700">
+        <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('proposals-create-flow', { trackProgress: false })} className="text-indigo-600 hover:text-indigo-700">
           Tutorial rápido deste fluxo
         </Button>
       </div>

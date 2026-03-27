@@ -224,28 +224,35 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
       const initialStepIndex = clampStepIndex(options?.initialStepIndex, session.steps.length);
 
+      const shouldTrackProgress = options?.trackProgress ?? true;
+
       const trackedSession: TutorialSession = {
         ...session,
         initialStepIndex,
+        trackProgress: shouldTrackProgress,
         onClose: () => {
           if (!sessionHandledRef.current) {
             sessionHandledRef.current = true;
-            void persistTutorialProgress(definition.moduleKey, {
-              status: 'SKIPPED',
-              currentStep: clampStepIndex(currentStepIndexRef.current, session.steps.length),
-              tutorialVersion: definition.version,
-            });
+            if (shouldTrackProgress) {
+              void persistTutorialProgress(definition.moduleKey, {
+                status: 'SKIPPED',
+                currentStep: clampStepIndex(currentStepIndexRef.current, session.steps.length),
+                tutorialVersion: definition.version,
+              });
+            }
           }
           options?.onClose?.();
         },
         onComplete: () => {
           if (!sessionHandledRef.current) {
             sessionHandledRef.current = true;
-            void persistTutorialProgress(definition.moduleKey, {
-              status: 'COMPLETED',
-              currentStep: Math.max(session.steps.length - 1, 0),
-              tutorialVersion: definition.version,
-            });
+            if (shouldTrackProgress) {
+              void persistTutorialProgress(definition.moduleKey, {
+                status: 'COMPLETED',
+                currentStep: Math.max(session.steps.length - 1, 0),
+                tutorialVersion: definition.version,
+              });
+            }
           }
           options?.onComplete?.();
         },
@@ -383,7 +390,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   }, [activeTutorial, authReady, currentModule, hasTutorialDefinition, isOpen, maybeOpenModuleTutorial, user?.id]);
 
   useEffect(() => {
-    if (!activeTutorial || !isOpen || !authReady || !user?.id) return;
+    if (!activeTutorial || activeTutorial.trackProgress === false || !isOpen || !authReady || !user?.id) return;
 
     const signature = `${activeTutorial.moduleKey}:${activeTutorial.version}:${currentStepIndex}`;
     if (lastStepSyncSignatureRef.current === signature) return;

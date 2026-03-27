@@ -14,8 +14,10 @@ type HighlightRect = {
 
 const VIEWPORT_MARGIN = 12;
 const DEFAULT_PANEL_WIDTH = 360;
+const DEFAULT_PANEL_HEIGHT = 320;
 const DEFAULT_GAP = 16;
 const HIGHLIGHT_PADDING = 10;
+const MOBILE_BREAKPOINT = 768;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -48,9 +50,17 @@ function resolveCardPosition({
   const viewportHeight = window.innerHeight;
   const width = Math.min(DEFAULT_PANEL_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
 
+  if (viewportWidth < MOBILE_BREAKPOINT) {
+    return {
+      top: Math.max(VIEWPORT_MARGIN, viewportHeight - DEFAULT_PANEL_HEIGHT - VIEWPORT_MARGIN),
+      left: VIEWPORT_MARGIN,
+      width: viewportWidth - VIEWPORT_MARGIN * 2,
+    };
+  }
+
   if (!highlightRect || placement === 'center') {
     return {
-      top: Math.max(VIEWPORT_MARGIN, (viewportHeight - 320) / 2),
+      top: Math.max(VIEWPORT_MARGIN, (viewportHeight - DEFAULT_PANEL_HEIGHT) / 2),
       left: Math.max(VIEWPORT_MARGIN, (viewportWidth - width) / 2),
       width,
     };
@@ -72,15 +82,15 @@ function resolveCardPosition({
 
   switch (resolvedPlacement) {
     case 'top':
-      top = highlightRect.top - 320 - offset;
+      top = highlightRect.top - DEFAULT_PANEL_HEIGHT - offset;
       left = highlightRect.left + highlightRect.width / 2 - width / 2;
       break;
     case 'right':
-      top = highlightRect.top + highlightRect.height / 2 - 160;
+      top = highlightRect.top + highlightRect.height / 2 - DEFAULT_PANEL_HEIGHT / 2;
       left = highlightRect.left + highlightRect.width + offset;
       break;
     case 'left':
-      top = highlightRect.top + highlightRect.height / 2 - 160;
+      top = highlightRect.top + highlightRect.height / 2 - DEFAULT_PANEL_HEIGHT / 2;
       left = highlightRect.left - width - offset;
       break;
     case 'bottom':
@@ -91,7 +101,7 @@ function resolveCardPosition({
   }
 
   return {
-    top: clamp(top, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportHeight - 320 - VIEWPORT_MARGIN)),
+    top: clamp(top, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportHeight - DEFAULT_PANEL_HEIGHT - VIEWPORT_MARGIN)),
     left: clamp(left, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportWidth - width - VIEWPORT_MARGIN)),
     width,
   };
@@ -237,7 +247,7 @@ export function TutorialOverlay() {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="max-h-[min(50vh,420px)] space-y-4 overflow-y-auto">
           <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
             <span>
               Passo {currentStepIndex + 1} de {totalSteps}

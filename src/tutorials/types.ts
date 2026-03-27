@@ -78,6 +78,7 @@ export interface TutorialProgress {
 
 export interface TutorialSession extends TutorialDefinition {
   initialStepIndex?: number;
+  trackProgress?: boolean;
   onComplete?: () => void;
   onClose?: () => void;
 }
@@ -86,4 +87,5 @@ export interface OpenModuleTutorialOptions {
   onClose?: () => void;
   onComplete?: () => void;
   initialStepIndex?: number;
+  trackProgress?: boolean;
 }

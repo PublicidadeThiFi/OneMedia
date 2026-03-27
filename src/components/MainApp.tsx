@@ -99,11 +99,6 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     setCurrentPage(initialPage);
   }, [initialPage]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // Sync URL-based initial page changes (e.g., navigate('/app/settings?...'))
-  useEffect(() => {
-    setCurrentPage(initialPage);
-  }, [initialPage]);
   const { user, logout, authReady } = useAuth();
   const { hasTutorialForModule, openModuleTutorial, setCurrentModule } = useTutorial();
   const navigate = useNavigation();
@@ -194,7 +189,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
 
   const handleOpenCurrentTutorial = () => {
     if (!hasTutorialForModule(currentPage)) return;
-    openModuleTutorial(currentPage, { initialStepIndex: 0 });
+    openModuleTutorial(currentPage, { initialStepIndex: 0, trackProgress: false });
   };
 
   const currentPageHasTutorial = hasTutorialForModule(currentPage);

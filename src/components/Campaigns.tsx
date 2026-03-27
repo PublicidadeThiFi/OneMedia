@@ -218,7 +218,7 @@ export function Campaigns() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => openModuleTutorial('campaigns-create-flow')}
+            onClick={() => openModuleTutorial('campaigns-create-flow', { trackProgress: false })}
             className="border-blue-200 bg-white text-blue-700 hover:bg-blue-100"
           >
             Tutorial rápido
