@@ -389,6 +389,7 @@ export function MediaMap() {
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
   const suggestAbortRef = useRef<AbortController | null>(null);
   const defaultCenterAppliedRef = useRef(false);
+  const tutorialStepHandledRef = useRef<string | null>(null);
 
   const [bboxStr, setBboxStr] = useState<string | undefined>(undefined);
   const [defaultCenter, setDefaultCenter] = useState<LatLng>(BRASILIA_CENTER);
@@ -1021,9 +1022,19 @@ export function MediaMap() {
   };
 
   useEffect(() => {
-    if (activeTutorial?.moduleKey !== 'mediamap') return;
+    if (activeTutorial?.moduleKey !== 'mediamap') {
+      tutorialStepHandledRef.current = null;
+      return;
+    }
+
     const stepId = currentStep?.id;
     if (!stepId) return;
+
+    if (tutorialStepHandledRef.current === stepId) {
+      return;
+    }
+
+    tutorialStepHandledRef.current = stepId;
 
     const openTutorialDetails = async () => {
       const pointId = details?.point?.id ?? selectedPointId ?? points[0]?.id;

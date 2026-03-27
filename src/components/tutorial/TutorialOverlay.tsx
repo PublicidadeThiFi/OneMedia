@@ -24,6 +24,11 @@ const stopEvent = (event: { stopPropagation: () => void; preventDefault?: () => 
   event.stopPropagation();
 };
 
+const swallowTutorialEvent = (event: { stopPropagation: () => void; preventDefault?: () => void }) => {
+  event.preventDefault?.();
+  event.stopPropagation();
+};
+
 const blockUnderlyingEvent = (event: { stopPropagation: () => void; preventDefault?: () => void }) => {
   event.preventDefault?.();
   event.stopPropagation();
@@ -322,7 +327,15 @@ export function TutorialOverlay() {
           top: cardPosition.top,
           left: cardPosition.left,
           width: cardPosition.width,
+          isolation: 'isolate',
         }}
+        onClickCapture={swallowTutorialEvent}
+        onMouseDownCapture={swallowTutorialEvent}
+        onMouseUpCapture={swallowTutorialEvent}
+        onPointerDownCapture={swallowTutorialEvent}
+        onPointerUpCapture={swallowTutorialEvent}
+        onTouchStartCapture={swallowTutorialEvent}
+        onTouchEndCapture={swallowTutorialEvent}
         onClick={stopEvent}
         onMouseDown={stopEvent}
         onMouseUp={stopEvent}
@@ -347,6 +360,9 @@ export function TutorialOverlay() {
             </div>
             <button
               type="button"
+              onClickCapture={swallowTutorialEvent}
+              onMouseDownCapture={swallowTutorialEvent}
+              onPointerDownCapture={swallowTutorialEvent}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}
               className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
               aria-label="Fechar tutorial"
@@ -363,6 +379,9 @@ export function TutorialOverlay() {
             </span>
             <button
               type="button"
+              onClickCapture={swallowTutorialEvent}
+              onMouseDownCapture={swallowTutorialEvent}
+              onPointerDownCapture={swallowTutorialEvent}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); restartTutorial(); }}
               className="inline-flex items-center gap-1 font-medium text-indigo-600 transition-colors hover:text-indigo-700"
             >
@@ -389,15 +408,35 @@ export function TutorialOverlay() {
         </CardContent>
 
         <CardFooter className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-          <Button variant="ghost" onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}>
+          <Button
+            variant="ghost"
+            onClickCapture={swallowTutorialEvent}
+            onMouseDownCapture={swallowTutorialEvent}
+            onPointerDownCapture={swallowTutorialEvent}
+            onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}
+          >
             Pular
           </Button>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); previousStep(); }} disabled={!hasPreviousStep}>
+            <Button
+              variant="outline"
+              onClickCapture={swallowTutorialEvent}
+              onMouseDownCapture={swallowTutorialEvent}
+              onPointerDownCapture={swallowTutorialEvent}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); previousStep(); }}
+              disabled={!hasPreviousStep}
+            >
               Voltar
             </Button>
-            <Button onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); nextStep(); }}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
+            <Button
+              onClickCapture={swallowTutorialEvent}
+              onMouseDownCapture={swallowTutorialEvent}
+              onPointerDownCapture={swallowTutorialEvent}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); nextStep(); }}
+            >
+              {hasNextStep ? 'Próximo' : 'Concluir'}
+            </Button>
           </div>
         </CardFooter>
       </Card>
