@@ -6,7 +6,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy, Sparkles, Link2, UserRound, Package, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
 import {
@@ -164,6 +164,40 @@ function readProductionCostsList(raw: any): Array<{ name: string; value: number 
   return out;
 }
 
+
+function getWorkspaceStatusMeta(status?: string | null) {
+  const normalized = String(status || '').trim().toUpperCase();
+  switch (normalized) {
+    case 'QUOTE_SENT':
+      return {
+        label: 'Proposta enviada',
+        chipClass: 'border-blue-200 bg-blue-50 text-blue-800',
+        panelClass: 'border-blue-200 bg-blue-50/80 text-blue-950',
+        description: 'A proposta está com o cliente. Acompanhe aberturas, links e próximos passos operacionais.',
+      };
+    case 'REVISION_REQUESTED':
+      return {
+        label: 'Revisão solicitada',
+        chipClass: 'border-amber-200 bg-amber-50 text-amber-800',
+        panelClass: 'border-amber-200 bg-amber-50/80 text-amber-950',
+        description: 'O cliente pediu ajustes. Revise a versão atual, refine custos e envie uma nova proposta.',
+      };
+    case 'APPROVED':
+      return {
+        label: 'Proposta aprovada',
+        chipClass: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        panelClass: 'border-emerald-200 bg-emerald-50/80 text-emerald-950',
+        description: 'A versão foi aprovada e o workspace agora serve como painel de acompanhamento do ciclo operacional.',
+      };
+    default:
+      return {
+        label: 'Workspace da proposta',
+        chipClass: 'border-slate-200 bg-slate-50 text-slate-700',
+        panelClass: 'border-slate-200 bg-slate-50/80 text-slate-950',
+        description: 'Organize links, composição da proposta, integrações e resumo financeiro em um único lugar.',
+      };
+  }
+}
 
 export default function MenuDonoWorkspace() {
   const navigate = useNavigation();
@@ -479,6 +513,9 @@ export default function MenuDonoWorkspace() {
 
   const status = String(data?.status || '').toUpperCase();
   const isLocked = status === 'APPROVED';
+  const workspaceStatusMeta = useMemo(() => getWorkspaceStatusMeta(status), [status]);
+  const workspaceItemsCount = data?.items?.length ?? 0;
+  const workspacePointsCount = useMemo(() => new Set((data?.items || []).map((item) => item.pointId).filter(Boolean)).size, [data?.items]);
 
   const [previewTotals, setPreviewTotals] = useState<MenuQuoteTotals>({ base: 0, services: 0, costs: 0, discount: 0, total: 0 });
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -1018,26 +1055,33 @@ export default function MenuDonoWorkspace() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-50">
-      <div className="mx-auto max-w-4xl px-4 py-8">
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Área do responsável</div>
+    <div className="min-h-screen w-full bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef4ff_38%,_#f8fafc_100%)]">
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:py-10">
+        <div className="rounded-[28px] border border-slate-200/80 bg-white/80 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <Badge variant="secondary" className="rounded-full border border-blue-200 bg-blue-50 text-blue-700">Workspace do responsável</Badge>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Composição e operação da proposta</h1>
+                <p className="mt-1 max-w-3xl text-sm text-slate-600">Gerencie versões, links assinados, integrações e o resumo comercial em um painel mais claro e mais maduro.</p>
+              </div>
+            </div>
 
-          <div className="ml-auto flex gap-2">
-            <Button variant="outline" className="gap-2" onClick={() => navigate(backUrl)}>
-              <ArrowLeft className="h-4 w-4" />
-              Acompanhar
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={goByStatus}>
-              <FileText className="h-4 w-4" />
-              Estado atual
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={() => navigate(backUrl)}>
+                <ArrowLeft className="h-4 w-4" />
+                Acompanhar
+              </Button>
+              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={goByStatus}>
+                <FileText className="h-4 w-4" />
+                Estado atual
+              </Button>
+            </div>
           </div>
         </div>
 
-        <Card className="mt-5">
-          <CardContent className="py-6">
+        <Card className="mt-6 overflow-hidden border-slate-200/80 bg-white/88 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+          <CardContent className="p-6 lg:p-8">
             {isLoading ? (
               <div className="flex items-center gap-3 text-sm text-gray-600">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1058,19 +1102,76 @@ export default function MenuDonoWorkspace() {
               />
             ) : (
               <>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1">
-                    <div className="text-xs text-gray-500">Request ID</div>
-                    <div className="mt-1 font-mono text-sm text-gray-800 break-all">{data.id}</div>
+                <div className={`rounded-[28px] border p-6 shadow-sm ${workspaceStatusMeta.panelClass}`}>
+                  <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-3">
+                      <Badge variant="secondary" className={`w-fit rounded-full border ${workspaceStatusMeta.chipClass}`}>{workspaceStatusMeta.label}</Badge>
+                      <div>
+                        <h2 className="text-2xl font-semibold tracking-tight">Workspace da proposta</h2>
+                        <p className="mt-1 max-w-2xl text-sm opacity-80">{workspaceStatusMeta.description}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-slate-700">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          {currentQuote ? `Versão atual v${currentQuote.version}` : 'Monte a primeira versão'}
+                        </div>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-slate-700">
+                          <Link2 className="h-3.5 w-3.5" />
+                          Links assinados e rastreados
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:max-w-2xl">
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <FileText className="h-3.5 w-3.5" />
+                          Versão
+                        </div>
+                        <div className="mt-3 text-xl font-semibold text-slate-950">{currentQuote ? `v${currentQuote.version}` : '—'}</div>
+                        <div className="mt-1 text-xs text-slate-500">{currentQuote ? formatDateTimeBr(currentQuote.createdAt) : 'Ainda não enviada'}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <Wallet className="h-3.5 w-3.5" />
+                          Total estimado
+                        </div>
+                        <div className="mt-3 text-xl font-semibold text-slate-950">{formatMoneyBr(previewTotals.total || currentQuote?.totals?.total || 0)}</div>
+                        <div className="mt-1 text-xs text-slate-500">Preview comercial desta composição</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <Package className="h-3.5 w-3.5" />
+                          Itens
+                        </div>
+                        <div className="mt-3 text-xl font-semibold text-slate-950">{workspaceItemsCount}</div>
+                        <div className="mt-1 text-xs text-slate-500">{workspacePointsCount} ponto(s) envolvidos</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <UserRound className="h-3.5 w-3.5" />
+                          Cliente
+                        </div>
+                        <div className="mt-3 text-base font-semibold text-slate-950">{data.customerName || data.customerEmail || 'Cliente do pedido'}</div>
+                        <div className="mt-1 text-xs text-slate-500">Atualizado em {formatDateTimeBr(data.updatedAt || data.createdAt)}</div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-600">
-                    Atualizado em <span className="font-semibold">{formatDateTimeBr(data.updatedAt || data.createdAt)}</span>
+                </div>
+
+                <div className="mt-5 flex flex-col gap-3 rounded-[24px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex-1">
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Request ID</div>
+                    <div className="mt-2 font-mono text-sm text-slate-800 break-all">{data.id}</div>
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    Atualizado em <span className="font-semibold text-slate-900">{formatDateTimeBr(data.updatedAt || data.createdAt)}</span>
                   </div>
                 </div>
 
                 {data.links && (
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-xs text-gray-500">Link do cliente (assinado)</div>
                         <Button
@@ -1104,7 +1205,7 @@ export default function MenuDonoWorkspace() {
                       <div className="mt-2 text-xs text-gray-500 break-all">{full(propostaUrl)}</div>
                     </div>
 
-                    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                    <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                       <div className="text-xs text-gray-500">Link do dono (workspace)</div>
 
                       <div className="mt-2 text-xs text-gray-600">
@@ -1144,9 +1245,9 @@ export default function MenuDonoWorkspace() {
                   </div>
                 )}
 
-                <Separator className="my-5" />
+                <Separator className="my-6" />
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 px-5 py-5 shadow-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Integração operacional</div>
@@ -1176,7 +1277,7 @@ export default function MenuDonoWorkspace() {
                   ) : null}
 
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                       <div className="text-xs text-slate-500">Cliente interno</div>
                       <div className="mt-1 font-medium text-slate-900">{data.clientId ? 'Criado/sincronizado' : 'Pendente'}</div>
                       <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.clientId || '—'}</div>
@@ -1187,7 +1288,7 @@ export default function MenuDonoWorkspace() {
                         </Button>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                       <div className="text-xs text-slate-500">Proposta interna espelho</div>
                       <div className="mt-1 font-medium text-slate-900">{data.proposalId ? 'Criada/sincronizada' : 'Será criada ao enviar a versão'}</div>
                       <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.proposalId || '—'}</div>
@@ -1201,7 +1302,7 @@ export default function MenuDonoWorkspace() {
                         </Button>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                       <div className="text-xs text-slate-500">Campanha</div>
                       <div className="mt-1 font-medium text-slate-900">{data.operational?.campaign?.id ? 'Criada' : 'Aguardando aprovação do cliente'}</div>
                       <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.operational?.campaign?.id || data.campaignId || '—'}</div>
@@ -1217,7 +1318,7 @@ export default function MenuDonoWorkspace() {
                         </Button>
                       </div>
                     </div>
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                       <div className="text-xs text-slate-500">Reservas e financeiro</div>
                       <div className="mt-1 text-xs text-slate-600">Reservas: <span className="font-semibold">{data.operational?.reservations?.total ?? 0}</span></div>
                       <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
@@ -1236,7 +1337,7 @@ export default function MenuDonoWorkspace() {
                   <div className="mt-3 text-xs text-slate-500">Depois da aprovação do cliente, a proposta interna é aprovada de forma operacional e o sistema passa a gerar campanha, reservas e cobranças conforme a lógica já existente.</div>
                 </div>
 
-                <Separator className="my-5" />
+                <Separator className="my-6" />
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div>
@@ -1262,7 +1363,7 @@ export default function MenuDonoWorkspace() {
                         <div className="text-sm text-gray-600">Nenhuma versão enviada ainda. Quando você enviar, ela aparece aqui.</div>
                       ) : (
                         (data.quotes || []).slice().reverse().map((q) => (
-                          <div key={q.version} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                          <div key={q.version} className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                             <div className="flex items-center justify-between gap-3">
                               <div className="text-sm font-semibold text-gray-900">v{q.version}</div>
                               <div className="text-xs text-gray-600">{formatDateTimeBr(q.createdAt)}</div>
@@ -1344,7 +1445,7 @@ export default function MenuDonoWorkspace() {
                           const input = itemCostInputs[itemKey] || { name: '', value: '' };
 
                           return (
-                            <div key={itemKey} className="rounded-xl border border-gray-200 bg-white px-4 py-3">
+                            <div key={itemKey} className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
@@ -1694,7 +1795,7 @@ export default function MenuDonoWorkspace() {
                                                   ].filter(Boolean);
 
                                                   return (
-                                                    <div key={d.id} className="rounded-xl border border-gray-200 px-3 py-2">
+                                                    <div key={d.id} className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                                                       <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0">
                                                           <div className="text-sm font-semibold text-gray-900 truncate">{d.label || `${scopeLabel} (${appliesToLabel})`}</div>
@@ -1844,7 +1945,7 @@ export default function MenuDonoWorkspace() {
                           <div className="text-sm text-gray-600">Nenhum brinde adicionado ainda.</div>
                         ) : (
                           (draft.gifts || []).map((g) => (
-                            <div key={g.id} className="rounded-xl border border-gray-200 px-3 py-2">
+                            <div key={g.id} className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div className="min-w-0">
                                   <div className="text-sm font-semibold text-gray-900 truncate">
@@ -1993,19 +2094,19 @@ export default function MenuDonoWorkspace() {
                       ) : null}
                       {previewError ? <div className="mt-1 text-xs text-amber-600">{previewError}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-3">
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                        <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                           <div className="text-xs text-gray-500">Base</div>
                           <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.base)}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                        <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                           <div className="text-xs text-gray-500">Serviços</div>
                           <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.services)}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                        <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                           <div className="text-xs text-gray-500">Custos de produção</div>
                           <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(previewTotals.costs ?? 0)}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
+                        <div className="rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm">
                           <div className="text-xs text-gray-500">Descontos</div>
                           <div className="text-sm font-semibold text-gray-900">- {formatMoneyBr(previewTotals.discount)}</div>
                           <div className="mt-1 space-y-0.5 text-[11px] text-gray-500">

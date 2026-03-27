@@ -4,7 +4,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, Loader2, Lock, CheckCircle2, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, CheckCircle2, FileText, Wallet, RefreshCw, Sparkles, BadgeCheck, Layers3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { classifyMenuRequestError, fetchMenuRequest, type MenuQuoteVersionRecord, type MenuRequestRecord } from '../lib/menuRequestApi';
 
@@ -78,6 +78,15 @@ function openMenuHref(href?: string | null, opts?: { newTab?: boolean }) {
   window.location.assign(target);
 }
 
+function getApprovedStatusMeta() {
+  return {
+    label: 'Proposta aprovada',
+    chipClass: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    panelClass: 'border-emerald-200 bg-emerald-50/80 text-emerald-950',
+    description: 'A versão foi aprovada e o workspace passa a funcionar como painel de leitura do ciclo operacional e financeiro.',
+  };
+}
+
 export default function MenuDonoAprovada() {
   const navigate = useNavigation();
 
@@ -114,7 +123,6 @@ export default function MenuDonoAprovada() {
   useEffect(() => {
     let alive = true;
 
-    // Etapa 8 — blindagem: páginas do responsável só via link assinado (t)
     if (!String(rid || '').trim() || !String(t || '').trim()) {
       setData(null);
       setIsLoading(false);
@@ -162,32 +170,41 @@ export default function MenuDonoAprovada() {
     return () => window.clearInterval(timer);
   }, [rid, token, t]);
 
-  return (
-    <div className="min-h-screen w-full bg-gray-50">
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="rounded-full">Protótipo</Badge>
-          <div className="text-sm text-gray-600">Dono • Aprovada (travada)</div>
+  const statusMeta = getApprovedStatusMeta();
 
-          <div className="ml-auto">
-            <Button variant="ghost" className="gap-2" onClick={() => navigate(workspaceUrl)}>
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
+  return (
+    <div className="min-h-screen w-full bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_32%),linear-gradient(180deg,_#f8fffb_0%,_#ecfdf5_32%,_#f8fafc_100%)]">
+      <div className="mx-auto max-w-5xl px-4 py-8 lg:py-10">
+        <div className="rounded-[28px] border border-slate-200/80 bg-white/80 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <Badge variant="secondary" className="rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">Área do responsável</Badge>
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Proposta aprovada e travada</h1>
+                <p className="mt-1 text-sm text-slate-600">Painel mais limpo para consultar a versão final, o estado operacional e as cobranças geradas.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={() => navigate(workspaceUrl)}>
+                <ArrowLeft className="h-4 w-4" />
+                Voltar ao workspace
+              </Button>
+            </div>
           </div>
         </div>
 
-        <Card className="mt-5">
-          <CardContent className="py-6">
+        <Card className="mt-6 overflow-hidden border-slate-200/80 bg-white/88 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+          <CardContent className="p-6 lg:p-8">
             {isLoading ? (
-              <div className="flex items-center gap-3 text-sm text-gray-600">
+              <div className="flex items-center gap-3 text-sm text-slate-600">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando...
               </div>
             ) : !data ? (
-              <div className="space-y-2">
-                <div className="text-sm font-semibold text-gray-900">{loadError?.title || 'Não encontramos essa solicitação.'}</div>
-                <div className="text-sm text-gray-600">{loadError?.description || 'Verifique o link e tente novamente.'}</div>
+              <div className="space-y-3 rounded-[24px] border border-slate-200/80 bg-white/95 p-5 shadow-sm">
+                <div className="text-sm font-semibold text-slate-900">{loadError?.title || 'Não encontramos essa solicitação.'}</div>
+                <div className="text-sm text-slate-600">{loadError?.description || 'Verifique o link e tente novamente.'}</div>
                 <div className="pt-2">
                   <Button variant="outline" onClick={() => navigate('/menu')}>
                     Ir para o início
@@ -196,156 +213,205 @@ export default function MenuDonoAprovada() {
               </div>
             ) : (
               <>
-                <div className="flex items-start gap-3 rounded-xl border border-gray-900 bg-gray-900 px-4 py-3 text-white">
-                  <div className="mt-0.5 h-9 w-9 rounded-2xl bg-white/10 flex items-center justify-center">
-                    <Lock className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold">Proposta aprovada e travada</div>
-                    <div className="mt-1 text-xs text-gray-200">Este ciclo foi finalizado.</div>
+                <div className={`rounded-[28px] border p-6 shadow-sm ${statusMeta.panelClass}`}>
+                  <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-3">
+                      <Badge variant="secondary" className={`w-fit rounded-full border ${statusMeta.chipClass}`}>{statusMeta.label}</Badge>
+                      <div>
+                        <h2 className="text-2xl font-semibold tracking-tight">Ciclo finalizado com sucesso</h2>
+                        <p className="mt-1 max-w-2xl text-sm opacity-80">{statusMeta.description}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-slate-700">
+                          <Lock className="h-3.5 w-3.5" />
+                          Sem novas versões após a aprovação
+                        </div>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/70 px-3 py-1.5 text-slate-700">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Painel de leitura operacional
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid flex-1 gap-3 sm:grid-cols-2 xl:max-w-2xl">
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <FileText className="h-3.5 w-3.5" />
+                          Versão final
+                        </div>
+                        <div className="mt-3 text-xl font-semibold text-slate-950">{currentQuote ? `v${currentQuote.version}` : '—'}</div>
+                        <div className="mt-1 text-xs text-slate-500">{currentQuote ? formatDateTimeBr(currentQuote.createdAt) : '—'}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <Wallet className="h-3.5 w-3.5" />
+                          Total final
+                        </div>
+                        <div className="mt-3 text-xl font-semibold text-slate-950">{formatMoneyBr(currentQuote?.totals.total || 0)}</div>
+                        <div className="mt-1 text-xs text-slate-500">Valor consolidado da versão aprovada</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <BadgeCheck className="h-3.5 w-3.5" />
+                          Status
+                        </div>
+                        <div className="mt-3 text-base font-semibold text-slate-950">{currentQuote?.status || '—'}</div>
+                        <div className="mt-1 text-xs text-slate-500">Proposta aprovada pelo cliente</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/70 bg-white/85 p-4">
+                        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Sincronização
+                        </div>
+                        <div className="mt-3 text-base font-semibold text-slate-950">{formatDateTimeBr(data.operational?.syncedAt || data.updatedAt || data.createdAt)}</div>
+                        <div className="mt-1 text-xs text-slate-500">Último sincronismo operacional</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <Separator className="my-5" />
+                <div className="mt-5 rounded-[24px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 shadow-sm">
+                  <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Request ID</div>
+                  <div className="mt-2 font-mono text-sm text-slate-800 break-all">{data.id}</div>
+                </div>
 
-                <div className="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                  <div className="text-xs text-gray-500">Request ID</div>
-                  <div className="mt-1 font-mono text-sm text-gray-800 break-all">{data.id}</div>
+                <Separator className="my-6" />
 
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">Versão final</div>
-                      <div className="mt-1 text-xs text-gray-600">
-                        {currentQuote ? `v${currentQuote.version} • ${formatDateTimeBr(currentQuote.createdAt)}` : '—'}
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-5 py-5 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Versão final aprovada</div>
+                        <div className="mt-1 text-xs text-slate-500">Consulta rápida da proposta fechada.</div>
+                      </div>
+                      <Button variant="outline" className="gap-2 border-slate-200" onClick={() => navigate(propostaUrl)}>
+                        <FileText className="h-4 w-4" />
+                        Ver proposta
+                      </Button>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+                        <div className="text-xs text-slate-500">Total</div>
+                        <div className="mt-1 text-lg font-semibold text-slate-950">{formatMoneyBr(currentQuote?.totals.total || 0)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4">
+                        <div className="text-xs text-slate-500">Status</div>
+                        <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-slate-950">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          {currentQuote?.status || '—'}
+                        </div>
                       </div>
                     </div>
-                    <Button variant="outline" className="gap-2" onClick={() => navigate(propostaUrl)}>
-                      <FileText className="h-4 w-4" />
-                      Ver proposta
-                    </Button>
                   </div>
 
-                  {currentQuote && (
-                    <>
-                      <Separator className="my-4" />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
-                          <div className="text-xs text-gray-500">Total</div>
-                          <div className="text-lg font-bold text-gray-900">{formatMoneyBr(currentQuote.totals.total)}</div>
-                        </div>
-                        <div className="rounded-xl border border-gray-200 px-3 py-2">
-                          <div className="text-xs text-gray-500">Status</div>
-                          <div className="mt-1 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            {currentQuote.status}
-                          </div>
-                        </div>
+                  <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 px-5 py-5 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Estado operacional</div>
+                        <div className="mt-1 text-xs text-slate-500">Resumo do que já foi criado no sistema interno.</div>
                       </div>
-                    </>
-                  )}
+                      {data.operational?.stage ? (
+                        <Badge variant="secondary" className="w-fit rounded-full border border-slate-200 bg-white text-slate-700">
+                          {data.operational.stage.label}
+                        </Badge>
+                      ) : null}
+                    </div>
 
-                  <Separator className="my-4" />
-
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="text-xs text-gray-500">Sincronizado em {formatDateTimeBr(data.operational?.syncedAt || data.updatedAt || data.createdAt)}</div>
-                    {data.operational?.stage ? (
-                      <Badge variant="secondary" className="w-fit rounded-full bg-gray-100 text-gray-700 border border-gray-200">
-                        {data.operational.stage.label}
-                      </Badge>
+                    {data.operational?.stage?.description ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-4 text-sm text-slate-700 shadow-sm">
+                        {data.operational.stage.description}
+                      </div>
                     ) : null}
                   </div>
+                </div>
 
-                  {data.operational?.stage?.description ? (
-                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-700">
-                      {data.operational.stage.description}
-                    </div>
-                  ) : null}
+                {Array.isArray(data.operational?.warnings) && data.operational!.warnings!.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {data.operational!.warnings!.map((warning) => (
+                      <div key={warning.code} className="rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-4 text-sm text-amber-950 shadow-sm">
+                        {warning.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
 
-                  {Array.isArray(data.operational?.warnings) && data.operational!.warnings!.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      {data.operational!.warnings!.map((warning) => (
-                        <div key={warning.code} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-900">
-                          {warning.message}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-gray-200 px-3 py-3">
-                      <div className="text-xs text-gray-500">Proposta interna</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">{formatOperationalStatus(data.operational?.proposal?.status || data.proposalStatus)}</div>
-                      <div className="mt-1 text-xs text-gray-600 break-all">ID: {data.proposalId || '—'}</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.proposal} onClick={() => openMenuHref(data.operational?.links?.proposal)}>
-                          Abrir propostas
-                        </Button>
-                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.publicProposal} onClick={() => openMenuHref(data.operational?.links?.publicProposal, { newTab: true })}>
-                          Portal público
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-gray-200 px-3 py-3">
-                      <div className="text-xs text-gray-500">Campanha gerada</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.campaign?.name || '—'}</div>
-                      <div className="mt-1 text-xs text-gray-600 break-all">ID: {data.operational?.campaign?.id || data.campaignId || '—'}</div>
-                      <div className="mt-1 text-xs text-gray-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.campaign?.status)}</span></div>
-                      <div className="mt-3">
-                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.campaign} onClick={() => openMenuHref(data.operational?.links?.campaign)}>
-                          Abrir campanhas
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-gray-200 px-3 py-3">
-                      <div className="text-xs text-gray-500">Reservas</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.reservations?.total ?? 0}</div>
-                      <div className="mt-1 text-xs text-gray-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
-                      <div className="mt-3">
-                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.reservations} onClick={() => openMenuHref(data.operational?.links?.reservations)}>
-                          Abrir reservas
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-gray-200 px-3 py-3">
-                      <div className="text-xs text-gray-500">Cobranças</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">{data.operational?.billing?.total ?? 0}</div>
-                      <div className="mt-1 text-xs text-gray-600">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
-                      <div className="mt-3">
-                        <Button variant="outline" size="sm" disabled={!data.operational?.links?.billing} onClick={() => openMenuHref(data.operational?.links?.billing)}>
-                          Abrir financeiro
-                        </Button>
-                      </div>
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-5 py-5 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-900">Proposta interna</div>
+                    <div className="mt-3 text-sm font-semibold text-slate-950">{formatOperationalStatus(data.operational?.proposal?.status || data.proposalStatus)}</div>
+                    <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.proposalId || '—'}</div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="border-slate-200" disabled={!data.operational?.links?.proposal} onClick={() => openMenuHref(data.operational?.links?.proposal)}>
+                        Abrir propostas
+                      </Button>
+                      <Button variant="outline" size="sm" className="border-slate-200" disabled={!data.operational?.links?.publicProposal} onClick={() => openMenuHref(data.operational?.links?.publicProposal, { newTab: true })}>
+                        Portal público
+                      </Button>
                     </div>
                   </div>
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-5 py-5 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-900">Campanha gerada</div>
+                    <div className="mt-3 text-sm font-semibold text-slate-950">{data.operational?.campaign?.name || '—'}</div>
+                    <div className="mt-1 text-xs text-slate-600 break-all">ID: {data.operational?.campaign?.id || data.campaignId || '—'}</div>
+                    <div className="mt-1 text-xs text-slate-600">Status: <span className="font-semibold">{formatOperationalStatus(data.operational?.campaign?.status)}</span></div>
+                    <div className="mt-4">
+                      <Button variant="outline" size="sm" className="border-slate-200" disabled={!data.operational?.links?.campaign} onClick={() => openMenuHref(data.operational?.links?.campaign)}>
+                        Abrir campanhas
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-5 py-5 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-900">Reservas</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-950">{data.operational?.reservations?.total ?? 0}</div>
+                    <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.reservations?.byStatus)}</div>
+                    <div className="mt-4">
+                      <Button variant="outline" size="sm" className="border-slate-200" disabled={!data.operational?.links?.reservations} onClick={() => openMenuHref(data.operational?.links?.reservations)}>
+                        Abrir reservas
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-5 py-5 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-900">Cobranças</div>
+                    <div className="mt-3 text-xl font-semibold text-slate-950">{data.operational?.billing?.total ?? 0}</div>
+                    <div className="mt-1 text-xs text-slate-600">{formatStatusCounts(data.operational?.billing?.byStatus)}</div>
+                    <div className="mt-4">
+                      <Button variant="outline" size="sm" className="border-slate-200" disabled={!data.operational?.links?.billing} onClick={() => openMenuHref(data.operational?.links?.billing)}>
+                        Abrir financeiro
+                      </Button>
+                    </div>
+                  </div>
+                </div>
 
-                  {Array.isArray(data.operational?.billing?.invoices) && data.operational!.billing!.invoices.length > 0 ? (
-                    <>
-                      <Separator className="my-4" />
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">Cobranças geradas</div>
-                        <div className="mt-3 space-y-2">
-                          {data.operational!.billing!.invoices.map((invoice) => (
-                            <div key={invoice.id} className="rounded-xl border border-gray-200 px-3 py-3">
-                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <div>
-                                  <div className="text-sm font-semibold text-gray-900">
-                                    {invoice.type ? `${invoice.type}${invoice.sequence ? ` #${invoice.sequence}` : ''}` : 'Cobrança'}
-                                  </div>
-                                  <div className="mt-1 text-xs text-gray-600 break-all">ID: {invoice.id}</div>
+                {Array.isArray(data.operational?.billing?.invoices) && data.operational!.billing!.invoices.length > 0 ? (
+                  <>
+                    <Separator className="my-6" />
+                    <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-5 py-5 shadow-sm">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Layers3 className="h-4 w-4" />
+                        Cobranças geradas
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        {data.operational!.billing!.invoices.map((invoice) => (
+                          <div key={invoice.id} className="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-4 shadow-sm">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <div className="text-sm font-semibold text-slate-950">
+                                  {invoice.type ? `${invoice.type}${invoice.sequence ? ` #${invoice.sequence}` : ''}` : 'Cobrança'}
                                 </div>
-                                <div className="text-right">
-                                  <div className="text-sm font-semibold text-gray-900">{formatMoneyBr(invoice.amount)}</div>
-                                  <div className="mt-1 text-xs text-gray-600">Vencimento: {formatDateTimeBr(invoice.dueDate)}</div>
-                                  <div className="mt-1 text-xs text-gray-600">Status: <span className="font-semibold">{formatOperationalStatus(invoice.status)}</span></div>
-                                </div>
+                                <div className="mt-1 text-xs text-slate-600 break-all">ID: {invoice.id}</div>
+                              </div>
+                              <div className="text-right text-sm text-slate-700">
+                                <div className="font-semibold text-slate-950">{formatMoneyBr(invoice.amount)}</div>
+                                <div className="mt-1 text-xs">Vencimento: {formatDateTimeBr(invoice.dueDate)}</div>
+                                <div className="mt-1 text-xs">Status: <span className="font-semibold">{formatOperationalStatus(invoice.status)}</span></div>
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                    </>
-                  ) : null}
-                </div>
+                    </div>
+                  </>
+                ) : null}
               </>
             )}
           </CardContent>
