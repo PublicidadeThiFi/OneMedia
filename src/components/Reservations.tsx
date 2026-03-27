@@ -377,7 +377,7 @@ export function Reservations() {
                   <h3 className="text-gray-900">
                   Reservas do dia {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
                   </h3>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('reservations-conflicts-flow')} className="text-indigo-600 hover:text-indigo-700">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('reservations-conflicts-flow', { trackProgress: false })} className="text-indigo-600 hover:text-indigo-700">
                     Tutorial rápido
                   </Button>
                 </div>

@@ -5,9 +5,24 @@ function step(step: TutorialStep): TutorialStep {
 }
 
 function createTutorial(definition: TutorialDefinition): TutorialDefinition {
+  const orderedSteps = [...definition.steps].sort((a, b) => a.order - b.order);
+
+  const seenIds = new Set<string>();
+  const seenOrders = new Set<number>();
+  for (const step of orderedSteps) {
+    if (seenIds.has(step.id)) {
+      console.warn(`[tutorial] passo duplicado em ${definition.moduleKey}: ${step.id}`);
+    }
+    if (seenOrders.has(step.order)) {
+      console.warn(`[tutorial] ordem duplicada em ${definition.moduleKey}: ${step.order}`);
+    }
+    seenIds.add(step.id);
+    seenOrders.add(step.order);
+  }
+
   return {
     ...definition,
-    steps: [...definition.steps].sort((a, b) => a.order - b.order),
+    steps: orderedSteps,
   };
 }
 
