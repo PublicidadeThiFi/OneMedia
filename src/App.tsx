@@ -195,13 +195,13 @@ export default function App() {
       // Extract page from path like /app/dashboard, /app/inventory, etc.
       const pagePath = cleanPath.replace('/app/', '').replace('/app', '');
 
-      // If just /app, default to dashboard
+      // If just /app, default to the internal home page
       if (!pagePath || pagePath === '') {
-        return <MainApp initialPage="dashboard" />;
+        return <MainApp initialPage="home" />;
       }
 
       // Map path to page
-      // Valid pages: dashboard, inventory, clients, products, proposals, campaigns,
+      // Valid pages: home, dashboard, inventory, clients, products, proposals, campaigns,
       // reservations, financial, messages, mediakit, activities, settings, superadmin
       return <MainApp key={cleanPath} initialPage={pagePath as any} />;
     }
