@@ -8,6 +8,7 @@ import { ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 import { MediaSelectionDrawer } from './MediaSelectionDrawer';
 import { ProductSelectionDialog } from './ProductSelectionDialog';
 import { ProposalItemEditDialog } from './ProposalItemEditDialog';
+import { useTutorial } from '../../contexts/TutorialContext';
 
 interface ProposalStep2ItemsProps {
   formData: ProposalFormData;
@@ -24,6 +25,7 @@ export function ProposalStep2Items({
   initialMediaPointId,
   initialMediaPointIds,
 }: ProposalStep2ItemsProps) {
+  const { openModuleTutorial } = useTutorial();
   const [showMediaDrawer, setShowMediaDrawer] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -150,6 +152,12 @@ export function ProposalStep2Items({
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('proposals-create-flow')} className="text-indigo-600 hover:text-indigo-700">
+          Tutorial rápido deste fluxo
+        </Button>
+      </div>
+
       {/* Configuracoes globais do passo 2 */}
       <div className="border rounded-lg p-4 bg-gray-50">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -178,6 +186,7 @@ export function ProposalStep2Items({
           variant="outline"
           onClick={() => setShowMediaDrawer(true)}
           className="gap-2"
+          data-tour="proposal-flow-add-media"
         >
           <ImageIcon className="w-4 h-4" />
           Adicionar Mídia do Inventário
@@ -187,6 +196,7 @@ export function ProposalStep2Items({
           variant="outline"
           onClick={() => setShowProductDialog(true)}
           className="gap-2"
+          data-tour="proposal-flow-add-product"
         >
           <Package className="w-4 h-4" />
           Adicionar Produto/Serviço

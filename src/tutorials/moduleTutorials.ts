@@ -862,6 +862,217 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
       }),
     ],
   }),
+  'proposals-create-flow': createTutorial({
+    moduleKey: 'proposals-create-flow',
+    scopeModuleKey: 'proposals',
+    title: 'Criação de proposta',
+    version: 1,
+    steps: [
+      step({
+        id: 'proposal-flow-overview',
+        order: 1,
+        title: 'Fluxo rápido da proposta',
+        description:
+          'Este mini tutorial acompanha a criação da proposta em duas etapas: dados gerais primeiro, itens e envio depois.',
+        target: '[data-tour="proposal-wizard-header"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'proposal-flow-client',
+        order: 2,
+        title: 'Comece pelo cliente',
+        description:
+          'Selecione o cliente e preencha as informações gerais da proposta. Esses dados sustentam o restante do fluxo.',
+        target: '[data-tour="proposal-flow-client"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'proposal-flow-next',
+        order: 3,
+        title: 'Avance para os itens',
+        description:
+          'Quando os dados obrigatórios estiverem prontos, avance para o passo de itens para montar a proposta comercial.',
+        target: '[data-tour="proposal-flow-next"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'proposal-flow-add-media',
+        order: 4,
+        title: 'Adicione mídias do inventário',
+        description:
+          'Inclua faces e unidades do inventário para compor a proposta com disponibilidade e valores calculados.',
+        target: '[data-tour="proposal-flow-add-media"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'proposal-flow-add-product',
+        order: 5,
+        title: 'Some produtos e serviços',
+        description:
+          'Use produtos e serviços para complementar a proposta com itens adicionais de produção, instalação ou apoio.',
+        target: '[data-tour="proposal-flow-add-product"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'proposal-flow-submit',
+        order: 6,
+        title: 'Revise e envie',
+        description:
+          'No rodapé, você pode salvar como rascunho ou enviar a proposta quando os itens e valores estiverem prontos.',
+        target: '[data-tour="proposal-flow-submit"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'mediamap-move-flow': createTutorial({
+    moduleKey: 'mediamap-move-flow',
+    scopeModuleKey: 'mediamap',
+    title: 'Mover ponto no mapa',
+    version: 1,
+    steps: [
+      step({
+        id: 'mediamap-move-start',
+        order: 1,
+        title: 'Modo mover ativado',
+        description:
+          'Ao entrar nesse modo, o ponto fica pronto para reposicionamento sem sair do mapa.',
+        target: '[data-tour="mediamap-move-active"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'mediamap-move-pick',
+        order: 2,
+        title: 'Escolha a nova posição',
+        description:
+          'Clique no mapa ou arraste o pin azul para ajustar a localização exata do ponto.',
+        target: '[data-tour="mediamap-navigation"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'mediamap-move-confirm',
+        order: 3,
+        title: 'Confirme a alteração',
+        description:
+          'Depois de revisar a posição, confirme para salvar as novas coordenadas e atualizar o endereço automaticamente quando possível.',
+        target: '[data-tour="mediamap-move-confirm"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'mediamap-move-cancel',
+        order: 4,
+        title: 'Ou cancele sem salvar',
+        description:
+          'Se precisar desistir ou ajustar depois, cancele o modo mover sem alterar o cadastro atual.',
+        target: '[data-tour="mediamap-move-cancel"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'mediamap-create-flow': createTutorial({
+    moduleKey: 'mediamap-create-flow',
+    scopeModuleKey: 'mediamap',
+    title: 'Criar ponto pelo mapa',
+    version: 1,
+    steps: [
+      step({
+        id: 'mediamap-create-overview',
+        order: 1,
+        title: 'Criação a partir do mapa',
+        description:
+          'Este fluxo começa pela posição escolhida no mapa e já pré-preenche latitude e longitude do novo ponto.',
+        target: '[data-tour="mediamap-create"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'mediamap-create-preview',
+        order: 2,
+        title: 'Confira endereço e coordenadas',
+        description:
+          'Revise a prévia de coordenadas e endereço antes de seguir para o cadastro completo do ponto.',
+        target: '[data-tour="mediamap-create-preview"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'mediamap-create-confirm',
+        order: 3,
+        title: 'Continue para o formulário',
+        description:
+          'Ao confirmar, o sistema abre o formulário de inventário já preenchido com a localização escolhida.',
+        target: '[data-tour="mediamap-create-confirm"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'campaigns-create-flow': createTutorial({
+    moduleKey: 'campaigns-create-flow',
+    scopeModuleKey: 'campaigns',
+    title: 'Fluxo de criação da campanha',
+    version: 1,
+    steps: [
+      step({
+        id: 'campaigns-create-source',
+        order: 1,
+        title: 'A campanha nasce da proposta aprovada',
+        description:
+          'Neste sistema, a campanha não é criada manualmente aqui: ela surge quando a proposta é aprovada e entra em execução.',
+        target: '[data-tour="campaigns-create"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'campaigns-create-status',
+        order: 2,
+        title: 'Entenda o ciclo operacional',
+        description:
+          'Depois da aprovação, a campanha evolui pelos status de instalação, veiculação e encerramento conforme a operação avança.',
+        target: '[data-tour="campaigns-reports"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'campaigns-create-destination',
+        order: 3,
+        title: 'Onde acompanhar a campanha criada',
+        description:
+          'As campanhas geradas aparecem nas listas deste módulo para acompanhamento, check-in, faturamento e relatórios.',
+        target: '[data-tour="campaigns-create-destination"]',
+        placement: 'bottom',
+      }),
+    ],
+  }),
+  'reservations-conflicts-flow': createTutorial({
+    moduleKey: 'reservations-conflicts-flow',
+    scopeModuleKey: 'reservations',
+    title: 'Leitura de conflitos em reservas',
+    version: 1,
+    steps: [
+      step({
+        id: 'reservations-conflicts-overview',
+        order: 1,
+        title: 'Comece pelo dia selecionado',
+        description:
+          'Escolha um dia no calendário para concentrar a análise do período e verificar tudo o que cai naquela data.',
+        target: '[data-tour="reservations-conflicts-heading"]',
+        placement: 'left',
+      }),
+      step({
+        id: 'reservations-conflicts-filter',
+        order: 2,
+        title: 'Refine a leitura',
+        description:
+          'Use a busca para localizar rapidamente ponto, cliente, proposta ou campanha envolvidos na disputa de agenda.',
+        target: '[data-tour="reservations-filters"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'reservations-conflicts-list',
+        order: 3,
+        title: 'Analise os itens em conflito',
+        description:
+          'A lista reúne as reservas que tocam o dia selecionado. Abra cada cartão para entender status, cliente e valores.',
+        target: '[data-tour="reservations-conflicts"]',
+        placement: 'left',
+      }),
+    ],
+  }),
 };
 
 // Etapa 8: liberar também os tours complementares previstos no escopo.
@@ -882,6 +1093,11 @@ const activeTutorialModuleKeys = new Set<TutorialModuleKey>([
   'activities',
   'settings',
   'superadmin',
+  'proposals-create-flow',
+  'mediamap-move-flow',
+  'mediamap-create-flow',
+  'campaigns-create-flow',
+  'reservations-conflicts-flow',
 ]);
 
 export function listTutorialDefinitions(): TutorialDefinition[] {

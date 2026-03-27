@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTutorial } from '../../contexts/TutorialContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Proposal, ProposalStatus, ProposalItem } from '../../types';
@@ -92,6 +93,7 @@ export function ProposalFormWizard({
   onSave,
   onNavigate,
 }: ProposalFormWizardProps) {
+  const { activeTutorial, currentStepIndex, maybeOpenModuleTutorial } = useTutorial();
   const [step, setStep] = useState<1 | 2>(1);
   const [prefillMediaPointId, setPrefillMediaPointId] = useState<string | null>(null);
   const [prefillMediaPointIds, setPrefillMediaPointIds] = useState<string[] | null>(null);
@@ -172,6 +174,25 @@ export function ProposalFormWizard({
       setStep(1);
     }
   }, [proposal, open, initialMediaPointId, initialMediaPointIds]);
+
+
+
+  useEffect(() => {
+    if (!open || proposal) return;
+    void maybeOpenModuleTutorial('proposals-create-flow');
+  }, [maybeOpenModuleTutorial, open, proposal]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (activeTutorial?.moduleKey !== 'proposals-create-flow') return;
+
+    if (currentStepIndex >= 3) {
+      setStep(2);
+      return;
+    }
+
+    setStep(1);
+  }, [activeTutorial?.moduleKey, currentStepIndex, open]);
 
   // Atualizar dados do Passo 1
   const handleStep1Change = (data: Partial<ProposalFormData>) => {
@@ -294,7 +315,7 @@ const handleSaveAndSend = async () => {
           maxHeight: 'calc(100vh - 2rem)',
         }}
       >
-        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
+        <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4" data-tour="proposal-wizard-header">
           <DialogTitle>
             {proposal ? 'Editar Proposta' : 'Nova Proposta'}
           </DialogTitle>
@@ -338,7 +359,7 @@ const handleSaveAndSend = async () => {
               <Button variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>
-              <Button onClick={handleNext} disabled={!step1Valid}>
+              <Button onClick={handleNext} disabled={!step1Valid} data-tour="proposal-flow-next">
                 Próximo
               </Button>
             </div>
@@ -349,7 +370,7 @@ const handleSaveAndSend = async () => {
               <Button variant="ghost" onClick={handleBack}>
                 Voltar
               </Button>
-              <div className="flex gap-3">
+              <div className="flex gap-3" data-tour="proposal-flow-submit">
                 <Button variant="outline" onClick={handleSaveDraft}>
                   Salvar Rascunho
                 </Button>

@@ -14,6 +14,29 @@ export type TutorialModuleKey =
   | 'promotions'
   | 'activities'
   | 'settings'
+  | 'superadmin'
+  | 'proposals-create-flow'
+  | 'mediamap-move-flow'
+  | 'mediamap-create-flow'
+  | 'campaigns-create-flow'
+  | 'reservations-conflicts-flow';
+
+export type TutorialScopeModuleKey =
+  | 'home'
+  | 'dashboard'
+  | 'inventory'
+  | 'mediamap'
+  | 'clients'
+  | 'products'
+  | 'proposals'
+  | 'campaigns'
+  | 'reservations'
+  | 'financial'
+  | 'messages'
+  | 'mediakit'
+  | 'promotions'
+  | 'activities'
+  | 'settings'
   | 'superadmin';
 
 export type TutorialPlacement = 'top' | 'right' | 'bottom' | 'left' | 'center';
@@ -35,6 +58,7 @@ export interface TutorialDefinition {
   title: string;
   version: number;
   steps: TutorialStep[];
+  scopeModuleKey?: TutorialScopeModuleKey;
 }
 
 export interface TutorialProgress {
