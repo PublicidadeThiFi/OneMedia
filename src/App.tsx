@@ -42,6 +42,7 @@ import { MainApp } from './components/MainApp';
 
 import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
+import { TutorialProvider } from './contexts/TutorialContext';
 
 // Backward-compatible re-exports (many components import these from "../App")
 export { useNavigation } from './contexts/NavigationContext';
@@ -248,8 +249,10 @@ export default function App() {
           <CompanyProvider>
             <WaitlistProvider>
               <UploadQueueProvider>
-                {renderRoute()}
-                <Toaster richColors position="top-right" />
+                <TutorialProvider>
+                  {renderRoute()}
+                  <Toaster richColors position="top-right" />
+                </TutorialProvider>
               </UploadQueueProvider>
             </WaitlistProvider>
           </CompanyProvider>
