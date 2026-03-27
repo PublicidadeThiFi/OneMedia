@@ -251,7 +251,7 @@ export function TutorialOverlay() {
 
   return createPortal(
     <div
-      className="fixed inset-0 pointer-events-none"
+      className="fixed inset-0 pointer-events-auto"
       aria-live="polite"
       aria-modal="true"
       role="dialog"
@@ -260,6 +260,7 @@ export function TutorialOverlay() {
       <div
         className="absolute inset-0 pointer-events-auto"
         aria-hidden="true"
+        style={{ zIndex: OVERLAY_Z_INDEX }}
         onClick={blockUnderlyingEvent}
         onDoubleClick={blockUnderlyingEvent}
         onMouseDown={blockUnderlyingEvent}
@@ -284,6 +285,7 @@ export function TutorialOverlay() {
                 height: segment.height,
                 backdropFilter: 'blur(1.5px)',
                 WebkitBackdropFilter: 'blur(1.5px)',
+                zIndex: OVERLAY_Z_INDEX,
               }}
             />
           ))}
@@ -323,7 +325,11 @@ export function TutorialOverlay() {
         }}
         onClick={stopEvent}
         onMouseDown={stopEvent}
+        onMouseUp={stopEvent}
         onPointerDown={stopEvent}
+        onPointerUp={stopEvent}
+        onTouchStart={stopEvent}
+        onTouchEnd={stopEvent}
       >
         <CardHeader className="gap-3 pb-4">
           <div className="flex items-start justify-between gap-3">
