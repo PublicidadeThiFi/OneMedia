@@ -8,52 +8,52 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-
-export type TutorialPlacement = 'top' | 'right' | 'bottom' | 'left' | 'center';
-
-export interface TutorialStep {
-  id: string;
-  title: string;
-  description: string;
-  target?: string;
-  placement?: TutorialPlacement;
-  offset?: number;
-}
-
-export interface TutorialSession {
-  moduleKey: string;
-  title?: string;
-  version?: number;
-  steps: TutorialStep[];
-  onComplete?: () => void;
-  onClose?: () => void;
-}
+import { buildTutorialSession, getTutorialDefinition, hasTutorialDefinition, listTutorialDefinitions } from '../tutorials/moduleTutorials';
+import type { TutorialDefinition, TutorialModuleKey, TutorialSession, TutorialStep } from '../tutorials/types';
 
 interface TutorialContextValue {
-  currentModule: string | null;
+  currentModule: TutorialModuleKey | null;
   activeTutorial: TutorialSession | null;
+  tutorialDefinitions: TutorialDefinition[];
   isOpen: boolean;
   currentStepIndex: number;
   currentStep: TutorialStep | null;
   totalSteps: number;
   hasPreviousStep: boolean;
   hasNextStep: boolean;
-  setCurrentModule: (moduleKey: string | null) => void;
+  setCurrentModule: (moduleKey: TutorialModuleKey | null) => void;
   openTutorial: (session: TutorialSession) => void;
+  openModuleTutorial: (
+    moduleKey: TutorialModuleKey | string,
+    options?: Pick<TutorialSession, 'onClose' | 'onComplete'>,
+  ) => boolean;
   closeTutorial: () => void;
   nextStep: () => void;
   previousStep: () => void;
   restartTutorial: () => void;
+  getTutorialForModule: (moduleKey: TutorialModuleKey | string | null | undefined) => TutorialDefinition | null;
+  hasTutorialForModule: (moduleKey: TutorialModuleKey | string | null | undefined) => boolean;
 }
 
 const TutorialContext = createContext<TutorialContextValue | undefined>(undefined);
 
+function normalizeSession(session: TutorialSession): TutorialSession | null {
+  const normalizedSteps = [...session.steps].sort((a, b) => a.order - b.order);
+  if (normalizedSteps.length === 0) return null;
+
+  return {
+    ...session,
+    steps: normalizedSteps,
+  };
+}
+
 export function TutorialProvider({ children }: { children: ReactNode }) {
-  const [currentModule, setCurrentModule] = useState<string | null>(null);
+  const [currentModule, setCurrentModule] = useState<TutorialModuleKey | null>(null);
   const [activeTutorial, setActiveTutorial] = useState<TutorialSession | null>(null);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const lastTutorialRef = useRef<TutorialSession | null>(null);
 
+  const tutorialDefinitions = useMemo(() => listTutorialDefinitions(), []);
   const isOpen = Boolean(activeTutorial && activeTutorial.steps.length > 0);
   const totalSteps = activeTutorial?.steps.length ?? 0;
   const currentStep = activeTutorial?.steps[currentStepIndex] ?? null;
@@ -61,10 +61,36 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const hasNextStep = currentStepIndex < totalSteps - 1;
 
   const openTutorial = useCallback((session: TutorialSession) => {
-    lastTutorialRef.current = session;
+    const normalizedSession = normalizeSession(session);
+    if (!normalizedSession) {
+      setActiveTutorial(null);
+      setCurrentStepIndex(0);
+      return;
+    }
+
+    lastTutorialRef.current = normalizedSession;
     setCurrentStepIndex(0);
-    setActiveTutorial(session.steps.length > 0 ? session : null);
+    setActiveTutorial(normalizedSession);
   }, []);
+
+  const getTutorialForModule = useCallback((moduleKey: TutorialModuleKey | string | null | undefined) => {
+    return getTutorialDefinition(moduleKey);
+  }, []);
+
+  const hasTutorialForModule = useCallback((moduleKey: TutorialModuleKey | string | null | undefined) => {
+    return hasTutorialDefinition(moduleKey);
+  }, []);
+
+  const openModuleTutorial = useCallback(
+    (moduleKey: TutorialModuleKey | string, options?: Pick<TutorialSession, 'onClose' | 'onComplete'>) => {
+      const session = buildTutorialSession(moduleKey, options);
+      if (!session) return false;
+
+      openTutorial(session);
+      return true;
+    },
+    [openTutorial],
+  );
 
   const closeTutorial = useCallback(() => {
     setActiveTutorial((current) => {
@@ -98,7 +124,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     if (!tutorialToRestart) return;
 
     setCurrentStepIndex(0);
-    setActiveTutorial(tutorialToRestart.steps.length > 0 ? tutorialToRestart : null);
+    setActiveTutorial(normalizeSession(tutorialToRestart));
   }, [activeTutorial]);
 
   useEffect(() => {
@@ -139,6 +165,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     () => ({
       currentModule,
       activeTutorial,
+      tutorialDefinitions,
       isOpen,
       currentStepIndex,
       currentStep,
@@ -147,10 +174,13 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       hasNextStep,
       setCurrentModule,
       openTutorial,
+      openModuleTutorial,
       closeTutorial,
       nextStep,
       previousStep,
       restartTutorial,
+      getTutorialForModule,
+      hasTutorialForModule,
     }),
     [
       activeTutorial,
@@ -158,14 +188,18 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       currentModule,
       currentStep,
       currentStepIndex,
+      getTutorialForModule,
       hasNextStep,
       hasPreviousStep,
+      hasTutorialForModule,
       isOpen,
       nextStep,
+      openModuleTutorial,
       openTutorial,
       previousStep,
       restartTutorial,
       totalSteps,
+      tutorialDefinitions,
     ],
   );
 
@@ -180,3 +214,11 @@ export function useTutorial() {
 
   return context;
 }
+
+export type {
+  TutorialDefinition,
+  TutorialModuleKey,
+  TutorialPlacement,
+  TutorialSession,
+  TutorialStep,
+} from '../tutorials/types';
