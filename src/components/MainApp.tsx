@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState, useMemo, Component, type ReactNode } from 'react';
-import { Menu, X } from 'lucide-react';
+import { Menu, Sparkles, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { HomePage } from './HomePage';
 import { Dashboard } from './Dashboard';
@@ -105,7 +105,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     setCurrentPage(initialPage);
   }, [initialPage]);
   const { user, logout, authReady } = useAuth();
-  const { setCurrentModule } = useTutorial();
+  const { hasTutorialForModule, openModuleTutorial, setCurrentModule } = useTutorial();
   const navigate = useNavigation();
 
   const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
@@ -191,6 +191,13 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     setIsMobileMenuOpen(false);
     navigate('/app/settings?tab=subscription');
   };
+
+  const handleOpenCurrentTutorial = () => {
+    if (!hasTutorialForModule(currentPage)) return;
+    openModuleTutorial(currentPage, { initialStepIndex: 0 });
+  };
+
+  const currentPageHasTutorial = hasTutorialForModule(currentPage);
 
   // Keep URL and visible module in sync.
   // This avoids getting visually back to Mídia Map while the browser URL
@@ -329,7 +336,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
             {/* Desktop - Empty space */}
             <div className="hidden md:block flex-1" />
 
-            {/* User Info & Logout */}
+            {/* User Info, tutorial e logout */}
             <div className="flex items-center gap-2 md:gap-4">
               <div className="text-right hidden sm:block">
                 <p className="text-sm text-gray-900">{user.name}</p>
@@ -337,6 +344,17 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
                   {user.email}
                 </p>
               </div>
+              {currentPageHasTutorial ? (
+                <button
+                  type="button"
+                  onClick={handleOpenCurrentTutorial}
+                  className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span className="hidden sm:inline">Ver tutorial</span>
+                  <span className="sm:hidden">Tutorial</span>
+                </button>
+              ) : null}
               <button
                 onClick={logout}
                 className="px-3 md:px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
