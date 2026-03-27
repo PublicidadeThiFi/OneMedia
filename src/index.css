@@ -5923,3 +5923,37 @@ html {
     font-size: 14px;
   }
 }
+
+
+/* =====================
+   Menu redesign polish helpers
+   ===================== */
+
+.menu-app-shell {
+  min-height: 100vh;
+  width: 100%;
+  background:
+    radial-gradient(circle at top, rgba(219, 234, 254, 0.95) 0%, rgba(238, 242, 255, 0.96) 26%, rgba(248, 250, 252, 0.98) 58%, #f8fafc 100%);
+}
+
+.menu-glass-card {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 22px 80px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.menu-muted-panel {
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.menu-copy-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.menu-soft-title {
+  text-wrap: balance;
+}

@@ -545,7 +545,7 @@ export default function MenuProposta() {
                               {Array.isArray(quoteBreakdown?.appliedDiscounts) && quoteBreakdown.appliedDiscounts.length > 0 ? (
                                 <div className="pt-1 space-y-1">
                                   {quoteBreakdown.appliedDiscounts.map((discount: any, idx: number) => (
-                                    <div key={String(discount?.id || `ad_${idx}`)} className="truncate">
+                                    <div key={String(discount?.id || `ad_${idx}`)} className="menu-copy-wrap">
                                       {(discount?.label || (discount?.scope === 'FACE' ? 'Face' : discount?.scope === 'POINT' ? 'Ponto' : 'Geral'))}: - {formatMoneyBr(Number(discount?.amount || 0))}
                                     </div>
                                   ))}
@@ -596,7 +596,7 @@ export default function MenuProposta() {
                                     <div key={`${String(service.name)}-${idx}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4">
                                       <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
-                                          <div className="text-sm font-semibold text-slate-950 truncate">{service.name}</div>
+                                          <div className="menu-copy-wrap text-sm font-semibold text-slate-950">{service.name}</div>
                                           {hasLineDiscount ? <div className="mt-1 text-xs text-slate-500">Desconto do serviço: - {formatMoneyBr(lineDiscount)}</div> : null}
                                         </div>
                                         <div className="text-sm font-semibold text-slate-950">{formatMoneyBr(value)}</div>
@@ -623,7 +623,7 @@ export default function MenuProposta() {
                                     <div key={`${String(product.name)}-prod-${idx}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4">
                                       <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
-                                          <div className="text-sm font-semibold text-slate-950 truncate">{product.name}</div>
+                                          <div className="menu-copy-wrap text-sm font-semibold text-slate-950">{product.name}</div>
                                           {hasLineDiscount ? <div className="mt-1 text-xs text-slate-500">Desconto do produto: - {formatMoneyBr(lineDiscount)}</div> : null}
                                         </div>
                                         <div className="text-sm font-semibold text-slate-950">{formatMoneyBr(value)}</div>
@@ -651,7 +651,7 @@ export default function MenuProposta() {
                             <div key={String(gift.id)} className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-slate-950 truncate">
+                                  <div className="menu-copy-wrap text-sm font-semibold text-slate-950">
                                     {(String(gift.scope || '').toUpperCase() === 'FACE' ? 'Face' : 'Ponto')}: {gift.label || gift.targetId}
                                   </div>
                                   <div className="mt-1 text-xs text-slate-500">Período: {formatPeriod(gift.duration)}</div>

@@ -476,7 +476,7 @@ export default function MenuFaces() {
                           </div>
                           <div className="mt-3 flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className={`truncate text-lg font-semibold ${checked ? 'text-white' : 'text-slate-950'}`}>
+                              <div className={`menu-copy-wrap text-lg font-semibold ${checked ? 'text-white' : 'text-slate-950'}`}>
                                 {u.unitType === 'SCREEN' ? 'Tela' : 'Face'} {u.label}
                               </div>
                               <div className={`mt-1 text-sm ${checked ? 'text-white/72' : 'text-slate-600'}`}>
