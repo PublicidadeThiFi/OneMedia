@@ -469,15 +469,14 @@ export function MediaSelectionDrawer({
           const payload = (r.value as any)?.data ?? {};
           const available = Boolean(payload?.available);
           const conflicts = Array.isArray(payload?.conflicts) ? payload.conflicts : [];
-          const nextAvailableAt = !available && conflicts.length
-            ? conflicts
-                .map((c: any) => c?.endDate ? new Date(c.endDate) : null)
-                .filter((d: any) => d && !Number.isNaN(d.getTime()))
-                .sort((a: any, b: any) => a.getTime() - b.getTime())[0]
-            : null;
+          const nextAvailableAtRaw = payload?.nextAvailableAt ? new Date(payload.nextAvailableAt) : null;
+          const nextAvailableAt =
+            !available && nextAvailableAtRaw && !Number.isNaN(nextAvailableAtRaw.getTime())
+              ? nextAvailableAtRaw
+              : null;
           next[unitId] = {
             status: available ? 'available' : 'occupied',
-            nextAvailableAt: nextAvailableAt ? new Date(nextAvailableAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
+            nextAvailableAt: nextAvailableAt ? nextAvailableAt.toISOString() : null,
             conflictCount: conflicts.length,
           };
         } else {
@@ -934,10 +933,15 @@ export function MediaSelectionDrawer({
                                 <div className="text-amber-700 mt-1">Esta face está ocupada no período analisado.</div>
                                 {selectedNextAvailableAt ? (
                                   <div className="flex items-start gap-2">
-                                    <Checkbox id="use-next-available-date" checked={useNextAvailableDate} onCheckedChange={(v: boolean | 'indeterminate') => setUseNextAvailableDate(v === true)} />
+                                    <Checkbox id="use-next-available-date" checked={selectedAvailabilityStatus === 'occupied' ? true : useNextAvailableDate} disabled aria-readonly />
                                     <label htmlFor="use-next-available-date" className="text-gray-700">
                                       Definir automaticamente a data de início para {formatShortDate(selectedNextAvailableAt)}.
                                     </label>
+                                  </div>
+                                ) : null}
+                                {selectedNextAvailableAt ? (
+                                  <div className="text-xs text-amber-700">
+                                    Esta opção é obrigatória enquanto a face estiver ocupada no período analisado.
                                   </div>
                                 ) : null}
                               </div>
