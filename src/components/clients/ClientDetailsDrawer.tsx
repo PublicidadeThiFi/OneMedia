@@ -1,4 +1,4 @@
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -89,24 +89,34 @@ function ClientDetailsDrawerInner({
   ).length;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Detalhes do Cliente</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="overflow-hidden p-0 gap-0 flex flex-col"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(82vh, 840px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <div className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b px-6 py-5 pr-12">
+            <DialogTitle>Detalhes do Cliente</DialogTitle>
+          </DialogHeader>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(value: 'resumo' | 'documentos' | 'propostas' | 'atividades') =>
-            onActiveTabChange?.(value)
-          }
-          className="mt-6"
-        >
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="resumo">Resumo</TabsTrigger>
-            <TabsTrigger value="documentos">Documentos</TabsTrigger>
-            <TabsTrigger value="propostas">Propostas</TabsTrigger>
-            <TabsTrigger value="atividades">Atividades</TabsTrigger>
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value: 'resumo' | 'documentos' | 'propostas' | 'atividades') =>
+                onActiveTabChange?.(value)
+              }
+              className="space-y-6"
+            >
+              <TabsList className="grid w-full grid-cols-4 rounded-xl bg-slate-100 p-1">
+            <TabsTrigger value="resumo" className="rounded-lg">Resumo</TabsTrigger>
+                <TabsTrigger value="documentos" className="rounded-lg">Documentos</TabsTrigger>
+                <TabsTrigger value="propostas" className="rounded-lg">Propostas</TabsTrigger>
+                <TabsTrigger value="atividades" className="rounded-lg">Atividades</TabsTrigger>
           </TabsList>
 
           {/* Aba Resumo */}
@@ -312,8 +322,10 @@ function ClientDetailsDrawerInner({
               </p>
             </div>
           </TabsContent>
-        </Tabs>
-      </SheetContent>
-    </Sheet>
+            </Tabs>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

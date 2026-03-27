@@ -149,37 +149,47 @@ export function MediaUnitsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {unitLabel}s do Ponto - {mediaPointName}
-          </DialogTitle>
-          <p className="text-gray-600">
-            {mediaPointType === MediaType.OOH
-              ? 'Gerencie as faces (unidades de veiculação) deste ponto OOH'
-              : 'Gerencie as telas (unidades digitais) deste ponto DOOH'}
-          </p>
-        </DialogHeader>
+      <DialogContent
+        className="overflow-hidden p-0 gap-0 flex flex-col"
+        style={{
+          width: 'min(1120px, calc(100vw - 2rem))',
+          maxWidth: 'min(1120px, calc(100vw - 2rem))',
+          height: 'min(86vh, 920px)',
+          maxHeight: 'calc(100vh - 2rem)',
+        }}
+      >
+        <div className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b px-6 py-5 pr-12">
+            <DialogTitle>
+              {unitLabel}s do Ponto - {mediaPointName}
+            </DialogTitle>
+            <p className="text-sm text-gray-600">
+              {mediaPointType === MediaType.OOH
+                ? 'Gerencie as faces (unidades de veiculação) deste ponto OOH'
+                : 'Gerencie as telas (unidades digitais) deste ponto DOOH'}
+            </p>
+          </DialogHeader>
 
-        {storageLimitBytes > 0 && (
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-slate-900">Armazenamento do plano</p>
-                <p className="text-xs text-slate-600">Uso global da assinatura. Deste ponto: {formatBytes(pointTotalStorageBytes)}.</p>
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {storageLimitBytes > 0 && (
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Armazenamento do plano</p>
+                    <p className="text-xs text-slate-600">Uso global da assinatura. Deste ponto: {formatBytes(pointTotalStorageBytes)}.</p>
+                  </div>
+                  <div className="text-right text-sm text-slate-700">
+                    <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
+                    <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(globalStorageRemainingBytes)}</div>
+                  </div>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pointStoragePercent}%` }} />
+                </div>
               </div>
-              <div className="text-right text-sm text-slate-700">
-                <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
-                <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(globalStorageRemainingBytes)}</div>
-              </div>
-            </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pointStoragePercent}%` }} />
-            </div>
-          </div>
-        )}
+            )}
 
-        <div className="space-y-4">
+            <div className="mt-5 space-y-4">
           {/* Lista de unidades */}
           <div className="space-y-3">
             {loading ? (
@@ -411,8 +421,11 @@ export function MediaUnitsDialog({
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button onClick={() => onOpenChange(false)}>Fechar</Button>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t px-6 py-4">
+            <Button onClick={() => onOpenChange(false)}>Fechar</Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
