@@ -17,6 +17,7 @@ import type {
   TutorialModuleKey,
   TutorialProgress,
   TutorialProgressStatus,
+  TutorialScopeModuleKey,
   TutorialSession,
   TutorialStep,
 } from '../tutorials/types';
@@ -42,6 +43,7 @@ interface TutorialContextValue {
   getTutorialForModule: (moduleKey: TutorialModuleKey | string | null | undefined) => TutorialDefinition | null;
   hasTutorialForModule: (moduleKey: TutorialModuleKey | string | null | undefined) => boolean;
   refreshTutorialProgress: (moduleKey: TutorialModuleKey | string, force?: boolean) => Promise<TutorialProgress | null>;
+  maybeOpenModuleTutorial: (moduleKey: TutorialModuleKey | string, options?: OpenModuleTutorialOptions) => Promise<boolean>;
 }
 
 const TutorialContext = createContext<TutorialContextValue | undefined>(undefined);
@@ -62,6 +64,11 @@ function normalizeSession(session: TutorialSession): TutorialSession | null {
   };
 }
 
+
+
+function getTutorialScopeModuleKey(sessionOrDefinition: { moduleKey: TutorialModuleKey; scopeModuleKey?: TutorialScopeModuleKey }): TutorialScopeModuleKey {
+  return (sessionOrDefinition.scopeModuleKey ?? sessionOrDefinition.moduleKey) as TutorialScopeModuleKey;
+}
 export function TutorialProvider({ children }: { children: ReactNode }) {
   const { authReady, user } = useAuth();
   const [currentModule, setCurrentModule] = useState<TutorialModuleKey | null>(null);
@@ -298,9 +305,46 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     setActiveTutorial(restartedTutorial);
   }, [activeTutorial]);
 
+
+
+  const maybeOpenModuleTutorial = useCallback(
+    async (moduleKey: TutorialModuleKey | string, options?: OpenModuleTutorialOptions) => {
+      if (!authReady || !user?.id) return false;
+
+      const normalizedModuleKey = String(moduleKey) as TutorialModuleKey;
+      const definition = getTutorialDefinition(normalizedModuleKey);
+      if (!definition) return false;
+
+      if (isOpen && activeTutorial?.moduleKey !== normalizedModuleKey) {
+        return false;
+      }
+
+      const progress = await refreshTutorialProgress(normalizedModuleKey, true);
+      const shouldReopenForVersion = !progress || progress.tutorialVersion < definition.version;
+      const currentStatus = progress?.status ?? 'NOT_STARTED';
+
+      if (shouldReopenForVersion || currentStatus === 'NOT_STARTED') {
+        return openModuleTutorial(normalizedModuleKey, {
+          ...options,
+          initialStepIndex: 0,
+        });
+      }
+
+      if (currentStatus === 'IN_PROGRESS') {
+        return openModuleTutorial(normalizedModuleKey, {
+          ...options,
+          initialStepIndex: clampStepIndex(progress?.currentStep ?? 0, definition.steps.length),
+        });
+      }
+
+      return false;
+    },
+    [activeTutorial?.moduleKey, authReady, isOpen, openModuleTutorial, refreshTutorialProgress, user?.id],
+  );
+
   useEffect(() => {
     if (!activeTutorial || !currentModule) return;
-    if (activeTutorial.moduleKey === currentModule) return;
+    if (getTutorialScopeModuleKey(activeTutorial) === currentModule) return;
 
     setActiveTutorial((current) => {
       current?.onClose?.();
@@ -321,31 +365,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!authReady || !user?.id || !currentModule) return;
     if (!hasTutorialDefinition(currentModule)) return;
-    if (isOpen && activeTutorial?.moduleKey === currentModule) return;
-
-    const definition = getTutorialDefinition(currentModule);
-    if (!definition) return;
+    if (isOpen && getTutorialScopeModuleKey(activeTutorial ?? { moduleKey: currentModule }) === currentModule) return;
 
     let cancelled = false;
     const requestId = ++autoOpenRequestRef.current;
 
     const evaluateAutoOpen = async () => {
-      const progress = await refreshTutorialProgress(currentModule);
-      if (cancelled || autoOpenRequestRef.current !== requestId) return;
-
-      const shouldReopenForVersion = !progress || progress.tutorialVersion < definition.version;
-      const currentStatus = progress?.status ?? 'NOT_STARTED';
-
-      if (shouldReopenForVersion || currentStatus === 'NOT_STARTED') {
-        openModuleTutorial(currentModule, { initialStepIndex: 0 });
-        return;
-      }
-
-      if (currentStatus === 'IN_PROGRESS') {
-        openModuleTutorial(currentModule, {
-          initialStepIndex: clampStepIndex(progress?.currentStep ?? 0, definition.steps.length),
-        });
-      }
+      const opened = await maybeOpenModuleTutorial(currentModule, { initialStepIndex: 0 });
+      if (cancelled || autoOpenRequestRef.current !== requestId || !opened) return;
     };
 
     void evaluateAutoOpen();
@@ -353,7 +380,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [activeTutorial?.moduleKey, authReady, currentModule, isOpen, openModuleTutorial, refreshTutorialProgress, user?.id]);
+  }, [activeTutorial, authReady, currentModule, hasTutorialDefinition, isOpen, maybeOpenModuleTutorial, user?.id]);
 
   useEffect(() => {
     if (!activeTutorial || !isOpen || !authReady || !user?.id) return;
@@ -417,6 +444,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       getTutorialForModule,
       hasTutorialForModule,
       refreshTutorialProgress,
+      maybeOpenModuleTutorial,
     }),
     [
       activeTutorial,
@@ -432,6 +460,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       nextStep,
       openModuleTutorial,
       openTutorial,
+      maybeOpenModuleTutorial,
       previousStep,
       refreshTutorialProgress,
       restartTutorial,
@@ -460,6 +489,7 @@ export type {
   TutorialPlacement,
   TutorialProgress,
   TutorialProgressStatus,
+  TutorialScopeModuleKey,
   TutorialSession,
   TutorialStep,
 } from '../tutorials/types';

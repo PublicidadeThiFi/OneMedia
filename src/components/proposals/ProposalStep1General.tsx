@@ -6,6 +6,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Plus } from 'lucide-react';
 import { ProposalFormData } from './ProposalFormWizard';
+import { useTutorial } from '../../contexts/TutorialContext';
 import { ClientSelect } from './ClientSelect';
 import type { Page } from '../MainApp';
 
@@ -25,6 +26,7 @@ export function ProposalStep1General({
   onNavigate,
 }: ProposalStep1GeneralProps) {
   const { user } = useAuth();
+  const { openModuleTutorial } = useTutorial();
 
   // Pré-preencher responsável com usuário logado
   useEffect(() => {
@@ -61,8 +63,13 @@ export function ProposalStep1General({
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('proposals-create-flow')} className="text-indigo-600 hover:text-indigo-700">
+          Tutorial rápido deste fluxo
+        </Button>
+      </div>
       {/* Cliente */}
-      <div className="space-y-2">
+      <div className="space-y-2" data-tour="proposal-flow-client">
         <Label htmlFor="clientId" className="required">
           Cliente *
         </Label>

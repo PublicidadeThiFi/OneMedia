@@ -6,6 +6,7 @@ import Supercluster from 'supercluster';
 
 import { Search, X, List, MapPin, Star, Copy, ExternalLink, Plus, Pencil, Square, Check, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTutorial } from '../contexts/TutorialContext';
 
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -382,6 +383,7 @@ function DrawEvents({
 
 export function MediaMap() {
   const navigate = useNavigation();
+  const { maybeOpenModuleTutorial } = useTutorial();
 
   const mapRef = useRef<LeafletMap | null>(null);
   const searchBoxRef = useRef<HTMLDivElement | null>(null);
@@ -886,6 +888,9 @@ export function MediaMap() {
 
     setMoveMode(true);
     setMovePos({ lat, lng });
+    window.setTimeout(() => {
+      void maybeOpenModuleTutorial('mediamap-move-flow');
+    }, 0);
 
     // UX: centraliza e aproxima
     try {
@@ -1700,7 +1705,7 @@ export function MediaMap() {
                         </Button>
 
                         {moveMode ? (
-                          <div className="col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                          <div className="col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800" data-tour="mediamap-move-active">
                             <div className="font-semibold">Modo mover ativo</div>
                             <div className="mt-1">
                               Clique no mapa ou arraste o pin azul. Depois, confirme ou cancele.
@@ -1716,6 +1721,7 @@ export function MediaMap() {
                               className="gap-2 mm-indigo"
                               disabled={moveBusy || !movePos}
                               onClick={() => void confirmMovePoint()}
+                              data-tour="mediamap-move-confirm"
                             >
                               <Check className="w-4 h-4" /> {moveBusy ? 'Salvando...' : 'Confirmar'}
                             </Button>
@@ -1726,6 +1732,7 @@ export function MediaMap() {
                               className="gap-2"
                               disabled={moveBusy}
                               onClick={cancelMovePoint}
+                              data-tour="mediamap-move-cancel"
                             >
                               <X className="w-4 h-4" /> Cancelar
                             </Button>
@@ -1840,7 +1847,7 @@ export function MediaMap() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2 text-sm text-gray-700">
+          <div className="space-y-2 text-sm text-gray-700" data-tour="mediamap-create-preview">
             <div>
               <span className="font-medium">Coordenadas:</span>{' '}
               {createPos ? `${createPos.lat.toFixed(6)}, ${createPos.lng.toFixed(6)}` : '-'}
@@ -1872,7 +1879,7 @@ export function MediaMap() {
             <Button type="button" variant="outline" onClick={() => setCreatePromptOpen(false)}>
               Cancelar
             </Button>
-            <Button type="button" className="mm-indigo" onClick={confirmCreateAtLocation}>
+            <Button type="button" className="mm-indigo" onClick={confirmCreateAtLocation} data-tour="mediamap-create-confirm">
               Criar um ponto aqui
             </Button>
           </div>

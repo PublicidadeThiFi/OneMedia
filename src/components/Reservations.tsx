@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 
 import { Card, CardContent } from './ui/card';
@@ -10,6 +10,7 @@ import { Reservation, ReservationStatus } from '../types';
 import { useReservations } from '../hooks/useReservations';
 import { ReservationDayCard } from './reservations/ReservationDayCard';
 import { ReservationDetailsDrawer } from './reservations/ReservationDetailsDrawer';
+import { useTutorial } from '../contexts/TutorialContext';
 
 function daysBetweenInclusive(start: Date, end: Date) {
   const s = new Date(start);
@@ -65,6 +66,8 @@ function estimateReservationAmount(r: Reservation): number | undefined {
 }
 
 export function Reservations() {
+  const { activeTutorial, maybeOpenModuleTutorial, openModuleTutorial } = useTutorial();
+
   // State para calendário
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
@@ -221,7 +224,16 @@ export function Reservations() {
     return dayReservations.filter((res) => res.status !== ReservationStatus.CANCELADA).length;
   }, [selectedDay, dayReservations]);
 
+
+
+  useEffect(() => {
+    if (activeTutorial) return;
+    if (!selectedDay || dayReservations.length < 2) return;
+    void maybeOpenModuleTutorial('reservations-conflicts-flow');
+  }, [activeTutorial, dayReservations.length, maybeOpenModuleTutorial, selectedDay]);
+
   return (
+
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
@@ -361,9 +373,14 @@ export function Reservations() {
           <Card data-tour="reservations-create">
             <CardContent className="pt-6">
               <div className="mb-4">
-                <h3 className="text-gray-900 mb-2">
+                <div className="flex items-center justify-between gap-3 mb-2" data-tour="reservations-conflicts-heading">
+                  <h3 className="text-gray-900">
                   Reservas do dia {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
-                </h3>
+                  </h3>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('reservations-conflicts-flow')} className="text-indigo-600 hover:text-indigo-700">
+                    Tutorial rápido
+                  </Button>
+                </div>
                 <div className="relative" data-tour="reservations-filters">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
@@ -379,7 +396,15 @@ export function Reservations() {
                 {dayReservations.length > 0 ? (
                   dayReservations.map((reservation) => {
                     const amount = estimateReservationAmount(reservation);
-                    return (
+                  
+
+  useEffect(() => {
+    if (activeTutorial) return;
+    if (!selectedDay || dayReservations.length < 2) return;
+    void maybeOpenModuleTutorial('reservations-conflicts-flow');
+  }, [activeTutorial, dayReservations.length, maybeOpenModuleTutorial, selectedDay]);
+
+  return (
                       <ReservationDayCard
                         key={reservation.id}
                         reservation={reservation}

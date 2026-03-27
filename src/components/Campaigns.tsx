@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Campaign, CampaignStatus } from '../types';
 import { useCampaigns } from '../hooks/useCampaigns';
@@ -10,8 +11,10 @@ import { CampaignCheckInDialog } from './campaigns/CampaignCheckInDialog';
 import CampaignReportDialog from './campaigns/CampaignReportDialog';
 import { CampaignBillingDrawer } from './campaigns/CampaignBillingDrawer';
 import { formatBRL, safeDate } from '../lib/format';
+import { useTutorial } from '../contexts/TutorialContext';
 
 export function Campaigns() {
+  const { activeTutorial, maybeOpenModuleTutorial, openModuleTutorial } = useTutorial();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
@@ -77,6 +80,13 @@ export function Campaigns() {
     () => campaigns.filter((c) => c.status === CampaignStatus.CANCELADA),
     [campaigns]
   );
+
+
+
+  useEffect(() => {
+    if (activeTutorial) return;
+    void maybeOpenModuleTutorial('campaigns-create-flow');
+  }, [activeTutorial, maybeOpenModuleTutorial]);
 
   // Handlers
   const handleViewDetails = (campaign: Campaign, tab: string = 'summary') => {
@@ -152,6 +162,7 @@ export function Campaigns() {
 
         {/* Tab: Em Andamento */}
         <TabsContent value="active" data-tour="campaigns-tracking">
+          <div className="sr-only" data-tour="campaigns-create-destination">Lista de campanhas geradas</div>
           <CampaignList
             campaigns={activeCampaigns}
             showAllActions={true}
@@ -194,12 +205,25 @@ export function Campaigns() {
 
       {/* Info do Fluxo */}
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-900 mb-2" data-tour="campaigns-create">💡 Fluxo de Campanhas</p>
-        <p className="text-sm text-blue-700" data-tour="campaigns-reports">
-          Campanha é criada automaticamente quando Proposta é aprovada. Status:{' '}
-          <strong>EM_INSTALACAO</strong> (OOH sendo instalado) → <strong>EM_VEICULACAO</strong> (no
-          ar) → <strong>FINALIZADA</strong> (ou <strong>CANCELADA</strong> por inadimplência)
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm text-blue-900 mb-2" data-tour="campaigns-create">💡 Fluxo de Campanhas</p>
+            <p className="text-sm text-blue-700" data-tour="campaigns-reports">
+              Campanha é criada automaticamente quando Proposta é aprovada. Status:{' '}
+              <strong>EM_INSTALACAO</strong> (OOH sendo instalado) → <strong>EM_VEICULACAO</strong> (no
+              ar) → <strong>FINALIZADA</strong> (ou <strong>CANCELADA</strong> por inadimplência)
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => openModuleTutorial('campaigns-create-flow')}
+            className="border-blue-200 bg-white text-blue-700 hover:bg-blue-100"
+          >
+            Tutorial rápido
+          </Button>
+        </div>
       </div>
 
       {/* Dialogs e Drawers */}
