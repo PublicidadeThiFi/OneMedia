@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-import { Reservation, ReservationStatus } from '../types';
+import { Reservation, ReservationStatus, UnitType, MediaType } from '../types';
 import { useReservations } from '../hooks/useReservations';
 import { ReservationDayCard } from './reservations/ReservationDayCard';
 import { ReservationDetailsDrawer } from './reservations/ReservationDetailsDrawer';
@@ -31,7 +31,6 @@ function estimateReservationAmount(r: Reservation): number | undefined {
   const rentAmount = (r as any).rentAmount as number | null | undefined;
   const occupationDays = (r as any).occupationDays as number | null | undefined;
 
-  // Se a reserva já vem com valor de aluguel (por dia) + quantidade de dias ocupados, use isso.
   if (typeof rentAmount === 'number' && Number.isFinite(rentAmount) && rentAmount > 0) {
     const occ = typeof occupationDays === 'number' && occupationDays > 0 ? occupationDays : undefined;
     const start = new Date(r.startDate);
@@ -40,12 +39,9 @@ function estimateReservationAmount(r: Reservation): number | undefined {
 
     const days = occ ?? (fallbackDays || undefined);
     if (days) return rentAmount * days;
-
-    // Se não temos dias, ainda retornamos o rentAmount como melhor esforço.
     return rentAmount;
   }
 
-  // Fallback: preço/dia vindo do inventário.
   const unitDay = (r as any).mediaUnitPriceDay as number | null | undefined;
   const pointDay = (r as any).mediaPointBasePriceDay as number | null | undefined;
   const dayRate =
@@ -67,19 +63,13 @@ function estimateReservationAmount(r: Reservation): number | undefined {
 
 export function Reservations() {
   const { activeTutorial, maybeOpenModuleTutorial, openModuleTutorial } = useTutorial();
+  const isTutorialMode = activeTutorial?.moduleKey === 'reservations' || activeTutorial?.moduleKey === 'reservations-conflicts-flow';
 
-  // State para calendário
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(new Date());
-
-  // State para filtros
   const [statusFilter, setStatusFilter] = useState<ReservationStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // State para drawer de detalhes
-  const [detailsDrawerReservation, setDetailsDrawerReservation] = useState<
-    (Reservation & { estimatedAmount?: number }) | null
-  >(null);
+  const [detailsDrawerReservation, setDetailsDrawerReservation] = useState<(Reservation & { estimatedAmount?: number }) | null>(null);
 
   const monthNames = [
     'Janeiro',
@@ -96,7 +86,6 @@ export function Reservations() {
     'Dezembro',
   ];
 
-  // Calcular dias do mês
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -110,7 +99,6 @@ export function Reservations() {
 
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
 
-  // Navegação de mês
   const previousMonth = () => {
     const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
     setCurrentMonth(newMonth);
@@ -123,24 +111,82 @@ export function Reservations() {
     setSelectedDay(null);
   };
 
-  // Hook de reservas (busca apenas o mês atual)
   const startDateISO = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString();
   const endDateISO = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).toISOString();
 
-  const {
-    reservations,
-    loading,
-    error,
-    refetch,
-  } = useReservations({
+  const { reservations, loading, error } = useReservations({
     startDate: startDateISO,
     endDate: endDateISO,
     status: statusFilter === 'ALL' ? undefined : (statusFilter as ReservationStatus | string),
   });
 
-  // Agrupar por dia (para marcar bolinha no calendário)
-  // Importante: marcar TODOS os dias do período (startDate..endDate),
-  // não apenas o dia inicial.
+  const tutorialMockReservations = useMemo<Reservation[]>(() => {
+    if (!isTutorialMode) return [];
+
+    const baseDay = selectedDay
+      ? new Date(selectedDay)
+      : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), Math.min(15, daysInMonth));
+    baseDay.setHours(12, 0, 0, 0);
+
+    const sameDay = new Date(baseDay);
+    const nextDay = new Date(baseDay);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const previousDay = new Date(baseDay);
+    previousDay.setDate(previousDay.getDate() - 1);
+
+    return [
+      {
+        id: 'tutorial-reservation-1',
+        companyId: 'tutorial',
+        mediaUnitId: 'tutorial-unit-1',
+        mediaUnitLabel: 'Face Norte',
+        mediaUnitType: UnitType.FACE,
+        mediaPointId: 'tutorial-point-1',
+        mediaPointName: 'Relógio Praça Central',
+        mediaPointType: MediaType.OOH,
+        mediaUnitPriceDay: 850,
+        clientName: 'Farmácia Modelo',
+        proposalTitle: 'Campanha de inauguração',
+        campaignName: 'Inauguração Abril',
+        startDate: previousDay.toISOString(),
+        endDate: nextDay.toISOString(),
+        status: ReservationStatus.RESERVADA,
+        createdAt: previousDay.toISOString(),
+        updatedAt: previousDay.toISOString(),
+        rentAmount: 850,
+        occupationDays: 3,
+        rentTotalSnapshot: 2550,
+      },
+      {
+        id: 'tutorial-reservation-2',
+        companyId: 'tutorial',
+        mediaUnitId: 'tutorial-unit-2',
+        mediaUnitLabel: 'Face Sul',
+        mediaUnitType: UnitType.FACE,
+        mediaPointId: 'tutorial-point-1',
+        mediaPointName: 'Relógio Praça Central',
+        mediaPointType: MediaType.OOH,
+        mediaUnitPriceDay: 900,
+        clientName: 'Loja Exemplo',
+        proposalTitle: 'Ação de semana promocional',
+        campaignName: 'Semana Promocional',
+        startDate: sameDay.toISOString(),
+        endDate: nextDay.toISOString(),
+        status: ReservationStatus.CONFIRMADA,
+        createdAt: sameDay.toISOString(),
+        updatedAt: sameDay.toISOString(),
+        rentAmount: 900,
+        occupationDays: 2,
+        rentTotalSnapshot: 1800,
+      },
+    ];
+  }, [currentMonth, daysInMonth, isTutorialMode, selectedDay]);
+
+  const effectiveReservations = useMemo(
+    () => (isTutorialMode && reservations.length === 0 ? tutorialMockReservations : reservations),
+    [isTutorialMode, reservations, tutorialMockReservations],
+  );
+
   const daysWithReservations = useMemo(() => {
     const set = new Set<number>();
 
@@ -151,7 +197,7 @@ export function Reservations() {
     const monthEnd = new Date(year, month + 1, 0);
     monthEnd.setHours(0, 0, 0, 0);
 
-    for (const res of reservations) {
+    for (const res of effectiveReservations) {
       const start = new Date(res.startDate);
       const end = new Date(res.endDate);
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
@@ -159,13 +205,11 @@ export function Reservations() {
       start.setHours(0, 0, 0, 0);
       end.setHours(0, 0, 0, 0);
 
-      // Sem sobreposição com o mês atual
       if (end < monthStart || start > monthEnd) continue;
 
       const from = start < monthStart ? monthStart : start;
       const to = end > monthEnd ? monthEnd : end;
 
-      // Itera dia a dia (inclusive)
       for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
         if (d.getMonth() === month && d.getFullYear() === year) {
           set.add(d.getDate());
@@ -174,20 +218,19 @@ export function Reservations() {
     }
 
     return set;
-  }, [reservations, currentMonth]);
+  }, [currentMonth, effectiveReservations]);
 
   const monthSummary = useMemo(() => {
-    const active = reservations.filter((r) => r.status !== ReservationStatus.CANCELADA).length;
-    const confirmed = reservations.filter((r) => r.status === ReservationStatus.CONFIRMADA).length;
+    const active = effectiveReservations.filter((r) => r.status !== ReservationStatus.CANCELADA).length;
+    const confirmed = effectiveReservations.filter((r) => r.status === ReservationStatus.CONFIRMADA).length;
 
-    const totalAmount = reservations
+    const totalAmount = effectiveReservations
       .filter((r) => r.status !== ReservationStatus.CANCELADA)
       .reduce((sum, r) => sum + (estimateReservationAmount(r) ?? 0), 0);
 
     return { activeCount: active, confirmedCount: confirmed, totalAmount };
-  }, [reservations]);
+  }, [effectiveReservations]);
 
-  // Reservas do dia selecionado (overlap)
   const dayReservations = useMemo(() => {
     if (!selectedDay) return [];
     const startOfDay = new Date(selectedDay);
@@ -195,7 +238,7 @@ export function Reservations() {
     const endOfDay = new Date(selectedDay);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const list = reservations.filter((res) => {
+    const list = effectiveReservations.filter((res) => {
       const s = new Date(res.startDate).getTime();
       const e = new Date(res.endDate).getTime();
       return s <= endOfDay.getTime() && e >= startOfDay.getTime();
@@ -217,14 +260,12 @@ export function Reservations() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [selectedDay, reservations, searchTerm]);
+  }, [effectiveReservations, searchTerm, selectedDay]);
 
   const selectedDayCount = useMemo(() => {
     if (!selectedDay) return 0;
     return dayReservations.filter((res) => res.status !== ReservationStatus.CANCELADA).length;
   }, [selectedDay, dayReservations]);
-
-
 
   useEffect(() => {
     if (activeTutorial) return;
@@ -233,15 +274,12 @@ export function Reservations() {
   }, [activeTutorial, dayReservations.length, maybeOpenModuleTutorial, selectedDay]);
 
   return (
-
     <div className="p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-gray-900 mb-2">Reservas</h1>
         <p className="text-gray-600">Visualize reservas por calendário.</p>
       </div>
 
-      {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" data-tour="reservations-status">
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
@@ -284,14 +322,12 @@ export function Reservations() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendário */}
         <div className="lg:col-span-2">
           <Card data-tour="reservations-calendar">
             <CardContent className="pt-6">
-              {loading && <div>Carregando reservas...</div>}
-              {!loading && error && <div>Erro ao carregar reservas.</div>}
+              {loading && !effectiveReservations.length ? <div>Carregando reservas...</div> : null}
+              {!loading && error && !effectiveReservations.length ? <div>Erro ao carregar reservas.</div> : null}
 
-              {/* Cabeçalho do Calendário */}
               <div className="flex items-center justify-between mb-6" data-tour="reservations-period">
                 <Button variant="ghost" size="sm" onClick={previousMonth}>
                   <ChevronLeft className="w-4 h-4" />
@@ -304,7 +340,6 @@ export function Reservations() {
                 </Button>
               </div>
 
-              {/* Filtro de Status */}
               <div className="mb-4">
                 <Select
                   value={statusFilter}
@@ -322,7 +357,6 @@ export function Reservations() {
                 </Select>
               </div>
 
-              {/* Grade do Calendário */}
               <div className="grid grid-cols-7 gap-2">
                 {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
                   <div key={day} className="text-center text-gray-600 text-sm py-2">
@@ -353,13 +387,13 @@ export function Reservations() {
                       }`}
                     >
                       {day}
-                      {hasReservations && (
+                      {hasReservations ? (
                         <div
                           className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${
                             isSelected ? 'bg-white' : 'bg-indigo-600'
                           }`}
                         />
-                      )}
+                      ) : null}
                     </button>
                   );
                 })}
@@ -368,16 +402,21 @@ export function Reservations() {
           </Card>
         </div>
 
-        {/* Painel Lateral - Reservas do Dia */}
         <div className="space-y-4">
           <Card data-tour="reservations-create">
             <CardContent className="pt-6">
               <div className="mb-4">
                 <div className="flex items-center justify-between gap-3 mb-2" data-tour="reservations-conflicts-heading">
                   <h3 className="text-gray-900">
-                  Reservas do dia {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
+                    Reservas do dia {selectedDay ? new Date(selectedDay).toLocaleDateString('pt-BR') : '-'}
                   </h3>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => openModuleTutorial('reservations-conflicts-flow', { trackProgress: false })} className="text-indigo-600 hover:text-indigo-700">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openModuleTutorial('reservations-conflicts-flow', { trackProgress: false })}
+                    className="text-indigo-600 hover:text-indigo-700"
+                  >
                     Tutorial rápido
                   </Button>
                 </div>
@@ -396,18 +435,10 @@ export function Reservations() {
                 {dayReservations.length > 0 ? (
                   dayReservations.map((reservation) => {
                     const amount = estimateReservationAmount(reservation);
-                  
-
-  useEffect(() => {
-    if (activeTutorial) return;
-    if (!selectedDay || dayReservations.length < 2) return;
-    void maybeOpenModuleTutorial('reservations-conflicts-flow');
-  }, [activeTutorial, dayReservations.length, maybeOpenModuleTutorial, selectedDay]);
-
-  return (
+                    return (
                       <ReservationDayCard
                         key={reservation.id}
-                        reservation={reservation}
+                        reservation={{ ...reservation, estimatedAmount: amount }}
                         clientName={(reservation as any).clientName ?? undefined}
                         unitLabel={(reservation as any).mediaUnitLabel ?? undefined}
                         pointName={(reservation as any).mediaPointName ?? undefined}
@@ -426,6 +457,11 @@ export function Reservations() {
                     <p className="text-gray-500">
                       {selectedDay ? 'Nenhuma reserva neste dia' : 'Selecione um dia no calendário'}
                     </p>
+                    {isTutorialMode ? (
+                      <p className="mt-2 text-xs text-indigo-600">
+                        No tutorial, exemplos de conflito aparecem automaticamente quando necessário.
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -434,7 +470,6 @@ export function Reservations() {
         </div>
       </div>
 
-      {/* Drawer de Detalhes */}
       <ReservationDetailsDrawer
         open={!!detailsDrawerReservation}
         onOpenChange={(open: boolean) => !open && setDetailsDrawerReservation(null)}

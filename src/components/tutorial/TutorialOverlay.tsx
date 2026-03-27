@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { RefreshCcw, Sparkles, X } from 'lucide-react';
 import { useTutorial, type TutorialPlacement } from '../../contexts/TutorialContext';
@@ -18,6 +18,7 @@ const DEFAULT_PANEL_HEIGHT = 320;
 const DEFAULT_GAP = 16;
 const HIGHLIGHT_PADDING = 10;
 const MOBILE_BREAKPOINT = 768;
+const OVERLAY_Z_INDEX = 2147483000;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -123,29 +124,49 @@ export function TutorialOverlay() {
   } = useTutorial();
   const [highlightRect, setHighlightRect] = useState<HighlightRect | null>(null);
   const [targetFound, setTargetFound] = useState(false);
+  const previousRectRef = useRef<HighlightRect | null>(null);
+  const lastSelectorRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isOpen || !currentStep) {
       setHighlightRect(null);
       setTargetFound(false);
+      previousRectRef.current = null;
+      lastSelectorRef.current = null;
       return;
     }
 
     let frame = 0;
     let observer: MutationObserver | null = null;
+    const selector = currentStep.target ?? null;
+
+    if (lastSelectorRef.current !== selector) {
+      lastSelectorRef.current = selector;
+      setTargetFound(false);
+      setHighlightRect(null);
+      previousRectRef.current = null;
+    }
 
     const updatePosition = () => {
-      const selector = currentStep.target;
       if (!selector) {
         setHighlightRect(null);
+        previousRectRef.current = null;
         setTargetFound(false);
         return;
       }
 
       const target = document.querySelector(selector);
       const nextRect = getHighlightRect(target);
-      setHighlightRect(nextRect);
-      setTargetFound(Boolean(target && nextRect));
+
+      if (target && nextRect) {
+        previousRectRef.current = nextRect;
+        setHighlightRect(nextRect);
+        setTargetFound(true);
+        return;
+      }
+
+      setTargetFound(false);
+      setHighlightRect((current) => current ?? previousRectRef.current);
     };
 
     const scheduleUpdate = () => {
@@ -155,8 +176,8 @@ export function TutorialOverlay() {
 
     updatePosition();
 
-    if (currentStep.target) {
-      const target = document.querySelector(currentStep.target);
+    if (selector) {
+      const target = document.querySelector(selector);
       target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     }
 
@@ -199,24 +220,40 @@ export function TutorialOverlay() {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[120]" aria-live="polite" aria-modal="true" role="dialog">
-      <div className="absolute inset-0 bg-slate-950/60" />
+    <div
+      className="fixed inset-0"
+      aria-live="polite"
+      aria-modal="true"
+      role="dialog"
+      style={{ zIndex: OVERLAY_Z_INDEX }}
+    >
+      <div
+        className="absolute inset-0 bg-slate-950/45"
+        style={{ backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)' }}
+      />
 
-      {highlightRect && (
+      {highlightRect ? (
         <div
-          className="pointer-events-none fixed z-[121] rounded-2xl border-2 border-indigo-400 bg-white/5 shadow-[0_0_0_9999px_rgba(2,6,23,0.60)] transition-all duration-200"
+          className="pointer-events-none fixed rounded-[24px] transition-all duration-200"
           style={{
+            zIndex: OVERLAY_Z_INDEX + 1,
             top: highlightRect.top,
             left: highlightRect.left,
             width: highlightRect.width,
             height: highlightRect.height,
+            transform: 'scale(1.02)',
+            boxShadow: '0 0 0 9999px rgba(2, 6, 23, 0.34), 0 0 0 2px rgba(129, 140, 248, 0.95), 0 18px 48px rgba(79, 70, 229, 0.28)',
+            background: 'rgba(255,255,255,0.08)',
           }}
-        />
-      )}
+        >
+          <div className="absolute inset-0 rounded-[24px] ring-4 ring-indigo-300/45" />
+        </div>
+      ) : null}
 
       <Card
-        className="fixed z-[122] w-[min(360px,calc(100vw-24px))] border-indigo-200 bg-white shadow-2xl"
+        className="fixed w-[min(360px,calc(100vw-24px))] border-indigo-200 bg-white shadow-2xl"
         style={{
+          zIndex: OVERLAY_Z_INDEX + 2,
           top: cardPosition.top,
           left: cardPosition.left,
           width: cardPosition.width,
