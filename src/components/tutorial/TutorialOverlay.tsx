@@ -215,6 +215,26 @@ export function TutorialOverlay() {
     });
   }, [currentStep, highlightRect]);
 
+  const overlaySegments = useMemo(() => {
+    if (!highlightRect || typeof window === 'undefined') {
+      return null;
+    }
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const top = Math.max(0, highlightRect.top);
+    const left = Math.max(0, highlightRect.left);
+    const right = Math.min(viewportWidth, highlightRect.left + highlightRect.width);
+    const bottom = Math.min(viewportHeight, highlightRect.top + highlightRect.height);
+
+    return {
+      top: { top: 0, left: 0, width: viewportWidth, height: top },
+      left: { top, left: 0, width: left, height: Math.max(0, bottom - top) },
+      right: { top, left: right, width: Math.max(0, viewportWidth - right), height: Math.max(0, bottom - top) },
+      bottom: { top: bottom, left: 0, width: viewportWidth, height: Math.max(0, viewportHeight - bottom) },
+    };
+  }, [highlightRect]);
+
   if (!isOpen || !currentStep || typeof document === 'undefined') {
     return null;
   }
@@ -227,10 +247,29 @@ export function TutorialOverlay() {
       role="dialog"
       style={{ zIndex: OVERLAY_Z_INDEX }}
     >
-      <div
-        className="absolute inset-0 bg-slate-950/45"
-        style={{ backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)' }}
-      />
+      {overlaySegments ? (
+        <>
+          {Object.values(overlaySegments).map((segment, index) => (
+            <div
+              key={index}
+              className="pointer-events-none absolute bg-slate-950/45"
+              style={{
+                top: segment.top,
+                left: segment.left,
+                width: segment.width,
+                height: segment.height,
+                backdropFilter: 'blur(1.5px)',
+                WebkitBackdropFilter: 'blur(1.5px)',
+              }}
+            />
+          ))}
+        </>
+      ) : (
+        <div
+          className="absolute inset-0 bg-slate-950/45"
+          style={{ backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)' }}
+        />
+      )}
 
       {highlightRect ? (
         <div
@@ -242,8 +281,8 @@ export function TutorialOverlay() {
             width: highlightRect.width,
             height: highlightRect.height,
             transform: 'scale(1.02)',
-            boxShadow: '0 0 0 9999px rgba(2, 6, 23, 0.34), 0 0 0 2px rgba(129, 140, 248, 0.95), 0 18px 48px rgba(79, 70, 229, 0.28)',
-            background: 'rgba(255,255,255,0.08)',
+            boxShadow: '0 0 0 2px rgba(129, 140, 248, 0.95), 0 18px 48px rgba(79, 70, 229, 0.22)',
+            background: 'rgba(255,255,255,0.02)',
           }}
         >
           <div className="absolute inset-0 rounded-[24px] ring-4 ring-indigo-300/45" />
