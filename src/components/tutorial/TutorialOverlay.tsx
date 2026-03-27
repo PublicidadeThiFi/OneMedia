@@ -20,6 +20,10 @@ const HIGHLIGHT_PADDING = 10;
 const MOBILE_BREAKPOINT = 768;
 const OVERLAY_Z_INDEX = 2147483000;
 
+const swallowPointerEvent = (event: { stopPropagation: () => void; preventDefault?: () => void }) => {
+  event.stopPropagation();
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -126,6 +130,31 @@ export function TutorialOverlay() {
   const [targetFound, setTargetFound] = useState(false);
   const previousRectRef = useRef<HighlightRect | null>(null);
   const lastSelectorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const appRoot = document.getElementById('root') as HTMLElement | null;
+    if (!appRoot) return;
+
+    const previousInert = (appRoot as any).inert;
+    const previousAriaHidden = appRoot.getAttribute('aria-hidden');
+
+    if (isOpen) {
+      (appRoot as any).inert = true;
+      appRoot.setAttribute('aria-hidden', 'true');
+    } else {
+      (appRoot as any).inert = previousInert ?? false;
+      if (previousAriaHidden === null) appRoot.removeAttribute('aria-hidden');
+      else appRoot.setAttribute('aria-hidden', previousAriaHidden);
+    }
+
+    return () => {
+      (appRoot as any).inert = previousInert ?? false;
+      if (previousAriaHidden === null) appRoot.removeAttribute('aria-hidden');
+      else appRoot.setAttribute('aria-hidden', previousAriaHidden);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !currentStep) {
@@ -252,7 +281,7 @@ export function TutorialOverlay() {
           {Object.values(overlaySegments).map((segment, index) => (
             <div
               key={index}
-              className="pointer-events-none absolute bg-slate-950/45"
+              className="absolute bg-slate-950/45 pointer-events-auto"
               style={{
                 top: segment.top,
                 left: segment.left,
@@ -266,7 +295,7 @@ export function TutorialOverlay() {
         </>
       ) : (
         <div
-          className="absolute inset-0 bg-slate-950/45"
+          className="absolute inset-0 bg-slate-950/45 pointer-events-auto"
           style={{ backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)' }}
         />
       )}
@@ -290,13 +319,16 @@ export function TutorialOverlay() {
       ) : null}
 
       <Card
-        className="fixed w-[min(360px,calc(100vw-24px))] border-indigo-200 bg-white shadow-2xl"
+        className="fixed w-[min(360px,calc(100vw-24px))] border-indigo-200 bg-white shadow-2xl pointer-events-auto"
         style={{
           zIndex: OVERLAY_Z_INDEX + 2,
           top: cardPosition.top,
           left: cardPosition.left,
           width: cardPosition.width,
         }}
+        onClickCapture={swallowPointerEvent}
+        onMouseDownCapture={swallowPointerEvent}
+        onPointerDownCapture={swallowPointerEvent}
       >
         <CardHeader className="gap-3 pb-4">
           <div className="flex items-start justify-between gap-3">
@@ -314,7 +346,7 @@ export function TutorialOverlay() {
             </div>
             <button
               type="button"
-              onClick={closeTutorial}
+              onClick={(event) => { swallowPointerEvent(event); closeTutorial(); }}
               className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
               aria-label="Fechar tutorial"
             >
@@ -330,7 +362,7 @@ export function TutorialOverlay() {
             </span>
             <button
               type="button"
-              onClick={restartTutorial}
+              onClick={(event) => { swallowPointerEvent(event); restartTutorial(); }}
               className="inline-flex items-center gap-1 font-medium text-indigo-600 transition-colors hover:text-indigo-700"
             >
               <RefreshCcw className="h-3.5 w-3.5" />
@@ -356,15 +388,15 @@ export function TutorialOverlay() {
         </CardContent>
 
         <CardFooter className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-          <Button variant="ghost" onClick={closeTutorial}>
+          <Button variant="ghost" onClick={(event) => { swallowPointerEvent(event); closeTutorial(); }}>
             Pular
           </Button>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={previousStep} disabled={!hasPreviousStep}>
+            <Button variant="outline" onClick={(event) => { swallowPointerEvent(event); previousStep(); }} disabled={!hasPreviousStep}>
               Voltar
             </Button>
-            <Button onClick={nextStep}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
+            <Button onClick={(event) => { swallowPointerEvent(event); nextStep(); }}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
           </div>
         </CardFooter>
       </Card>
