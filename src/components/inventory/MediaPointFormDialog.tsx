@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Badge } from '../ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { X, ChevronDown, Package, ExternalLink, MapPin } from 'lucide-react';
+import { X, ChevronDown, Package, ExternalLink, MapPin, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { MediaPoint, MediaType, ProductionCosts, CashFlowType, PaymentMethod, PaymentType, CashTransaction } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
@@ -50,6 +50,16 @@ function normalizeZipcodeInput(value: string) {
 
 function normalizeAddressNumberInput(value: string) {
   return String(value ?? '').replace(/-/g, '');
+}
+
+function isValidLatitude(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= -90 && numeric <= 90;
+}
+
+function isValidLongitude(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= -180 && numeric <= 180;
 }
 
 function buildPinIcon() {
@@ -734,11 +744,28 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
   const applyPinPosition = (p: LatLng, opts?: { autoFill?: boolean; forceAddressRefresh?: boolean }) => {
     setPinPos(p);
+    setDefaultMapCenter(p);
     updateField('latitude', Number(p.lat.toFixed(6)));
     updateField('longitude', Number(p.lng.toFixed(6)));
     if (opts?.autoFill !== false) {
       scheduleReverseGeocode(p.lat, p.lng, opts?.forceAddressRefresh !== false);
     }
+  };
+
+  const handleManualLatLngLookup = async () => {
+    const lat = Number(formData.latitude);
+    const lng = Number(formData.longitude);
+
+    if (!isValidLatitude(lat) || !isValidLongitude(lng)) {
+      setGeoError('Informe uma latitude e longitude válidas para pesquisar o endereço.');
+      return;
+    }
+
+    setGeoError(null);
+    const nextPin = { lat, lng };
+    setPinPos(nextPin);
+    setDefaultMapCenter(nextPin);
+    await reverseGeocodeAndApply(lat, lng, { force: true });
   };
 
   const currentUf = String(formData.addressState ?? '').trim().toUpperCase();
@@ -1389,6 +1416,24 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                   />
                   {errors.longitude && <p className="text-xs text-red-600">{errors.longitude}</p>}
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full sm:w-auto gap-2"
+                  disabled={geoLoading || !isValidLatitude(formData.latitude) || !isValidLongitude(formData.longitude)}
+                  onClick={() => {
+                    void handleManualLatLngLookup();
+                  }}
+                >
+                  <Search className="h-4 w-4" />
+                  Buscar endereço por latitude/longitude
+                </Button>
+                <p className="text-xs text-gray-600">
+                  Após informar latitude e longitude, clique para preencher automaticamente CEP, rua, bairro, cidade, estado e país.
+                </p>
               </div>
             </div>
 
