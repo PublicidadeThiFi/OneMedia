@@ -1418,11 +1418,11 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="space-y-2">
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full sm:w-auto gap-2"
+                  className="w-full gap-2"
                   disabled={geoLoading || !isValidLatitude(formData.latitude) || !isValidLongitude(formData.longitude)}
                   onClick={() => {
                     void handleManualLatLngLookup();
