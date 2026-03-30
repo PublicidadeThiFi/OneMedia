@@ -62,6 +62,9 @@ export function normalizeBrazilStateToUF(v?: string | null): string | undefined 
   const up = raw.toUpperCase();
   if (up.length === 2) return up;
 
+  const stateCodeMatch = up.match(/(?:^|[-_/])([A-Z]{2})$/);
+  if (stateCodeMatch?.[1]) return stateCodeMatch[1];
+
   return STATE_NAME_TO_UF[normKey(raw)];
 }
 
