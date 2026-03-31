@@ -95,7 +95,8 @@ export function resolveUploadsUrl(url?: string | null): string | null {
       cleaned.startsWith('media-units/') ||
       cleaned.startsWith('companies/') ||
       cleaned.startsWith('owner-companies/') ||
-      cleaned.startsWith('users/');
+      cleaned.startsWith('users/') ||
+      cleaned.startsWith('news/');
 
     if (!looksLikeUploadKey) return normalized;
     normalized = `/uploads/${cleaned}`;

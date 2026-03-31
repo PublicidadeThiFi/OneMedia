@@ -36,6 +36,10 @@ import MenuDonoEnviada from './pages/menu-dono-enviada';
 import MenuDonoRevisao from './pages/menu-dono-revisao';
 import MenuDonoAprovada from './pages/menu-dono-aprovada';
 import OAuthCallback from './pages/oauth-callback';
+import AdminLoginPage from './pages/admin-login';
+import AdminDashboardPage from './pages/admin-dashboard';
+import AdminNewsEditorPage from './pages/admin-news-editor';
+import NewsDetailPage from './pages/news-detail';
 
 // Internal App
 import { MainApp } from './components/MainApp';
@@ -43,6 +47,7 @@ import { MainApp } from './components/MainApp';
 import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
 import { TutorialProvider } from './contexts/TutorialContext';
+import { AdminAuthProvider } from './contexts/AdminAuthContext';
 
 // Backward-compatible re-exports (many components import these from "../App")
 export { useNavigation } from './contexts/NavigationContext';
@@ -189,6 +194,29 @@ export default function App() {
   if (cleanPath === '/menu/dono/revisao') return <MenuDonoRevisao />;
   if (cleanPath === '/menu/dono/aprovada') return <MenuDonoAprovada />;
 
+
+    const newsDetailMatch = cleanPath.match(/^\/noticias\/([^/]+)$/);
+    if (newsDetailMatch) {
+      return <NewsDetailPage slug={decodeURIComponent(newsDetailMatch[1])} />;
+    }
+
+    if (cleanPath === '/admin') {
+      return <AdminLoginPage />;
+    }
+
+    if (cleanPath === '/admin/dashboard') {
+      return <AdminDashboardPage />;
+    }
+
+    if (cleanPath === '/admin/materias/nova') {
+      return <AdminNewsEditorPage />;
+    }
+
+    const adminNewsEditMatch = cleanPath.match(/^\/admin\/materias\/([^/]+)\/editar$/);
+    if (adminNewsEditMatch) {
+      return <AdminNewsEditorPage articleId={decodeURIComponent(adminNewsEditMatch[1])} />;
+    }
+
     // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
     // All /app/* routes render the MainApp component with sidebar and modules
     // This is the authenticated user's main interface
@@ -246,16 +274,18 @@ export default function App() {
     <RootErrorBoundary>
       <NavigationContext.Provider value={navigate}>
         <AuthProvider>
-          <CompanyProvider>
-            <WaitlistProvider>
-              <UploadQueueProvider>
-                <TutorialProvider>
-                  {renderRoute()}
-                  <Toaster richColors position="top-right" />
-                </TutorialProvider>
-              </UploadQueueProvider>
-            </WaitlistProvider>
-          </CompanyProvider>
+          <AdminAuthProvider>
+            <CompanyProvider>
+              <WaitlistProvider>
+                <UploadQueueProvider>
+                  <TutorialProvider>
+                    {renderRoute()}
+                    <Toaster richColors position="top-right" />
+                  </TutorialProvider>
+                </UploadQueueProvider>
+              </WaitlistProvider>
+            </CompanyProvider>
+          </AdminAuthProvider>
         </AuthProvider>
       </NavigationContext.Provider>
     </RootErrorBoundary>
