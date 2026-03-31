@@ -38,11 +38,6 @@ export type DoohSummaryRow = {
   healthScorePercent: number;
   activeCampaignsCount: number;
   lastActivityAt?: string; // ISO datetime
-
-  // aliases legados aceitos durante a transição da Etapa 2
-  uptimePercent?: number;
-  plays?: number;
-  lastSeen?: string;
 };
 
 export type DashboardDoohSummaryDTO = {
@@ -52,9 +47,6 @@ export type DashboardDoohSummaryDTO = {
     activeCampaignsCount: number;
     healthScoreAvg: number;
     lowActivityCount: number;
-
-    // alias legado aceito enquanto a UI antiga ainda existir
-    offlineCount?: number;
   };
 };
 
@@ -88,6 +80,3 @@ export type DashboardOperationsCityStatusDTO = {
   rows: OperationsCityStatusRow[];
 };
 
-// Compatibilidade com naming antigo (proof-of-play)
-export type ProofOfPlayRow = DoohSummaryRow;
-export type DashboardDoohProofOfPlaySummaryDTO = DashboardDoohSummaryDTO;

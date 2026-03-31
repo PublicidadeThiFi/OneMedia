@@ -1,15 +1,7 @@
-import type { DashboardDataMode } from '../hooks/useDashboardQuery';
+// Dashboard usa somente backend real. Não há mais modo mock/fallback.
 
-// Etapa 3: por padrão já priorizamos backend para os widgets que têm integração real.
-// Para forçar mock globalmente, defina VITE_DASHBOARD_DATA_MODE=mock.
-const rawDashboardDataMode = String(((import.meta as any)?.env?.VITE_DASHBOARD_DATA_MODE as string) || '').toLowerCase();
-
-export const DASHBOARD_DATA_MODE: DashboardDataMode = rawDashboardDataMode === 'mock' ? 'mock' : 'backend';
-
-// Drilldown (drawer): paginação padrão
 export const DRILLDOWN_PAGE_SIZE = 20;
 
-// Sugestão de rotas (placeholders). Ajustar para as rotas reais do seu backend quando integrar.
 export const DASHBOARD_BACKEND_ROUTES = {
   overview: '/api/dashboard/overview',
   funnel: '/api/dashboard/funnel',
@@ -17,15 +9,11 @@ export const DASHBOARD_BACKEND_ROUTES = {
   drilldown: '/api/dashboard/drilldown',
   meta: '/api/dashboard/meta',
   kpiDefinitions: '/api/dashboard/kpis/definitions',
-
-  // Comercial
   commercialSummary: '/api/dashboard/commercial/summary',
   stalledProposals: '/api/dashboard/proposals/stalled',
   sellerRanking: '/api/dashboard/commercial/sellers/ranking',
   commercialProposalsTimeseries: '/api/dashboard/commercial/proposals/timeseries',
   commercialHighValueOpen: '/api/dashboard/commercial/high-value-open',
-
-  // Extras (quando formos evoluir os widgets):
   revenueTimeseries: '/api/dashboard/revenue/timeseries',
   cashflowTimeseries: '/api/dashboard/cashflow/timeseries',
   topClients: '/api/dashboard/top/clients',
@@ -45,7 +33,6 @@ export const DASHBOARD_BACKEND_ROUTES = {
   operationsLateRegions: '/api/dashboard/operations/regions/late',
   operationsCityStatus: '/api/dashboard/operations/cities/status',
   doohSummary: '/api/dashboard/dooh/summary',
-  doohProofOfPlaySummary: '/api/dashboard/dooh/summary',
   inventorySummary: '/api/dashboard/inventory/summary',
   inventoryMap: '/api/dashboard/inventory/map',
   inventoryRegionDistribution: '/api/dashboard/inventory/distribution/regions',

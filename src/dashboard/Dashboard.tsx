@@ -5,17 +5,14 @@ import {
   BarChart3,
   Building2,
   Check,
-  ClipboardCheck,
   ChevronDown,
   ChevronUp,
-  Copy,
   Download,
   Filter,
   Globe,
   Info,
   PieChart,
   Plus,
-  Share2,
   TrendingUp,
   Wallet,
   X,
@@ -30,7 +27,7 @@ import { toast } from 'sonner';
 import { useDashboardQuery, type DashboardDataMode, type DashboardQuerySource } from '../hooks/useDashboardQuery';
 import { dashboardGetJson } from '../services/dashboard';
 
-import { DASHBOARD_BACKEND_ROUTES, DASHBOARD_DATA_MODE, DRILLDOWN_PAGE_SIZE } from './constants';
+import { DASHBOARD_BACKEND_ROUTES, DRILLDOWN_PAGE_SIZE } from './constants';
 import {
   downloadTextFile,
   escapeCsvValue,
@@ -40,22 +37,12 @@ import {
 } from './csv';
 import { printElementToPdf } from './pdf';
 import { getDrilldownSpec, type DrilldownColumnSpec, type DrilldownSortDir } from './drilldownSpec';
-import { mockApi } from './mockApi';
 import { buildDashboardBackendQuery, toQueryString } from './query';
 import { getDashboardPermissions } from './permissions';
 import { deleteSavedView, loadActiveSavedViewId, loadSavedViews, makeSavedViewId, persistActiveSavedViewId, upsertSavedView, type SavedDashboardView } from './savedViews';
 import { useCachedQueryData } from './cache';
 import { useWidgetMetrics } from './metrics';
-import { runDashboardQaChecksOnce } from './qa';
 import { DashboardErrorBoundary } from './DashboardErrorBoundary';
-import { getDashboardRolloutState, setForcedDashboardVariant, type DashboardUiVariant } from './rollout';
-import {
-  DASHBOARD_PARITY_CHECKLIST,
-  loadParityMarks,
-  parityChecklistToText,
-  resetParityMarks,
-  toggleParityMark,
-} from './parity';
 import type {
   DashboardAlertsDTO,
   DashboardCommercialSummaryDTO,
@@ -114,63 +101,18 @@ import {
 } from './utils';
 import { EmptyState, ErrorState, KpiCard, Pill, SeverityDot, Skeleton, Sparkline, TabButton, WidgetCard } from './ui';
 import { InventoryMap } from './components/InventoryMap';
-import {
-  DASHBOARD_FALLBACK_KPI_DEFINITIONS_DTO,
-  type DashboardKpiDefinitionKey,
-} from './kpiDefinitions';
+import { findDashboardKpiDefinition, type DashboardKpiDefinitionKey } from './kpiDefinitions';
 
-const STAGE6_BACKEND_WIDGETS = new Set([
-  'overview',
-  'alerts',
-  'funnel',
-  'commercialSummary',
-  'stalledProposals',
-  'sellerRanking',
-  'commercialProposalsTimeseries',
-  'commercialHighValueOpen',
-  'revenueTimeseries',
-  'cashflowTimeseries',
-  'topClients',
-  'receivablesAgingSummary',
-  'financialSummary',
-  'receivablesComposition',
-  'criticalInvoices',
-  'lateClients',
-  'largestOpenReceivables',
-  'largestExpenses',
-  'clientsSummary',
-  'clientsTopCampaigns',
-  'clientsOpenProposals',
-  'clientsInactiveRisk',
-  'clientsRegionDistribution',
-  'inventorySummary',
-  'inventoryMap',
-  'inventoryRegionDistribution',
-  'inventoryTypeDistribution',
-  'inventorySubtypeDistribution',
-  'inventoryOpportunitySummary',
-  'inventoryRanking',
-  'oohOpsSummary',
-  'operationsLateRegions',
-  'operationsCityStatus',
-  'doohSummary',
-  'drilldown',
-]);
-
-function resolveWidgetMode(baseMode: DashboardDataMode, widgetKey: string): DashboardDataMode {
-  return baseMode === 'backend' && STAGE6_BACKEND_WIDGETS.has(widgetKey) ? 'backend' : 'mock';
+function resolveWidgetMode(_baseMode: DashboardDataMode, _widgetKey: string): DashboardDataMode {
+  return 'backend';
 }
 
-function describeQuerySource(source?: DashboardQuerySource) {
-  if (source === 'backend') return 'Dados reais do sistema';
-  if (source === 'mock-fallback') return 'Prévia local de segurança';
-  return 'Prévia local';
+function describeQuerySource(_source?: DashboardQuerySource) {
+  return 'Dados reais do sistema';
 }
 
-function describeDashboardDataMode(mode: DashboardDataMode) {
-  return mode === 'backend'
-    ? 'Visão Geral, Comercial, Financeiro, Inventário, Operações e Clientes com dados reais'
-    : 'Prévia local em todas as áreas';
+function describeDashboardDataMode(_mode: DashboardDataMode) {
+  return 'Visão Geral, Comercial, Financeiro, Inventário, Operações e Clientes com dados reais';
 }
 
 function describeDrilldownHint(title: string) {
@@ -268,67 +210,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
     return () => window.clearTimeout(debounceTimer);
   }, [filtersDraft.query, filtersDraft.city, filters.query, filters.city]);
-
-
-
-  // Etapa 12: permissoes + saved views (MVP: localStorage)
   const perms = useMemo(() => getDashboardPermissions(user, company), [user, company]);
 
-  // Etapa 16: rollout seguro (feature-flag por empresa/usuario + overrides)
-  const rollout = useMemo(
-    () =>
-      getDashboardRolloutState({
-        companyId: company?.id,
-        userId: (user as any)?.id,
-        userEmail: (user as any)?.email,
-        canOverride: perms.canManageSavedViews,
-      }),
-    [company?.id, (user as any)?.id, (user as any)?.email, perms.canManageSavedViews],
-  );
-
-  // Data mode pode ser forçado via URL (?dashboardData=backend|mock). Em modo compact, mantemos mock para reduzir risco.
-  const [dataMode, setDataMode] = useState(() => {
-    const base = rollout.dataModeOverride ?? DASHBOARD_DATA_MODE;
-    return rollout.variant === 'compact' ? 'mock' : base;
-  });
-
-  useEffect(() => {
-    const base = rollout.dataModeOverride ?? DASHBOARD_DATA_MODE;
-    setDataMode(rollout.variant === 'compact' ? 'mock' : base);
-  }, [rollout.dataModeOverride, rollout.variant]);
-
-  // Rollback automatico: se o backend falhar (quando habilitado), cai para mock na sessao.
-  useEffect(() => {
-    if (dataMode !== 'backend') return;
-    try {
-      const raw = sessionStorage.getItem('oneMedia.dashboard.dataMode.session');
-      if (raw === 'mock') {
-        setDataMode('mock');
-      }
-    } catch {
-      // ignore
-    }
-  }, [dataMode]);
-
-  const applyVariantOverride = (variant: DashboardUiVariant) => {
-    if (!rollout.canOverride) return;
-    setForcedDashboardVariant({
-      companyId: company?.id,
-      userId: (user as any)?.id || (user as any)?.email,
-      variant,
-      ttlMs: 24 * 60 * 60 * 1000,
-      reason: 'Override manual (Etapa 16)',
-    });
-    window.location.reload();
-  };
-
-  // Etapa 16: checklist de paridade (MVP: localStorage)
-  const [parityOpen, setParityOpen] = useState(false);
-  const [parityMarks, setParityMarks] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    setParityMarks(loadParityMarks(company?.id, (user as any)?.id || (user as any)?.email));
-  }, [company?.id, (user as any)?.id, (user as any)?.email]);
   const companyKey = useMemo(() => String((company as any)?.id ?? ''), [company]);
   const userKey = useMemo(() => {
     const u: any = user as any;
@@ -343,12 +226,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const allowedTabsKey = useMemo(() => (perms.allowedTabs || []).join('|'), [perms.allowedTabs]);
 
-  const [shareMapOpen, setShareMapOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [kpiRulesOpen, setKpiRulesOpen] = useState(false);
 
+  const dataMode: DashboardDataMode = 'backend';
+
   // Etapa 3: este objeto representa exatamente o que vira query params no backend.
-  // Etapa 4: hooks/services adicionados (useDashboardQuery + services/dashboard). Modo padrão = mock; backend via env.
   const backendQuery = useMemo(() => buildDashboardBackendQuery(filters), [filters]);
 
   const backendQs = useMemo(() => toQueryString(backendQuery), [backendQuery]);
@@ -395,17 +277,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!user,
     mode: 'backend',
     deps: [company?.id, (user as any)?.id, (user as any)?.email],
-    computeMock: () => DASHBOARD_FALLBACK_KPI_DEFINITIONS_DTO,
     fetcher: (signal) =>
       dashboardGetJson<DashboardKpiDefinitionsDTO>(DASHBOARD_BACKEND_ROUTES.kpiDefinitions, undefined, { signal }),
   });
 
-  const kpiDefinitionsDto = kpiDefinitionsQ.data ?? DASHBOARD_FALLBACK_KPI_DEFINITIONS_DTO;
-  const kpiDefinitionOrder = kpiDefinitionsDto.order;
-  const kpiDefinitions = kpiDefinitionsDto.definitions;
-  const kpiDefinitionsSourceLabel = kpiDefinitionsQ.source === 'backend' ? 'Sincronizado com backend' : 'Fallback local';
-  const kpiDefinitionsUpdatedAtLabel = formatShortDate(kpiDefinitionsDto.updatedAt);
-  const kpiDefinition = (key: DashboardKpiDefinitionKey) => kpiDefinitions[key] ?? DASHBOARD_FALLBACK_KPI_DEFINITIONS_DTO.definitions[key];
+  const kpiDefinitionsDto = kpiDefinitionsQ.data;
+  const kpiDefinitionOrder = kpiDefinitionsDto?.order ?? [];
+  const kpiDefinitions = kpiDefinitionsDto?.definitions ?? {};
+  const kpiDefinitionsSourceLabel = 'Sincronizado com backend';
+  const kpiDefinitionsUpdatedAtLabel = formatShortDate(kpiDefinitionsDto?.updatedAt);
+  const kpiDefinition = (key: DashboardKpiDefinitionKey) => findDashboardKpiDefinition(kpiDefinitionsDto, key);
 
   const [drilldown, setDrilldown] = useState<DrilldownState>({
     open: false,
@@ -431,10 +312,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company,
     mode: overviewMode,
     deps: [company?.id, backendQs, tab, overviewMode],
-    computeMock: () => mockApi.fetchOverviewKpis(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardOverviewDTO>(DASHBOARD_BACKEND_ROUTES.overview, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardFunnel(company.id, backendQuery)
@@ -442,10 +321,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && (tab === 'executivo' || tab === 'comercial'),
     mode: funnelMode,
     deps: [company?.id, backendQs, funnelMode],
-    computeMock: () => mockApi.fetchCommercialFunnel(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardFunnelDTO>(DASHBOARD_BACKEND_ROUTES.funnel, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   // Comercial (Etapa 7): KPIs e listas dedicadas (mantendo a UI igual)
@@ -453,50 +330,40 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'comercial',
     mode: commercialSummaryMode,
     deps: [company?.id, backendQs, commercialSummaryMode],
-    computeMock: () => mockApi.fetchCommercialSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardCommercialSummaryDTO>(DASHBOARD_BACKEND_ROUTES.commercialSummary, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const stalledProposalsQ = useDashboardQuery<DashboardStalledProposalsDTO>({
     enabled: !!company && tab === 'comercial',
     mode: stalledProposalsMode,
     deps: [company?.id, backendQs, stalledProposalsMode],
-    computeMock: () => mockApi.fetchStalledProposals(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardStalledProposalsDTO>(DASHBOARD_BACKEND_ROUTES.stalledProposals, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const sellerRankingQ = useDashboardQuery<DashboardSellerRankingDTO>({
     enabled: !!company && tab === 'comercial',
     mode: sellerRankingMode,
     deps: [company?.id, backendQs, sellerRankingMode],
-    computeMock: () => mockApi.fetchSellerRanking(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardSellerRankingDTO>(DASHBOARD_BACKEND_ROUTES.sellerRanking, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const commercialProposalsTimeseriesQ = useDashboardQuery<DashboardCommercialProposalsTimeseriesDTO>({
     enabled: !!company && tab === 'comercial',
     mode: commercialProposalsTimeseriesMode,
     deps: [company?.id, backendQs, commercialProposalsTimeseriesMode],
-    computeMock: () => mockApi.fetchCommercialProposalsTimeseries(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardCommercialProposalsTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.commercialProposalsTimeseries, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const commercialHighValueOpenQ = useDashboardQuery<DashboardHighValueOpenProposalsDTO>({
     enabled: !!company && tab === 'comercial',
     mode: commercialHighValueOpenMode,
     deps: [company?.id, backendQs, commercialHighValueOpenMode],
-    computeMock: () => mockApi.fetchHighValueOpenProposals(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardHighValueOpenProposalsDTO>(DASHBOARD_BACKEND_ROUTES.commercialHighValueOpen, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
@@ -504,10 +371,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro'),
     mode: alertsMode,
     deps: [company?.id, backendQs, alertsMode],
-    computeMock: () => mockApi.fetchAlerts(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardAlertsDTO>(DASHBOARD_BACKEND_ROUTES.alerts, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   // Drilldown (Etapa 8): agora usa useDashboardQuery + paginação (cursor)
@@ -526,14 +391,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && drilldown.open && !!drilldown.key,
     mode: drilldownMode,
     deps: [company?.id, drilldown.key, drilldownQs, drilldownMode],
-    computeMock: () =>
-      mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
-        cursor: drilldown.cursor,
-        limit: DRILLDOWN_PAGE_SIZE,
-        sortBy: drilldown.sortBy,
-        sortDir: drilldown.sortDir,
-        params: drilldown.params,
-      }),
     fetcher: (signal) =>
       dashboardGetJson<DashboardDrilldownDTO>(`${DASHBOARD_BACKEND_ROUTES.drilldown}/${drilldown.key}`, drilldownQs, {
         signal,
@@ -605,7 +462,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro'),
     mode: revenueTimeseriesMode,
     deps: [company?.id, backendQs, revenueTimeseriesMode],
-    computeMock: () => mockApi.fetchRevenueTimeseries(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.revenueTimeseries, backendQs, { signal }),
   });
@@ -614,7 +470,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro'),
     mode: cashflowTimeseriesMode,
     deps: [company?.id, backendQs, cashflowTimeseriesMode],
-    computeMock: () => mockApi.fetchCashflowTimeseries(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.cashflowTimeseries, backendQs, { signal }),
   });
@@ -623,67 +478,54 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'inventario',
     mode: inventorySummaryMode,
     deps: [company?.id, backendQs, inventorySummaryMode],
-    computeMock: () => mockApi.fetchInventorySummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventorySummaryDTO>(DASHBOARD_BACKEND_ROUTES.inventorySummary, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const inventoryMapQ = useDashboardQuery<DashboardInventoryMapDTO>({
     enabled: !!company && (tab === 'executivo' || tab === 'inventario'),
     mode: inventoryMapMode,
     deps: [company?.id, backendQs, inventoryMapMode],
-    computeMock: () => mockApi.fetchInventoryMap(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryMapDTO>(DASHBOARD_BACKEND_ROUTES.inventoryMap, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const inventoryRegionDistributionQ = useDashboardQuery<DashboardInventoryRegionDistributionDTO>({
     enabled: !!company && tab === 'inventario',
     mode: inventoryRegionDistributionMode,
     deps: [company?.id, backendQs, inventoryRegionDistributionMode],
-    computeMock: () => mockApi.fetchInventoryRegionDistribution(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryRegionDistributionDTO>(DASHBOARD_BACKEND_ROUTES.inventoryRegionDistribution, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const inventoryTypeDistributionQ = useDashboardQuery<DashboardInventoryTypeDistributionDTO>({
     enabled: !!company && tab === 'inventario',
     mode: inventoryTypeDistributionMode,
     deps: [company?.id, backendQs, inventoryTypeDistributionMode],
-    computeMock: () => mockApi.fetchInventoryTypeDistribution(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryTypeDistributionDTO>(DASHBOARD_BACKEND_ROUTES.inventoryTypeDistribution, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const inventorySubtypeDistributionQ = useDashboardQuery<DashboardInventorySubtypeDistributionDTO>({
     enabled: !!company && tab === 'inventario',
     mode: inventorySubtypeDistributionMode,
     deps: [company?.id, backendQs, inventorySubtypeDistributionMode],
-    computeMock: () => mockApi.fetchInventorySubtypeDistribution(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventorySubtypeDistributionDTO>(DASHBOARD_BACKEND_ROUTES.inventorySubtypeDistribution, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const inventoryOpportunitySummaryQ = useDashboardQuery<DashboardInventoryOpportunitySummaryDTO>({
     enabled: !!company && tab === 'inventario',
     mode: inventoryOpportunitySummaryMode,
     deps: [company?.id, backendQs, inventoryOpportunitySummaryMode],
-    computeMock: () => mockApi.fetchInventoryOpportunitySummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryOpportunitySummaryDTO>(DASHBOARD_BACKEND_ROUTES.inventoryOpportunitySummary, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const inventoryRankingQ = useDashboardQuery<DashboardInventoryRankingDTO>({
     enabled: !!company && tab === 'inventario',
     mode: inventoryRankingMode,
     deps: [company?.id, backendQs, inventoryRankingMode],
-    computeMock: () => mockApi.fetchInventoryRanking(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryRankingDTO>(DASHBOARD_BACKEND_ROUTES.inventoryRanking, backendQs, { signal }),
   });
@@ -692,7 +534,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro' || tab === 'clientes'),
     mode: topClientsMode,
     deps: [company?.id, backendQs, topClientsMode],
-    computeMock: () => mockApi.fetchTopClients(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardTopClientsDTO>(DASHBOARD_BACKEND_ROUTES.topClients, backendQs, { signal }),
   });
@@ -701,7 +542,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'financeiro',
     mode: agingMode,
     deps: [company?.id, backendQs, agingMode],
-    computeMock: () => mockApi.fetchReceivablesAgingSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardReceivablesAgingSummaryDTO>(DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary, backendQs, { signal }),
   });
@@ -710,7 +550,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'financeiro',
     mode: financialSummaryMode,
     deps: [company?.id, backendQs, financialSummaryMode],
-    computeMock: () => mockApi.fetchFinancialSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardFinancialSummaryDTO>(DASHBOARD_BACKEND_ROUTES.financialSummary, backendQs, { signal }),
   });
@@ -719,7 +558,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'financeiro',
     mode: receivablesCompositionMode,
     deps: [company?.id, backendQs, receivablesCompositionMode],
-    computeMock: () => mockApi.fetchReceivablesComposition(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardReceivablesCompositionDTO>(DASHBOARD_BACKEND_ROUTES.receivablesComposition, backendQs, { signal }),
   });
@@ -728,7 +566,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'financeiro',
     mode: criticalInvoicesMode,
     deps: [company?.id, backendQs, criticalInvoicesMode],
-    computeMock: () => mockApi.fetchCriticalInvoices(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardCriticalInvoicesDTO>(DASHBOARD_BACKEND_ROUTES.criticalInvoices, backendQs, { signal }),
   });
@@ -737,7 +574,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && (tab === 'financeiro' || tab === 'clientes'),
     mode: lateClientsMode,
     deps: [company?.id, backendQs, lateClientsMode],
-    computeMock: () => mockApi.fetchLateClients(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardLateClientsDTO>(DASHBOARD_BACKEND_ROUTES.lateClients, backendQs, { signal }),
   });
@@ -746,7 +582,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'financeiro',
     mode: largestOpenReceivablesMode,
     deps: [company?.id, backendQs, largestOpenReceivablesMode],
-    computeMock: () => mockApi.fetchLargestOpenReceivables(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardLargestOpenReceivablesDTO>(DASHBOARD_BACKEND_ROUTES.largestOpenReceivables, backendQs, { signal }),
   });
@@ -755,7 +590,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'financeiro',
     mode: largestExpensesMode,
     deps: [company?.id, backendQs, largestExpensesMode],
-    computeMock: () => mockApi.fetchLargestExpenses(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardLargestExpensesDTO>(DASHBOARD_BACKEND_ROUTES.largestExpenses, backendQs, { signal }),
   });
@@ -764,57 +598,46 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'clientes',
     mode: clientsSummaryMode,
     deps: [company?.id, backendQs, clientsSummaryMode],
-    computeMock: () => mockApi.fetchClientsSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardClientsSummaryDTO>(DASHBOARD_BACKEND_ROUTES.clientsSummary, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const clientsTopCampaignsQ = useDashboardQuery<DashboardClientsTopCampaignsDTO>({
     enabled: !!company && tab === 'clientes',
     mode: clientsTopCampaignsMode,
     deps: [company?.id, backendQs, clientsTopCampaignsMode],
-    computeMock: () => mockApi.fetchClientsTopCampaigns(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardClientsTopCampaignsDTO>(DASHBOARD_BACKEND_ROUTES.clientsTopCampaigns, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const clientsOpenProposalsQ = useDashboardQuery<DashboardClientsOpenProposalsDTO>({
     enabled: !!company && tab === 'clientes',
     mode: clientsOpenProposalsMode,
     deps: [company?.id, backendQs, clientsOpenProposalsMode],
-    computeMock: () => mockApi.fetchClientsOpenProposals(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardClientsOpenProposalsDTO>(DASHBOARD_BACKEND_ROUTES.clientsOpenProposals, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const clientsInactiveRiskQ = useDashboardQuery<DashboardClientsInactiveRiskDTO>({
     enabled: !!company && tab === 'clientes',
     mode: clientsInactiveRiskMode,
     deps: [company?.id, backendQs, clientsInactiveRiskMode],
-    computeMock: () => mockApi.fetchClientsInactiveRisk(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardClientsInactiveRiskDTO>(DASHBOARD_BACKEND_ROUTES.clientsInactiveRisk, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const clientsRegionDistributionQ = useDashboardQuery<DashboardClientsRegionDistributionDTO>({
     enabled: !!company && tab === 'clientes',
     mode: clientsRegionDistributionMode,
     deps: [company?.id, backendQs, clientsRegionDistributionMode],
-    computeMock: () => mockApi.fetchClientsRegionDistribution(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardClientsRegionDistributionDTO>(DASHBOARD_BACKEND_ROUTES.clientsRegionDistribution, backendQs, { signal }),
-    fallbackToMock: false,
   });
 
   const oohOpsQ = useDashboardQuery<DashboardOohOpsSummaryDTO>({
     enabled: !!company && (tab === 'executivo' || tab === 'operacoes'),
     mode: oohOpsMode,
     deps: [company?.id, backendQs, oohOpsMode],
-    computeMock: () => mockApi.fetchOohOpsSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardOohOpsSummaryDTO>(DASHBOARD_BACKEND_ROUTES.oohOpsSummary, backendQs, { signal }),
   });
@@ -823,7 +646,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'operacoes',
     mode: operationsLateRegionsMode,
     deps: [company?.id, backendQs, operationsLateRegionsMode],
-    computeMock: () => mockApi.fetchOperationsLateRegions(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardOperationsLateRegionsDTO>(DASHBOARD_BACKEND_ROUTES.operationsLateRegions, backendQs, { signal }),
   });
@@ -832,7 +654,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'operacoes',
     mode: operationsCityStatusMode,
     deps: [company?.id, backendQs, operationsCityStatusMode],
-    computeMock: () => mockApi.fetchOperationsCityStatus(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardOperationsCityStatusDTO>(DASHBOARD_BACKEND_ROUTES.operationsCityStatus, backendQs, { signal }),
   });
@@ -841,7 +662,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     enabled: !!company && tab === 'operacoes',
     mode: doohSummaryMode,
     deps: [company?.id, backendQs, doohSummaryMode],
-    computeMock: () => mockApi.fetchDoohSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardDoohSummaryDTO>(DASHBOARD_BACKEND_ROUTES.doohSummary, backendQs, { signal }),
   });
@@ -973,19 +793,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     () => [...sellerRankingRows].sort((a, b) => (b.amountPipelineCents || 0) - (a.amountPipelineCents || 0)),
     [sellerRankingRows],
   );
-
   const oohOpsSummary = useMemo(() => {
     if (oohOpsDto?.summary) return oohOpsDto.summary;
-    const companySeed = String(company?.id || 'dashboard');
-    if (oohOpsQ.source === 'mock' || oohOpsQ.source === 'mock-fallback') {
-      return {
-        campaignsActiveCount: oohOpsItems.length,
-        awaitingMaterialCount: oohOpsItems.filter((item) => item.awaitingMaterial).length,
-        installationCount: oohOpsItems.filter((item) => item.inInstallation).length,
-        pendingCheckinsCount: oohOpsItems.filter((item) => (item.missingCheckinsCount || 0) > 0 && !item.overdue).length,
-        overdueCheckinsCount: oohOpsItems.filter((item) => (item.missingCheckinsCount || 0) > 0 && !!item.overdue).length,
-      };
-    }
     return {
       campaignsActiveCount: oohOpsItems.length,
       awaitingMaterialCount: oohOpsItems.filter((item) => item.awaitingMaterial).length,
@@ -993,30 +802,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       pendingCheckinsCount: oohOpsItems.filter((item) => (item.missingCheckinsCount || 0) > 0 && !item.overdue).length,
       overdueCheckinsCount: oohOpsItems.filter((item) => (item.missingCheckinsCount || 0) > 0 && !!item.overdue).length,
     };
-  }, [company?.id, oohOpsDto?.summary, oohOpsItems, oohOpsQ.source]);
-
+  }, [oohOpsDto?.summary, oohOpsItems]);
   const doohOpsSummary = useMemo(() => {
     if (doohSummaryDto?.summary) return doohSummaryDto.summary;
-    const companySeed = String(company?.id || 'dashboard');
-    if (doohSummaryQ.source === 'mock' || doohSummaryQ.source === 'mock-fallback') {
-      return {
-        screenCount: doohSummaryRows.length,
-        activeCampaignsCount: doohSummaryRows.reduce((sum, row) => sum + (row.activeCampaignsCount || row.plays || 0), 0),
-        healthScoreAvg: 92 + (seedNumber(`${companySeed}:upt`) % 7),
-        lowActivityCount: seedNumber(`${companySeed}:off`) % 9,
-        offlineCount: seedNumber(`${companySeed}:off`) % 9,
-      };
-    }
     return {
       screenCount: doohSummaryRows.length,
-      activeCampaignsCount: doohSummaryRows.reduce((sum, row) => sum + (row.activeCampaignsCount || row.plays || 0), 0),
+      activeCampaignsCount: doohSummaryRows.reduce((sum, row) => sum + (row.activeCampaignsCount || 0), 0),
       healthScoreAvg: doohSummaryRows.length
-        ? Math.round(doohSummaryRows.reduce((sum, row) => sum + (row.healthScorePercent || row.uptimePercent || 0), 0) / doohSummaryRows.length)
+        ? Math.round(doohSummaryRows.reduce((sum, row) => sum + (row.healthScorePercent || 0), 0) / doohSummaryRows.length)
         : 0,
-      lowActivityCount: doohSummaryRows.filter((row) => (row.healthScorePercent || row.uptimePercent || 0) < 80).length,
-      offlineCount: doohSummaryRows.filter((row) => (row.healthScorePercent || row.uptimePercent || 0) < 80).length,
+      lowActivityCount: doohSummaryRows.filter((row) => (row.healthScorePercent || 0) < 80).length,
     };
-  }, [company?.id, doohSummaryDto?.summary, doohSummaryQ.source, doohSummaryRows]);
+  }, [doohSummaryDto?.summary, doohSummaryRows]);
 
   const criticalCampaignRows = useMemo(
     () => oohOpsItems.filter((item) => (item.priority || 'LOW') !== 'LOW'),
@@ -1375,45 +1172,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   useWidgetMetrics('inventoryRanking', inventoryRankingQ, metricsCtx);
   useWidgetMetrics('drilldown', drilldownQ, metricsCtx);
 
-  useEffect(() => {
-    runDashboardQaChecksOnce();
-  }, []);
-
-  // Etapa 16: em modo compact, forca apenas a aba Executivo (menos risco / menos complexidade).
-  useEffect(() => {
-    if (rollout.variant !== 'compact') return;
-    if (tab !== 'executivo') setTab('executivo');
-  }, [rollout.variant, tab]);
-
-  // Etapa 16: fallback/rollback de dados — se estivermos em backend e cair em erro/fallback,
-  // trocamos para mock na sessao (para nao travar o dashboard em producao).
-  useEffect(() => {
-    if (dataMode !== 'backend') return;
-    const critical = [overviewQ, alertsQ].some((q) => {
-      const src = String((q as any)?.source || '');
-      return q.status === 'error' || src.includes('fallback');
-    });
-    if (!critical) return;
-
-    setDataMode('mock');
-    try {
-      sessionStorage.setItem('oneMedia.dashboard.dataMode.session', 'mock');
-    } catch {
-      // ignore
-    }
-
-    toast.error('Dashboard em prévia local', {
-      description: 'Alguns widgets não responderam no backend. Mantivemos a leitura estável enquanto a integração é revisada.',
-    });
-  }, [dataMode, overviewQ.status, alertsQ.status, (overviewQ as any).source, (alertsQ as any).source]);
-
-
-  // URL pública do mapa (mock)
-  const publicMapUrl = useMemo(() => {
-    if (!company) return '';
-    return mockApi.getPublicMapUrl(company.id);
-  }, [company]);
-
   // Reset drilldown when tab changes (evita confusão)
   useEffect(() => {
     setDrilldown(() => ({
@@ -1480,71 +1238,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       </div>
     );
   }
-
-  /**
-   * Copia o link do mapa público para a área de transferência
-   */
-  const handleCopyMapLink = async () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(publicMapUrl);
-        setCopied(true);
-        toast.success('Link do mapa copiado para a área de transferência!');
-        setTimeout(() => setCopied(false), 2000);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = publicMapUrl;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-999999px';
-        textArea.style.top = '-999999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-
-        try {
-          const successful = document.execCommand('copy');
-          if (successful) {
-            setCopied(true);
-            toast.success('Link do mapa copiado para a área de transferência!');
-            setTimeout(() => setCopied(false), 2000);
-          } else {
-            toast.error('Não foi possível copiar. Por favor, copie manualmente.');
-          }
-        } catch {
-          toast.error('Não foi possível copiar. Por favor, copie manualmente.');
-        }
-
-        document.body.removeChild(textArea);
-      }
-    } catch {
-      toast.error('Não foi possível copiar. Por favor, copie manualmente.');
-    }
-  };
-
-  const handleCopyParityChecklist = async () => {
-    try {
-      const text = parityChecklistToText();
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        toast.success('Checklist de paridade copiado!');
-        return;
-      }
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      textArea.style.top = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(textArea);
-      if (ok) toast.success('Checklist de paridade copiado!');
-      else toast.error('Não foi possível copiar.');
-    } catch {
-      toast.error('Não foi possível copiar.');
-    }
-  };
 
   const openDrilldown = (title: string, key: string, hint?: string, params?: Record<string, string | undefined>) => {
     const cleanParams: Record<string, string> = {};
@@ -1702,7 +1395,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       add('DOOH • telas', doohOpsSummary.screenCount);
       add('DOOH • saúde média', `${doohOpsSummary.healthScoreAvg}%`);
       add('DOOH • campanhas ativas', doohOpsSummary.activeCampaignsCount);
-      add('DOOH • sem atividade recente', doohOpsSummary.lowActivityCount ?? doohOpsSummary.offlineCount);
+      add('DOOH • sem atividade recente', doohOpsSummary.lowActivityCount);
     } else if (tab === 'financeiro') {
       if (financialSummary) {
         add('Receita reconhecida', formatCurrency(financialSummary.revenueRecognizedCents));
@@ -1785,17 +1478,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           v.length > 0,
       ),
     ) as Record<string, string>;
-
-    if (source === 'mock' || source === 'mock-fallback' || drilldownMode !== 'backend') {
-      return mockApi.fetchDrilldown(company.id, key, filters, {
-        cursor: query.cursor,
-        limit: query.limit,
-        sortBy: query.sortBy,
-        sortDir: query.sortDir,
-        params,
-      });
-    }
-
     return dashboardGetJson<DashboardDrilldownDTO>(`${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}`, toQueryString(query));
   };
 
@@ -2003,58 +1685,28 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     : null;
   const commercialTimeseriesError = widgetError('Falha ao carregar evolução das propostas', commercialProposalsTimeseriesQ);
   const commercialHighValueError = widgetError('Falha ao carregar negociações prioritárias', commercialHighValueOpenQ);
-
-  // Etapa 16: fallback/rollback global - se a tela quebrar por erro de runtime,
-  // mostramos um modo seguro (compact) e gravamos override temporario (localStorage).
-  const handleRuntimeError = () => {
-    try {
-      setForcedDashboardVariant({
-        companyId: company?.id,
-        userId: (user as any)?.id || (user as any)?.email,
-        variant: 'compact',
-        ttlMs: 60 * 60 * 1000,
-        reason: 'Rollback automático: erro de runtime',
-      });
-    } catch {
-      // ignore
-    }
-  };
-
-  const shouldShowRolloutBanner =
-    rollout.variant === 'compact' || rollout.source !== 'default' || dataMode !== DASHBOARD_DATA_MODE;
-
   const runtimeFallback = (
     <div className="p-6 md:p-8">
       <Card>
         <CardHeader>
-          <CardTitle>Dashboard em modo seguro</CardTitle>
+          <CardTitle>Dashboard indisponível temporariamente</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-gray-600">
-            Ocorreu um erro ao renderizar o dashboard. Para evitar impacto em produção, mantivemos a tela em modo
-            compacto (menor risco).
+            Ocorreu um erro ao renderizar o dashboard. Recarregue a página para tentar novamente.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button className="h-9" onClick={() => window.location.reload()}>
               Recarregar
             </Button>
-            {rollout.canOverride ? (
-              <Button variant="outline" className="h-9" onClick={() => applyVariantOverride('v2')}>
-                Tentar v2
-              </Button>
-            ) : null}
           </div>
-          <p className="text-xs text-gray-500">
-            Rollout: <span className="font-medium">{rollout.variant}</span> ({rollout.source}) • dados:{' '}
-            <span className="font-medium">{dataModeSummary}</span>
-          </p>
         </CardContent>
       </Card>
     </div>
   );
 
   return (
-    <DashboardErrorBoundary fallback={runtimeFallback} onError={handleRuntimeError}>
+    <DashboardErrorBoundary fallback={runtimeFallback}>
       <div className="p-6 md:p-8">
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4" data-tour="dashboard-overview">
@@ -2078,44 +1730,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <Globe className="w-4 h-4" />
               Mídia Kit
             </Button>
-            {rollout.canOverride ? (
-              <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => setParityOpen(true)}>
-                <ClipboardCheck className="w-4 h-4" />
-                Paridade
-              </Button>
-            ) : null}
-            {rollout.variant !== 'compact' ? (
-              <Button variant="outline" className="h-9 flex items-center gap-2" onClick={() => setShareMapOpen(true)}>
-                <Share2 className="w-4 h-4" />
-                Compartilhar Mapa
-              </Button>
-            ) : null}
           </div>
         </div>
-
-        {shouldShowRolloutBanner ? (
-          <Card>
-            <CardContent className="py-3">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="text-xs text-gray-600">
-                  <span className="font-medium">Rollout:</span> {rollout.variant} ({rollout.source}) — {rollout.reason}
-                  <span className="mx-2">•</span>
-                  <span className="font-medium">Dados:</span> {dataModeSummary}
-                </div>
-                {rollout.canOverride ? (
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" className="h-8 text-xs" onClick={() => applyVariantOverride('v2')}>
-                      Forçar v2
-                    </Button>
-                    <Button variant="outline" className="h-8 text-xs" onClick={() => applyVariantOverride('compact')}>
-                      Rollback
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
 
         {/* Global Filter Bar */}
         <Card data-tour="dashboard-filters">
@@ -2308,7 +1924,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('executivo')}
             />
           ) : null}
-          {rollout.variant !== 'compact' && perms.allowedTabs.includes('comercial') ? (
+          {perms.allowedTabs.includes('comercial') ? (
             <TabButton
               active={tab === 'comercial'}
               icon={<BarChart3 className="w-4 h-4" />}
@@ -2316,7 +1932,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('comercial')}
             />
           ) : null}
-          {rollout.variant !== 'compact' && perms.allowedTabs.includes('operacoes') ? (
+          {perms.allowedTabs.includes('operacoes') ? (
             <TabButton
               active={tab === 'operacoes'}
               icon={<PieChart className="w-4 h-4" />}
@@ -2324,7 +1940,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('operacoes')}
             />
           ) : null}
-          {rollout.variant !== 'compact' && perms.allowedTabs.includes('financeiro') ? (
+          {perms.allowedTabs.includes('financeiro') ? (
             <TabButton
               active={tab === 'financeiro'}
               icon={<Wallet className="w-4 h-4" />}
@@ -2332,7 +1948,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('financeiro')}
             />
           ) : null}
-          {rollout.variant !== 'compact' && perms.allowedTabs.includes('inventario') ? (
+          {perms.allowedTabs.includes('inventario') ? (
             <TabButton
               active={tab === 'inventario'}
               icon={<Building2 className="w-4 h-4" />}
@@ -2340,7 +1956,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               onClick={() => setTab('inventario')}
             />
           ) : null}
-          {rollout.variant !== 'compact' && perms.allowedTabs.includes('clientes') ? (
+          {perms.allowedTabs.includes('clientes') ? (
             <TabButton
               active={tab === 'clientes'}
               icon={<Globe className="w-4 h-4" />}
@@ -2421,7 +2037,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="Receita reconhecida"
               value={overview ? formatCurrency(overview.revenueRecognizedCents) : undefined}
-              helper={kpiDefinition('revenueRecognized').shortDescription}
+              helper={kpiDefinition('revenueRecognized')?.shortDescription || 'Critério consolidado no backend.'}
               delta={overview?.trends.revenue.deltaPercent}
               spark={overview?.trends.revenue.points}
               loading={executiveLoading}
@@ -2431,7 +2047,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="A faturar"
               value={overview ? formatCurrency(overview.revenueToInvoiceCents) : undefined}
-              helper={kpiDefinition('revenueToInvoice').shortDescription}
+              helper={kpiDefinition('revenueToInvoice')?.shortDescription || 'Critério consolidado no backend.'}
               loading={executiveLoading}
               onClick={() => openDrilldown('A faturar', 'revenueToInvoice', describeDrilldownHint('A faturar'))}
             />
@@ -2439,7 +2055,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="Ocupação média"
               value={overview ? `${overview.occupancyPercent}%` : undefined}
-              helper={kpiDefinition('occupancy').shortDescription}
+              helper={kpiDefinition('occupancy')?.shortDescription || 'Critério consolidado no backend.'}
               delta={overview?.trends.occupancy.deltaPercent}
               spark={overview?.trends.occupancy.points}
               loading={executiveLoading}
@@ -2449,7 +2065,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="Campanhas ativas"
               value={overview ? String(overview.campaignsActiveCount) : undefined}
-              helper={kpiDefinition('campaignsActiveCount').shortDescription}
+              helper={kpiDefinition('campaignsActiveCount')?.shortDescription || 'Critério consolidado no backend.'}
               loading={executiveLoading}
               onClick={() => openDrilldown('Campanhas ativas', 'campaignsActive', describeDrilldownHint('Campanhas ativas'))}
             />
@@ -2465,7 +2081,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="Inadimplência"
               value={overview ? formatCurrency(overview.receivablesOverdueCents) : undefined}
-              helper={kpiDefinition('receivablesOverdue').shortDescription}
+              helper={kpiDefinition('receivablesOverdue')?.shortDescription || 'Critério consolidado no backend.'}
               loading={executiveLoading}
               onClick={() => openDrilldown('Inadimplência', 'receivablesOverdue', describeDrilldownHint('Inadimplência'))}
             />
@@ -2925,7 +2541,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="Ticket médio comercial"
               value={commercialSummary ? formatCurrency(commercialSummary.averageCommercialTicketCents) : undefined}
-              helper={kpiDefinition('averageCommercialTicket').shortDescription}
+              helper={kpiDefinition('averageCommercialTicket')?.shortDescription || 'Critério consolidado no backend.'}
               loading={commercialKpisLoading}
             />
 
@@ -3508,9 +3124,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                           title: row.screen,
                           subtitle: row.city,
                           fields: {
-                            healthScorePercent: row.healthScorePercent || row.uptimePercent || 0,
-                            activeCampaignsCount: row.activeCampaignsCount || row.plays || 0,
-                            lastActivityAt: row.lastActivityAt || row.lastSeen,
+                            healthScorePercent: row.healthScorePercent || 0,
+                            activeCampaignsCount: row.activeCampaignsCount || 0,
+                            lastActivityAt: row.lastActivityAt,
                           },
                         }));
                         exportDrilldownCsv('dooh_resumo_operacional', rows);
@@ -3547,7 +3163,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </div>
                     <div className="border border-gray-200 rounded-lg p-3">
                       <p className="text-xs text-gray-500">Sem atividade recente</p>
-                      <p className="text-lg text-gray-900 mt-1">{doohOpsSummary.lowActivityCount ?? doohOpsSummary.offlineCount ?? 0}</p>
+                      <p className="text-lg text-gray-900 mt-1">{doohOpsSummary.lowActivityCount ?? 0}</p>
                     </div>
                   </div>
 
@@ -3557,10 +3173,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm text-gray-900">{row.screen}</p>
-                            <p className="text-xs text-gray-500 mt-1">{row.city || 'Sem cidade'} • Campanhas ativas: {row.activeCampaignsCount || row.plays || 0}</p>
-                            <p className="text-xs text-gray-500 mt-1">Última atividade: {(row.lastActivityAt || row.lastSeen) ? formatShortDate(row.lastActivityAt || row.lastSeen || '') : '—'}</p>
+                            <p className="text-xs text-gray-500 mt-1">{row.city || 'Sem cidade'} • Campanhas ativas: {row.activeCampaignsCount || 0}</p>
+                            <p className="text-xs text-gray-500 mt-1">Última atividade: {row.lastActivityAt ? formatShortDate(row.lastActivityAt) : '—'}</p>
                           </div>
-                          <p className="text-sm text-gray-700">{row.healthScorePercent || row.uptimePercent || 0}%</p>
+                          <p className="text-sm text-gray-700">{row.healthScorePercent || 0}%</p>
                         </div>
                       </div>
                     ))}
@@ -4618,7 +4234,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <KpiCard
         label="Clientes ativos"
         value={clientsSummary ? String(clientsSummary.activeClientsCount) : undefined}
-        helper={kpiDefinition('clientsActiveCount').shortDescription}
+        helper={kpiDefinition('clientsActiveCount')?.shortDescription || 'Critério consolidado no backend.'}
         loading={clientsKpisLoading}
         onClick={() => openDrilldown('Clientes ativos', 'topClients', describeDrilldownHint('Clientes ativos'))}
       />
@@ -5133,7 +4749,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       ) : null}
 
-      {/* Modal: Salvar Visão */}
+      {/* Modal: Critérios dos KPIs */}
       <Dialog open={kpiRulesOpen} onOpenChange={setKpiRulesOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
@@ -5144,7 +4760,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </DialogHeader>
 
           <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-            <span>{kpiDefinitionsSourceLabel} • versão {kpiDefinitionsDto.version}</span>
+            <span>{kpiDefinitionsSourceLabel} • versão {kpiDefinitionsDto?.version || 'n/d'}</span>
             <span>Atualizado em {kpiDefinitionsUpdatedAtLabel}</span>
           </div>
 
@@ -5152,6 +4768,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {kpiDefinitionOrder.map((key) => {
                 const definition = kpiDefinition(key);
+                if (!definition) return null;
                 return (
                   <div key={definition.key} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
                     <div>
@@ -5236,94 +4853,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <p className="text-xs text-gray-500">
               MVP: localStorage. BACKEND SWAP POINT: GET/POST/DELETE /dashboard/views (por usuário/empresa).
             </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de Paridade (Etapa 16) */}
-      <Dialog open={parityOpen} onOpenChange={setParityOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Checklist de paridade com o backend</DialogTitle>
-            <DialogDescription>
-              Use esta lista para validar se os números do Dashboard batem com o backend antes do rollout completo.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs text-gray-500">
-                Dica: execute por empresa e compare os KPIs com relatórios/queries oficiais. Marque os itens conforme
-                aprovar.
-              </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" className="h-8 text-xs" onClick={handleCopyParityChecklist}>
-                  Copiar checklist
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-8 text-xs"
-                  onClick={() => {
-                    resetParityMarks(companyKey, userKey);
-                    setParityMarks({});
-                    toast.success('Checklist resetado');
-                  }}
-                >
-                  Reset
-                </Button>
-              </div>
-            </div>
-
-            <div className="border border-gray-200 rounded-md divide-y">
-              {DASHBOARD_PARITY_CHECKLIST.map((it) => (
-                <div key={it.id} className="p-3 flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={!!parityMarks[it.id]}
-                    onChange={() => setParityMarks((m) => toggleParityMark(companyKey, userKey, m, it.id))}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 font-medium">{it.title}</p>
-                    <p className="text-xs text-gray-500">{it.description}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Rota: <span className="font-medium">{it.route}</span> • Campos: {it.fields.join(', ')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de Compartilhar Mapa */}
-      <Dialog open={shareMapOpen} onOpenChange={setShareMapOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Compartilhar mapa de pontos</DialogTitle>
-            <DialogDescription>
-              Compartilhe o link público do mapa de pontos de mídia da sua empresa. Qualquer pessoa com o link poderá
-              visualizar os pontos disponíveis.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center space-x-2">
-            <div className="grid flex-1 gap-2">
-              <Input id="map-url" value={publicMapUrl} readOnly className="h-9" />
-            </div>
-            <Button type="button" size="sm" className="px-3" onClick={handleCopyMapLink}>
-              {copied ? (
-                <>
-                  <Check className="h-4 w-4 mr-1" />
-                  Copiado
-                </>
-              ) : (
-                <>
-                  <Copy className="h-4 w-4 mr-1" />
-                  Copiar link
-                </>
-              )}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>

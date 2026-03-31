@@ -570,7 +570,6 @@ case 'clientsNew':
 
 
     case 'doohSummary':
-    case 'proofOfPlay':
       return {
         defaultSort: { by: 'healthScorePercent', dir: 'asc' },
         rowAction: { label: 'Abrir Inventário', page: 'inventory' },
@@ -578,29 +577,29 @@ case 'clientsNew':
           { id: 'title', label: 'Tela', sortable: true, sortKey: 'title', get: (r) => r.title },
           { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
           {
-            id: 'uptimePercent',
+            id: 'healthScorePercent',
             label: 'Saúde',
             align: 'right',
             sortable: true,
             sortKey: 'healthScorePercent',
-            get: (r) => getRowField(r, 'healthScorePercent') ?? getRowField(r, 'uptimePercent'),
+            get: (r) => getRowField(r, 'healthScorePercent'),
             render: (v) => <span className="tabular-nums">{formatCell(v, 'percent')}</span>,
           },
           {
-            id: 'plays',
+            id: 'activeCampaignsCount',
             label: 'Campanhas',
             align: 'right',
             sortable: true,
             sortKey: 'activeCampaignsCount',
-            get: (r) => getRowField(r, 'activeCampaignsCount') ?? getRowField(r, 'plays'),
+            get: (r) => getRowField(r, 'activeCampaignsCount'),
             render: (v) => <span className="tabular-nums">{formatCell(v)}</span>,
           },
           {
-            id: 'lastSeen',
+            id: 'lastActivityAt',
             label: 'Última atividade',
             sortable: true,
             sortKey: 'lastActivityAt',
-            get: (r) => getRowField(r, 'lastActivityAt') ?? getRowField(r, 'lastSeen'),
+            get: (r) => getRowField(r, 'lastActivityAt'),
             render: (v) => <span className="tabular-nums">{formatCell(v, 'datetime')}</span>,
           },
         ],

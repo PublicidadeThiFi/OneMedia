@@ -9,8 +9,7 @@ export type InventoryMapPin = {
   state?: string;
   occupancyPercent: number;
 
-  // Coordenadas geográficas reais quando existirem. Em fallback/mock, mantemos
-  // um espalhamento leve para não colapsar todos os pontos no mesmo local.
+  // Coordenadas geográficas reais do inventário.
   lat?: number;
   lng?: number;
 

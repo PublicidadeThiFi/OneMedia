@@ -13,7 +13,7 @@ export interface DashboardProps {
 // `src/dashboard/contracts/*`.
 //
 // Mantemos este arquivo como "barrel" para nao quebrar imports existentes
-// (Dashboard.tsx, mockApi.ts, drilldownSpec.tsx, etc.).
+// (Dashboard.tsx e drilldownSpec.tsx).
 // ============================================================
 
 // Shared
@@ -80,8 +80,6 @@ export type {
   DashboardOperationsLateRegionsDTO,
   OperationsCityStatusRow,
   DashboardOperationsCityStatusDTO,
-  ProofOfPlayRow,
-  DashboardDoohProofOfPlaySummaryDTO,
 } from './contracts/operations';
 
 // Inventory
@@ -137,7 +135,7 @@ export type DrilldownState = {
   status: 'idle' | 'loading' | 'ready' | 'error';
   errorMessage?: string;
 
-  // ordenacao (server-side no backend; mock respeita)
+  // ordenacao server-side no backend
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
 
