@@ -219,14 +219,14 @@ export function getDrilldownSpec(key?: string): DrilldownKeySpec {
 
     case 'proofOfPlay':
       return {
-        defaultSort: { by: 'uptimePercent', dir: 'desc' },
+        defaultSort: { by: 'uptimePercent', dir: 'asc' },
         rowAction: { label: 'Abrir Inventário', page: 'inventory' },
         columns: [
           { id: 'title', label: 'Tela', sortable: true, sortKey: 'title', get: (r) => r.title },
           { id: 'subtitle', label: 'Cidade', sortable: true, sortKey: 'subtitle', get: (r) => r.subtitle },
           {
             id: 'uptimePercent',
-            label: 'Uptime',
+            label: 'Saúde',
             align: 'right',
             sortable: true,
             sortKey: 'uptimePercent',
@@ -235,7 +235,7 @@ export function getDrilldownSpec(key?: string): DrilldownKeySpec {
           },
           {
             id: 'plays',
-            label: 'Plays',
+            label: 'Campanhas',
             align: 'right',
             sortable: true,
             sortKey: 'plays',
@@ -244,7 +244,7 @@ export function getDrilldownSpec(key?: string): DrilldownKeySpec {
           },
           {
             id: 'lastSeen',
-            label: 'Última',
+            label: 'Última atividade',
             sortable: true,
             sortKey: 'lastSeen',
             get: (r) => getRowField(r, 'lastSeen'),

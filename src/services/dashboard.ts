@@ -3,13 +3,11 @@
  *
  * Objetivo:
  * - Centralizar chamadas HTTP para as rotas do Dashboard.
- * - Ser usado pelos hooks do Dashboard.
- *
- * Observações:
- * - Base URL pode ser configurada por env (Vite): VITE_API_BASE_URL
- * - Por padrão, usa mesmo host (base vazia) e caminhos relativos (/api/...).
- * - Retorna JSON e lança erro em caso de falha.
+ * - Reaproveitar o apiClient principal para manter token Bearer, refresh e base URL iguais ao restante da aplicação.
  */
+
+import axios from 'axios';
+import apiClient from '../lib/apiClient';
 
 export type DashboardHttpError = {
   status: number;
@@ -17,45 +15,42 @@ export type DashboardHttpError = {
   details?: unknown;
 };
 
-// Vite (import.meta.env) - fallback para base vazia.
-const API_BASE_URL: string = ((import.meta as any)?.env?.VITE_API_BASE_URL as string) ?? '';
+function buildError(error: unknown): DashboardHttpError {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status ?? 0;
+    const data = error.response?.data;
 
-function joinUrl(base: string, path: string) {
-  const b = (base || '').replace(/\/$/, '');
-  const p = (path || '').startsWith('/') ? path : `/${path}`;
-  return `${b}${p}`;
-}
-
-async function safeReadText(res: Response): Promise<string> {
-  try {
-    return await res.text();
-  } catch {
-    return '';
-  }
-}
-
-function buildError(status: number, bodyText: string): DashboardHttpError {
-  // Tenta extrair mensagem do body (JSON ou texto)
-  let message = `Erro HTTP ${status}`;
-  let details: unknown = undefined;
-
-  const trimmed = (bodyText || '').trim();
-  if (trimmed) {
-    try {
-      const json = JSON.parse(trimmed);
-      details = json;
-      if (typeof json?.message === 'string' && json.message.trim()) {
-        message = json.message.trim();
-      } else if (typeof json?.error === 'string' && json.error.trim()) {
-        message = json.error.trim();
-      }
-    } catch {
-      // texto simples
-      message = trimmed.length > 200 ? `${trimmed.slice(0, 200)}...` : trimmed;
+    let message = `Erro HTTP ${status || 0}`;
+    if (typeof data === 'string' && data.trim()) {
+      message = data.trim();
+    } else if (typeof data?.message === 'string' && data.message.trim()) {
+      message = data.message.trim();
+    } else if (typeof data?.error === 'string' && data.error.trim()) {
+      message = data.error.trim();
+    } else if (typeof error.message === 'string' && error.message.trim()) {
+      message = error.message.trim();
     }
+
+    return {
+      status,
+      message,
+      details: data,
+    };
   }
 
-  return { status, message, details };
+  if (error instanceof Error) {
+    return {
+      status: 0,
+      message: error.message || 'Erro inesperado',
+      details: error,
+    };
+  }
+
+  return {
+    status: 0,
+    message: 'Erro inesperado',
+    details: error,
+  };
 }
 
 /**
@@ -69,27 +64,20 @@ export async function dashboardGetJson<T>(
     headers?: Record<string, string>;
   },
 ): Promise<T> {
-  const url = joinUrl(API_BASE_URL, path) + (queryString ? `?${queryString}` : '');
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${normalizedPath}${queryString ? `?${queryString}` : ''}`;
 
-  const res = await fetch(url, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-      ...(opts?.headers || {}),
-    },
-    signal: opts?.signal,
-  });
+  try {
+    const response = await apiClient.get<T>(url, {
+      signal: opts?.signal,
+      headers: {
+        Accept: 'application/json',
+        ...(opts?.headers || {}),
+      },
+    });
 
-  if (!res.ok) {
-    const bodyText = await safeReadText(res);
-    throw buildError(res.status, bodyText);
+    return response.data as T;
+  } catch (error) {
+    throw buildError(error);
   }
-
-  // Se o endpoint responder 204 (No Content), retornamos undefined (mas tipado como T)
-  if (res.status === 204) {
-    return undefined as unknown as T;
-  }
-
-  return (await res.json()) as T;
 }

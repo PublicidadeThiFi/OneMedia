@@ -92,3 +92,28 @@ export function deleteSavedView(companyId: string, userKey: string, id: string):
   persist(companyId, userKey, next);
   return next;
 }
+
+
+function activeKeyFor(companyId: string, userKey: string) {
+  return `oneMedia.dashboard.savedViews.active.v1:${companyId}:${userKey}`;
+}
+
+export function loadActiveSavedViewId(companyId: string, userKey: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return String(window.localStorage.getItem(activeKeyFor(companyId, userKey)) || '');
+  } catch {
+    return '';
+  }
+}
+
+export function persistActiveSavedViewId(companyId: string, userKey: string, id: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const key = activeKeyFor(companyId, userKey);
+    if (id) window.localStorage.setItem(key, id);
+    else window.localStorage.removeItem(key);
+  } catch {
+    // ignore quota/storage errors
+  }
+}

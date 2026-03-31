@@ -12,6 +12,12 @@ export type OohOpsItem = {
 
 export type DashboardOohOpsSummaryDTO = {
   items: OohOpsItem[];
+  summary?: {
+    awaitingMaterialCount: number;
+    installationCount: number;
+    pendingCheckinsCount: number;
+    overdueCheckinsCount: number;
+  };
 };
 
 export type ProofOfPlayRow = {
@@ -25,4 +31,10 @@ export type ProofOfPlayRow = {
 
 export type DashboardDoohProofOfPlaySummaryDTO = {
   rows: ProofOfPlayRow[];
+  summary?: {
+    screenCount: number;
+    activeCampaignsCount: number;
+    healthScoreAvg: number;
+    offlineCount: number;
+  };
 };
