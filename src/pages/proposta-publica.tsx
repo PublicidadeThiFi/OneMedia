@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { publicApiClient } from '../lib/apiClient';
 
 type PublicProposal = {
   id: string;
@@ -40,25 +41,6 @@ type PublicProposal = {
   } | null;
 };
 
-function resolveApiBaseUrl() {
-  // No portal público, NUNCA podemos depender de URL HTTP direta do backend quando a página está em HTTPS (Vercel),
-  // pois isso gera Mixed Content e o browser bloqueia ("Failed to fetch").
-  //
-  // A estratégia correta é:
-  // 1) Preferir VITE_API_URL quando existir (incluindo valor relativo como "/api" para funcionar com rewrites).
-  // 2) Em produção, se não houver VITE_API_URL, usar "/api" (esperando rewrite/proxy do Vercel/Nginx).
-  // 3) Em dev, cair para o backend local.
-  const isDev = (import.meta as any)?.env?.DEV === true;
-
-  const raw = (import.meta as any)?.env?.VITE_API_URL as string | undefined;
-  const cleaned = typeof raw === "string" ? raw.trim().replace(/\/$/, "") : "";
-
-  if (cleaned) return cleaned;
-
-  return isDev ? "http://localhost:3333/api" : "/api";
-}
-
-
 export default function PropostaPublica() {
   const publicHash = useMemo(() => {
     // rota: /p/:hash
@@ -67,17 +49,16 @@ export default function PropostaPublica() {
     return idx >= 0 ? parts[idx + 1] : parts[1];
   }, []);
 
-  const apiBase = useMemo(() => resolveApiBaseUrl(), []);
 
   const messageToken = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('m');
-  }, [publicHash]);
+  }, []);
 
   const decisionToken = useMemo(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('t');
-  }, [publicHash]);
+  }, []);
 
   const [proposal, setProposal] = useState<PublicProposal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +91,24 @@ export default function PropostaPublica() {
   latestMessagesRef.current = messages;
   const messagesInFlightRef = useRef(false);
 
+  const getErrorMessage = (error: any, fallback: string) => {
+    return (
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      error?.message ||
+      fallback
+    );
+  };
+
+  const publicApiBase = String(publicApiClient.defaults.baseURL || '').replace(/\/$/, '');
+
+  const buildPublicApiUrl = (path: string) => {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    if (!publicApiBase) return normalizedPath;
+    if (/^https?:\/\//i.test(publicApiBase)) return `${publicApiBase}${normalizedPath}`;
+    return `${publicApiBase}${normalizedPath}`;
+  };
+
   const canDecide = !!decisionToken;
 
   useEffect(() => {
@@ -132,16 +131,10 @@ export default function PropostaPublica() {
 
         if (!publicHash) throw new Error('Link inválido (hash ausente).');
 
-        const res = await fetch(`${apiBase}/public/proposals/${encodeURIComponent(publicHash)}`);
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(json?.message || 'Não foi possível carregar a proposta');
-        }
-
-        setProposal(json);
+        const res = await publicApiClient.get(`/public/proposals/${encodeURIComponent(publicHash)}`);
+        setProposal(res.data);
       } catch (e: any) {
-        setLoadError(e?.message || 'Erro ao carregar proposta');
+        setLoadError(getErrorMessage(e, 'Erro ao carregar proposta'));
         setProposal(null);
       } finally {
         setLoading(false);
@@ -149,7 +142,7 @@ export default function PropostaPublica() {
     };
 
     run();
-  }, [apiBase, publicHash]);
+  }, [publicHash]);
 
   const fetchPortalMessages = async (opts?: { silent?: boolean }) => {
     try {
@@ -166,16 +159,11 @@ export default function PropostaPublica() {
         ? box.scrollHeight - box.scrollTop - box.clientHeight < 60
         : true;
 
-      const res = await fetch(
-        `${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/messages`
+      const res = await publicApiClient.get(
+        `/public/proposals/${encodeURIComponent(publicHash)}/messages`
       );
-      const json = await res.json().catch(() => []);
 
-      if (!res.ok) {
-        throw new Error((json && (json.message || json.error)) || 'Erro ao carregar mensagens');
-      }
-
-      const next = Array.isArray(json) ? json : [];
+      const next = Array.isArray(res.data) ? res.data : [];
       setMessages(next);
 
       // Mantém a conversa "ancorada" no final quando o usuário já está no fim.
@@ -188,7 +176,7 @@ export default function PropostaPublica() {
     } catch (e: any) {
       // Evita "piscar" erro durante polling quando já existe conteúdo
       if (!opts?.silent || latestMessagesRef.current.length === 0) {
-        setMessagesError(e?.message || 'Erro ao carregar mensagens');
+        setMessagesError(getErrorMessage(e, 'Erro ao carregar mensagens'));
       }
     } finally {
       messagesInFlightRef.current = false;
@@ -200,7 +188,7 @@ export default function PropostaPublica() {
   useEffect(() => {
     fetchPortalMessages({ silent: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase, publicHash]);
+  }, [publicHash]);
 
   // Polling para atualizar mensagens automaticamente (sem precisar dar refresh)
   useEffect(() => {
@@ -211,7 +199,7 @@ export default function PropostaPublica() {
     }, 3000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase, publicHash]);
+  }, [publicHash]);
 
   const handleApprove = async () => {
     try {
@@ -221,26 +209,17 @@ export default function PropostaPublica() {
 
       if (!decisionToken) throw new Error('Token ausente.');
 
-      const res = await fetch(`${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: decisionToken,
-          signerName: signerName.trim(),
-          signerEmail: signerEmail.trim(),
-          comment: comment.trim(),
-        }),
+      await publicApiClient.post(`/public/proposals/${encodeURIComponent(publicHash)}/approve`, {
+        token: decisionToken,
+        signerName: signerName.trim(),
+        signerEmail: signerEmail.trim(),
+        comment: comment.trim(),
       });
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.message || 'Não foi possível aprovar');
-      }
 
       setActionSuccess('Proposta aprovada com sucesso!');
       setProposal((prev) => (prev ? { ...prev, status: 'APROVADA' } : prev));
     } catch (e: any) {
-      setActionError(e?.message || 'Erro ao aprovar');
+      setActionError(getErrorMessage(e, 'Erro ao aprovar'));
     } finally {
       setActionLoading(false);
     }
@@ -254,26 +233,17 @@ export default function PropostaPublica() {
 
       if (!decisionToken) throw new Error('Token ausente.');
 
-      const res = await fetch(`${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: decisionToken,
-          signerName: signerName.trim(),
-          signerEmail: signerEmail.trim(),
-          comment: comment.trim(),
-        }),
+      await publicApiClient.post(`/public/proposals/${encodeURIComponent(publicHash)}/reject`, {
+        token: decisionToken,
+        signerName: signerName.trim(),
+        signerEmail: signerEmail.trim(),
+        comment: comment.trim(),
       });
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.message || 'Não foi possível rejeitar');
-      }
 
       setActionSuccess('Proposta rejeitada.');
       setProposal((prev) => (prev ? { ...prev, status: 'REPROVADA' } : prev));
     } catch (e: any) {
-      setActionError(e?.message || 'Erro ao rejeitar');
+      setActionError(getErrorMessage(e, 'Erro ao rejeitar'));
     } finally {
       setActionLoading(false);
     }
@@ -286,29 +256,20 @@ export default function PropostaPublica() {
 
       if (!decisionToken) throw new Error('Token ausente.');
 
-      const res = await fetch(
-        `${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/media-decisions`,
+      const res = await publicApiClient.post(
+        `/public/proposals/${encodeURIComponent(publicHash)}/media-decisions`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: decisionToken,
-            decisions: [{ proposalItemId, decisionStatus }],
-            signerName: (portalName || signerName).trim() || undefined,
-            signerEmail: (portalContact || signerEmail).trim() || undefined,
-            comment: comment.trim() || undefined,
-          }),
+          token: decisionToken,
+          decisions: [{ proposalItemId, decisionStatus }],
+          signerName: (portalName || signerName).trim() || undefined,
+          signerEmail: (portalContact || signerEmail).trim() || undefined,
+          comment: comment.trim() || undefined,
         }
       );
 
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.message || 'Não foi possível salvar a decisão');
-      }
-
-      setProposal(json);
+      setProposal(res.data);
     } catch (e: any) {
-      setDecisionSaveError(e?.message || 'Erro ao salvar decisão');
+      setDecisionSaveError(getErrorMessage(e, 'Erro ao salvar decisão'));
     } finally {
       setDecisionSavingId(null);
     }
@@ -347,28 +308,19 @@ export default function PropostaPublica() {
         // ignore
       }
 
-      const res = await fetch(`${apiBase}/public/proposals/${encodeURIComponent(publicHash)}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: messageToken,
-          senderName: name,
-          senderContact: contact,
-          contentText: text,
-        }),
+      await publicApiClient.post(`/public/proposals/${encodeURIComponent(publicHash)}/messages`, {
+        token: messageToken,
+        senderName: name,
+        senderContact: contact,
+        contentText: text,
       });
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.message || 'Não foi possível enviar a mensagem');
-      }
 
       setMessageText('');
 
       // refresh (silencioso) — a página também faz polling
       fetchPortalMessages({ silent: true });
     } catch (e: any) {
-      setMessageSendError(e?.message || 'Erro ao enviar mensagem');
+      setMessageSendError(getErrorMessage(e, 'Erro ao enviar mensagem'));
     } finally {
       setMessageSending(false);
     }
@@ -462,7 +414,7 @@ export default function PropostaPublica() {
             <a
               className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
               // Use the shorter /pdf alias for maximum compatibility across proxies/rewrite setups.
-              href={`${apiBase}/public/proposals/${publicHash}/pdf`}
+              href={buildPublicApiUrl(`/public/proposals/${publicHash}/pdf`)}
               target="_blank"
               rel="noreferrer"
             >

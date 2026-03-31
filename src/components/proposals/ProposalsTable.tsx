@@ -1,7 +1,8 @@
-import { Edit, ExternalLink, Eye, Send } from 'lucide-react';
+import { Download, Edit, Eye, Send } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { Button } from '../ui/button';
 import { Proposal, ProposalStatus } from '../../types';
+import apiClient from '../../lib/apiClient';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
 import { toNumber } from '../../lib/number';
 
@@ -35,20 +36,48 @@ export function ProposalsTable({
     );
   }
 
-  const openPublicLink = async (publicHash: string) => {
-    const url = `${window.location.origin}/p/${publicHash}`;
-    // Abre em nova aba (comportamento esperado para o ícone de link)
-    try {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch {
-      // ignore
+  const parseFilename = (contentDisposition?: string | null) => {
+    if (!contentDisposition) return null;
+
+    const cd = String(contentDisposition);
+    const utf8 = cd.match(/filename\*=(?:UTF-8''|)([^;\n]+)/i);
+    if (utf8?.[1]) {
+      const raw = utf8[1].trim().replace(/^"|"$/g, '');
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw;
+      }
     }
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      // fallback silencioso
-      console.log('Link público:', url);
-    }
+
+    const basic = cd.match(/filename=([^;\n]+)/i);
+    return basic?.[1] ? basic[1].trim().replace(/^"|"$/g, '') : null;
+  };
+
+  const downloadProposalPdf = async (proposal: Proposal) => {
+    const hash = proposal.publicHash || (proposal as any).public_hash || null;
+    const endpoint = hash
+      ? `/public/proposals/${encodeURIComponent(hash)}/pdf`
+      : `/proposals/${proposal.id}/pdf/file`;
+
+    const res = await apiClient.get<Blob>(endpoint, { responseType: 'blob' });
+    const contentDisposition =
+      (res.headers?.['content-disposition'] || res.headers?.['Content-Disposition']) as
+        | string
+        | undefined;
+
+    const fileName = parseFilename(contentDisposition) || `proposta-${proposal.id}.pdf`;
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.rel = 'noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -193,18 +222,24 @@ export function ProposalsTable({
                       </>
                     )}
 
-                    {proposal.publicHash && (
-                      <Button type="button"
-                        variant="ghost"
-                        size="sm"
-                        data-tour="proposals-sharing"
-                        title={`Copiar link público: /p/${proposal.publicHash}`}
-                        onClick={(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); openPublicLink(proposal.publicHash!); }}
-                        aria-label="Link público"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
-                    )}
+                    <Button type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-tour="proposals-sharing"
+                      title="Baixar proposta (PDF)"
+                      onClick={async (e: MouseEvent) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        try {
+                          await downloadProposalPdf(proposal);
+                        } catch (error) {
+                          console.error('Erro ao baixar proposta:', error);
+                        }
+                      }}
+                      aria-label="Baixar proposta"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
                   </div>
                 </td>
               </tr>
