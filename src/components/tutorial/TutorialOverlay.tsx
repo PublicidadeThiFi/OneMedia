@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import * as DismissableLayerPrimitive from '@radix-ui/react-dismissable-layer@1.1.11';
 import { RefreshCcw, Sparkles, X } from 'lucide-react';
 import { useTutorial, type TutorialPlacement } from '../../contexts/TutorialContext';
 import { Button } from '../ui/button';
@@ -165,6 +166,7 @@ export function TutorialOverlay() {
   const previousRectRef = useRef<HighlightRect | null>(null);
   const lastSelectorRef = useRef<string | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const portalHostRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen || !currentStep) {
@@ -237,6 +239,21 @@ export function TutorialOverlay() {
       observer?.disconnect();
     };
   }, [currentStep, isOpen]);
+
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const host = document.createElement('div');
+    host.setAttribute('data-tutorial-portal-host', 'true');
+    document.documentElement.appendChild(host);
+    portalHostRef.current = host;
+
+    return () => {
+      portalHostRef.current = null;
+      host.remove();
+    };
+  }, []);
 
 
   useEffect(() => {
@@ -394,19 +411,21 @@ export function TutorialOverlay() {
         </div>
       ) : null}
 
-      <div
-        ref={cardRef}
-        tabIndex={-1}
-        className="fixed w-[min(360px,calc(100vw-24px))] pointer-events-auto outline-none"
-        {...{ [TUTORIAL_OVERLAY_INTERACTIVE_ATTR]: 'true' }}
-        style={{
-          zIndex: OVERLAY_Z_INDEX + 2,
-          top: cardPosition.top,
-          left: cardPosition.left,
-          width: cardPosition.width,
-        }}
-      >
-        <Card className="w-full border-indigo-200 bg-white shadow-2xl">
+      <DismissableLayerPrimitive.Branch asChild>
+        <div
+          ref={cardRef}
+          tabIndex={-1}
+          className="fixed w-[min(360px,calc(100vw-24px))] pointer-events-auto outline-none"
+          {...{ [TUTORIAL_OVERLAY_INTERACTIVE_ATTR]: 'true' }}
+          style={{
+            zIndex: OVERLAY_Z_INDEX + 2,
+            top: cardPosition.top,
+            left: cardPosition.left,
+            width: cardPosition.width,
+            pointerEvents: 'auto',
+          }}
+        >
+          <Card className="w-full border-indigo-200 bg-white shadow-2xl pointer-events-auto">
         <CardHeader className="gap-3 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-3">
@@ -480,8 +499,9 @@ export function TutorialOverlay() {
           </div>
         </CardFooter>
         </Card>
-      </div>
+        </div>
+      </DismissableLayerPrimitive.Branch>
     </div>,
-    document.body,
+    portalHostRef.current ?? document.body,
   );
 }
