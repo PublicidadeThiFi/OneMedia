@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -50,6 +50,9 @@ function sanitizeUnitPayload(payload: UnitFormPayload) {
   return clean;
 }
 
+const MAX_MONEY_VALUE = 99_999_999.99;
+const MONEY_DECIMAL_PLACES = 2;
+
 function parseNonNegativeFloatInput(value: string) {
   if (!value) return null;
   const numeric = Number(value);
@@ -62,6 +65,50 @@ function parseNonNegativeIntInput(value: string) {
   const numeric = Number.parseInt(value, 10);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(0, numeric);
+}
+
+function sanitizeMoneyInput(value: string) {
+  if (!value) return '';
+  const normalized = String(value)
+    .replace(/,/g, '.')
+    .replace(/[^\d.]/g, '');
+
+  const [integerPartRaw = '', ...decimalParts] = normalized.split('.');
+  const integerPart = integerPartRaw.replace(/^0+(?=\d)/, '');
+  const decimalPart = decimalParts.join('').slice(0, MONEY_DECIMAL_PLACES);
+
+  if (decimalPart.length > 0) {
+    return `${integerPart || '0'}.${decimalPart}`;
+  }
+
+  return integerPart;
+}
+
+function parseMoneyInput(value: string) {
+  const sanitized = sanitizeMoneyInput(value);
+  if (!sanitized) return null;
+  const numeric = Number(sanitized);
+  if (!Number.isFinite(numeric)) return null;
+  return numeric;
+}
+
+function validateMoneyValue(value: string) {
+  const sanitized = sanitizeMoneyInput(value);
+  if (!sanitized) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(sanitized)) {
+    return 'Informe um valor válido com até 2 casas decimais.';
+  }
+
+  const numeric = Number(sanitized);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return 'Informe um valor numérico válido e não negativo.';
+  }
+
+  if (numeric > MAX_MONEY_VALUE) {
+    return 'O valor máximo permitido é R$ 99.999.999,99.';
+  }
+
+  return null;
 }
 
 function parseBytes(value?: string | number | null) {
@@ -400,10 +447,13 @@ export function MediaUnitsDialog({
                         : 'Unidade criada com sucesso.',
                     );
                   }
-	                } catch (e: any) {
-	                  console.error(e);
-	                  const msg = e?.message || 'Erro ao salvar unidade.';
-	                  toast.error(msg);
+                } catch (e: any) {
+                  console.error(e);
+                  const responseMessage = Array.isArray(e?.response?.data?.message)
+                    ? e.response.data.message.join(' ')
+                    : e?.response?.data?.message;
+                  const msg = responseMessage || e?.message || 'Erro ao salvar unidade.';
+                  toast.error(msg);
                 }
               }}
               onCancel={() => {
@@ -433,6 +483,7 @@ export function MediaUnitsDialog({
 }
 
 type ExistingAssetPreview = { id?: string; src: string };
+type UnitFormErrors = Partial<Record<'priceMonth' | 'priceWeek', string>>;
 
 interface UnitFormProps {
   unit: MediaUnit | null;
@@ -477,6 +528,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
   const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
   const [unitSnapshot, setUnitSnapshot] = useState<MediaUnit | null>(unit);
+  const [priceMonthInput, setPriceMonthInput] = useState(unit?.priceMonth != null ? String(unit.priceMonth) : '');
+  const [priceWeekInput, setPriceWeekInput] = useState(unit?.priceWeek != null ? String(unit.priceWeek) : '');
+  const [formErrors, setFormErrors] = useState<UnitFormErrors>({});
 
   const fileLimits = entitlements?.limits?.file;
 
@@ -528,6 +582,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
         priceMonth: unit.priceMonth,
         priceWeek: unit.priceWeek,
       });
+      setPriceMonthInput(unit.priceMonth != null ? String(unit.priceMonth) : '');
+      setPriceWeekInput(unit.priceWeek != null ? String(unit.priceWeek) : '');
+      setFormErrors({});
       setImageFiles([]);
       setImagePreviews([]);
       setVideoFiles([]);
@@ -536,6 +593,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     } else {
       setUnitSnapshot(null);
       setFormData({ label: '' });
+      setPriceMonthInput('');
+      setPriceWeekInput('');
+      setFormErrors({});
       setImageFiles([]);
       setImagePreviews([]);
       setExistingImageAssets([]);
@@ -546,9 +606,50 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     }
   }, [unit]);
 
+  const priceMonthError = useMemo(() => validateMoneyValue(priceMonthInput), [priceMonthInput]);
+  const priceWeekError = useMemo(() => validateMoneyValue(priceWeekInput), [priceWeekInput]);
 
   const updateField = (field: keyof UnitFormPayload, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateMoneyField = (field: 'priceMonth' | 'priceWeek', rawValue: string) => {
+    const sanitized = sanitizeMoneyInput(rawValue);
+    const parsed = parseMoneyInput(sanitized);
+
+    if (field === 'priceMonth') {
+      setPriceMonthInput(sanitized);
+    } else {
+      setPriceWeekInput(sanitized);
+    }
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [field]: validateMoneyValue(sanitized) ?? undefined,
+    }));
+
+    updateField(field, parsed);
+  };
+
+  const buildValidatedPayload = () => {
+    const nextErrors: UnitFormErrors = {
+      priceMonth: validateMoneyValue(priceMonthInput) ?? undefined,
+      priceWeek: validateMoneyValue(priceWeekInput) ?? undefined,
+    };
+
+    setFormErrors(nextErrors);
+
+    if (nextErrors.priceMonth || nextErrors.priceWeek) {
+      const firstError = nextErrors.priceMonth || nextErrors.priceWeek;
+      toast.error(firstError || 'Corrija os preços informados.');
+      return null;
+    }
+
+    return {
+      ...formData,
+      priceMonth: parseMoneyInput(priceMonthInput),
+      priceWeek: parseMoneyInput(priceWeekInput),
+    } satisfies UnitFormPayload;
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -924,33 +1025,30 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
         <div className="space-y-2">
           <Label>Preços (opcional)</Label>
+          <p className="text-xs text-gray-500">Somente números, com até 2 casas decimais e limite de R$ 99.999.999,99 por campo.</p>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm">Preço/Mês (R$)</Label>
               <Input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 placeholder="5000.00"
-                min="0"
-                value={formData.priceMonth ?? ''}
-                onChange={(e) =>
-                  updateField('priceMonth', parseNonNegativeFloatInput(e.target.value))
-                }
+                value={priceMonthInput}
+                onChange={(e) => updateMoneyField('priceMonth', e.target.value)}
               />
+              {formErrors.priceMonth ? <p className="text-xs text-red-600">{formErrors.priceMonth}</p> : null}
             </div>
 
             <div className="space-y-2">
               <Label className="text-sm">Preço/Bi-semana (R$)</Label>
               <Input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 placeholder="1500.00"
-                min="0"
-                value={formData.priceWeek ?? ''}
-                onChange={(e) =>
-                  updateField('priceWeek', parseNonNegativeFloatInput(e.target.value))
-                }
+                value={priceWeekInput}
+                onChange={(e) => updateMoneyField('priceWeek', e.target.value)}
               />
+              {formErrors.priceWeek ? <p className="text-xs text-red-600">{formErrors.priceWeek}</p> : null}
             </div>
           </div>
         </div>
@@ -959,7 +1057,14 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
           <Button variant="outline" onClick={onCancel}>
             Cancelar
           </Button>
-          <Button onClick={() => onSave(formData, imageFiles, videoFiles)} disabled={!formData.label?.trim()}>
+          <Button
+            onClick={() => {
+              const payload = buildValidatedPayload();
+              if (!payload) return;
+              onSave(payload, imageFiles, videoFiles);
+            }}
+            disabled={!formData.label?.trim() || !!priceMonthError || !!priceWeekError}
+          >
             {unit ? 'Salvar Alterações' : 'Adicionar'}
           </Button>
         </div>
