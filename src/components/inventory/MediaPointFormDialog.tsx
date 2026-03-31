@@ -313,8 +313,8 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         return;
       }
       try {
-        const response = await apiClient.get('/cash-transactions', { params: { mediaPointId: pointFinancialMediaPointId } });
-        const data = Array.isArray(response.data) ? response.data : response.data?.data;
+        const response = await apiClient.get<CashTransaction[]>('/cash-transactions', { params: { mediaPointId: pointFinancialMediaPointId } });
+        const data = Array.isArray(response.data) ? response.data : (response.data as any)?.data;
         if (!cancelled) setPointTransactions(Array.isArray(data) ? data : []);
       } catch {
         if (!cancelled) setPointTransactions([]);
@@ -360,7 +360,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
       setIsAddingCategory(true);
       setAddCategoryError(null);
       const created = await createTransactionCategory({ name });
-      setPointFinancialForm((prev) => ({ ...prev, categoryId: created.id }));
+      setPointFinancialForm((prev) => ({ ...prev, categoryId: (created as any)?.id }));
       setAddCategoryOpen(false);
       setAddCategoryName('');
       toast.success('Categoria criada com sucesso.');
