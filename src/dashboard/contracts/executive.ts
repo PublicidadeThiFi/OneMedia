@@ -7,6 +7,7 @@ import type { KpiTrend } from './shared';
 export type OverviewKpis = {
   inventoryTotalPoints: number;
   proposalsTotal: number;
+  proposalsOpenCount: number;
   approvalRatePercent: number;
   campaignsActiveCount: number;
   campaignsActiveAmountCents: number;
