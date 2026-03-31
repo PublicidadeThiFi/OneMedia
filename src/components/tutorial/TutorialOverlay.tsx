@@ -403,13 +403,6 @@ export function TutorialOverlay() {
           left: cardPosition.left,
           width: cardPosition.width,
         }}
-        onClickCapture={stopEvent}
-        onMouseDownCapture={stopEvent}
-        onMouseUpCapture={stopEvent}
-        onPointerDownCapture={stopEvent}
-        onPointerUpCapture={stopEvent}
-        onTouchStartCapture={stopEvent}
-        onTouchEndCapture={stopEvent}
         onClick={stopEvent}
         onMouseDown={stopEvent}
         onMouseUp={stopEvent}
