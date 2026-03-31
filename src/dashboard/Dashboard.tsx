@@ -12,6 +12,7 @@ import {
   Download,
   Filter,
   Globe,
+  Info,
   PieChart,
   Plus,
   Share2,
@@ -26,7 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { toast } from 'sonner';
-import { useDashboardQuery } from '../hooks/useDashboardQuery';
+import { useDashboardQuery, type DashboardDataMode, type DashboardQuerySource } from '../hooks/useDashboardQuery';
 import { dashboardGetJson } from '../services/dashboard';
 
 import { DASHBOARD_BACKEND_ROUTES, DASHBOARD_DATA_MODE, DRILLDOWN_PAGE_SIZE } from './constants';
@@ -42,7 +43,7 @@ import { getDrilldownSpec, type DrilldownColumnSpec, type DrilldownSortDir } fro
 import { mockApi } from './mockApi';
 import { buildDashboardBackendQuery, toQueryString } from './query';
 import { getDashboardPermissions } from './permissions';
-import { deleteSavedView, loadSavedViews, makeSavedViewId, upsertSavedView, type SavedDashboardView } from './savedViews';
+import { deleteSavedView, loadActiveSavedViewId, loadSavedViews, makeSavedViewId, persistActiveSavedViewId, upsertSavedView, type SavedDashboardView } from './savedViews';
 import { useCachedQueryData } from './cache';
 import { useWidgetMetrics } from './metrics';
 import { runDashboardQaChecksOnce } from './qa';
@@ -91,6 +92,45 @@ import {
 } from './utils';
 import { EmptyState, ErrorState, KpiCard, Pill, SeverityDot, Skeleton, Sparkline, TabButton, WidgetCard } from './ui';
 import { InventoryMap, InventoryRegionLineHeatmap } from './components/InventoryMap';
+import { DASHBOARD_KPI_DEFINITION_ORDER, DASHBOARD_KPI_DEFINITIONS } from './kpiDefinitions';
+
+const STAGE6_BACKEND_WIDGETS = new Set([
+  'overview',
+  'alerts',
+  'funnel',
+  'commercialSummary',
+  'stalledProposals',
+  'sellerRanking',
+  'revenueTimeseries',
+  'cashflowTimeseries',
+  'topClients',
+  'receivablesAgingSummary',
+  'inventoryMap',
+  'inventoryRanking',
+  'oohOpsSummary',
+  'doohProofOfPlaySummary',
+  'drilldown',
+]);
+
+function resolveWidgetMode(baseMode: DashboardDataMode, widgetKey: string): DashboardDataMode {
+  return baseMode === 'backend' && STAGE6_BACKEND_WIDGETS.has(widgetKey) ? 'backend' : 'mock';
+}
+
+function describeQuerySource(source?: DashboardQuerySource) {
+  if (source === 'backend') return 'Dados reais';
+  if (source === 'mock-fallback') return 'Prévia local (fallback)';
+  return 'Prévia local';
+}
+
+function describeDashboardDataMode(mode: DashboardDataMode) {
+  return mode === 'backend'
+    ? 'Executivo, Comercial, Financeiro, Inventário e Operações com dados reais'
+    : 'Prévia local em todas as áreas';
+}
+
+function describeDrilldownHint(title: string) {
+  return `${title} com os mesmos filtros globais aplicados.`;
+}
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
   const { company } = useCompany();
@@ -200,12 +240,31 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const [shareMapOpen, setShareMapOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [kpiRulesOpen, setKpiRulesOpen] = useState(false);
 
   // Etapa 3: este objeto representa exatamente o que vira query params no backend.
   // Etapa 4: hooks/services adicionados (useDashboardQuery + services/dashboard). Modo padrão = mock; backend via env.
   const backendQuery = useMemo(() => buildDashboardBackendQuery(filters), [filters]);
 
   const backendQs = useMemo(() => toQueryString(backendQuery), [backendQuery]);
+
+  const dataModeSummary = describeDashboardDataMode(dataMode);
+
+  const overviewMode = resolveWidgetMode(dataMode, 'overview');
+  const alertsMode = resolveWidgetMode(dataMode, 'alerts');
+  const funnelMode = resolveWidgetMode(dataMode, 'funnel');
+  const commercialSummaryMode = resolveWidgetMode(dataMode, 'commercialSummary');
+  const stalledProposalsMode = resolveWidgetMode(dataMode, 'stalledProposals');
+  const sellerRankingMode = resolveWidgetMode(dataMode, 'sellerRanking');
+  const revenueTimeseriesMode = resolveWidgetMode(dataMode, 'revenueTimeseries');
+  const cashflowTimeseriesMode = resolveWidgetMode(dataMode, 'cashflowTimeseries');
+  const inventoryMapMode = resolveWidgetMode(dataMode, 'inventoryMap');
+  const inventoryRankingMode = resolveWidgetMode(dataMode, 'inventoryRanking');
+  const topClientsMode = resolveWidgetMode(dataMode, 'topClients');
+  const agingMode = resolveWidgetMode(dataMode, 'receivablesAgingSummary');
+  const oohOpsMode = resolveWidgetMode(dataMode, 'oohOpsSummary');
+  const proofOfPlayMode = resolveWidgetMode(dataMode, 'doohProofOfPlaySummary');
+  const drilldownMode = resolveWidgetMode(dataMode, 'drilldown');
 
   const [drilldown, setDrilldown] = useState<DrilldownState>({
     open: false,
@@ -226,60 +285,65 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   // BACKEND SWAP POINT (Etapa 4+): useDashboardOverview(company.id, backendQuery)
   const overviewQ = useDashboardQuery<DashboardOverviewDTO>({
     enabled: !!company,
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: overviewMode,
+    deps: [company?.id, backendQs, tab, overviewMode],
     computeMock: () => mockApi.fetchOverviewKpis(company!.id, filters),
-
     fetcher: (signal) =>
       dashboardGetJson<DashboardOverviewDTO>(DASHBOARD_BACKEND_ROUTES.overview, backendQs, { signal }),
+    fallbackToMock: false,
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardFunnel(company.id, backendQuery)
   const funnelQ = useDashboardQuery<DashboardFunnelDTO>({
-    enabled: !!company,
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    enabled: !!company && tab === 'comercial',
+    mode: funnelMode,
+    deps: [company?.id, backendQs, funnelMode],
     computeMock: () => mockApi.fetchCommercialFunnel(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardFunnelDTO>(DASHBOARD_BACKEND_ROUTES.funnel, backendQs, { signal }),
+    fallbackToMock: false,
   });
 
   // Comercial (Etapa 7): KPIs e listas dedicadas (mantendo a UI igual)
   const commercialSummaryQ = useDashboardQuery<DashboardCommercialSummaryDTO>({
     enabled: !!company && tab === 'comercial',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: commercialSummaryMode,
+    deps: [company?.id, backendQs, commercialSummaryMode],
     computeMock: () => mockApi.fetchCommercialSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardCommercialSummaryDTO>(DASHBOARD_BACKEND_ROUTES.commercialSummary, backendQs, { signal }),
+    fallbackToMock: false,
   });
 
   const stalledProposalsQ = useDashboardQuery<DashboardStalledProposalsDTO>({
     enabled: !!company && tab === 'comercial',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: stalledProposalsMode,
+    deps: [company?.id, backendQs, stalledProposalsMode],
     computeMock: () => mockApi.fetchStalledProposals(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardStalledProposalsDTO>(DASHBOARD_BACKEND_ROUTES.stalledProposals, backendQs, { signal }),
+    fallbackToMock: false,
   });
 
   const sellerRankingQ = useDashboardQuery<DashboardSellerRankingDTO>({
     enabled: !!company && tab === 'comercial',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: sellerRankingMode,
+    deps: [company?.id, backendQs, sellerRankingMode],
     computeMock: () => mockApi.fetchSellerRanking(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardSellerRankingDTO>(DASHBOARD_BACKEND_ROUTES.sellerRanking, backendQs, { signal }),
+    fallbackToMock: false,
   });
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
   const alertsQ = useDashboardQuery<DashboardAlertsDTO>({
-    enabled: !!company,
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    enabled: !!company && tab === 'executivo',
+    mode: alertsMode,
+    deps: [company?.id, backendQs, alertsMode],
     computeMock: () => mockApi.fetchAlerts(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardAlertsDTO>(DASHBOARD_BACKEND_ROUTES.alerts, backendQs, { signal }),
+    fallbackToMock: false,
   });
 
   // Drilldown (Etapa 8): agora usa useDashboardQuery + paginação (cursor)
@@ -296,8 +360,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const drilldownQ = useDashboardQuery<DashboardDrilldownDTO>({
     enabled: !!company && drilldown.open && !!drilldown.key,
-    mode: dataMode,
-    deps: [company?.id, drilldown.key, drilldownQs],
+    mode: drilldownMode,
+    deps: [company?.id, drilldown.key, drilldownQs, drilldownMode],
     computeMock: () =>
       mockApi.fetchDrilldown(company!.id, drilldown.key!, filters, {
         cursor: drilldown.cursor,
@@ -369,8 +433,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const revenueTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
     enabled: !!company && tab === 'executivo',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: revenueTimeseriesMode,
+    deps: [company?.id, backendQs, revenueTimeseriesMode],
     computeMock: () => mockApi.fetchRevenueTimeseries(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.revenueTimeseries, backendQs, { signal }),
@@ -378,8 +442,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const cashflowTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
     enabled: !!company && tab === 'financeiro',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: cashflowTimeseriesMode,
+    deps: [company?.id, backendQs, cashflowTimeseriesMode],
     computeMock: () => mockApi.fetchCashflowTimeseries(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardTimeseriesDTO>(DASHBOARD_BACKEND_ROUTES.cashflowTimeseries, backendQs, { signal }),
@@ -387,8 +451,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const inventoryMapQ = useDashboardQuery<DashboardInventoryMapDTO>({
     enabled: !!company && tab === 'inventario',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: inventoryMapMode,
+    deps: [company?.id, backendQs, inventoryMapMode],
     computeMock: () => mockApi.fetchInventoryMap(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryMapDTO>(DASHBOARD_BACKEND_ROUTES.inventoryMap, backendQs, { signal }),
@@ -396,8 +460,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const inventoryRankingQ = useDashboardQuery<DashboardInventoryRankingDTO>({
     enabled: !!company && tab === 'inventario',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: inventoryRankingMode,
+    deps: [company?.id, backendQs, inventoryRankingMode],
     computeMock: () => mockApi.fetchInventoryRanking(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardInventoryRankingDTO>(DASHBOARD_BACKEND_ROUTES.inventoryRanking, backendQs, { signal }),
@@ -405,8 +469,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const topClientsQ = useDashboardQuery<DashboardTopClientsDTO>({
     enabled: !!company && tab === 'executivo',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: topClientsMode,
+    deps: [company?.id, backendQs, topClientsMode],
     computeMock: () => mockApi.fetchTopClients(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardTopClientsDTO>(DASHBOARD_BACKEND_ROUTES.topClients, backendQs, { signal }),
@@ -414,8 +478,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const agingQ = useDashboardQuery<DashboardReceivablesAgingSummaryDTO>({
     enabled: !!company && tab === 'financeiro',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: agingMode,
+    deps: [company?.id, backendQs, agingMode],
     computeMock: () => mockApi.fetchReceivablesAgingSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardReceivablesAgingSummaryDTO>(DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary, backendQs, { signal }),
@@ -423,8 +487,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const oohOpsQ = useDashboardQuery<DashboardOohOpsSummaryDTO>({
     enabled: !!company && tab === 'operacoes',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: oohOpsMode,
+    deps: [company?.id, backendQs, oohOpsMode],
     computeMock: () => mockApi.fetchOohOpsSummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardOohOpsSummaryDTO>(DASHBOARD_BACKEND_ROUTES.oohOpsSummary, backendQs, { signal }),
@@ -432,8 +496,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const popQ = useDashboardQuery<DashboardDoohProofOfPlaySummaryDTO>({
     enabled: !!company && tab === 'operacoes',
-    mode: dataMode,
-    deps: [company?.id, backendQs],
+    mode: proofOfPlayMode,
+    deps: [company?.id, backendQs, proofOfPlayMode],
     computeMock: () => mockApi.fetchDoohProofOfPlaySummary(company!.id, filters),
     fetcher: (signal) =>
       dashboardGetJson<DashboardDoohProofOfPlaySummaryDTO>(DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary, backendQs, { signal }),
@@ -475,6 +539,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const cashflowTs = cashflowTsDto?.points || [];
   const inventoryPins = inventoryMapDto?.pins || [];
   const inventoryRankingRows = inventoryRankingDto?.rows || [];
+  const inventoryAvailablePoints = inventoryPins.filter((pin) => (pin.occupancyPercent ?? 0) < 100).length;
+  const inventoryAverageOccupancy = inventoryPins.length
+    ? Math.round(inventoryPins.reduce((sum, pin) => sum + (pin.occupancyPercent || 0), 0) / inventoryPins.length)
+    : overview?.occupancyPercent ?? 0;
 
   const topClientsRows = topClientsDto?.rows || [];
   const oohOpsItems = oohOpsDto?.items || [];
@@ -482,6 +550,43 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const stalledProposalsRows = stalledProposalsDto?.rows || [];
   const sellerRankingRows = sellerRankingDto?.rows || [];
 
+  const oohOpsSummary = useMemo(() => {
+    if (oohOpsDto?.summary) return oohOpsDto.summary;
+    const companySeed = String(company?.id || 'dashboard');
+    if (oohOpsQ.source === 'mock' || oohOpsQ.source === 'mock-fallback') {
+      return {
+        awaitingMaterialCount: 2 + (seedNumber(companySeed) % 7),
+        installationCount: 1 + (seedNumber(`${companySeed}:inst`) % 5),
+        pendingCheckinsCount: oohOpsItems.filter((item) => item.status === 'PENDING').length,
+        overdueCheckinsCount: oohOpsItems.filter((item) => item.status === 'LATE').length,
+      };
+    }
+    return {
+      awaitingMaterialCount: oohOpsItems.filter((item) => item.status !== 'OK').length,
+      installationCount: 0,
+      pendingCheckinsCount: oohOpsItems.filter((item) => item.status === 'PENDING').length,
+      overdueCheckinsCount: oohOpsItems.filter((item) => item.status === 'LATE').length,
+    };
+  }, [company?.id, oohOpsDto?.summary, oohOpsItems, oohOpsQ.source]);
+
+  const doohOpsSummary = useMemo(() => {
+    if (popDto?.summary) return popDto.summary;
+    const companySeed = String(company?.id || 'dashboard');
+    if (popQ.source === 'mock' || popQ.source === 'mock-fallback') {
+      return {
+        screenCount: popRows.length,
+        activeCampaignsCount: popRows.reduce((sum, row) => sum + row.plays, 0),
+        healthScoreAvg: 92 + (seedNumber(`${companySeed}:upt`) % 7),
+        offlineCount: seedNumber(`${companySeed}:off`) % 9,
+      };
+    }
+    return {
+      screenCount: popRows.length,
+      activeCampaignsCount: popRows.reduce((sum, row) => sum + row.plays, 0),
+      healthScoreAvg: popRows.length ? Math.round(popRows.reduce((sum, row) => sum + row.uptimePercent, 0) / popRows.length) : 0,
+      offlineCount: popRows.filter((row) => row.uptimePercent < 80).length,
+    };
+  }, [company?.id, popDto?.summary, popQ.source, popRows]);
 
   const metricsCtx = useMemo(
     () => ({ companyId: company?.id ? String(company.id) : undefined, tab, backendQs }),
@@ -531,8 +636,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       // ignore
     }
 
-    toast.error('Dashboard: fallback para mock', {
-      description: 'O backend falhou para alguns widgets. Mantendo a UI estável enquanto investigamos.',
+    toast.error('Dashboard em prévia local', {
+      description: 'Alguns widgets não responderam no backend. Mantivemos a leitura estável enquanto a integração é revisada.',
     });
   }, [dataMode, overviewQ.status, alertsQ.status, (overviewQ as any).source, (alertsQ as any).source]);
 
@@ -573,8 +678,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   useEffect(() => {
     if (!perms.canManageSavedViews) return;
     if (!companyKey || !userKey) return;
-    setSavedViews(loadSavedViews(companyKey, userKey));
+    const nextViews = loadSavedViews(companyKey, userKey);
+    setSavedViews(nextViews);
+    const persistedId = loadActiveSavedViewId(companyKey, userKey);
+    if (persistedId && nextViews.some((view) => view.id === persistedId)) {
+      setActiveViewId(persistedId);
+    }
   }, [companyKey, userKey, perms.canManageSavedViews]);
+
+  useEffect(() => {
+    if (!perms.canManageSavedViews) return;
+    if (!companyKey || !userKey) return;
+    persistActiveSavedViewId(companyKey, userKey, activeViewId);
+  }, [activeViewId, companyKey, userKey, perms.canManageSavedViews]);
 
   // Se a visao ativa sumir (ex: foi deletada em outra aba), limpa selecao
   useEffect(() => {
@@ -680,7 +796,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       sortDir,
       ...cleanParams,
     });
-    const autoHint = `BACKEND: GET ${DASHBOARD_BACKEND_ROUTES.drilldown}/${key}?${qs}`;
+    const autoHint = 'Detalhamento com paginação, ordenação e os filtros atuais aplicados.';
 
     setDrilldown({
       open: true,
@@ -803,11 +919,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       add('OOH • itens OK', ok);
       add('OOH • pendências', pend);
       add('OOH • atrasos', late);
-      const avgUptime = popRows.length ? Math.round(popRows.reduce((s, r) => s + r.uptimePercent, 0) / popRows.length) : 0;
-      const totalPlays = popRows.reduce((s, r) => s + r.plays, 0);
-      add('DOOH • telas', popRows.length);
-      add('DOOH • uptime médio', `${avgUptime}%`);
-      add('DOOH • plays', totalPlays);
+      add('OOH • aguardando material', oohOpsSummary.awaitingMaterialCount);
+      add('OOH • em instalação', oohOpsSummary.installationCount);
+      add('DOOH • telas', doohOpsSummary.screenCount);
+      add('DOOH • saúde média', `${doohOpsSummary.healthScoreAvg}%`);
+      add('DOOH • campanhas ativas', doohOpsSummary.activeCampaignsCount);
+      add('DOOH • offline', doohOpsSummary.offlineCount);
     } else if (tab === 'financeiro') {
       if (cashflowTs.length) {
         add('Fluxo caixa (último)', formatCurrency(cashflowTs[cashflowTs.length - 1].valueCents));
@@ -925,7 +1042,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     setSaveViewOpen(false);
 
     toast.success(saveViewMode === 'update' ? 'Visão atualizada' : 'Visão salva', {
-      description: `MVP (localStorage). BACKEND: futuramente /dashboard/views (por usuário/empresa).`,
+      description: 'A visão ficou salva localmente para este usuário e esta empresa.',
     });
   };
 
@@ -949,9 +1066,20 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       ? { title, description: q.errorMessage || 'Tente novamente.' }
       : null;
 
-  const executiveLoading = overviewQ.status !== 'ready';
-  const commercialLoading = funnelQ.status !== 'ready';
-  const commercialKpisLoading = commercialSummaryQ.status !== 'ready';
+  const executiveLoading = overviewQ.status === 'loading' && !overview;
+  const commercialLoading = funnelQ.status === 'loading' && !funnel;
+  const commercialKpisLoading =
+    (commercialSummaryQ.status === 'loading' && !commercialSummary) || (overviewQ.status === 'loading' && !overview);
+  const financialKpisLoading =
+    (overviewQ.status === 'loading' && !overview) || (agingQ.status === 'loading' && !agingSummary);
+
+  const executiveOverviewError = !overview && overviewQ.status === 'error'
+    ? { title: 'Falha ao carregar indicadores executivos', description: overviewQ.errorMessage || 'Tente novamente.' }
+    : null;
+
+  const commercialOverviewError = !commercialSummary && commercialSummaryQ.status === 'error'
+    ? { title: 'Falha ao carregar indicadores comerciais', description: commercialSummaryQ.errorMessage || 'Tente novamente.' }
+    : null;
 
   // Etapa 16: fallback/rollback global - se a tela quebrar por erro de runtime,
   // mostramos um modo seguro (compact) e gravamos override temporario (localStorage).
@@ -995,7 +1123,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
           <p className="text-xs text-gray-500">
             Rollout: <span className="font-medium">{rollout.variant}</span> ({rollout.source}) • dados:{' '}
-            <span className="font-medium">{dataMode}</span>
+            <span className="font-medium">{dataModeSummary}</span>
           </p>
         </CardContent>
       </Card>
@@ -1010,7 +1138,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-gray-900 mb-1">Dashboard</h1>
-            <p className="text-gray-600">Visão geral • filtros globais • drill-down por widget (mock)</p>
+            <p className="text-gray-600">Visão geral • filtros globais • leituras acionáveis por área do negócio</p>
           </div>
 
           {/* Quick Actions */}
@@ -1049,7 +1177,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <div className="text-xs text-gray-600">
                   <span className="font-medium">Rollout:</span> {rollout.variant} ({rollout.source}) — {rollout.reason}
                   <span className="mx-2">•</span>
-                  <span className="font-medium">Dados:</span> {dataMode}
+                  <span className="font-medium">Dados:</span> {dataModeSummary}
                 </div>
                 {rollout.canOverride ? (
                   <div className="flex items-center gap-2">
@@ -1287,40 +1415,65 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       {/* Tab Content */}
       {tab === 'executivo' ? (
         <div id="dashboard-export-root" className="space-y-6" data-tour="dashboard-reading">
+          {executiveOverviewError ? (
+            <Card>
+              <CardContent className="pt-5">
+                <ErrorState title={executiveOverviewError.title} description={executiveOverviewError.description} />
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* KPIs */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm text-gray-900">Indicadores principais</p>
+              <p className="text-xs text-gray-500 mt-1">Os critérios destes KPIs foram consolidados na Etapa 1 para servir de fonte verdade do Dashboard.</p>
+            </div>
+            <Button
+              variant="outline"
+              className="h-9 flex items-center gap-2"
+              onClick={() => setKpiRulesOpen(true)}
+            >
+              <Info className="w-4 h-4" />
+              Critérios dos KPIs
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="dashboard-kpis">
             <KpiCard
               label="Receita reconhecida"
               value={overview ? formatCurrency(overview.revenueRecognizedCents) : undefined}
+              helper={DASHBOARD_KPI_DEFINITIONS.revenueRecognized.shortDescription}
               delta={overview?.trends.revenue.deltaPercent}
               spark={overview?.trends.revenue.points}
               loading={executiveLoading}
-              onClick={() => openDrilldown('Receita reconhecida', 'revenueRecognized', 'BACKEND: /dashboard/revenue/recognized')}
+              onClick={() => openDrilldown('Receita reconhecida', 'revenueRecognized', describeDrilldownHint('Receita reconhecida'))}
             />
 
             <KpiCard
               label="A faturar"
               value={overview ? formatCurrency(overview.revenueToInvoiceCents) : undefined}
-              helper="Forecast simplificado (mock)"
+              helper={DASHBOARD_KPI_DEFINITIONS.revenueToInvoice.shortDescription}
               loading={executiveLoading}
-              onClick={() => openDrilldown('A faturar', 'revenueToInvoice', 'BACKEND: /dashboard/revenue/to-invoice')}
+              onClick={() => openDrilldown('A faturar', 'revenueToInvoice', describeDrilldownHint('A faturar'))}
             />
 
             <KpiCard
               label="Ocupação"
               value={overview ? `${overview.occupancyPercent}%` : undefined}
+              helper={DASHBOARD_KPI_DEFINITIONS.occupancy.shortDescription}
               delta={overview?.trends.occupancy.deltaPercent}
               spark={overview?.trends.occupancy.points}
               loading={executiveLoading}
-              onClick={() => openDrilldown('Ocupação', 'occupancy', 'BACKEND: /dashboard/occupancy')}
+              onClick={() => openDrilldown('Ocupação', 'occupancy', describeDrilldownHint('Ocupação'))}
             />
 
             <KpiCard
               label="Inadimplência"
               value={overview ? formatCurrency(overview.receivablesOverdueCents) : undefined}
-              helper="Aging (mock)"
+              helper={DASHBOARD_KPI_DEFINITIONS.receivablesOverdue.shortDescription}
               loading={executiveLoading}
-              onClick={() => openDrilldown('Inadimplência', 'receivablesOverdue', 'BACKEND: /dashboard/receivables/aging')}
+              onClick={() => openDrilldown('Inadimplência', 'receivablesOverdue', describeDrilldownHint('Inadimplência'))}
             />
           </div>
 
@@ -1328,7 +1481,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <WidgetCard
             id="dash-widget-alerts"
             title="Atenção hoje"
-            subtitle="Alertas inteligentes (mock) — filtrados pela busca"
+            subtitle={`Prioridades identificadas com os filtros aplicados • ${describeQuerySource(alertsQ.source)}`}
             loading={alertsQ.status === 'loading' && !alertsDto}
             error={widgetError('Falha ao carregar alertas', alertsQ)}
             empty={alerts.length === 0 && alertsQ.status === 'ready'}
@@ -1375,7 +1528,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-revenue-trend"
               title="Tendência de Receita"
-              subtitle={`Série (${revenueTsQ.source})`}
+              subtitle={`Série do período • ${describeQuerySource(revenueTsQ.source)}`}
               loading={revenueTsQ.status === 'loading' && !revenueTsDto}
               error={widgetError('Falha ao carregar série', revenueTsQ)}
               empty={revenueTs.length === 0 && revenueTsQ.status === 'ready'}
@@ -1406,9 +1559,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <p className="text-xs text-gray-500 mt-1">
                       Último ponto: {formatShortDate(revenueTs[revenueTs.length - 1].date)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-3 backend-hint">
-                      BACKEND: {DASHBOARD_BACKEND_ROUTES.revenueTimeseries}?{backendQs}
-                    </p>
                   </div>
                   <Sparkline points={timeseriesToSpark(revenueTs)} />
                 </div>
@@ -1422,7 +1572,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-top-clients"
               title="Top Clientes"
-              subtitle={`Ranking (${topClientsQ.source})`}
+              subtitle={`Relacionamento e receita por cliente • ${describeQuerySource(topClientsQ.source)}`}
               loading={topClientsQ.status === 'loading' && !topClientsDto}
               error={widgetError('Falha ao carregar ranking', topClientsQ)}
               empty={topClientsRows.length === 0 && topClientsQ.status === 'ready'}
@@ -1459,7 +1609,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => openDrilldown('Top Clientes', 'topClients', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.topClients}`)}
+                    onClick={() => openDrilldown('Top Clientes', 'topClients', describeDrilldownHint('Top clientes'))}
                   >
                     Ver detalhes
                   </Button>
@@ -1481,9 +1631,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <span className="text-sm text-gray-700">{formatCurrency(r.amountCents)}</span>
                   </div>
                 ))}
-                <p className="text-xs text-gray-500 mt-3 backend-hint">
-                  BACKEND: {DASHBOARD_BACKEND_ROUTES.topClients}?{backendQs}
-                </p>
               </div>
             </WidgetCard>
           </div>
@@ -1492,6 +1639,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       {tab === 'comercial' ? (
         <div id="dashboard-export-root" className="space-y-6">
+          {commercialOverviewError ? (
+            <Card>
+              <CardContent className="pt-5">
+                <ErrorState title={commercialOverviewError.title} description={commercialOverviewError.description} />
+              </CardContent>
+            </Card>
+          ) : null}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Propostas (período)"
@@ -1499,29 +1654,29 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               delta={overview?.trends.proposals.deltaPercent}
               spark={overview?.trends.proposals.points}
               loading={commercialKpisLoading}
-              onClick={() => openDrilldown('Propostas', 'proposalsTotal', 'BACKEND: /dashboard/proposals')}
+              onClick={() => openDrilldown('Propostas', 'proposalsTotal', describeDrilldownHint('Propostas do período'))}
             />
 
             <KpiCard
               label="Taxa de aprovação"
               value={commercialSummary ? `${commercialSummary.approvalRatePercent}%` : undefined}
-              helper={`BACKEND: ${DASHBOARD_BACKEND_ROUTES.commercialSummary}?${backendQs}`}
+              helper="Aprovadas ÷ propostas do período filtrado."
               loading={commercialKpisLoading}
             />
 
             <KpiCard
               label="Ciclo médio"
               value={commercialSummary ? `${commercialSummary.averageDaysToClose} dias` : funnel ? `${funnel.averageDaysToClose} dias` : undefined}
-              helper={`BACKEND: ${DASHBOARD_BACKEND_ROUTES.commercialSummary}?${backendQs}`}
+              helper="Dias médios entre criação e aprovação das propostas ganhas."
               loading={commercialKpisLoading && commercialLoading}
             />
 
             <KpiCard
               label="Campanhas ativas"
               value={overview ? String(overview.campaignsActiveCount) : undefined}
-              helper={overview ? `Total: ${formatCurrency(overview.campaignsActiveAmountCents)}` : '—'}
+              helper={overview ? `${DASHBOARD_KPI_DEFINITIONS.campaignsActiveCount.shortDescription} • ${formatCurrency(overview.campaignsActiveAmountCents)} em valor ativo` : DASHBOARD_KPI_DEFINITIONS.campaignsActiveCount.shortDescription}
               loading={executiveLoading}
-              onClick={() => openDrilldown('Campanhas ativas', 'campaignsActive', 'BACKEND: /dashboard/campaigns/active')}
+              onClick={() => openDrilldown('Campanhas ativas', 'campaignsActive', describeDrilldownHint('Campanhas ativas'))}
             />
           </div>
 
@@ -1529,7 +1684,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-funnel"
               title="Funil comercial"
-              subtitle={`Pipeline por etapa (${funnelQ.source})`}
+              subtitle={`Pipeline por etapa • ${describeQuerySource(funnelQ.source)}`}
               loading={commercialLoading}
               error={widgetError('Falha ao carregar funil', funnelQ)}
               actions={
@@ -1582,9 +1737,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       </div>
                     );
                   })}
-                  <p className="text-xs text-gray-500 mt-4 backend-hint">
-                    BACKEND: {DASHBOARD_BACKEND_ROUTES.funnel}?{backendQs}
-                  </p>
                 </div>
               ) : null}
             </WidgetCard>
@@ -1593,7 +1745,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <WidgetCard
                 id="dash-widget-stalled-proposals"
                 title="Propostas paradas"
-                subtitle={`Ações rápidas (${stalledProposalsQ.source})`}
+                subtitle={`Maior tempo sem avanço • ${describeQuerySource(stalledProposalsQ.source)}`}
                 loading={stalledProposalsQ.status === 'loading' && !stalledProposalsDto}
                 error={widgetError('Falha ao carregar lista', stalledProposalsQ)}
                 empty={stalledProposalsRows.length === 0 && stalledProposalsQ.status === 'ready'}
@@ -1634,7 +1786,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         openDrilldown(
                           'Propostas paradas',
                           'stalledProposals',
-                          `BACKEND: ${DASHBOARD_BACKEND_ROUTES.stalledProposals}?${backendQs}`,
+                          describeDrilldownHint('Propostas paradas'),
                         )
                       }
                     >
@@ -1663,16 +1815,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </button>
                   ))}
 
-                  <p className="text-xs text-gray-500 mt-3 backend-hint">
-                    BACKEND: {DASHBOARD_BACKEND_ROUTES.stalledProposals}?{backendQs}
-                  </p>
                 </div>
               </WidgetCard>
 
               <WidgetCard
                 id="dash-widget-seller-ranking"
                 title="Ranking de vendedores"
-                subtitle={`Performance (${sellerRankingQ.source})`}
+                subtitle={`Resultados por responsável • ${describeQuerySource(sellerRankingQ.source)}`}
                 loading={sellerRankingQ.status === 'loading' && !sellerRankingDto}
                 error={widgetError('Falha ao carregar ranking', sellerRankingQ)}
                 empty={sellerRankingRows.length === 0 && sellerRankingQ.status === 'ready'}
@@ -1713,7 +1862,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         openDrilldown(
                           'Ranking de vendedores',
                           'sellerRanking',
-                          `BACKEND: ${DASHBOARD_BACKEND_ROUTES.sellerRanking}?${backendQs}`,
+                          describeDrilldownHint('Ranking de vendedores'),
                         )
                       }
                     >
@@ -1741,9 +1890,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </div>
                   ))}
 
-                  <p className="text-xs text-gray-500 mt-3 backend-hint">
-                    BACKEND: {DASHBOARD_BACKEND_ROUTES.sellerRanking}?{backendQs}
-                  </p>
                 </div>
               </WidgetCard>
             </div>
@@ -1756,20 +1902,36 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
               label="Aguardando material"
-              value={String(2 + (seedNumber(company.id) % 7))}
-              helper="SLA (mock)"
-              onClick={() => openDrilldown('Aguardando material', 'awaitingMaterial', 'BACKEND: /dashboard/campaigns/awaiting-material')}
+              value={String(oohOpsSummary.awaitingMaterialCount)}
+              helper="Campanhas reais aguardando material no período filtrado."
+              loading={(oohOpsQ.status === 'loading' && !oohOpsDto) || (popQ.status === 'loading' && !popDto)}
+              onClick={() => openDrilldown('Aguardando material', 'awaitingMaterial', describeDrilldownHint('Campanhas aguardando material'))}
             />
-            <KpiCard label="Em instalação" value={String(1 + (seedNumber(company.id + 'inst') % 5))} helper="BACKEND: /dashboard/ops/installation" />
-            <KpiCard label="DOOH Uptime" value={`${92 + (seedNumber(company.id + 'upt') % 7)}%`} helper="BACKEND: /dashboard/dooh/uptime" />
-            <KpiCard label="Falhas / Offline" value={String(seedNumber(company.id + 'off') % 9)} helper="BACKEND: /dashboard/dooh/offline" />
+            <KpiCard
+              label="Em instalação"
+              value={String(oohOpsSummary.installationCount)}
+              helper="Campanhas reais em implantação no momento."
+              loading={(oohOpsQ.status === 'loading' && !oohOpsDto) || (popQ.status === 'loading' && !popDto)}
+            />
+            <KpiCard
+              label="DOOH saúde"
+              value={`${doohOpsSummary.healthScoreAvg}%`}
+              helper="Índice operacional das telas DOOH com base em atividade e check-ins."
+              loading={(oohOpsQ.status === 'loading' && !oohOpsDto) || (popQ.status === 'loading' && !popDto)}
+            />
+            <KpiCard
+              label="Falhas / Offline"
+              value={String(doohOpsSummary.offlineCount)}
+              helper="Telas que pedem intervenção imediata no resumo operacional."
+              loading={(oohOpsQ.status === 'loading' && !oohOpsDto) || (popQ.status === 'loading' && !popDto)}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WidgetCard
               id="dash-widget-ooh-ops"
               title="Status operacional (OOH)"
-              subtitle={`Checklist / SLA / pendências (${oohOpsQ.source})`}
+              subtitle={`Checklist, SLA e pendências • ${describeQuerySource(oohOpsQ.source)}`}
               loading={oohOpsQ.status === 'loading' && !oohOpsDto}
               error={widgetError('Falha ao carregar status operacional', oohOpsQ)}
               empty={oohOpsItems.length === 0 && oohOpsQ.status === 'ready'}
@@ -1805,7 +1967,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => openDrilldown('Status operacional (OOH)', 'oohOps', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.oohOpsSummary}`)}
+                    onClick={() => openDrilldown('Status operacional (OOH)', 'oohOps', describeDrilldownHint('Status operacional OOH'))}
                   >
                     Ver detalhes
                   </Button>
@@ -1833,21 +1995,19 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </div>
                   );
                 })}
-                <p className="text-xs text-gray-500 mt-3 backend-hint">
-                  BACKEND: {DASHBOARD_BACKEND_ROUTES.oohOpsSummary}?{backendQs}
-                </p>
+                <p className="text-xs text-gray-500 mt-3">Resumo operacional real com base em campanhas, prazos e check-ins do período.</p>
               </div>
             </WidgetCard>
 
             <WidgetCard
               id="dash-widget-pop"
-              title="Proof-of-play (DOOH)"
-              subtitle={`Relatório POP (${popQ.source})`}
+              title="Resumo operacional (DOOH)"
+              subtitle={`Saúde operacional das telas • ${describeQuerySource(popQ.source)}`}
               loading={popQ.status === 'loading' && !popDto}
-              error={widgetError('Falha ao carregar POP', popQ)}
+              error={widgetError('Falha ao carregar resumo operacional DOOH', popQ)}
               empty={popRows.length === 0 && popQ.status === 'ready'}
-              emptyTitle="Sem dados"
-              emptyDescription={smartEmpty("Nenhum registro POP com os filtros atuais.")}
+              emptyTitle="Sem telas DOOH"
+              emptyDescription={smartEmpty("Nenhuma tela DOOH encontrada com os filtros atuais.")}
               actions={
                 <div className="flex items-center gap-2">
                   <Button variant="outline" className="h-9" onClick={() => popQ.refetch()}>
@@ -1863,7 +2023,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         subtitle: `${r.city || ''}${r.lastSeen ? ` • ${formatShortDate(r.lastSeen)}` : ''}`.trim(),
                         status: `${r.uptimePercent}%`,
                       }));
-                      exportDrilldownCsv('proof_of_play', rows);
+                      exportDrilldownCsv('dooh_resumo_operacional', rows);
                     }}
                   >
                     Exportar CSV
@@ -1871,14 +2031,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => exportWidgetPdf('dash-widget-pop', 'Proof-of-play (DOOH)')}
+                    onClick={() => exportWidgetPdf('dash-widget-pop', 'Resumo operacional (DOOH)')}
                   >
                     Exportar PDF
                   </Button>
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => openDrilldown('Proof-of-play (DOOH)', 'proofOfPlay', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary}`)}
+                    onClick={() => openDrilldown('Resumo operacional (DOOH)', 'proofOfPlay', describeDrilldownHint('Resumo operacional DOOH'))}
                   >
                     Ver detalhes
                   </Button>
@@ -1891,16 +2051,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <div>
                       <p className="text-sm text-gray-900">{r.screen}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {r.city ? `${r.city} • ` : ''}Plays: {r.plays} • Último: {r.lastSeen ? formatShortDate(r.lastSeen) : '—'}
+                        {r.city ? `${r.city} • ` : ''}Campanhas ativas: {r.plays} • Última atividade: {r.lastSeen ? formatShortDate(r.lastSeen) : '—'}
                       </p>
                     </div>
                     <span className="text-sm text-gray-700">{r.uptimePercent}%</span>
                   </div>
                 ))}
 
-                <p className="text-xs text-gray-500 mt-3 backend-hint">
-                  BACKEND: {DASHBOARD_BACKEND_ROUTES.doohProofOfPlaySummary}?{backendQs}
-                </p>
+                <p className="text-xs text-gray-500 mt-3">Sem telemetria de proof-of-play nesta etapa, este card usa sinais operacionais reais de telas, campanhas, check-ins e atividade recente.</p>
               </div>
             </WidgetCard>
           </div>
@@ -1911,30 +2069,30 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div id="dashboard-export-root" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard
-              label="Contas a receber"
-              value={overview ? formatCurrency(overview.revenueToInvoiceCents + 900000) : undefined}
-              helper="Forecast (mock)"
-              loading={executiveLoading}
-              onClick={() => openDrilldown('Contas a receber', 'receivablesOpen', 'BACKEND: /dashboard/receivables/open')}
+              label="Contas em aberto"
+              value={agingSummary ? formatCurrency(agingSummary.totalCents) : undefined}
+              helper="Total atual de títulos abertos considerados no aging."
+              loading={financialKpisLoading}
+              onClick={() => openDrilldown('Contas em aberto', 'receivablesOpen', describeDrilldownHint('Contas em aberto'))}
             />
             <KpiCard
-              label="A vencer (7 dias)"
-              value={overview ? formatCurrency(overview.revenueToInvoiceCents * 0.35) : undefined}
-              helper="BACKEND: /dashboard/receivables/due-7d"
-              loading={executiveLoading}
+              label="A faturar"
+              value={overview ? formatCurrency(overview.revenueToInvoiceCents) : undefined}
+              helper="Valor ainda não emitido, conforme as regras do Dashboard."
+              loading={financialKpisLoading}
             />
             <KpiCard
-              label="Vencidas"
+              label="Inadimplência"
               value={overview ? formatCurrency(overview.receivablesOverdueCents) : undefined}
-              helper="Aging (mock)"
-              loading={executiveLoading}
-              onClick={() => openDrilldown('Vencidas', 'receivablesOverdue', 'BACKEND: /dashboard/receivables/overdue')}
+              helper="Títulos vencidos e ainda sem baixa."
+              loading={financialKpisLoading}
+              onClick={() => openDrilldown('Inadimplência', 'receivablesOverdue', describeDrilldownHint('Contas vencidas'))}
             />
             <KpiCard
-              label="Recebido no mês"
-              value={overview ? formatCurrency(overview.revenueRecognizedCents * 0.42) : undefined}
-              helper="BACKEND: /dashboard/cashflow/received-this-month"
-              loading={executiveLoading}
+              label="Receita reconhecida"
+              value={overview ? formatCurrency(overview.revenueRecognizedCents) : undefined}
+              helper="Recebimentos efetivamente pagos dentro do período filtrado."
+              loading={financialKpisLoading}
             />
           </div>
 
@@ -1942,7 +2100,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-cashflow"
               title="Fluxo de caixa"
-              subtitle={`Série (${cashflowTsQ.source})`}
+              subtitle={`Série do período • ${describeQuerySource(cashflowTsQ.source)}`}
               loading={cashflowTsQ.status === 'loading' && !cashflowTsDto}
               error={widgetError('Falha ao carregar série', cashflowTsQ)}
               empty={cashflowTs.length === 0 && cashflowTsQ.status === 'ready'}
@@ -1977,9 +2135,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <p className="text-xs text-gray-500 mt-1">
                       Último ponto: {formatShortDate(cashflowTs[cashflowTs.length - 1].date)}
                     </p>
-                    <p className="text-xs text-gray-500 mt-3 backend-hint">
-                      BACKEND: {DASHBOARD_BACKEND_ROUTES.cashflowTimeseries}?{backendQs}
-                    </p>
                   </div>
                   <Sparkline points={timeseriesToSpark(cashflowTs)} />
                 </div>
@@ -1993,7 +2148,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-aging"
               title="Aging"
-              subtitle={`Distribuição por faixa (${agingQ.source})`}
+              subtitle={`Distribuição por faixa • ${describeQuerySource(agingQ.source)}`}
               loading={agingQ.status === 'loading' && !agingSummary}
               error={widgetError('Falha ao carregar aging', agingQ)}
               empty={(agingSummary?.buckets?.length || 0) === 0 && agingQ.status === 'ready'}
@@ -2021,7 +2176,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => openDrilldown('Aging', 'aging', `BACKEND: ${DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary}`)}
+                    onClick={() => openDrilldown('Aging', 'aging', describeDrilldownHint('Aging de contas a receber'))}
                   >
                     Ver lista
                   </Button>
@@ -2045,9 +2200,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   );
                 })}
 
-                <p className="text-xs text-gray-500 mt-3 backend-hint">
-                  BACKEND: {DASHBOARD_BACKEND_ROUTES.receivablesAgingSummary}?{backendQs}
-                </p>
               </div>
             </WidgetCard>
           </div>
@@ -2060,26 +2212,26 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <KpiCard
               label="Inventário total"
               value={overview ? String(overview.inventoryTotalPoints) : undefined}
-              helper="BACKEND: /dashboard/inventory/summary"
+              helper="Resumo do inventário filtrado."
               loading={executiveLoading}
               onClick={() => onNavigate('inventory')}
             />
             <KpiCard
-              label="Disponíveis"
-              value={overview ? String(Math.round(overview.inventoryTotalPoints * (1 - overview.occupancyPercent / 100))) : undefined}
-              helper={overview ? `Ocupação: ${overview.occupancyPercent}%` : '—'}
-              loading={executiveLoading}
+              label="Com disponibilidade"
+              value={inventoryMapDto ? String(inventoryAvailablePoints) : undefined}
+              helper={inventoryMapDto ? 'Pontos com ocupação abaixo de 100% no período filtrado.' : '—'}
+              loading={inventoryMapQ.status === 'loading' && !inventoryMapDto}
             />
             <KpiCard
-              label="Clientes ativos"
-              value={overview ? String(overview.clientsActiveCount) : undefined}
-              helper={overview ? `Ticket médio: ${formatCurrency(overview.averageTicketCents)}` : '—'}
-              loading={executiveLoading}
+              label="Ocupação média"
+              value={`${inventoryAverageOccupancy}%`}
+              helper="Média da ocupação consolidada dos pontos retornados no mapa."
+              loading={inventoryMapQ.status === 'loading' && !inventoryMapDto}
             />
             <KpiCard
               label="Campanhas ativas"
               value={overview ? String(overview.campaignsActiveCount) : undefined}
-              helper={overview ? `Total: ${formatCurrency(overview.campaignsActiveAmountCents)}` : '—'}
+              helper={overview ? `${DASHBOARD_KPI_DEFINITIONS.campaignsActiveCount.shortDescription} • ${formatCurrency(overview.campaignsActiveAmountCents)} em valor ativo` : DASHBOARD_KPI_DEFINITIONS.campaignsActiveCount.shortDescription}
               loading={executiveLoading}
             />
           </div>
@@ -2088,7 +2240,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-inventory-map"
               title="Mapa e ocupação"
-              subtitle={`Pins (${inventoryMapQ.source})`}
+              subtitle={`Mapa dos pontos filtrados • ${describeQuerySource(inventoryMapQ.source)}`}
               loading={inventoryMapQ.status === 'loading' && !inventoryMapDto}
               error={widgetError('Falha ao carregar mapa', inventoryMapQ)}
               empty={inventoryPins.length === 0 && inventoryMapQ.status === 'ready'}
@@ -2113,13 +2265,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               }
             >
               <div className="space-y-3">
-                <p className="text-xs backend-hint">BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryMap}?{backendQs}</p>
+                <p className="text-xs text-gray-500">Mapa consolidado dos pontos filtrados, com ocupação por ponto, região e linha.</p>
 
                 <InventoryMap
                   pins={inventoryPins}
                   height={320}
                   onPinClick={(pin) =>
-                    openDrilldown(`Ponto — ${pin.label}`, 'inventoryPin', 'BACKEND: /dashboard/inventory/pin', {
+                    openDrilldown(`Ponto — ${pin.label}`, 'inventoryPin', describeDrilldownHint(`Ponto — ${pin.label}`), {
                       pinId: pin.id,
                       region: pin.region || pin.city || undefined,
                       line: pin.line || undefined,
@@ -2130,7 +2282,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <InventoryRegionLineHeatmap
                   pins={inventoryPins}
                   onSelect={(region, line) =>
-                    openDrilldown(`Ocupação — ${region} / ${line}`, 'inventoryRegionLine', 'BACKEND: /dashboard/inventory/map/heat', {
+                    openDrilldown(`Ocupação — ${region} / ${line}`, 'inventoryRegionLine', describeDrilldownHint(`Ocupação — ${region} / ${line}`), {
                       region,
                       line,
                     })
@@ -2142,7 +2294,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <WidgetCard
               id="dash-widget-inventory-ranking"
               title="Ranking de pontos"
-              subtitle={`Top 5 (${inventoryRankingQ.source})`}
+              subtitle={`Pontos com maior ocupação/receita • ${describeQuerySource(inventoryRankingQ.source)}`}
               loading={inventoryRankingQ.status === 'loading' && !inventoryRankingDto}
               error={widgetError('Falha ao carregar ranking', inventoryRankingQ)}
               empty={inventoryRankingRows.length === 0 && inventoryRankingQ.status === 'ready'}
@@ -2163,7 +2315,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   <Button
                     variant="outline"
                     className="h-9"
-                    onClick={() => openDrilldown('Ranking de pontos', 'inventoryRanking', 'BACKEND: /dashboard/inventory/ranking')}
+                    onClick={() => openDrilldown('Ranking de pontos', 'inventoryRanking', describeDrilldownHint('Ranking de pontos'))}
                   >
                     Ver lista
                   </Button>
@@ -2184,9 +2336,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     <span className="text-sm text-gray-700">{Math.round(r.occupancyPercent)}%</span>
                   </div>
                 ))}
-                <p className="text-xs text-gray-500 mt-3 backend-hint">
-                  BACKEND: {DASHBOARD_BACKEND_ROUTES.inventoryRanking}?{backendQs}
-                </p>
+                <p className="text-xs text-gray-500 mt-3">Ranking consolidado por ocupação, campanhas ativas e receita do período filtrado.</p>
               </div>
             </WidgetCard>
           </div>
@@ -2277,7 +2427,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                             {visible.length} de {drilldown.rows.length} itens carregados
                             {drilldown.hasMore ? ' • mais disponível' : ''}
                           </p>
-                          <p className="text-xs text-gray-500">Fonte: {drilldownQ.source}</p>
+                          <p className="text-xs text-gray-500">Fonte: {describeQuerySource(drilldownQ.source)}</p>
                         </div>
 
                         {(() => {
@@ -2420,7 +2570,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                           }}
                           disabled={visible.length === 0 || drilldown.status === 'loading'}
                         >
-                          Exportar CSV (mock)
+                          Exportar CSV
                         </Button>
                       </div>
                     )}
@@ -2430,13 +2580,74 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
 
             <div className="p-4 border-t border-gray-200">
-              <p className="text-xs text-gray-500">Este drawer é mock. Na integração, ele abrirá listas reais filtradas (com paginação/ordenação).</p>
+              <p className="text-xs text-gray-500">O detalhamento completo desta visão continuará evoluindo aqui, preservando filtros, ordenação e paginação.</p>
             </div>
           </div>
         </div>
       ) : null}
 
       {/* Modal: Salvar Visão */}
+      <Dialog open={kpiRulesOpen} onOpenChange={setKpiRulesOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Critérios dos KPIs do Dashboard</DialogTitle>
+            <DialogDescription>
+              Esta etapa consolida o significado das métricas principais para evitar números bonitos, mas inconsistentes, nas próximas integrações com backend real.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {DASHBOARD_KPI_DEFINITION_ORDER.map((key) => {
+                const definition = DASHBOARD_KPI_DEFINITIONS[key];
+                return (
+                  <div key={definition.key} className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
+                    <div>
+                      <p className="text-sm text-gray-900">{definition.label}</p>
+                      <p className="text-xs text-gray-500 mt-1">{definition.shortDescription}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">Regra</p>
+                        <p className="text-xs text-gray-700 mt-1">{definition.calculation}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">Filtros aplicados</p>
+                        <p className="text-xs text-gray-700 mt-1">{definition.filtersApplied}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-gray-400">Fontes primárias</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {definition.primarySources.map((source) => (
+                            <span key={source} className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] text-gray-700">
+                              {source}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {definition.notes?.length ? (
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-gray-400">Observações</p>
+                          <div className="mt-1 space-y-1">
+                            {definition.notes.map((note) => (
+                              <p key={note} className="text-xs text-gray-700">• {note}</p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={saveViewOpen} onOpenChange={setSaveViewOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -1,9 +1,10 @@
 import type { DashboardDataMode } from '../hooks/useDashboardQuery';
 
-// Etapa 4: modo de dados. Padrão = mock.
-// Para testar backend, defina VITE_DASHBOARD_DATA_MODE=backend (Vite).
-export const DASHBOARD_DATA_MODE: DashboardDataMode =
-  (((import.meta as any)?.env?.VITE_DASHBOARD_DATA_MODE as string) === 'backend' ? 'backend' : 'mock');
+// Etapa 3: por padrão já priorizamos backend para os widgets que têm integração real.
+// Para forçar mock globalmente, defina VITE_DASHBOARD_DATA_MODE=mock.
+const rawDashboardDataMode = String(((import.meta as any)?.env?.VITE_DASHBOARD_DATA_MODE as string) || '').toLowerCase();
+
+export const DASHBOARD_DATA_MODE: DashboardDataMode = rawDashboardDataMode === 'mock' ? 'mock' : 'backend';
 
 // Drilldown (drawer): paginação padrão
 export const DRILLDOWN_PAGE_SIZE = 20;

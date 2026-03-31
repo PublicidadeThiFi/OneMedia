@@ -71,7 +71,7 @@ export function exportAgingBucketsCsv(label: string, buckets: AgingBucket[], tot
   const safe = label.replace(/[^a-z0-9\-\_]+/gi, '_').slice(0, 40);
   const filename = `export_${safe || 'dashboard'}_aging.csv`;
   downloadTextFile(filename, lines.join('\n'), 'text/csv;charset=utf-8');
-  toast.success('CSV exportado (mock)', { description: filename });
+  toast.success('CSV exportado', { description: filename });
 }
 
 export function exportTimeseriesCsv(label: string, points: TimeseriesPoint[]) {
