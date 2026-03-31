@@ -1850,7 +1850,7 @@ export function MediaMap() {
 
       {/* Etapa 6 — Confirmar exclusão */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="max-w-md" data-tour="mediamap-create-dialog">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Excluir ponto</DialogTitle>
             <DialogDescription>
@@ -1889,7 +1889,7 @@ export function MediaMap() {
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" data-tour="mediamap-create-dialog">
           <DialogHeader>
             <DialogTitle data-tour="mediamap-create">Criar um ponto aqui</DialogTitle>
             <DialogDescription>

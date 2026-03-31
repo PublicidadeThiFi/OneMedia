@@ -21,6 +21,7 @@ type HighlightRect = {
 const VIEWPORT_MARGIN = 12;
 const DEFAULT_PANEL_WIDTH = 360;
 const DEFAULT_PANEL_HEIGHT = 320;
+const MAX_PANEL_HEIGHT = 640;
 const DEFAULT_GAP = 16;
 const HIGHLIGHT_PADDING = 10;
 const MOBILE_BREAKPOINT = 768;
@@ -81,18 +82,21 @@ function resolveCardPosition({
   highlightRect,
   placement,
   offset,
+  cardHeight,
 }: {
   highlightRect: HighlightRect | null;
   placement: TutorialPlacement;
   offset: number;
+  cardHeight: number;
 }) {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const width = Math.min(DEFAULT_PANEL_WIDTH, viewportWidth - VIEWPORT_MARGIN * 2);
+  const effectiveCardHeight = Math.min(Math.max(cardHeight || DEFAULT_PANEL_HEIGHT, DEFAULT_PANEL_HEIGHT), viewportHeight - VIEWPORT_MARGIN * 2, MAX_PANEL_HEIGHT);
 
   if (viewportWidth < MOBILE_BREAKPOINT) {
     return {
-      top: Math.max(VIEWPORT_MARGIN, viewportHeight - DEFAULT_PANEL_HEIGHT - VIEWPORT_MARGIN),
+      top: Math.max(VIEWPORT_MARGIN, viewportHeight - effectiveCardHeight - VIEWPORT_MARGIN),
       left: VIEWPORT_MARGIN,
       width: viewportWidth - VIEWPORT_MARGIN * 2,
     };
@@ -100,7 +104,7 @@ function resolveCardPosition({
 
   if (!highlightRect || placement === 'center') {
     return {
-      top: Math.max(VIEWPORT_MARGIN, (viewportHeight - DEFAULT_PANEL_HEIGHT) / 2),
+      top: Math.max(VIEWPORT_MARGIN, (viewportHeight - effectiveCardHeight) / 2),
       left: Math.max(VIEWPORT_MARGIN, (viewportWidth - width) / 2),
       width,
     };
@@ -112,8 +116,8 @@ function resolveCardPosition({
   const spaceRight = viewportWidth - (highlightRect.left + highlightRect.width) - VIEWPORT_MARGIN;
 
   let resolvedPlacement = placement;
-  if (placement === 'bottom' && spaceBelow < 280 && spaceAbove > spaceBelow) resolvedPlacement = 'top';
-  if (placement === 'top' && spaceAbove < 280 && spaceBelow > spaceAbove) resolvedPlacement = 'bottom';
+  if (placement === 'bottom' && spaceBelow < effectiveCardHeight && spaceAbove > spaceBelow) resolvedPlacement = 'top';
+  if (placement === 'top' && spaceAbove < effectiveCardHeight && spaceBelow > spaceAbove) resolvedPlacement = 'bottom';
   if (placement === 'right' && spaceRight < width && spaceLeft > spaceRight) resolvedPlacement = 'left';
   if (placement === 'left' && spaceLeft < width && spaceRight > spaceLeft) resolvedPlacement = 'right';
 
@@ -122,15 +126,15 @@ function resolveCardPosition({
 
   switch (resolvedPlacement) {
     case 'top':
-      top = highlightRect.top - DEFAULT_PANEL_HEIGHT - offset;
+      top = highlightRect.top - effectiveCardHeight - offset;
       left = highlightRect.left + highlightRect.width / 2 - width / 2;
       break;
     case 'right':
-      top = highlightRect.top + highlightRect.height / 2 - DEFAULT_PANEL_HEIGHT / 2;
+      top = highlightRect.top + highlightRect.height / 2 - effectiveCardHeight / 2;
       left = highlightRect.left + highlightRect.width + offset;
       break;
     case 'left':
-      top = highlightRect.top + highlightRect.height / 2 - DEFAULT_PANEL_HEIGHT / 2;
+      top = highlightRect.top + highlightRect.height / 2 - effectiveCardHeight / 2;
       left = highlightRect.left - width - offset;
       break;
     case 'bottom':
@@ -141,7 +145,7 @@ function resolveCardPosition({
   }
 
   return {
-    top: clamp(top, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportHeight - DEFAULT_PANEL_HEIGHT - VIEWPORT_MARGIN)),
+    top: clamp(top, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportHeight - effectiveCardHeight - VIEWPORT_MARGIN)),
     left: clamp(left, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, viewportWidth - width - VIEWPORT_MARGIN)),
     width,
   };
@@ -163,6 +167,7 @@ export function TutorialOverlay() {
   } = useTutorial();
   const [highlightRect, setHighlightRect] = useState<HighlightRect | null>(null);
   const [targetFound, setTargetFound] = useState(false);
+  const [cardHeight, setCardHeight] = useState(DEFAULT_PANEL_HEIGHT);
   const previousRectRef = useRef<HighlightRect | null>(null);
   const lastSelectorRef = useRef<string | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -240,6 +245,35 @@ export function TutorialOverlay() {
     };
   }, [currentStep, isOpen]);
 
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updateCardHeight = () => {
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const nextHeight = Math.max(DEFAULT_PANEL_HEIGHT, Math.min(Math.ceil(rect.height), window.innerHeight - VIEWPORT_MARGIN * 2, MAX_PANEL_HEIGHT));
+      setCardHeight((current) => (Math.abs(current - nextHeight) > 2 ? nextHeight : current));
+    };
+
+    updateCardHeight();
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined' && cardRef.current
+      ? new ResizeObserver(() => updateCardHeight())
+      : null;
+
+    if (resizeObserver && cardRef.current) {
+      resizeObserver.observe(cardRef.current);
+    }
+
+    window.addEventListener('resize', updateCardHeight);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateCardHeight);
+    };
+  }, [currentStep?.id, isOpen, totalSteps, targetFound]);
+
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -312,8 +346,9 @@ export function TutorialOverlay() {
       highlightRect,
       placement: currentStep.placement ?? 'bottom',
       offset: currentStep.offset ?? DEFAULT_GAP,
+      cardHeight,
     });
-  }, [currentStep, highlightRect]);
+  }, [cardHeight, currentStep, highlightRect]);
 
   const overlaySegments = useMemo(() => {
     if (!highlightRect || typeof window === 'undefined') {
@@ -423,7 +458,7 @@ export function TutorialOverlay() {
             pointerEvents: 'auto',
           }}
         >
-          <Card className="w-full border-indigo-200 bg-white shadow-2xl pointer-events-auto">
+          <Card className="w-full max-h-[calc(100vh-24px)] overflow-hidden border-indigo-200 bg-white shadow-2xl pointer-events-auto">
             <CardHeader className="gap-3 pb-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-3">

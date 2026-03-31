@@ -1198,7 +1198,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
               )}
 
               {/* Mapa (Etapa 6) */}
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="inventory-point-map">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <Label className="flex items-center gap-2">
                     <MapPin className="w-4 h-4" /> Mapa (pin arrastável)
