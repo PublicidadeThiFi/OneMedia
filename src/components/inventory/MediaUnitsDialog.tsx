@@ -51,7 +51,9 @@ function sanitizeUnitPayload(payload: UnitFormPayload) {
 }
 
 const MAX_MONEY_VALUE = 99_999_999.99;
-const MONEY_DECIMAL_PLACES = 2;
+const MAX_MONEY_CENTS = 9_999_999_999;
+const MAX_RESOLUTION_PX = 99_999;
+const MAX_INSERTIONS_PER_DAY = 1_000_000;
 
 function parseNonNegativeFloatInput(value: string) {
   if (!value) return null;
@@ -60,47 +62,74 @@ function parseNonNegativeFloatInput(value: string) {
   return Math.max(0, numeric);
 }
 
-function parseNonNegativeIntInput(value: string) {
+function extractDigitSequence(value: string) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function normalizeIntegerDigits(value: string, maxValue: number, maxDigits?: number) {
+  let digits = extractDigitSequence(value);
+  if (!digits) return '';
+
+  if (typeof maxDigits === 'number' && maxDigits > 0) {
+    digits = digits.slice(0, maxDigits);
+  }
+
+  const numeric = Number(digits);
+  if (!Number.isFinite(numeric)) return '';
+
+  const clamped = Math.min(Math.max(0, numeric), maxValue);
+  return String(clamped);
+}
+
+function parseOptionalIntInput(value: string) {
   if (!value) return null;
   const numeric = Number.parseInt(value, 10);
   if (!Number.isFinite(numeric)) return null;
   return Math.max(0, numeric);
 }
 
+function formatMoneyMaskFromCents(cents: number) {
+  const normalized = Math.min(Math.max(0, Math.trunc(cents)), MAX_MONEY_CENTS);
+  const numeric = normalized / 100;
+  return `R$ ${new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numeric)}`;
+}
+
 function sanitizeMoneyInput(value: string) {
-  if (!value) return '';
-  const normalized = String(value)
-    .replace(/,/g, '.')
-    .replace(/[^\d.]/g, '');
+  const digits = extractDigitSequence(value);
+  if (!digits) return '';
 
-  const [integerPartRaw = '', ...decimalParts] = normalized.split('.');
-  const integerPart = integerPartRaw.replace(/^0+(?=\d)/, '');
-  const decimalPart = decimalParts.join('').slice(0, MONEY_DECIMAL_PLACES);
+  const cents = Math.min(Number(digits), MAX_MONEY_CENTS);
+  if (!Number.isFinite(cents) || cents < 0) return '';
 
-  if (decimalPart.length > 0) {
-    return `${integerPart || '0'}.${decimalPart}`;
-  }
+  return formatMoneyMaskFromCents(cents);
+}
 
-  return integerPart;
+function formatMoneyInputFromNumber(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return '';
+  const numeric = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  return formatMoneyMaskFromCents(Math.round(numeric * 100));
 }
 
 function parseMoneyInput(value: string) {
-  const sanitized = sanitizeMoneyInput(value);
-  if (!sanitized) return null;
-  const numeric = Number(sanitized);
-  if (!Number.isFinite(numeric)) return null;
-  return numeric;
+  const digits = extractDigitSequence(value);
+  if (!digits) return null;
+
+  const cents = Number(digits);
+  if (!Number.isFinite(cents) || cents < 0) return null;
+
+  const numeric = Math.min(cents, MAX_MONEY_CENTS) / 100;
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function validateMoneyValue(value: string) {
-  const sanitized = sanitizeMoneyInput(value);
-  if (!sanitized) return null;
-  if (!/^\d+(\.\d{1,2})?$/.test(sanitized)) {
-    return 'Informe um valor válido com até 2 casas decimais.';
-  }
+  if (!value) return null;
 
-  const numeric = Number(sanitized);
-  if (!Number.isFinite(numeric) || numeric < 0) {
+  const numeric = parseMoneyInput(value);
+  if (numeric === null || !Number.isFinite(numeric) || numeric < 0) {
     return 'Informe um valor numérico válido e não negativo.';
   }
 
@@ -109,6 +138,16 @@ function validateMoneyValue(value: string) {
   }
 
   return null;
+}
+
+function formatMoneyValue(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return '';
+  const numeric = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  if (!Number.isFinite(numeric)) return '';
+  return `R$ ${new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numeric)}`;
 }
 
 function parseBytes(value?: string | number | null) {
@@ -317,8 +356,8 @@ export function MediaUnitsDialog({
                               <div className="md:col-span-2">
                                 <span className="text-gray-600">Preços: </span>
                                 <span className="text-gray-900">
-                                  {unit.priceMonth ? `R$ ${unit.priceMonth}/mês` : ''}
-                                  {unit.priceWeek ? ` • R$ ${unit.priceWeek}/bi-semana` : ''}
+                                  {unit.priceMonth ? `${formatMoneyValue(unit.priceMonth)}/mês` : ''}
+                                  {unit.priceWeek ? ` • ${formatMoneyValue(unit.priceWeek)}/bi-semana` : ''}
                                 </span>
                               </div>
                             )}
@@ -483,7 +522,7 @@ export function MediaUnitsDialog({
 }
 
 type ExistingAssetPreview = { id?: string; src: string };
-type UnitFormErrors = Partial<Record<'priceMonth' | 'priceWeek', string>>;
+type UnitFormErrors = Partial<Record<'priceMonth' | 'priceWeek' | 'insertionsPerDay' | 'resolutionWidthPx' | 'resolutionHeightPx', string>>;
 
 interface UnitFormProps {
   unit: MediaUnit | null;
@@ -528,8 +567,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
   const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
   const [unitSnapshot, setUnitSnapshot] = useState<MediaUnit | null>(unit);
-  const [priceMonthInput, setPriceMonthInput] = useState(unit?.priceMonth != null ? String(unit.priceMonth) : '');
-  const [priceWeekInput, setPriceWeekInput] = useState(unit?.priceWeek != null ? String(unit.priceWeek) : '');
+  const [priceMonthInput, setPriceMonthInput] = useState(formatMoneyInputFromNumber(unit?.priceMonth));
+  const [priceWeekInput, setPriceWeekInput] = useState(formatMoneyInputFromNumber(unit?.priceWeek));
+  const [insertionsInput, setInsertionsInput] = useState(unit?.insertionsPerDay != null ? String(unit.insertionsPerDay) : '');
+  const [resolutionWidthInput, setResolutionWidthInput] = useState(unit?.resolutionWidthPx != null ? String(unit.resolutionWidthPx) : '');
+  const [resolutionHeightInput, setResolutionHeightInput] = useState(unit?.resolutionHeightPx != null ? String(unit.resolutionHeightPx) : '');
   const [formErrors, setFormErrors] = useState<UnitFormErrors>({});
 
   const fileLimits = entitlements?.limits?.file;
@@ -582,8 +624,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
         priceMonth: unit.priceMonth,
         priceWeek: unit.priceWeek,
       });
-      setPriceMonthInput(unit.priceMonth != null ? String(unit.priceMonth) : '');
-      setPriceWeekInput(unit.priceWeek != null ? String(unit.priceWeek) : '');
+      setPriceMonthInput(formatMoneyInputFromNumber(unit.priceMonth));
+      setPriceWeekInput(formatMoneyInputFromNumber(unit.priceWeek));
+      setInsertionsInput(unit.insertionsPerDay != null ? String(unit.insertionsPerDay) : '');
+      setResolutionWidthInput(unit.resolutionWidthPx != null ? String(unit.resolutionWidthPx) : '');
+      setResolutionHeightInput(unit.resolutionHeightPx != null ? String(unit.resolutionHeightPx) : '');
       setFormErrors({});
       setImageFiles([]);
       setImagePreviews([]);
@@ -595,6 +640,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       setFormData({ label: '' });
       setPriceMonthInput('');
       setPriceWeekInput('');
+      setInsertionsInput('');
+      setResolutionWidthInput('');
+      setResolutionHeightInput('');
       setFormErrors({});
       setImageFiles([]);
       setImagePreviews([]);
@@ -611,6 +659,39 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
   const updateField = (field: keyof UnitFormPayload, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const validateLimitedInteger = (value: string, maxValue: number, label: string) => {
+    if (!value) return null;
+    const numeric = parseOptionalIntInput(value);
+    if (numeric === null || !Number.isFinite(numeric) || numeric < 0) {
+      return `${label} deve conter somente números válidos.`;
+    }
+    if (numeric > maxValue) {
+      return `${label} deve ser no máximo ${new Intl.NumberFormat('pt-BR').format(maxValue)}.`;
+    }
+    return null;
+  };
+
+  const updateLimitedIntegerField = (
+    field: 'insertionsPerDay' | 'resolutionWidthPx' | 'resolutionHeightPx',
+    rawValue: string,
+  ) => {
+    const config = field === 'insertionsPerDay'
+      ? { maxValue: MAX_INSERTIONS_PER_DAY, maxDigits: 7, setInput: setInsertionsInput, label: 'Inserções por dia' }
+      : field === 'resolutionWidthPx'
+        ? { maxValue: MAX_RESOLUTION_PX, maxDigits: 5, setInput: setResolutionWidthInput, label: 'Resolução de largura' }
+        : { maxValue: MAX_RESOLUTION_PX, maxDigits: 5, setInput: setResolutionHeightInput, label: 'Resolução de altura' };
+
+    const sanitized = normalizeIntegerDigits(rawValue, config.maxValue, config.maxDigits);
+    config.setInput(sanitized);
+
+    setFormErrors((prev) => ({
+      ...prev,
+      [field]: validateLimitedInteger(sanitized, config.maxValue, config.label) ?? undefined,
+    }));
+
+    updateField(field, parseOptionalIntInput(sanitized));
   };
 
   const updateMoneyField = (field: 'priceMonth' | 'priceWeek', rawValue: string) => {
@@ -635,18 +716,24 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     const nextErrors: UnitFormErrors = {
       priceMonth: validateMoneyValue(priceMonthInput) ?? undefined,
       priceWeek: validateMoneyValue(priceWeekInput) ?? undefined,
+      insertionsPerDay: validateLimitedInteger(insertionsInput, MAX_INSERTIONS_PER_DAY, 'Inserções por dia') ?? undefined,
+      resolutionWidthPx: validateLimitedInteger(resolutionWidthInput, MAX_RESOLUTION_PX, 'Resolução de largura') ?? undefined,
+      resolutionHeightPx: validateLimitedInteger(resolutionHeightInput, MAX_RESOLUTION_PX, 'Resolução de altura') ?? undefined,
     };
 
     setFormErrors(nextErrors);
 
-    if (nextErrors.priceMonth || nextErrors.priceWeek) {
-      const firstError = nextErrors.priceMonth || nextErrors.priceWeek;
-      toast.error(firstError || 'Corrija os preços informados.');
+    if (nextErrors.priceMonth || nextErrors.priceWeek || nextErrors.insertionsPerDay || nextErrors.resolutionWidthPx || nextErrors.resolutionHeightPx) {
+      const firstError = nextErrors.priceMonth || nextErrors.priceWeek || nextErrors.insertionsPerDay || nextErrors.resolutionWidthPx || nextErrors.resolutionHeightPx;
+      toast.error(firstError || 'Corrija os valores informados.');
       return null;
     }
 
     return {
       ...formData,
+      insertionsPerDay: parseOptionalIntInput(insertionsInput),
+      resolutionWidthPx: parseOptionalIntInput(resolutionWidthInput),
+      resolutionHeightPx: parseOptionalIntInput(resolutionHeightInput),
       priceMonth: parseMoneyInput(priceMonthInput),
       priceWeek: parseMoneyInput(priceWeekInput),
     } satisfies UnitFormPayload;
@@ -965,14 +1052,13 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
               <div className="space-y-2">
                 <Label>Inserções por Dia</Label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="150"
-                  min="0"
-                  value={formData.insertionsPerDay ?? ''}
-                  onChange={(e) =>
-                    updateField('insertionsPerDay', parseNonNegativeIntInput(e.target.value))
-                  }
+                  value={insertionsInput}
+                  onChange={(e) => updateLimitedIntegerField('insertionsPerDay', e.target.value)}
                 />
+                {formErrors.insertionsPerDay ? <p className="text-xs text-red-600">{formErrors.insertionsPerDay}</p> : <p className="text-xs text-gray-500">Somente números, até 1.000.000.</p>}
               </div>
 
               <div className="space-y-2">
@@ -998,26 +1084,24 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
               <div className="space-y-2">
                 <Label>Resolução Largura (px)</Label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="1920"
-                  min="0"
-                  value={formData.resolutionWidthPx ?? ''}
-                  onChange={(e) =>
-                    updateField('resolutionWidthPx', parseNonNegativeIntInput(e.target.value))
-                  }
+                  value={resolutionWidthInput}
+                  onChange={(e) => updateLimitedIntegerField('resolutionWidthPx', e.target.value)}
                 />
+                {formErrors.resolutionWidthPx ? <p className="text-xs text-red-600">{formErrors.resolutionWidthPx}</p> : <p className="text-xs text-gray-500">Somente números, até 5 dígitos.</p>}
               </div>
               <div className="space-y-2">
                 <Label>Resolução Altura (px)</Label>
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   placeholder="1080"
-                  min="0"
-                  value={formData.resolutionHeightPx ?? ''}
-                  onChange={(e) =>
-                    updateField('resolutionHeightPx', parseNonNegativeIntInput(e.target.value))
-                  }
+                  value={resolutionHeightInput}
+                  onChange={(e) => updateLimitedIntegerField('resolutionHeightPx', e.target.value)}
                 />
+                {formErrors.resolutionHeightPx ? <p className="text-xs text-red-600">{formErrors.resolutionHeightPx}</p> : <p className="text-xs text-gray-500">Somente números, até 5 dígitos.</p>}
               </div>
             </div>
           </>
@@ -1025,14 +1109,14 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
         <div className="space-y-2">
           <Label>Preços (opcional)</Label>
-          <p className="text-xs text-gray-500">Somente números, com até 2 casas decimais e limite de R$ 99.999.999,99 por campo.</p>
+          <p className="text-xs text-gray-500">Máscara monetária em real, com limite de R$ 99.999.999,99 por campo.</p>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm">Preço/Mês (R$)</Label>
               <Input
                 type="text"
                 inputMode="decimal"
-                placeholder="5000.00"
+                placeholder="R$ 0,00"
                 value={priceMonthInput}
                 onChange={(e) => updateMoneyField('priceMonth', e.target.value)}
               />
@@ -1044,7 +1128,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
               <Input
                 type="text"
                 inputMode="decimal"
-                placeholder="1500.00"
+                placeholder="R$ 0,00"
                 value={priceWeekInput}
                 onChange={(e) => updateMoneyField('priceWeek', e.target.value)}
               />
@@ -1063,7 +1147,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
               if (!payload) return;
               onSave(payload, imageFiles, videoFiles);
             }}
-            disabled={!formData.label?.trim() || !!priceMonthError || !!priceWeekError}
+            disabled={!formData.label?.trim() || !!priceMonthError || !!priceWeekError || !!formErrors.insertionsPerDay || !!formErrors.resolutionWidthPx || !!formErrors.resolutionHeightPx}
           >
             {unit ? 'Salvar Alterações' : 'Adicionar'}
           </Button>
