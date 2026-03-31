@@ -12,6 +12,7 @@ import { X, ChevronDown, Package, ExternalLink, MapPin, Search } from 'lucide-re
 import { toast } from 'sonner';
 import { MediaPoint, MediaType, ProductionCosts, CashFlowType, PaymentMethod, PaymentType, CashTransaction } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
+import { useTutorial } from '../../contexts/TutorialContext';
 import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { useMediaPointsMeta } from '../../hooks/useMediaPointsMeta';
 import { useTransactionCategories } from '../../hooks/useTransactionCategories';
@@ -190,6 +191,7 @@ interface MediaPointFormDialogProps {
 
 export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialData, onSave, onDeleteAsset, onEnqueueUploads }: MediaPointFormDialogProps) {
   const { company, entitlements, refreshEntitlements } = useCompany() as any;
+  const { openModuleTutorial } = useTutorial();
   const fileLimits = (entitlements as any)?.limits?.file;
   const [type, setType] = useState<MediaType>(mediaPoint?.type || MediaType.OOH);
   const [formData, setFormData] = useState<Partial<MediaPoint>>({
@@ -969,6 +971,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-tour="inventory-point-dialog"
         className="overflow-hidden p-0 gap-0"
         style={{
           width: 'min(1120px, calc(100vw - 2rem))',
@@ -978,12 +981,25 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         }}
       >
         <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-          <DialogTitle>
-            {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
-          </DialogTitle>
-          <DialogDescription>
-            {mediaPoint ? 'Atualize os detalhes do ponto de mídia.' : 'Preencha os campos para cadastrar um novo ponto de mídia.'}
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogTitle>
+                {mediaPoint ? 'Editar Ponto de Mídia' : 'Cadastrar Novo Ponto de Mídia (MediaPoint)'}
+              </DialogTitle>
+              <DialogDescription>
+                {mediaPoint ? 'Atualize os detalhes do ponto de mídia.' : 'Preencha os campos para cadastrar um novo ponto de mídia.'}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => openModuleTutorial('inventory-create-point-flow', { trackProgress: false })}
+              className="text-indigo-600 hover:text-indigo-700"
+            >
+              Tutorial rápido deste fluxo
+            </Button>
+          </div>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
@@ -991,14 +1007,14 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
   value={type}
   onValueChange={(v: string) => handleTypeChange(v as MediaType)}
 >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2" data-tour="inventory-point-type">
             <TabsTrigger value={MediaType.OOH}>OOH</TabsTrigger>
             <TabsTrigger value={MediaType.DOOH}>DOOH</TabsTrigger>
           </TabsList>
 
           <TabsContent value={type} className="space-y-6 mt-6">
             {/* Informações Básicas */}
-            <div className="space-y-4">
+            <div className="space-y-4" data-tour="inventory-point-basic">
               <h3 className="text-gray-900 border-b pb-2">Informações Básicas</h3>
               
               <div className="grid grid-cols-2 gap-4">
@@ -1272,7 +1288,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
             </div>
 
             {/* Endereço */}
-            <div className="space-y-4">
+            <div className="space-y-4" data-tour="inventory-point-location">
               <h3 className="text-gray-900 border-b pb-2">Localização</h3>
               
               <div className="grid grid-cols-3 gap-4">
@@ -1418,7 +1434,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2" data-tour="inventory-point-coordinates">
                 <Button
                   type="button"
                   variant="outline"
@@ -1623,7 +1639,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
 
 
             {/* Financeiro vinculado ao ponto */}
-            <div className="space-y-4">
+            <div className="space-y-4" data-tour="inventory-point-financial">
               <h3 className="text-gray-900 border-b pb-2">Financeiro vinculado ao ponto</h3>
 
               <div className="flex items-center gap-2">
@@ -1760,7 +1776,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
             </div>
 
             {/* Mídia Kit */}
-            <div className="space-y-4">
+            <div className="space-y-4" data-tour="inventory-point-visibility">
               <h3 className="text-gray-900 border-b pb-2">Visibilidade</h3>
               
               <div className="flex items-center gap-2">

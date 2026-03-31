@@ -22,6 +22,7 @@ import { Client, ClientCompanyLookupResponse, ClientStatus } from '../../types';
 import { BRAZILIAN_STATES } from '../../lib/mockData';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
+import { useTutorial } from '../../contexts/TutorialContext';
 import { useClientOwners } from '../../hooks/useClientOwners';
 import { formatCNPJDisplay, isValidCNPJ, onlyDigits } from '../../lib/validators';
 
@@ -39,6 +40,7 @@ export function ClientFormDialog({
   onSave,
 }: ClientFormDialogProps) {
   const { owners, loading: ownersLoading } = useClientOwners();
+  const { openModuleTutorial } = useTutorial();
   const [isLookingUpCnpj, setIsLookingUpCnpj] = useState(false);
   const [cnpjLookupMessage, setCnpjLookupMessage] = useState<string | null>(null);
   const [lastLookupCnpj, setLastLookupCnpj] = useState('');
@@ -268,6 +270,7 @@ export function ClientFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-tour="clients-create-dialog"
         className="overflow-hidden p-0 gap-0"
         style={{
           width: 'min(900px, calc(100vw - 2rem))',
@@ -277,16 +280,29 @@ export function ClientFormDialog({
         }}
       >
         <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-          <DialogTitle>{client ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
-          <DialogDescription>
-            {client ? 'Atualize as informações do cliente' : 'Adicione um novo cliente'}
-          </DialogDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <DialogTitle>{client ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+              <DialogDescription>
+                {client ? 'Atualize as informações do cliente' : 'Adicione um novo cliente'}
+              </DialogDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => openModuleTutorial('clients-create-flow', { trackProgress: false })}
+              className="text-indigo-600 hover:text-indigo-700"
+            >
+              Tutorial rápido deste fluxo
+            </Button>
+          </div>
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
             <div className="space-y-6">
-          <div className="space-y-4">
+          <div className="space-y-4" data-tour="clients-create-contact">
             <h3 className="text-gray-900">Informações de Contato</h3>
 
             <div className="grid grid-cols-2 gap-4">
@@ -324,7 +340,7 @@ export function ClientFormDialog({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4" data-tour="clients-create-company">
             <h3 className="text-gray-900">Informações da Empresa</h3>
 
             <div className="grid grid-cols-2 gap-4">
@@ -358,7 +374,7 @@ export function ClientFormDialog({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4" data-tour="clients-create-management">
             <h3 className="text-gray-900">Status e Gestão</h3>
 
             <div className="grid grid-cols-2 gap-4">
@@ -411,7 +427,7 @@ export function ClientFormDialog({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4" data-tour="clients-create-address">
             <h3 className="text-gray-900">Endereço</h3>
 
             <div className="grid grid-cols-3 gap-4">
@@ -478,7 +494,7 @@ export function ClientFormDialog({
             </div>
           </div>
 
-          <div className="shrink-0 border-t px-6 py-4">
+          <div className="shrink-0 border-t px-6 py-4" data-tour="clients-create-save">
             <div className="flex justify-end gap-3">
               <Button
                 type="button"

@@ -4,6 +4,11 @@ import { RefreshCcw, Sparkles, X } from 'lucide-react';
 import { useTutorial, type TutorialPlacement } from '../../contexts/TutorialContext';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import {
+  TUTORIAL_OVERLAY_INTERACTIVE_ATTR,
+  TUTORIAL_OVERLAY_ROOT_ATTR,
+  setTutorialOverlayActive,
+} from './overlayGuards';
 
 type HighlightRect = {
   top: number;
@@ -28,6 +33,30 @@ const blockUnderlyingEvent = (event: { stopPropagation: () => void; preventDefau
   event.preventDefault?.();
   event.stopPropagation();
 };
+
+function isVisibleElement(target: Element | null): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const rect = target.getBoundingClientRect();
+  const style = window.getComputedStyle(target);
+
+  return !(
+    rect.width <= 0 ||
+    rect.height <= 0 ||
+    style.visibility === 'hidden' ||
+    style.display === 'none'
+  );
+}
+
+function resolveTargetElement(selector: string | null): Element | null {
+  if (!selector) return null;
+
+  const matches = Array.from(document.querySelectorAll(selector));
+  if (matches.length === 0) return null;
+
+  const visibleMatch = matches.find((candidate) => isVisibleElement(candidate));
+  return visibleMatch ?? matches[0] ?? null;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -135,7 +164,7 @@ export function TutorialOverlay() {
   const [targetFound, setTargetFound] = useState(false);
   const previousRectRef = useRef<HighlightRect | null>(null);
   const lastSelectorRef = useRef<string | null>(null);
-
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen || !currentStep) {
@@ -165,7 +194,7 @@ export function TutorialOverlay() {
         return;
       }
 
-      const target = document.querySelector(selector);
+      const target = resolveTargetElement(selector);
       const nextRect = getHighlightRect(target);
 
       if (target && nextRect) {
@@ -187,8 +216,8 @@ export function TutorialOverlay() {
     updatePosition();
 
     if (selector) {
-      const target = document.querySelector(selector);
-      target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      const target = resolveTargetElement(selector);
+      target?.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
     }
 
     window.addEventListener('resize', scheduleUpdate);
@@ -208,6 +237,52 @@ export function TutorialOverlay() {
       observer?.disconnect();
     };
   }, [currentStep, isOpen]);
+
+
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') {
+      setTutorialOverlayActive(false);
+      return;
+    }
+
+    setTutorialOverlayActive(true);
+
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlPointerEvents = html.style.pointerEvents;
+    const previousBodyPointerEvents = body.style.pointerEvents;
+
+    const forceTutorialPointerLayer = () => {
+      if (html.style.pointerEvents === 'none') {
+        html.style.pointerEvents = 'auto';
+      }
+
+      if (body.style.pointerEvents === 'none') {
+        body.style.pointerEvents = 'auto';
+      }
+    };
+
+    forceTutorialPointerLayer();
+
+    const pointerObserver = new MutationObserver(() => {
+      forceTutorialPointerLayer();
+    });
+
+    pointerObserver.observe(html, { attributes: true, attributeFilter: ['style'] });
+    pointerObserver.observe(body, { attributes: true, attributeFilter: ['style'] });
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      cardRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      pointerObserver.disconnect();
+      html.style.pointerEvents = previousHtmlPointerEvents;
+      body.style.pointerEvents = previousBodyPointerEvents;
+      setTutorialOverlayActive(false);
+    };
+  }, [isOpen]);
 
   const cardPosition = useMemo(() => {
     if (!currentStep) {
@@ -251,7 +326,8 @@ export function TutorialOverlay() {
 
   return createPortal(
     <div
-      className="fixed inset-0 pointer-events-auto"
+      className="fixed inset-0 pointer-events-none"
+      {...{ [TUTORIAL_OVERLAY_ROOT_ATTR]: 'true' }}
       aria-live="polite"
       aria-modal="true"
       role="dialog"
@@ -259,6 +335,7 @@ export function TutorialOverlay() {
     >
       <div
         className="absolute inset-0 pointer-events-auto"
+        {...{ [TUTORIAL_OVERLAY_INTERACTIVE_ATTR]: 'true' }}
         aria-hidden="true"
         style={{ zIndex: OVERLAY_Z_INDEX }}
         onClick={blockUnderlyingEvent}
@@ -315,14 +392,24 @@ export function TutorialOverlay() {
         </div>
       ) : null}
 
-      <Card
-        className="fixed w-[min(360px,calc(100vw-24px))] border-indigo-200 bg-white shadow-2xl pointer-events-auto"
+      <div
+        ref={cardRef}
+        tabIndex={-1}
+        className="fixed w-[min(360px,calc(100vw-24px))] pointer-events-auto outline-none"
+        {...{ [TUTORIAL_OVERLAY_INTERACTIVE_ATTR]: 'true' }}
         style={{
           zIndex: OVERLAY_Z_INDEX + 2,
           top: cardPosition.top,
           left: cardPosition.left,
           width: cardPosition.width,
         }}
+        onClickCapture={stopEvent}
+        onMouseDownCapture={stopEvent}
+        onMouseUpCapture={stopEvent}
+        onPointerDownCapture={stopEvent}
+        onPointerUpCapture={stopEvent}
+        onTouchStartCapture={stopEvent}
+        onTouchEndCapture={stopEvent}
         onClick={stopEvent}
         onMouseDown={stopEvent}
         onMouseUp={stopEvent}
@@ -331,12 +418,13 @@ export function TutorialOverlay() {
         onTouchStart={stopEvent}
         onTouchEnd={stopEvent}
       >
+        <Card className="w-full border-indigo-200 bg-white shadow-2xl">
         <CardHeader className="gap-3 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
                 <Sparkles className="h-3.5 w-3.5" />
-                Tutorial do módulo
+                Passo a passo
               </div>
               <div>
                 <CardTitle className="text-base text-gray-900">{currentStep.title}</CardTitle>
@@ -382,8 +470,11 @@ export function TutorialOverlay() {
 
           {!targetFound && currentStep.target ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              O elemento destacado deste passo ainda não foi encontrado na tela. O tutorial continua funcional e,
-              nas próximas etapas, os alvos poderão ser vinculados com segurança.
+              <p className="font-medium text-amber-900">Este passo ainda não apareceu na tela.</p>
+              <p className="mt-1 leading-5">
+                Você pode continuar o tutorial normalmente. Se precisar, abra a seção relacionada, role a tela ou avance
+                para o próximo passo.
+              </p>
             </div>
           ) : null}
         </CardContent>
@@ -400,7 +491,8 @@ export function TutorialOverlay() {
             <Button onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); nextStep(); }}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
           </div>
         </CardFooter>
-      </Card>
+        </Card>
+      </div>
     </div>,
     document.body,
   );

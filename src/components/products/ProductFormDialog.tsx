@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { Product, ProductType, PriceType } from '../../types';
+import { useTutorial } from '../../contexts/TutorialContext';
 
 interface ProductFormDialogProps {
   open: boolean;
@@ -21,6 +22,7 @@ export function ProductFormDialog({
   product,
   onSave,
 }: ProductFormDialogProps) {
+  const { openModuleTutorial } = useTutorial();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -109,6 +111,7 @@ export function ProductFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-tour="products-create-dialog"
         className="overflow-hidden p-0 gap-0"
         style={{
           width: 'min(760px, calc(100vw - 2rem))',
@@ -118,15 +121,26 @@ export function ProductFormDialog({
         }}
       >
         <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-          <DialogTitle>
-            {product ? 'Editar Produto/Serviço' : 'Cadastrar Produto/Serviço'}
-          </DialogTitle>
+          <div className="flex items-start justify-between gap-3">
+            <DialogTitle>
+              {product ? 'Editar Produto/Serviço' : 'Cadastrar Produto/Serviço'}
+            </DialogTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => openModuleTutorial('products-create-flow', { trackProgress: false })}
+              className="text-indigo-600 hover:text-indigo-700"
+            >
+              Tutorial rápido deste fluxo
+            </Button>
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {/* Tipo */}
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="products-create-identity">
             <Label htmlFor="type">
               Tipo <span className="text-red-500">*</span>
             </Label>
@@ -176,7 +190,7 @@ export function ProductFormDialog({
           </div>
 
           {/* Descrição */}
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="products-create-description">
             <Label htmlFor="description">Descrição</Label>
             <Textarea
               id="description"
@@ -188,7 +202,7 @@ export function ProductFormDialog({
           </div>
 
           {/* Tipo de Preço e Preço Base */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4" data-tour="products-create-pricing">
             <div className="space-y-2">
               <Label htmlFor="priceType">
                 Tipo de Preço <span className="text-red-500">*</span>
@@ -231,7 +245,7 @@ export function ProductFormDialog({
           </div>
 
           {/* Checkbox Adicional */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tour="products-create-additional">
                       <Checkbox
             id="isAdditional"
             checked={formData.isAdditional}

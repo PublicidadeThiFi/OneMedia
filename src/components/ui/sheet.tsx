@@ -5,6 +5,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog@1.1.6";
 import { XIcon } from "lucide-react@0.487.0";
 
 import { cn } from "./utils";
+import { shouldGuardTutorialOutsideInteraction } from "../tutorial/overlayGuards";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -52,12 +53,45 @@ function SheetContent({
   side = "right",
   hideOverlay = false,
   overlayClassName,
+  onFocusOutside,
+  onInteractOutside,
+  onPointerDownOutside,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left";
   hideOverlay?: boolean;
   overlayClassName?: string;
 }) {
+  const handleFocusOutside: typeof onFocusOutside = (event) => {
+    if (shouldGuardTutorialOutsideInteraction(event.target)) {
+      event.preventDefault();
+    }
+
+    if (!event.defaultPrevented) {
+      onFocusOutside?.(event);
+    }
+  };
+
+  const handleInteractOutside: typeof onInteractOutside = (event) => {
+    if (shouldGuardTutorialOutsideInteraction(event.target)) {
+      event.preventDefault();
+    }
+
+    if (!event.defaultPrevented) {
+      onInteractOutside?.(event);
+    }
+  };
+
+  const handlePointerDownOutside: typeof onPointerDownOutside = (event) => {
+    if (shouldGuardTutorialOutsideInteraction(event.target)) {
+      event.preventDefault();
+    }
+
+    if (!event.defaultPrevented) {
+      onPointerDownOutside?.(event);
+    }
+  };
+
   return (
     <SheetPortal>
       {!hideOverlay ? <SheetOverlay className={overlayClassName} /> : null}
@@ -75,6 +109,9 @@ function SheetContent({
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t",
           className,
         )}
+                onFocusOutside={handleFocusOutside}
+        onInteractOutside={handleInteractOutside}
+        onPointerDownOutside={handlePointerDownOutside}
         {...props}
       >
         {children}

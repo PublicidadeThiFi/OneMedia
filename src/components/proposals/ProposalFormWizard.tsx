@@ -355,7 +355,7 @@ const handleSaveAndSend = async () => {
         {/* Rodapé com botões */}
         <div className="shrink-0 border-t px-6 py-4 bg-gray-50">
           {step === 1 && (
-            <div className="flex justify-between gap-3">
+            <div className="flex justify-between gap-3" data-tour="proposal-flow-step1-actions">
               <Button variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>

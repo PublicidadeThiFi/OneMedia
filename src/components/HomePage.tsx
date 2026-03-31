@@ -88,7 +88,7 @@ export function HomePage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] lg:min-w-[420px]">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] lg:min-w-[420px]" data-tour="home-news-controls">
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
@@ -139,7 +139,9 @@ export function HomePage() {
             </div>
           ) : (
             <>
-              <NewsGrid items={articles} onOpen={openArticle} />
+              <div data-tour="home-news-list">
+                <NewsGrid items={articles} onOpen={openArticle} />
+              </div>
               <div className="flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">{total} matéria(s) encontrada(s). Página {page} de {totalPages}.</p>
                 <div className="flex gap-3">

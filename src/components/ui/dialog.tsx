@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog@1.1.6";
 import { XIcon } from "lucide-react@0.487.0";
 
 import { cn } from "./utils";
+import { shouldGuardTutorialOutsideInteraction } from "../tutorial/overlayGuards";
 
 function Dialog({
   ...props
@@ -51,8 +52,41 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 function DialogContent({
   className,
   children,
+  onFocusOutside,
+  onInteractOutside,
+  onPointerDownOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  const handleFocusOutside: typeof onFocusOutside = (event) => {
+    if (shouldGuardTutorialOutsideInteraction(event.target)) {
+      event.preventDefault();
+    }
+
+    if (!event.defaultPrevented) {
+      onFocusOutside?.(event);
+    }
+  };
+
+  const handleInteractOutside: typeof onInteractOutside = (event) => {
+    if (shouldGuardTutorialOutsideInteraction(event.target)) {
+      event.preventDefault();
+    }
+
+    if (!event.defaultPrevented) {
+      onInteractOutside?.(event);
+    }
+  };
+
+  const handlePointerDownOutside: typeof onPointerDownOutside = (event) => {
+    if (shouldGuardTutorialOutsideInteraction(event.target)) {
+      event.preventDefault();
+    }
+
+    if (!event.defaultPrevented) {
+      onPointerDownOutside?.(event);
+    }
+  };
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -62,6 +96,9 @@ function DialogContent({
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-50 flex w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto overscroll-contain rounded-lg border p-6 shadow-lg duration-200 max-h-[calc(100dvh-2rem)] sm:w-[calc(100vw-3rem)] sm:max-w-2xl",
           className,
         )}
+                onFocusOutside={handleFocusOutside}
+        onInteractOutside={handleInteractOutside}
+        onPointerDownOutside={handlePointerDownOutside}
         {...props}
       >
         {children}
