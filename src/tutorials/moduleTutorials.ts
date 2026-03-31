@@ -30,43 +30,43 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   home: createTutorial({
     moduleKey: 'home',
     title: 'Página Inicial',
-    version: 2,
+    version: 4,
     steps: [
       step({
         id: 'home-welcome',
         order: 1,
         title: 'Bem-vindo à Página Inicial',
         description:
-          'Esta é a nova tela de entrada do aplicativo após o login. Ela foi criada para receber o usuário de forma mais amigável.',
+          'Esta é a nova tela de entrada da plataforma. Aqui você encontra os comunicados e conteúdos publicados pela equipe da OneMedia.',
         target: '[data-tour="home-welcome"]',
         placement: 'bottom',
       }),
       step({
-        id: 'home-news-center',
+        id: 'home-news-controls',
         order: 2,
-        title: 'Central de notícias',
+        title: 'Busque e atualize as notícias',
         description:
-          'Aqui ficará a futura central de notícias, comunicados, novidades e destaques importantes do sistema.',
-        target: '[data-tour="home-news-center"]',
+          'Use a busca para localizar matérias por título, slug ou resumo. O botão de atualizar recarrega a central sem precisar navegar para fora da página.',
+        target: '[data-tour="home-news-controls"]',
         placement: 'bottom',
       }),
       step({
-        id: 'home-sidebar-navigation',
+        id: 'home-news-list',
         order: 3,
-        title: 'Navegação pelos módulos',
+        title: 'Leia as matérias publicadas',
         description:
-          'Use o menu lateral para acessar os módulos do sistema. Cada módulo poderá ter seu próprio tutorial guiado.',
-        target: '[data-tour="home-sidebar-navigation"]',
-        placement: 'right',
+          'Nesta área ficam os cards com imagem, data, título e resumo. Ao abrir uma notícia, você vê o conteúdo completo publicado pela equipe no admin.',
+        target: '[data-tour="home-news-list"]',
+        placement: 'top',
       }),
       step({
-        id: 'home-get-started',
+        id: 'home-sidebar-navigation',
         order: 4,
-        title: 'Por onde começar',
+        title: 'Navegação pelos módulos',
         description:
-          'A Página Inicial será o ponto de partida para notícias e orientações. A partir daqui, você pode seguir para os módulos operacionais do sistema.',
-        target: '[data-tour="home-get-started"]',
-        placement: 'top',
+          'Use o menu lateral para ir para Inventário, Propostas, Mídia Map e os demais módulos operacionais da plataforma.',
+        target: '[data-tour="home-sidebar-navigation"]',
+        placement: 'right',
       }),
     ],
   }),
@@ -195,7 +195,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
   mediamap: createTutorial({
     moduleKey: 'mediamap',
     title: 'Mídia Map',
-    version: 3,
+    version: 5,
     steps: [
       step({
         id: 'mediamap-overview',
@@ -207,21 +207,21 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         placement: 'bottom',
       }),
       step({
-        id: 'mediamap-navigation',
+        id: 'mediamap-filters',
         order: 2,
-        title: 'Navegação no mapa',
+        title: 'Busca, filtros e seleção',
         description:
-          'Use zoom, arraste e seleção para navegar pela área desejada e localizar os pontos com mais precisão.',
-        target: '[data-tour="mediamap-navigation"]',
+          'Use a busca e os filtros para reduzir a visualização aos pontos mais relevantes para a sua análise comercial ou operacional.',
+        target: '[data-tour="mediamap-filters"]',
         placement: 'bottom',
       }),
       step({
-        id: 'mediamap-filters',
+        id: 'mediamap-navigation',
         order: 3,
-        title: 'Filtros do mapa',
+        title: 'Navegação no mapa',
         description:
-          'Aplique filtros para reduzir a visualização aos pontos mais relevantes para a sua análise.',
-        target: '[data-tour="mediamap-filters"]',
+          'Arraste, dê zoom e interaja com os pontos para explorar a área desejada e localizar melhor cada cadastro.',
+        target: '[data-tour="mediamap-navigation"]',
         placement: 'bottom',
       }),
       step({
@@ -229,17 +229,17 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 4,
         title: 'Detalhes de um ponto',
         description:
-          'Ao clicar em um ponto, você pode abrir informações detalhadas e aprofundar o contexto operacional ou comercial.',
-        target: '[data-tour="mediamap-point-details"]',
-        placement: 'right',
+          'Ao selecionar um ponto, este painel mostra endereço, status das faces e ações rápidas para aprofundar o contexto operacional e comercial.',
+        target: '[data-tour="mediamap-point-panel"]',
+        placement: 'left',
       }),
       step({
         id: 'mediamap-create',
         order: 5,
         title: 'Criar ponto pelo mapa',
         description:
-          'Este fluxo ajuda a cadastrar novos pontos já partindo da posição geográfica desejada.',
-        target: '[data-tour="mediamap-create"]',
+          'Este fluxo ajuda a cadastrar novos pontos já partindo da posição geográfica escolhida no mapa, acelerando o cadastro no inventário.',
+        target: '[data-tour="mediamap-create-dialog"]',
         placement: 'left',
       }),
       step({
@@ -247,7 +247,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 6,
         title: 'Mover ponto no mapa',
         description:
-          'Quando necessário, ajuste a localização de um ponto diretamente pelo mapa para manter a base consistente.',
+          'Use esta ação quando precisar corrigir a localização de um ponto sem sair do mapa.',
         target: '[data-tour="mediamap-move"]',
         placement: 'left',
       }),
@@ -258,7 +258,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         description:
           'O mapa também apoia a seleção comercial de pontos, ajudando na montagem e contextualização das propostas.',
         target: '[data-tour="mediamap-proposals"]',
-        placement: 'top',
+        placement: 'left',
       }),
     ],
   }),
@@ -881,14 +881,14 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
     moduleKey: 'proposals-create-flow',
     scopeModuleKey: 'proposals',
     title: 'Criação de proposta',
-    version: 1,
+    version: 3,
     steps: [
       step({
         id: 'proposal-flow-overview',
         order: 1,
         title: 'Fluxo rápido da proposta',
         description:
-          'Este mini tutorial acompanha a criação da proposta em duas etapas: dados gerais primeiro, itens e envio depois.',
+          'Este mini tutorial acompanha a criação da proposta em duas etapas: primeiro os dados gerais; depois os itens, revisão e envio.',
         target: '[data-tour="proposal-wizard-header"]',
         placement: 'bottom',
       }),
@@ -897,7 +897,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 2,
         title: 'Comece pelo cliente',
         description:
-          'Selecione o cliente e preencha as informações gerais da proposta. Esses dados sustentam o restante do fluxo.',
+          'Selecione o cliente e preencha as informações gerais da proposta. Esses dados definem a base comercial e financeira do restante do fluxo.',
         target: '[data-tour="proposal-flow-client"]',
         placement: 'bottom',
       }),
@@ -906,8 +906,8 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 3,
         title: 'Avance para os itens',
         description:
-          'Quando os dados obrigatórios estiverem prontos, avance para o passo de itens para montar a proposta comercial.',
-        target: '[data-tour="proposal-flow-next"]',
+          'Quando os dados obrigatórios estiverem prontos, use a área do rodapé para avançar para a etapa de itens.',
+        target: '[data-tour="proposal-flow-step1-actions"]',
         placement: 'top',
       }),
       step({
@@ -915,7 +915,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 4,
         title: 'Adicione mídias do inventário',
         description:
-          'Inclua faces e unidades do inventário para compor a proposta com disponibilidade e valores calculados.',
+          'Inclua faces e unidades do inventário para compor a proposta com disponibilidade, período e valores calculados.',
         target: '[data-tour="proposal-flow-add-media"]',
         placement: 'bottom',
       }),
@@ -924,7 +924,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 5,
         title: 'Some produtos e serviços',
         description:
-          'Use produtos e serviços para complementar a proposta com itens adicionais de produção, instalação ou apoio.',
+          'Use produtos e serviços para complementar a proposta com itens adicionais de produção, instalação, logística ou apoio.',
         target: '[data-tour="proposal-flow-add-product"]',
         placement: 'bottom',
       }),
@@ -933,7 +933,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         order: 6,
         title: 'Revise e envie',
         description:
-          'No rodapé, você pode salvar como rascunho ou enviar a proposta quando os itens e valores estiverem prontos.',
+          'No rodapé, você pode salvar como rascunho ou enviar a proposta quando os itens, valores e condições estiverem revisados.',
         target: '[data-tour="proposal-flow-submit"]',
         placement: 'top',
       }),
@@ -943,7 +943,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
     moduleKey: 'mediamap-move-flow',
     scopeModuleKey: 'mediamap',
     title: 'Mover ponto no mapa',
-    version: 2,
+    version: 4,
     steps: [
       step({
         id: 'mediamap-move-start',
@@ -987,7 +987,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
     moduleKey: 'mediamap-create-flow',
     scopeModuleKey: 'mediamap',
     title: 'Criar ponto pelo mapa',
-    version: 2,
+    version: 4,
     steps: [
       step({
         id: 'mediamap-create-overview',
@@ -995,7 +995,7 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
         title: 'Criação a partir do mapa',
         description:
           'Este fluxo começa pela posição escolhida no mapa e já pré-preenche latitude e longitude do novo ponto.',
-        target: '[data-tour="mediamap-create"]',
+        target: '[data-tour="mediamap-create-dialog"]',
         placement: 'bottom',
       }),
       step({
@@ -1088,9 +1088,338 @@ export const tutorialDefinitions: Record<TutorialModuleKey, TutorialDefinition> 
       }),
     ],
   }),
+
+  'inventory-create-point-flow': createTutorial({
+    moduleKey: 'inventory-create-point-flow',
+    scopeModuleKey: 'inventory',
+    title: 'Cadastro de ponto no Inventário',
+    version: 2,
+    steps: [
+      step({
+        id: 'inventory-point-create-overview',
+        order: 1,
+        title: 'Comece pelo tipo de ponto',
+        description:
+          'Este formulário cria um novo ponto de mídia. Você pode cadastrar OOH ou DOOH e estruturar o cadastro-base antes de criar as faces ou telas.',
+        target: '[data-tour="inventory-point-dialog"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'inventory-point-create-type',
+        order: 2,
+        title: 'Escolha entre OOH e DOOH',
+        description:
+          'A aba define o tipo do ponto e influencia opções como subcategoria, futuras unidades e o contexto comercial do cadastro.',
+        target: '[data-tour="inventory-point-type"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'inventory-point-create-basic',
+        order: 3,
+        title: 'Preencha os dados básicos e os uploads',
+        description:
+          'Nome, subcategoria, imagens e vídeos ajudam a identificar o ponto e a montar a apresentação comercial com mais contexto visual.',
+        target: '[data-tour="inventory-point-basic"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'inventory-point-create-location',
+        order: 4,
+        title: 'Cidade, UF e endereço',
+        description:
+          'Preencha a UF antes da cidade e, se necessário, use o botão de adicionar para cadastrar uma nova cidade. O endereço também pode ser enriquecido automaticamente a partir das coordenadas.',
+        target: '[data-tour="inventory-point-location"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'inventory-point-create-map',
+        order: 5,
+        title: 'Crie pelo mapa ou mova o pin',
+        description:
+          'Você pode posicionar o ponto clicando no mapa ou arrastando o pin. Isso ajuda a definir a localização correta já dentro do cadastro do inventário.',
+        target: '[data-tour="inventory-point-map"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'inventory-point-create-coordinates',
+        order: 6,
+        title: 'Use latitude e longitude para preencher o endereço',
+        description:
+          'Ao informar coordenadas válidas, use a busca por latitude e longitude para preencher CEP, rua, bairro, cidade, estado e país automaticamente quando possível.',
+        target: '[data-tour="inventory-point-coordinates"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'inventory-point-create-financial',
+        order: 7,
+        title: 'Vincule informações financeiras e custos',
+        description:
+          'Aqui você pode registrar custos de produção e criar ou sincronizar uma transação ligada ao ponto, incluindo categoria, recorrência e vencimento.',
+        target: '[data-tour="inventory-point-financial"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'inventory-point-create-visibility',
+        order: 8,
+        title: 'Revise visibilidade e salve',
+        description:
+          'Defina se o ponto aparece no Mídia Kit público, confira o armazenamento do plano e salve o cadastro para depois criar as faces ou telas comercializáveis.',
+        target: '[data-tour="inventory-point-visibility"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'clients-create-flow': createTutorial({
+    moduleKey: 'clients-create-flow',
+    scopeModuleKey: 'clients',
+    title: 'Cadastro de cliente',
+    version: 2,
+    steps: [
+      step({
+        id: 'clients-create-overview',
+        order: 1,
+        title: 'Estruture o cadastro do cliente',
+        description:
+          'Este formulário reúne contato, empresa, status comercial, endereço e observações para sustentar os fluxos de propostas, campanhas e relacionamento.',
+        target: '[data-tour="clients-create-dialog"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'clients-create-contact',
+        order: 2,
+        title: 'Comece pelo contato principal',
+        description:
+          'Informe o nome da pessoa, e-mail, telefone e cargo para manter a comunicação comercial organizada desde o primeiro registro.',
+        target: '[data-tour="clients-create-contact"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'clients-create-company',
+        order: 3,
+        title: 'Empresa e consulta por CNPJ',
+        description:
+          'Ao preencher um CNPJ válido, a plataforma pode consultar e preencher automaticamente dados da empresa e parte do endereço.',
+        target: '[data-tour="clients-create-company"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'clients-create-management',
+        order: 4,
+        title: 'Status, origem e responsável',
+        description:
+          'Use esta seção para indicar o estágio comercial do cliente, a origem do lead e o responsável interno pelo relacionamento.',
+        target: '[data-tour="clients-create-management"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'clients-create-address',
+        order: 5,
+        title: 'Revise o endereço',
+        description:
+          'Confira CEP, rua, bairro, cidade, estado e país. Quando o CNPJ trouxer dados válidos, essa área tende a vir pré-preenchida.',
+        target: '[data-tour="clients-create-address"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'clients-create-save',
+        order: 6,
+        title: 'Finalize com observações e salvamento',
+        description:
+          'Use observações internas para registrar contexto importante e salve o cliente para utilizá-lo nos fluxos comerciais da plataforma.',
+        target: '[data-tour="clients-create-save"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'products-create-flow': createTutorial({
+    moduleKey: 'products-create-flow',
+    scopeModuleKey: 'products',
+    title: 'Cadastro de produto ou serviço',
+    version: 2,
+    steps: [
+      step({
+        id: 'products-create-overview',
+        order: 1,
+        title: 'Cadastre um item comercial',
+        description:
+          'Aqui você define um produto ou serviço que pode ser vendido sozinho ou complementar propostas com itens adicionais.',
+        target: '[data-tour="products-create-dialog"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'products-create-identity',
+        order: 2,
+        title: 'Defina tipo, nome e categoria',
+        description:
+          'Escolha se o item é produto ou serviço e preencha um nome claro com a categoria que ajuda a localizar e organizar o catálogo.',
+        target: '[data-tour="products-create-identity"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'products-create-description',
+        order: 3,
+        title: 'Explique o item',
+        description:
+          'Use a descrição para registrar detalhes importantes de entrega, escopo, composição ou aplicação comercial do item.',
+        target: '[data-tour="products-create-description"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'products-create-pricing',
+        order: 4,
+        title: 'Configure a precificação',
+        description:
+          'Defina o tipo de preço e o valor base para que o item entre nas propostas com a lógica comercial correta.',
+        target: '[data-tour="products-create-pricing"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'products-create-additional',
+        order: 5,
+        title: 'Marque como adicional quando fizer sentido',
+        description:
+          'Itens adicionais podem ser incluídos nas propostas para complementar produção, instalação, logística ou outros serviços relacionados.',
+        target: '[data-tour="products-create-additional"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'financial-transaction-flow': createTutorial({
+    moduleKey: 'financial-transaction-flow',
+    scopeModuleKey: 'financial',
+    title: 'Cadastro de transação financeira',
+    version: 2,
+    steps: [
+      step({
+        id: 'financial-transaction-overview',
+        order: 1,
+        title: 'Registre uma nova transação',
+        description:
+          'Este formulário cria receitas, despesas, impostos, transferências e outros lançamentos que alimentam o fluxo de caixa.',
+        target: '[data-tour="financial-transaction-dialog"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'financial-transaction-basics',
+        order: 2,
+        title: 'Tipo, data e valor',
+        description:
+          'Comece definindo o tipo da transação, a data base e o valor. Esses campos controlam a classificação principal do lançamento.',
+        target: '[data-tour="financial-transaction-basics"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'financial-transaction-recurring',
+        order: 3,
+        title: 'Use recorrência quando a despesa se repetir',
+        description:
+          'Ative a recorrência mensal para despesas ou receitas fixas e, se quiser, defina até quando a repetição deve acontecer.',
+        target: '[data-tour="financial-transaction-recurring"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'financial-transaction-details',
+        order: 4,
+        title: 'Descrição e parceiro',
+        description:
+          'Descreva o lançamento e registre o parceiro envolvido, como cliente, fornecedor, locador ou outro contato relevante.',
+        target: '[data-tour="financial-transaction-details"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'financial-transaction-classification',
+        order: 5,
+        title: 'Categoria, tags e organização',
+        description:
+          'Crie categorias quando necessário e use tags para facilitar filtros, relatórios e agrupamentos futuros.',
+        target: '[data-tour="financial-transaction-classification"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'financial-transaction-payment',
+        order: 6,
+        title: 'Pagamento e status',
+        description:
+          'Defina tipo e modo de pagamento e marque se já foi pago. Em recorrências, o status de pago fica controlado pelo próprio ciclo.',
+        target: '[data-tour="financial-transaction-payment"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'financial-transaction-media-links',
+        order: 7,
+        title: 'Vincule um ou mais pontos de mídia',
+        description:
+          'Para custos como energia, aluguel ou taxa DER, você pode vincular um ou vários pontos, cada um com seu vencimento específico.',
+        target: '[data-tour="financial-transaction-media-links"]',
+        placement: 'top',
+      }),
+    ],
+  }),
+  'promotions-create-flow': createTutorial({
+    moduleKey: 'promotions-create-flow',
+    scopeModuleKey: 'promotions',
+    title: 'Criação de promoção',
+    version: 2,
+    steps: [
+      step({
+        id: 'promotions-create-overview',
+        order: 1,
+        title: 'Cadastre uma promoção comercial',
+        description:
+          'Neste fluxo você cria descontos por ponto inteiro ou por faces específicas, com período opcional e reflexo no comercial.',
+        target: '[data-tour="promotions-create-dialog"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'promotions-create-scope',
+        order: 2,
+        title: 'Escolha onde o desconto será aplicado',
+        description:
+          'Você pode aplicar o desconto ao ponto inteiro ou restringir para faces específicas. Primeiro selecione o ponto e depois refine o alvo.',
+        target: '[data-tour="promotions-create-scope"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'promotions-create-units',
+        order: 3,
+        title: 'Selecione as faces quando necessário',
+        description:
+          'Ao escolher o modo por faces, esta área lista as unidades do ponto para você marcar apenas as que entram na promoção.',
+        target: '[data-tour="promotions-create-scope"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'promotions-create-discount',
+        order: 4,
+        title: 'Defina tipo, valor e período',
+        description:
+          'Informe se o desconto é percentual ou valor fixo e use início e fim para limitar a validade da promoção quando necessário.',
+        target: '[data-tour="promotions-create-discount"]',
+        placement: 'bottom',
+      }),
+      step({
+        id: 'promotions-create-visibility',
+        order: 5,
+        title: 'Controle onde a promoção aparece',
+        description:
+          'Você decide se a promoção aparece no Mídia Kit e também no fluxo de criação de propostas fora do Mídia Kit.',
+        target: '[data-tour="promotions-create-visibility"]',
+        placement: 'top',
+      }),
+      step({
+        id: 'promotions-create-save',
+        order: 6,
+        title: 'Salve e atualize a oferta comercial',
+        description:
+          'Depois de salvar, a promoção passa a impactar os pontos ou faces escolhidos conforme as regras e o período configurados.',
+        target: '[data-tour="promotions-create-save"]',
+        placement: 'top',
+      }),
+    ],
+  }),
 };
 
-// Etapa 8: liberar também os tours complementares previstos no escopo.
+// Tutoriais ativos nesta versão da plataforma.
 const activeTutorialModuleKeys = new Set<TutorialModuleKey>([
   'home',
   'dashboard',
@@ -1113,6 +1442,11 @@ const activeTutorialModuleKeys = new Set<TutorialModuleKey>([
   'mediamap-create-flow',
   'campaigns-create-flow',
   'reservations-conflicts-flow',
+  'inventory-create-point-flow',
+  'clients-create-flow',
+  'products-create-flow',
+  'financial-transaction-flow',
+  'promotions-create-flow',
 ]);
 
 export function listTutorialDefinitions(): TutorialDefinition[] {

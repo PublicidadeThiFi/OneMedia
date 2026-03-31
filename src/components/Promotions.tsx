@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTutorial } from '../contexts/TutorialContext';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -56,6 +57,7 @@ function isoToDateInput(iso?: string | null) {
 }
 
 export function Promotions() {
+  const { openModuleTutorial } = useTutorial();
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<PromotionsMeta | null>(null);
   const [items, setItems] = useState<PromotionRecord[]>([]);
@@ -288,6 +290,7 @@ export function Promotions() {
 
       <Dialog open={open} onOpenChange={(v: boolean) => { setOpen(v); if (!v) resetForm(); }}>
         <DialogContent
+          data-tour="promotions-create-dialog"
           className="overflow-hidden p-0 gap-0"
           style={{
             width: 'min(760px, calc(100vw - 2rem))',
@@ -297,11 +300,22 @@ export function Promotions() {
           }}
         >
           <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-            <DialogTitle>{editing ? 'Editar promoção' : 'Nova promoção'}</DialogTitle>
+            <div className="flex items-start justify-between gap-3">
+              <DialogTitle>{editing ? 'Editar promoção' : 'Nova promoção'}</DialogTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => openModuleTutorial('promotions-create-flow', { trackProgress: false })}
+                className="text-indigo-600 hover:text-indigo-700"
+              >
+                Tutorial rápido deste fluxo
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-tour="promotions-create-scope">
             <div className="space-y-2">
               <Label>Aplicar em</Label>
               <Select value={scope} onValueChange={(v: string) => { setScope(v as PromotionScope); setSelectedUnitIds([]); }} disabled={!!editing}>
@@ -333,7 +347,7 @@ export function Promotions() {
             </div>
 
             {scope === 'UNIT' && (
-              <div className="md:col-span-2 space-y-2">
+              <div className="md:col-span-2 space-y-2" data-tour="promotions-create-units">
                 <Label>Faces</Label>
                 <div className="border rounded-lg p-3 max-h-56 overflow-auto">
                   {currentPoint?.mediaUnits?.length ? (
@@ -366,7 +380,7 @@ export function Promotions() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2" data-tour="promotions-create-discount">
               <Label>Tipo de desconto</Label>
               <Select value={discountType} onValueChange={(v: string) => setDiscountType(v as PromotionDiscountType)}>
                 <SelectTrigger>
@@ -394,7 +408,7 @@ export function Promotions() {
               <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
             </div>
 
-            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3" data-tour="promotions-create-visibility">
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox checked={showInMediaKit} onCheckedChange={(v: CheckedState) => setShowInMediaKit(Boolean(v))} />
                 <span>Aparecer como promoção no Mídia Kit</span>
@@ -407,7 +421,7 @@ export function Promotions() {
             </div>
           </div>
 
-            <DialogFooter className="shrink-0 border-t bg-background px-0 pt-4">
+            <DialogFooter className="shrink-0 border-t bg-background px-0 pt-4" data-tour="promotions-create-save">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={onSubmit}>{editing ? 'Salvar' : 'Criar'}</Button>
             </DialogFooter>

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useMediaPoints } from '../../hooks/useMediaPoints';
 import { Checkbox } from '../ui/checkbox';
 import { Plus, Trash2 } from 'lucide-react';
+import { useTutorial } from '../../contexts/TutorialContext';
 
 interface CashTransactionFormDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface CashTransactionFormDialogProps {
 
 export function CashTransactionFormDialog({ open, onOpenChange, transaction, onSave }: CashTransactionFormDialogProps) {
   const { categories, loading: categoriesLoading, error: categoriesError, createCategory } = useTransactionCategories();
+  const { openModuleTutorial } = useTutorial();
   const { mediaPoints } = useMediaPoints({});
 
   const isEditing = Boolean(transaction);
@@ -271,6 +273,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
         and keeping the footer sticky so action buttons remain accessible.
       */}
       <DialogContent
+        data-tour="financial-transaction-dialog"
         className="overflow-hidden p-0 gap-0"
         style={{
           width: 'min(900px, calc(100vw - 2rem))',
@@ -281,14 +284,27 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
       >
         <div className="shrink-0 border-b px-6 pt-6 pb-4">
           <DialogHeader>
-            <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
-            <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <DialogTitle>{transaction ? 'Editar Transação' : 'Nova Transação (CashTransaction)'}</DialogTitle>
+                <DialogDescription>Insira os detalhes da transação financeira.</DialogDescription>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => openModuleTutorial('financial-transaction-flow', { trackProgress: false })}
+                className="text-indigo-600 hover:text-indigo-700"
+              >
+                Tutorial rápido deste fluxo
+              </Button>
+            </div>
           </DialogHeader>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-4 pb-4">
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="financial-transaction-basics">
             <Label>Tipo de Transação (flowType) *</Label>
             <Select
               value={formData.flowType}
@@ -317,7 +333,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
                 disabled={isRecurringInstance}
               />
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-2" data-tour="financial-transaction-recurring">
                 <Checkbox
                   checked={formData.isRecurring}
                   onCheckedChange={(checked: boolean | 'indeterminate') => {
@@ -359,7 +375,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2" data-tour="financial-transaction-details">
             <Label>Descrição *</Label>
             <Input
               placeholder="Ex: Pagamento de campanha"
@@ -377,7 +393,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4" data-tour="financial-transaction-classification">
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label>Categoria (categoryId)</Label>
@@ -424,7 +440,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4" data-tour="financial-transaction-payment">
             <div className="space-y-2">
               <Label>Tipo de Pagamento (paymentType)</Label>
               <Select
@@ -474,7 +490,7 @@ export function CashTransactionFormDialog({ open, onOpenChange, transaction, onS
           </div>
 
           {/* NOVOS CAMPOS: Ponto de Mídia e Data de Vencimento */}
-          <div className="p-3 bg-blue-50 rounded-lg space-y-3">
+          <div className="p-3 bg-blue-50 rounded-lg space-y-3" data-tour="financial-transaction-media-links">
             <p className="text-sm text-blue-900">
               💡 Para despesas de pontos de mídia (energia, taxa DER, aluguel), vincule o ponto e defina o vencimento:
             </p>

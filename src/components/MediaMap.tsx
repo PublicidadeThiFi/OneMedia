@@ -1677,7 +1677,7 @@ export function MediaMap() {
                 ) : null}
                 {!detailsLoading && !detailsError && details ? (
                   <>
-                    <div className="border rounded-2xl p-4">
+                    <div className="border rounded-2xl p-4" data-tour="mediamap-point-panel">
                       <div className="flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1850,7 +1850,7 @@ export function MediaMap() {
 
       {/* Etapa 6 — Confirmar exclusão */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" data-tour="mediamap-create-dialog">
           <DialogHeader>
             <DialogTitle>Excluir ponto</DialogTitle>
             <DialogDescription>

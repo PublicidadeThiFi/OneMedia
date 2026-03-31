@@ -19,7 +19,12 @@ export type TutorialModuleKey =
   | 'mediamap-move-flow'
   | 'mediamap-create-flow'
   | 'campaigns-create-flow'
-  | 'reservations-conflicts-flow';
+  | 'reservations-conflicts-flow'
+  | 'inventory-create-point-flow'
+  | 'clients-create-flow'
+  | 'products-create-flow'
+  | 'financial-transaction-flow'
+  | 'promotions-create-flow';
 
 export type TutorialScopeModuleKey =
   | 'home'
