@@ -333,28 +333,12 @@ export function TutorialOverlay() {
       role="dialog"
       style={{ zIndex: OVERLAY_Z_INDEX }}
     >
-      <div
-        className="absolute inset-0 pointer-events-auto"
-        {...{ [TUTORIAL_OVERLAY_INTERACTIVE_ATTR]: 'true' }}
-        aria-hidden="true"
-        style={{ zIndex: OVERLAY_Z_INDEX }}
-        onClick={blockUnderlyingEvent}
-        onDoubleClick={blockUnderlyingEvent}
-        onMouseDown={blockUnderlyingEvent}
-        onMouseUp={blockUnderlyingEvent}
-        onPointerDown={blockUnderlyingEvent}
-        onPointerUp={blockUnderlyingEvent}
-        onTouchStart={blockUnderlyingEvent}
-        onTouchEnd={blockUnderlyingEvent}
-        onWheel={blockUnderlyingEvent}
-      />
-
       {overlaySegments ? (
         <>
           {Object.values(overlaySegments).map((segment, index) => (
             <div
               key={index}
-              className="absolute bg-slate-950/45 pointer-events-none"
+              className="absolute bg-slate-950/45 pointer-events-auto"
               style={{
                 top: segment.top,
                 left: segment.left,
@@ -364,13 +348,31 @@ export function TutorialOverlay() {
                 WebkitBackdropFilter: 'blur(1.5px)',
                 zIndex: OVERLAY_Z_INDEX,
               }}
+              onClick={blockUnderlyingEvent}
+              onDoubleClick={blockUnderlyingEvent}
+              onMouseDown={blockUnderlyingEvent}
+              onMouseUp={blockUnderlyingEvent}
+              onPointerDown={blockUnderlyingEvent}
+              onPointerUp={blockUnderlyingEvent}
+              onTouchStart={blockUnderlyingEvent}
+              onTouchEnd={blockUnderlyingEvent}
+              onWheel={blockUnderlyingEvent}
             />
           ))}
         </>
       ) : (
         <div
-          className="absolute inset-0 bg-slate-950/45 pointer-events-none"
+          className="absolute inset-0 bg-slate-950/45 pointer-events-auto"
           style={{ backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)' }}
+          onClick={blockUnderlyingEvent}
+          onDoubleClick={blockUnderlyingEvent}
+          onMouseDown={blockUnderlyingEvent}
+          onMouseUp={blockUnderlyingEvent}
+          onPointerDown={blockUnderlyingEvent}
+          onPointerUp={blockUnderlyingEvent}
+          onTouchStart={blockUnderlyingEvent}
+          onTouchEnd={blockUnderlyingEvent}
+          onWheel={blockUnderlyingEvent}
         />
       )}
 
@@ -403,13 +405,6 @@ export function TutorialOverlay() {
           left: cardPosition.left,
           width: cardPosition.width,
         }}
-        onClick={stopEvent}
-        onMouseDown={stopEvent}
-        onMouseUp={stopEvent}
-        onPointerDown={stopEvent}
-        onPointerUp={stopEvent}
-        onTouchStart={stopEvent}
-        onTouchEnd={stopEvent}
       >
         <Card className="w-full border-indigo-200 bg-white shadow-2xl">
         <CardHeader className="gap-3 pb-4">
