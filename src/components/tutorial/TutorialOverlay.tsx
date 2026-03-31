@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import * as DismissableLayerPrimitive from '@radix-ui/react-dismissable-layer@1.1.11';
+import * as DismissableLayerPrimitive from '@radix-ui/react-dismissable-layer';
 import { RefreshCcw, Sparkles, X } from 'lucide-react';
 import { useTutorial, type TutorialPlacement } from '../../contexts/TutorialContext';
 import { Button } from '../ui/button';
@@ -240,7 +240,6 @@ export function TutorialOverlay() {
     };
   }, [currentStep, isOpen]);
 
-
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -254,7 +253,6 @@ export function TutorialOverlay() {
       host.remove();
     };
   }, []);
-
 
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') {
@@ -426,79 +424,105 @@ export function TutorialOverlay() {
           }}
         >
           <Card className="w-full border-indigo-200 bg-white shadow-2xl pointer-events-auto">
-        <CardHeader className="gap-3 pb-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
-                <Sparkles className="h-3.5 w-3.5" />
-                Passo a passo
+            <CardHeader className="gap-3 pb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Passo a passo
+                  </div>
+                  <div>
+                    <CardTitle className="text-base text-gray-900">{currentStep.title}</CardTitle>
+                    {activeTutorial?.title ? (
+                      <p className="mt-1 text-xs text-gray-500">{activeTutorial.title}</p>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                    stopEvent(event);
+                    closeTutorial();
+                  }}
+                  className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                  aria-label="Fechar tutorial"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <div>
-                <CardTitle className="text-base text-gray-900">{currentStep.title}</CardTitle>
-                {activeTutorial?.title ? (
-                  <p className="mt-1 text-xs text-gray-500">{activeTutorial.title}</p>
-                ) : null}
+            </CardHeader>
+
+            <CardContent className="max-h-[min(50vh,420px)] space-y-4 overflow-y-auto">
+              <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
+                <span>
+                  Passo {currentStepIndex + 1} de {totalSteps}
+                </span>
+                <button
+                  type="button"
+                  onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                    stopEvent(event);
+                    restartTutorial();
+                  }}
+                  className="inline-flex items-center gap-1 font-medium text-indigo-600 transition-colors hover:text-indigo-700"
+                >
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  Reiniciar
+                </button>
               </div>
-            </div>
-            <button
-              type="button"
-              onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}
-              className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-              aria-label="Fechar tutorial"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </CardHeader>
 
-        <CardContent className="max-h-[min(50vh,420px)] space-y-4 overflow-y-auto">
-          <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
-            <span>
-              Passo {currentStepIndex + 1} de {totalSteps}
-            </span>
-            <button
-              type="button"
-              onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); restartTutorial(); }}
-              className="inline-flex items-center gap-1 font-medium text-indigo-600 transition-colors hover:text-indigo-700"
-            >
-              <RefreshCcw className="h-3.5 w-3.5" />
-              Reiniciar
-            </button>
-          </div>
+              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                <div
+                  className="h-full rounded-full bg-indigo-600 transition-all duration-200"
+                  style={{ width: `${((currentStepIndex + 1) / Math.max(totalSteps, 1)) * 100}%` }}
+                />
+              </div>
 
-          <div className="h-2 overflow-hidden rounded-full bg-gray-100">
-            <div
-              className="h-full rounded-full bg-indigo-600 transition-all duration-200"
-              style={{ width: `${((currentStepIndex + 1) / Math.max(totalSteps, 1)) * 100}%` }}
-            />
-          </div>
+              <p className="text-sm leading-6 text-gray-600">{currentStep.description}</p>
 
-          <p className="text-sm leading-6 text-gray-600">{currentStep.description}</p>
+              {!targetFound && currentStep.target ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <p className="font-medium text-amber-900">Este passo ainda não apareceu na tela.</p>
+                  <p className="mt-1 leading-5">
+                    Você pode continuar o tutorial normalmente. Se precisar, abra a seção relacionada, role a tela ou avance
+                    para o próximo passo.
+                  </p>
+                </div>
+              ) : null}
+            </CardContent>
 
-          {!targetFound && currentStep.target ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              <p className="font-medium text-amber-900">Este passo ainda não apareceu na tela.</p>
-              <p className="mt-1 leading-5">
-                Você pode continuar o tutorial normalmente. Se precisar, abra a seção relacionada, role a tela ou avance
-                para o próximo passo.
-              </p>
-            </div>
-          ) : null}
-        </CardContent>
+            <CardFooter className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+              <Button
+                variant="ghost"
+                onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                  stopEvent(event);
+                  closeTutorial();
+                }}
+              >
+                Pular
+              </Button>
 
-        <CardFooter className="flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-          <Button variant="ghost" onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); closeTutorial(); }}>
-            Pular
-          </Button>
-
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); previousStep(); }} disabled={!hasPreviousStep}>
-              Voltar
-            </Button>
-            <Button onClick={(event: React.MouseEvent<HTMLButtonElement>) => { stopEvent(event); nextStep(); }}>{hasNextStep ? 'Próximo' : 'Concluir'}</Button>
-          </div>
-        </CardFooter>
-        </Card>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                    stopEvent(event);
+                    previousStep();
+                  }}
+                  disabled={!hasPreviousStep}
+                >
+                  Voltar
+                </Button>
+                <Button
+                  onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                    stopEvent(event);
+                    nextStep();
+                  }}
+                >
+                  {hasNextStep ? 'Próximo' : 'Concluir'}
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
         </div>
       </DismissableLayerPrimitive.Branch>
     </div>,
