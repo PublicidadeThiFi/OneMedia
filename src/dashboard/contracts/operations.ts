@@ -2,17 +2,28 @@
 // Operations module contracts
 // ============================================================
 
+export type OohOpsPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
 export type OohOpsItem = {
   id: string;
   title: string;
   status: 'OK' | 'PENDING' | 'LATE';
   city?: string;
+  client?: string;
   dueDate?: string; // ISO date
+  campaignStatus?: string;
+  missingCheckinsCount?: number;
+  priority?: OohOpsPriority;
+  reason?: string;
+  awaitingMaterial?: boolean;
+  inInstallation?: boolean;
+  overdue?: boolean;
 };
 
 export type DashboardOohOpsSummaryDTO = {
   items: OohOpsItem[];
   summary?: {
+    campaignsActiveCount?: number;
     awaitingMaterialCount: number;
     installationCount: number;
     pendingCheckinsCount: number;
@@ -20,21 +31,63 @@ export type DashboardOohOpsSummaryDTO = {
   };
 };
 
-export type ProofOfPlayRow = {
+export type DoohSummaryRow = {
   id: string;
   screen: string;
   city?: string;
-  uptimePercent: number;
-  plays: number;
-  lastSeen?: string; // ISO datetime
+  healthScorePercent: number;
+  activeCampaignsCount: number;
+  lastActivityAt?: string; // ISO datetime
+
+  // aliases legados aceitos durante a transição da Etapa 2
+  uptimePercent?: number;
+  plays?: number;
+  lastSeen?: string;
 };
 
-export type DashboardDoohProofOfPlaySummaryDTO = {
-  rows: ProofOfPlayRow[];
+export type DashboardDoohSummaryDTO = {
+  rows: DoohSummaryRow[];
   summary?: {
     screenCount: number;
     activeCampaignsCount: number;
     healthScoreAvg: number;
-    offlineCount: number;
+    lowActivityCount: number;
+
+    // alias legado aceito enquanto a UI antiga ainda existir
+    offlineCount?: number;
   };
 };
+
+export type OperationsLateRegionRow = {
+  id: string;
+  region: string;
+  overdueCount: number;
+  overdueInstallationsCount: number;
+  overdueCheckinsCount: number;
+  pendingCheckinsCount: number;
+  awaitingMaterialCount: number;
+  totalCriticalCount: number;
+};
+
+export type DashboardOperationsLateRegionsDTO = {
+  rows: OperationsLateRegionRow[];
+};
+
+export type OperationsCityStatusRow = {
+  id: string;
+  city: string;
+  totalCampaignsCount: number;
+  awaitingMaterialCount: number;
+  installationCount: number;
+  pendingCheckinsCount: number;
+  overdueCheckinsCount: number;
+  okCount: number;
+};
+
+export type DashboardOperationsCityStatusDTO = {
+  rows: OperationsCityStatusRow[];
+};
+
+// Compatibilidade com naming antigo (proof-of-play)
+export type ProofOfPlayRow = DoohSummaryRow;
+export type DashboardDoohProofOfPlaySummaryDTO = DashboardDoohSummaryDTO;

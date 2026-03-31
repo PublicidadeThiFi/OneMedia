@@ -27,8 +27,10 @@ export type DashboardFunnelDTO = CommercialFunnel;
 
 export type CommercialSummary = {
   proposalsTotal: number;
+  proposalsOpenCount: number;
   approvalRatePercent: number;
   averageDaysToClose: number;
+  averageCommercialTicketCents: number;
   activePipelineAmountCents: number;
   stalledProposalsCount: number;
 };
@@ -51,4 +53,26 @@ export type SellerRankingRow = {
 
 export type DashboardSellerRankingDTO = {
   rows: SellerRankingRow[];
+};
+
+
+export type DashboardCommercialProposalsTimeseriesDTO = {
+  points: Array<{
+    date: string;
+    valueCents: number;
+  }>;
+};
+
+export type HighValueOpenProposalRow = {
+  id: string;
+  title: string;
+  client: string;
+  daysWithoutUpdate: number;
+  amountCents: number;
+  responsibleUser?: string;
+  status?: string;
+};
+
+export type DashboardHighValueOpenProposalsDTO = {
+  rows: HighValueOpenProposalRow[];
 };

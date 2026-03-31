@@ -65,7 +65,7 @@ export function getDashboardPermissions(user: any, company: any): DashboardPermi
   const readonlyNeedles = ['readonly', 'read_only', 'DASHBOARD_VIEWS_READONLY', 'dashboard:views:readonly'];
   const canManageSavedViews = !includesAny(u.all, readonlyNeedles);
 
-  const allowedTabs: DashboardTab[] = ['executivo', 'comercial', 'operacoes', ...(canViewFinance ? (['financeiro'] as DashboardTab[]) : []), 'inventario'];
+  const allowedTabs: DashboardTab[] = ['executivo', 'comercial', 'operacoes', ...(canViewFinance ? (['financeiro'] as DashboardTab[]) : []), 'inventario', 'clientes'];
 
   return { allowedTabs, canViewFinance, canManageSavedViews };
 }

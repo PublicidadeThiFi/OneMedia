@@ -1,29 +1,21 @@
-export type DashboardKpiDefinitionKey =
-  | 'revenueRecognized'
-  | 'revenueToInvoice'
-  | 'occupancy'
-  | 'receivablesOverdue'
-  | 'averageTicket'
-  | 'clientsActiveCount'
-  | 'stalledProposals'
-  | 'campaignsActiveCount';
+import type {
+  DashboardKpiDefinition,
+  DashboardKpiDefinitionKey,
+  DashboardKpiDefinitionsDTO,
+} from './contracts/kpis';
 
-export type DashboardKpiDefinition = {
-  key: DashboardKpiDefinitionKey;
-  label: string;
-  shortDescription: string;
-  calculation: string;
-  filtersApplied: string;
-  primarySources: string[];
-  notes?: string[];
-};
+export type { DashboardKpiDefinition, DashboardKpiDefinitionKey, DashboardKpiDefinitionsDTO } from './contracts/kpis';
+
+export const DASHBOARD_KPI_DEFINITION_VERSION = 'stage-1';
+export const DASHBOARD_KPI_DEFINITION_UPDATED_AT = '2026-03-31T00:00:00.000Z';
 
 export const DASHBOARD_KPI_DEFINITION_ORDER: DashboardKpiDefinitionKey[] = [
   'revenueRecognized',
   'revenueToInvoice',
   'occupancy',
   'receivablesOverdue',
-  'averageTicket',
+  'averageCommercialTicket',
+  'averageBilledTicket',
   'clientsActiveCount',
   'stalledProposals',
   'campaignsActiveCount',
@@ -33,95 +25,117 @@ export const DASHBOARD_KPI_DEFINITIONS: Record<DashboardKpiDefinitionKey, Dashbo
   revenueRecognized: {
     key: 'revenueRecognized',
     label: 'Receita reconhecida',
-    shortDescription: 'Faturas pagas no período, sem canceladas.',
+    shortDescription: 'Valor já reconhecido financeiramente no período.',
     calculation:
-      'Soma de billing_invoices.amount com status PAGA e paidAt dentro do período filtrado. Faturas canceladas não entram no cálculo.',
+      'Somar billing_invoices.amount das faturas com status PAGA, paidAt dentro do período filtrado e cancelledAt nulo.',
     filtersApplied:
-      'Respeita período global pelo paidAt, além de cidade, busca e tipo de mídia quando houver vínculo com campanha, proposta, cliente ou inventário relacionado.',
+      'O período usa paidAt como data-base. Cidade, busca e tipo de mídia entram quando a fatura está vinculada a cliente, proposta, campanha ou inventário relacionado.',
     primarySources: ['billing_invoices'],
     notes: [
-      'A métrica fica ancorada em faturamento efetivamente pago para evitar dupla contagem com cash_transactions.',
+      'Cash transactions podem complementar análise de caixa, mas não substituem a regra de receita reconhecida.',
+      'A métrica deve usar um único critério por vez para evitar mistura entre venda, faturamento e caixa.',
     ],
   },
   revenueToInvoice: {
     key: 'revenueToInvoice',
     label: 'A faturar',
-    shortDescription: 'Saldo aprovado/ativo ainda sem fatura emitida.',
+    shortDescription: 'Valor aprovado ou ativo ainda não convertido em faturamento realizado.',
     calculation:
-      'Para propostas aprovadas e campanhas em andamento, calcula-se o saldo remanescente como valor aprovado menos soma das billing_invoices já geradas para a mesma proposta/campanha. O resultado é limitado a zero quando o faturamento emitido já cobrir todo o valor.',
+      'Somar propostas APROVADA e campanhas em status operacional ativo que cruzam o período. Para cada proposta, subtrair somente billing_invoices já liquidadas (status PAGA, paidAt até o fim do recorte) vinculadas à mesma proposta ou campanha. O saldo mínimo por proposta é zero.',
     filtersApplied:
-      'Considera apenas propostas APROVADA e campanhas APROVADA, AGUARDANDO_MATERIAL, EM_INSTALACAO, ATIVA ou EM_VEICULACAO que cruzam o período filtrado.',
+      'Respeita período, cidade, busca e tipo de mídia. A leitura é posicional no fim do período filtrado, sem misturar faturamento apenas emitido com faturamento efetivamente realizado.',
     primarySources: ['proposals', 'campaigns', 'billing_invoices'],
-    notes: [
-      'O objetivo é mostrar backlog comercial/operacional ainda não transformado em cobrança.',
-    ],
+    notes: ['A faturar não deve ser confundido com receita reconhecida nem com contas a receber já emitidas.'],
   },
   occupancy: {
     key: 'occupancy',
     label: 'Ocupação',
-    shortDescription: 'Dias ocupados ÷ dias disponíveis das unidades ativas.',
+    shortDescription: 'Percentual médio do inventário comprometido no recorte selecionado.',
     calculation:
-      'Percentual de ocupação calculado por unit-days: soma dos dias ocupados por reservations CONFIRMADA e campaign_items sobrepostos ao período, dividida pela soma dos dias disponíveis das media_units ativas elegíveis no mesmo intervalo.',
+      'Percentual de ocupação calculado por unit-days: soma dos dias ocupados por reservations CONFIRMADA e campaign_items válidos sobrepostos ao período, dividida pela soma dos dias disponíveis das media_units ativas elegíveis no mesmo intervalo.',
     filtersApplied:
-      'Entra apenas inventário ativo e filtrado por cidade/tipo. Reservas canceladas e unidades inativas ficam fora.',
+      'Entra apenas inventário ativo e filtrado por cidade/tipo. Reservas canceladas e unidades inativas ficam fora. A janela temporal sempre precisa ser respeitada.',
     primarySources: ['media_units', 'reservations', 'campaign_items', 'campaigns'],
-    notes: [
-      'A definição é temporal, e não apenas por quantidade de faces ocupadas em um único instante.',
-    ],
+    notes: ['A definição é temporal; não basta contar faces ocupadas em um único instante.'],
   },
   receivablesOverdue: {
     key: 'receivablesOverdue',
     label: 'Inadimplência',
-    shortDescription: 'Faturas em aberto com vencimento expirado.',
+    shortDescription: 'Valor total de faturas vencidas e não liquidadas.',
     calculation:
-      'Soma de billing_invoices.amount com status VENCIDA ou status ABERTA cujo dueDate já passou e que ainda não possuem paidAt nem cancelledAt.',
+      'Somar billing_invoices.amount com status VENCIDA, ou ABERTA com dueDate expirado, desde que paidAt e cancelledAt permaneçam nulos.',
     filtersApplied:
-      'Usa a data de vencimento como referência operacional e respeita os filtros globais compatíveis com cliente, campanha e proposta.',
+      'Usa dueDate como referência operacional e respeita os filtros globais compatíveis com cliente, campanha, proposta e inventário relacionado.',
     primarySources: ['billing_invoices'],
-    notes: ['A métrica representa contas vencidas ainda pendentes de recebimento.'],
+    notes: ['Representa risco financeiro já vencido, e não o total geral em aberto.'],
   },
-  averageTicket: {
-    key: 'averageTicket',
-    label: 'Ticket médio',
-    shortDescription: 'Valor médio por proposta aprovada no período.',
+  averageCommercialTicket: {
+    key: 'averageCommercialTicket',
+    label: 'Ticket médio comercial',
+    shortDescription: 'Valor médio das propostas aprovadas no período.',
     calculation:
-      'Soma de proposals.totalAmount das propostas APROVADA dividida pela quantidade de propostas aprovadas no mesmo período. A data-base da aprovação é approvedAt.',
+      'Somar proposals.totalAmount das propostas com status APROVADA e approvedAt dentro do período; dividir pela quantidade de propostas aprovadas no mesmo recorte.',
     filtersApplied:
-      'Considera apenas aprovações que ocorreram dentro do recorte selecionado e respeita filtros globais de busca, cidade e tipo quando houver vínculo com itens de mídia.',
+      'Considera apenas aprovações dentro do recorte selecionado e respeita filtros globais de busca, cidade e tipo quando houver vínculo com itens de mídia.',
     primarySources: ['proposals', 'proposal_items'],
+    notes: ['Não confundir com ticket médio faturado.'],
+  },
+  averageBilledTicket: {
+    key: 'averageBilledTicket',
+    label: 'Ticket médio faturado',
+    shortDescription: 'Valor médio das faturas reconhecidas no período.',
+    calculation:
+      'Somar billing_invoices.amount das faturas com status PAGA e paidAt dentro do período; dividir pela quantidade de faturas reconhecidas no mesmo recorte.',
+    filtersApplied:
+      'Usa o mesmo recorte da receita reconhecida, respeitando filtros compatíveis com cliente, campanha, proposta e tipo de mídia quando houver vínculo.',
+    primarySources: ['billing_invoices'],
+    notes: ['Enquanto a base financeira estiver centrada em invoices, a unidade média é por documento faturado reconhecido.'],
   },
   clientsActiveCount: {
     key: 'clientsActiveCount',
     label: 'Clientes ativos',
-    shortDescription: 'Clientes com operação comercial ou faturamento vigente no período.',
+    shortDescription: 'Clientes com atividade comercial, operacional ou financeira relevante no período.',
     calculation:
-      'Conta clientes distintos que tenham ao menos uma proposta APROVADA no período, campanha ativa/em andamento cruzando o período ou billing_invoice emitida/paga no período.',
+      'Contar clientes distintos que tenham ao menos uma proposta relevante (status ENVIADA ou APROVADA no período), campanha ativa cruzando o recorte ou faturamento realizado no período.',
     filtersApplied:
-      'Deduplicação por clientId e respeito aos filtros globais aplicáveis.',
+      'A contagem é deduplicada por clientId e respeita filtros globais aplicáveis.',
     primarySources: ['clients', 'proposals', 'campaigns', 'billing_invoices'],
+    notes: ['A noção de proposta relevante pode evoluir no futuro, mas nesta etapa fica congelada em ENVIADA ou APROVADA.'],
   },
   stalledProposals: {
     key: 'stalledProposals',
     label: 'Proposta parada',
-    shortDescription: 'Proposta enviada sem avanço recente.',
-    calculation:
-      'Proposta com status ENVIADA cujo updatedAt esteja há 7 dias ou mais sem alteração e que não tenha sido aprovada, reprovada ou expirada.',
+    shortDescription: 'Proposta em status negociável sem atualização recente.',
+    calculation: 'Proposta com status ENVIADA e updatedAt sem alteração há 7 dias ou mais até o fim do recorte.',
     filtersApplied:
-      'A lista respeita filtros globais e ordena por maior tempo sem atualização.',
+      'A lista respeita filtros globais, ordena por maior tempo sem atualização e usa o fim do período filtrado como referência de corte.',
     primarySources: ['proposals'],
+    notes: ['O limiar inicial fica em 7 dias até existir SLA configurável por etapa.'],
   },
   campaignsActiveCount: {
     key: 'campaignsActiveCount',
     label: 'Campanha ativa',
-    shortDescription: 'Campanhas operacionais que ainda demandam acompanhamento.',
+    shortDescription: 'Campanhas válidas para o período e em status operacional ativo.',
     calculation:
-      'Conta campanhas com status APROVADA, AGUARDANDO_MATERIAL, EM_INSTALACAO, ATIVA ou EM_VEICULACAO e com intervalo [startDate, endDate] cruzando o período filtrado.',
+      'Contar campanhas com status APROVADA, AGUARDANDO_MATERIAL, EM_INSTALACAO, ATIVA ou EM_VEICULACAO e com intervalo [startDate, endDate] cruzando o período filtrado.',
     filtersApplied:
-      'Campanhas FINALIZADA ou CANCELADA ficam fora. A contagem respeita cidade, busca e tipo de mídia quando houver vínculo com campaign_items/media_units.',
+      'Campanhas FINALIZADA ou CANCELADA ficam fora. A contagem respeita cidade, busca e tipo de mídia quando houver vínculo com campaign_items ou media_units.',
     primarySources: ['campaigns', 'campaign_items', 'media_units'],
+    notes: ['Campanha ativa depende de período e status operacional real; mera existência do registro não basta.'],
   },
+};
+
+export const DASHBOARD_FALLBACK_KPI_DEFINITIONS_DTO: DashboardKpiDefinitionsDTO = {
+  version: DASHBOARD_KPI_DEFINITION_VERSION,
+  updatedAt: DASHBOARD_KPI_DEFINITION_UPDATED_AT,
+  order: DASHBOARD_KPI_DEFINITION_ORDER,
+  definitions: DASHBOARD_KPI_DEFINITIONS,
 };
 
 export function getDashboardKpiDefinition(key: DashboardKpiDefinitionKey) {
   return DASHBOARD_KPI_DEFINITIONS[key];
+}
+
+export function getDashboardKpiDefinitionsDto(): DashboardKpiDefinitionsDTO {
+  return DASHBOARD_FALLBACK_KPI_DEFINITIONS_DTO;
 }

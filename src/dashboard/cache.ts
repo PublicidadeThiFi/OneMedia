@@ -3,7 +3,22 @@ import { useEffect, useState } from 'react';
 type CacheEntry<T> = { value: T; ts: number };
 
 const MAX_ENTRIES = 50;
+const DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
 const lru = new Map<string, CacheEntry<any>>();
+
+function isFresh(entry: CacheEntry<unknown> | undefined, maxAgeMs = DEFAULT_MAX_AGE_MS) {
+  if (!entry) return false;
+  return Date.now() - entry.ts <= maxAgeMs;
+}
+
+function readFreshEntry<T>(key: string, maxAgeMs = DEFAULT_MAX_AGE_MS) {
+  const hit = lru.get(key) as CacheEntry<T> | undefined;
+  if (!isFresh(hit, maxAgeMs)) {
+    if (hit) lru.delete(key);
+    return undefined;
+  }
+  return hit;
+}
 
 function touch<T>(key: string, entry: CacheEntry<T>) {
   // LRU: delete + set moves key to the end
@@ -35,17 +50,20 @@ export function clearDashboardCache(prefix?: string) {
 export function useCachedQueryData<T>(
   cacheKey: string,
   query: { status?: string; data?: T | null | undefined },
+  opts?: { maxAgeMs?: number },
 ): T | undefined {
+  const maxAgeMs = opts?.maxAgeMs ?? DEFAULT_MAX_AGE_MS;
+
   const [cached, setCached] = useState<T | undefined>(() => {
-    const hit = lru.get(cacheKey);
+    const hit = readFreshEntry<T>(cacheKey, maxAgeMs);
     return hit?.value as T | undefined;
   });
 
   // When the key changes, try to hydrate from cache immediately.
   useEffect(() => {
-    const hit = lru.get(cacheKey);
+    const hit = readFreshEntry<T>(cacheKey, maxAgeMs);
     setCached(hit?.value as T | undefined);
-  }, [cacheKey]);
+  }, [cacheKey, maxAgeMs]);
 
   // Persist successful data.
   useEffect(() => {
@@ -55,7 +73,7 @@ export function useCachedQueryData<T>(
     const entry: CacheEntry<T> = { value: query.data, ts: Date.now() };
     touch(cacheKey, entry);
     setCached(query.data);
-  }, [cacheKey, query?.status, query?.data]);
+  }, [cacheKey, maxAgeMs, query?.status, query?.data]);
 
   return (query?.data ?? cached) as T | undefined;
 }

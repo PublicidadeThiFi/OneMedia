@@ -18,6 +18,11 @@ export type DashboardDrilldownDTO = {
     // Compatibilidade: se o backend ainda devolver 'cursor', a UI tenta ler tambem.
     nextCursor?: string;
     hasMore: boolean;
+    totalCount?: number;
+    pageSize?: number;
+    offset?: number;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
   };
 };
 

@@ -4,7 +4,7 @@ import type { Page } from '../../App';
 // Shared contracts used across all dashboard modules
 // ============================================================
 
-export type DashboardTab = 'executivo' | 'comercial' | 'operacoes' | 'financeiro' | 'inventario';
+export type DashboardTab = 'executivo' | 'comercial' | 'operacoes' | 'financeiro' | 'inventario' | 'clientes';
 
 export type DatePreset = '7d' | '30d' | '90d' | 'ytd';
 
@@ -24,6 +24,8 @@ export type DashboardBackendQuery = {
   dateTo: string; // ISO datetime
   q?: string; // busca textual
   city?: string;
+  region?: string; // alias aceito pelo backend para city
+  state?: string;
   mediaType?: Exclude<MediaTypeFilter, 'ALL'>;
 };
 
