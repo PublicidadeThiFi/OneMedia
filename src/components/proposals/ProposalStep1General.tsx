@@ -5,10 +5,10 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Plus } from 'lucide-react';
-import { ProposalFormData } from './ProposalFormWizard';
+import type { ProposalFormData } from './proposal-form-types';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { ClientSelect } from './ClientSelect';
-import type { Page } from '../MainApp';
+import type { Page } from '../../types/app-page';
 
 interface ProposalStep1GeneralProps {
   formData: ProposalFormData;

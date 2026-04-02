@@ -3,10 +3,11 @@ import { useTutorial } from '../../contexts/TutorialContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Proposal, ProposalStatus, ProposalItem } from '../../types';
+import type { ProposalFormData } from './proposal-form-types';
 import { ProposalStep1General } from './ProposalStep1General';
 import { ProposalStep2Items } from './ProposalStep2Items';
 import { Progress } from '../ui/progress';
-import type { Page } from '../MainApp';
+import type { Page } from '../../types/app-page';
 import { toNumber } from '../../lib/number';
 
 interface ProposalFormWizardProps {
@@ -19,27 +20,6 @@ interface ProposalFormWizardProps {
   onNavigate: (page: Page) => void;
 }
 
-export interface ProposalFormData {
-  // Passo 1
-  clientId: string;
-  responsibleUserId: string;
-  title?: string;
-  campaignStartDate?: Date;
-  validUntil?: Date;
-  conditionsText?: string;
-  discountPercent?: number;
-  discountAmount?: number;
-
-  // Passo 2 (novo fluxo)
-  assemblyMaxDays?: number;
-  
-  // Passo 2
-  items: ProposalItem[];
-  
-  // Calculados
-  subtotal: number;
-  totalAmount: number;
-}
 
 function parseApiDateToLocalMidnight(value: any): Date | undefined {
   if (!value) return undefined;

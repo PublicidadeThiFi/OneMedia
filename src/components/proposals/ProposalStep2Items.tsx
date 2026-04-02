@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Image as ImageIcon, Package, Trash2, Edit } from 'lucide-react';
-import { ProposalFormData } from './ProposalFormWizard';
+import type { ProposalFormData } from './proposal-form-types';
 import { ProposalItem, ProposalItemDiscountApplyTo } from '../../types';
 import { MediaSelectionDrawer } from './MediaSelectionDrawer';
 import { ProductSelectionDialog } from './ProductSelectionDialog';

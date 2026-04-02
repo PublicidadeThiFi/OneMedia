@@ -1,4 +1,4 @@
-import { useState, useEffect, Component, ReactNode } from 'react';
+import { lazy, Suspense, useState, useEffect, Component, ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
@@ -41,7 +41,7 @@ import AdminNewsEditorPage from './pages/admin-news-editor';
 import NewsDetailPage from './pages/news-detail';
 
 // Internal App
-import { MainApp } from './components/MainApp';
+const MainApp = lazy(() => import('./components/MainApp').then((m) => ({ default: m.MainApp })));
 
 import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
@@ -91,6 +91,17 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
       </div>
     );
   }
+}
+
+
+function AppRouteFallback() {
+  return (
+    <div className="min-h-screen w-full flex items-center justify-center bg-white px-6">
+      <div className="max-w-md w-full rounded-2xl border border-gray-200 p-6 shadow-sm">
+        <p className="text-sm text-gray-600">Carregando aplicativo…</p>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -207,13 +218,13 @@ export default function App() {
 
       // If just /app, default to the internal home page
       if (!pagePath || pagePath === '') {
-        return <MainApp initialPage="home" />;
+        return <Suspense fallback={<AppRouteFallback />}><MainApp initialPage="home" /></Suspense>;
       }
 
       // Map path to page
       // Valid pages: home, dashboard, inventory, clients, products, proposals, campaigns,
       // reservations, financial, messages, mediakit, activities, settings, superadmin
-      return <MainApp key={cleanPath} initialPage={pagePath as any} />;
+      return <Suspense fallback={<AppRouteFallback />}><MainApp key={cleanPath} initialPage={pagePath as any} /></Suspense>;
     }
 
     switch (cleanPath) {
