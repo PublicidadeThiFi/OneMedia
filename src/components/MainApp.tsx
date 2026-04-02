@@ -4,31 +4,43 @@
  * This is the authenticated user's main interface after login
  */
 
-import { useEffect, useState, useMemo, Component, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, useMemo, Component, type ReactNode } from 'react';
 import { Menu, Sparkles, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { HomePage } from './HomePage';
-import { Dashboard } from './Dashboard';
-import { Inventory } from './Inventory';
-import { MediaMap } from './MediaMap';
-import { Clients } from './Clients';
-import { Products } from './Products';
-import { Proposals } from './Proposals';
-import { Campaigns } from './Campaigns';
-import { Reservations } from './Reservations';
-import { Financial } from './Financial';
-import { Messages } from './Messages';
-import { MediaKit } from './MediaKit';
-import { Promotions } from './Promotions';
-import { Activities } from './Activities';
-import { Settings } from './Settings';
-import { SuperAdmin } from './SuperAdmin';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { Page } from '../types/app-page';
 import { useTutorial } from '../contexts/TutorialContext';
 import { TutorialOverlay } from './tutorial/TutorialOverlay';
+
+
+const HomePage = lazy(() => import('./HomePage').then((m) => ({ default: m.HomePage })));
+const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Dashboard })));
+const Inventory = lazy(() => import('./Inventory').then((m) => ({ default: m.Inventory })));
+const MediaMap = lazy(() => import('./MediaMap').then((m) => ({ default: m.MediaMap })));
+const Clients = lazy(() => import('./Clients').then((m) => ({ default: m.Clients })));
+const Products = lazy(() => import('./Products').then((m) => ({ default: m.Products })));
+const Proposals = lazy(() => import('./Proposals').then((m) => ({ default: m.Proposals })));
+const Campaigns = lazy(() => import('./Campaigns').then((m) => ({ default: m.Campaigns })));
+const Reservations = lazy(() => import('./Reservations').then((m) => ({ default: m.Reservations })));
+const Financial = lazy(() => import('./Financial').then((m) => ({ default: m.Financial })));
+const Messages = lazy(() => import('./Messages').then((m) => ({ default: m.Messages })));
+const MediaKit = lazy(() => import('./MediaKit').then((m) => ({ default: m.MediaKit })));
+const Promotions = lazy(() => import('./Promotions').then((m) => ({ default: m.Promotions })));
+const Activities = lazy(() => import('./Activities').then((m) => ({ default: m.Activities })));
+const Settings = lazy(() => import('./Settings').then((m) => ({ default: m.Settings })));
+const SuperAdmin = lazy(() => import('./SuperAdmin').then((m) => ({ default: m.SuperAdmin })));
+
+function PageFallback() {
+  return (
+    <div className="p-6">
+      <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500 shadow-sm">
+        Carregando módulo…
+      </div>
+    </div>
+  );
+}
 
 interface MainAppProps {
   initialPage?: Page;
@@ -388,7 +400,9 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto">
           <AppErrorBoundary onReset={() => window.dispatchEvent(new Event('app:navigation'))}>
-            {renderContent()}
+            <Suspense fallback={<PageFallback />}>
+              {renderContent()}
+            </Suspense>
           </AppErrorBoundary>
         </main>
       </div>
