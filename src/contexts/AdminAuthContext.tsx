@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import {
   clearAdminNewsAccessToken,
   fetchAdminNewsMe,

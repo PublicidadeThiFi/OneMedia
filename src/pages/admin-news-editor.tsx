@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import { Archive, ArrowLeft, Eye, ExternalLink, RotateCcw, Save, Send, Shield, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import { BlockEditor } from '../components/admin-news/BlockEditor';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { createDefaultNewsBlock, createEmptyNewsDraft } from '../lib/news';

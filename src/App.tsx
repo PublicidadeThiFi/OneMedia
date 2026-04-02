@@ -53,7 +53,7 @@ export { useNavigation } from './contexts/NavigationContext';
 export type { NavigateFunction } from './contexts/NavigationContext';
 
 // Re-export Page type for components
-export type { Page } from './components/MainApp';
+export type { Page } from './types/app-page';
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }>{
   state = { hasError: false, message: '' };

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Page } from '../App';
+import type { Page } from '../types/app-page';
 import type { DrilldownCellValue, DrilldownRow } from './types';
 import { formatCell, getRowField } from './utils';
 

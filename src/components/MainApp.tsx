@@ -25,32 +25,15 @@ import { Settings } from './Settings';
 import { SuperAdmin } from './SuperAdmin';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
+import type { Page } from '../types/app-page';
 import { useTutorial } from '../contexts/TutorialContext';
 import { TutorialOverlay } from './tutorial/TutorialOverlay';
-
-// Define all possible pages in the application
-export type Page =
-  | 'home'
-  | 'dashboard'
-  | 'inventory'
-  | 'mediamap'
-  | 'clients'
-  | 'products'
-  | 'proposals'
-  | 'campaigns'
-  | 'reservations'
-  | 'financial'
-  | 'messages'
-  | 'mediakit'
-  | 'promotions'
-  | 'activities'
-  | 'settings'
-  | 'superadmin';
 
 interface MainAppProps {
   initialPage?: Page;
 }
+
 
 class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => void }, { hasError: boolean; error?: unknown }> {
   state = { hasError: false, error: undefined };
