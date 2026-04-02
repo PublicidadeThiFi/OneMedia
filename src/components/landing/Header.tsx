@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
-import { useNavigation } from '../../App';
+import { useNavigation } from '../../contexts/NavigationContext';
 
 export function Header() {
   const navigate = useNavigation();

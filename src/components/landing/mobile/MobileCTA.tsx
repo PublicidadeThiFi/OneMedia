@@ -1,5 +1,5 @@
 import { ArrowRight, MessageCircle, Headphones } from 'lucide-react';
-import { useNavigation } from '../../../App';
+import { useNavigation } from '../../../contexts/NavigationContext';
 import { useWaitlist } from '../../../contexts/WaitlistContext';
 
 export function MobileCTA() {

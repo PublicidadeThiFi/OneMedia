@@ -1,5 +1,5 @@
 import { ArrowRight, Play, ShieldCheck, Sparkles, Check } from 'lucide-react';
-import { useNavigation } from '../../../App';
+import { useNavigation } from '../../../contexts/NavigationContext';
 import { useWaitlist } from '../../../contexts/WaitlistContext';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 import imgRelatorios from 'figma:asset/24be53fa98cb70de89bcd6b3013fd88d5eff019e.png';

@@ -1,6 +1,6 @@
 ﻿import { CheckCircle2, MapPin, Users, Star } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigation } from '../../../App';
+import { useNavigation } from '../../../contexts/NavigationContext';
 import { useWaitlist } from '../../../contexts/WaitlistContext';
 import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from '../pricingData';
 

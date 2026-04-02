@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { DollarSign, FileText, Info, RefreshCw } from 'lucide-react';
 
 import apiClient from '../../lib/apiClient';
-import { useNavigation } from '../../App';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { BillingInvoice, BillingInvoiceForecastItem, BillingStatus, Reservation, UnitType } from '../../types';
 
 import { Button } from '../ui/button';
