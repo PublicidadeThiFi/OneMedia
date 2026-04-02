@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginForm } from '../components/login/LoginForm';
 import { TwoFactorStep } from '../components/login/TwoFactorStep';

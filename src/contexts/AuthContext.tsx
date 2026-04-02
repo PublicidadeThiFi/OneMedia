@@ -11,7 +11,7 @@ import {
   ReactNode,
   useEffect,
 } from 'react';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import apiClient, { publicApiClient } from '../lib/apiClient';
 import { clearAccessState } from '../lib/accessControl';
 import {

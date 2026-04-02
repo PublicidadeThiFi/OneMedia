@@ -10,7 +10,7 @@ import { ProposalDetailsDrawer } from './proposals/ProposalDetailsDrawer';
 import { ProposalFiltersBar } from './proposals/ProposalFiltersBar';
 import { ProposalFormWizard } from './proposals/ProposalFormWizard';
 import { ProposalsTable } from './proposals/ProposalsTable';
-import type { Page } from '../types/app';
+import type { Page } from './MainApp';
 
 interface ProposalsProps {
   onNavigate: (page: Page) => void;

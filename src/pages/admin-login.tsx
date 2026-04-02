@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 

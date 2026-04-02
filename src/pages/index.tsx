@@ -1,4 +1,4 @@
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { Pricing } from '../components/landing/Pricing';
 import { useWaitlist } from '../contexts/WaitlistContext';
 import { 

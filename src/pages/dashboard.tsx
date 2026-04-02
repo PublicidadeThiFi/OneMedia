@@ -1,5 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { 
   LayoutDashboard, 
   Package, 

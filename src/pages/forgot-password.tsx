@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';

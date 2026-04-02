@@ -1,6 +1,6 @@
 ﻿﻿import { CheckCircle2, HelpCircle, MapPin, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
-import { useNavigation } from '../../contexts/NavigationContext';
+import { useNavigation } from '../../App';
 import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from './pricingData';
 
 const CARD_W = 340;

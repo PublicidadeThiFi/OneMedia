@@ -1,4 +1,4 @@
-import type { Page } from '../../types/app';
+import type { Page } from '../../App';
 
 // ============================================================
 // Shared contracts used across all dashboard modules

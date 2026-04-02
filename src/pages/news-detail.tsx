@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CalendarDays, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchPublishedNewsArticleBySlug } from '../services/news';
 import type { NewsArticleRecord } from '../types/news';

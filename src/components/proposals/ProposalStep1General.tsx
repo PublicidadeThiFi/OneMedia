@@ -8,7 +8,7 @@ import { Plus } from 'lucide-react';
 import { ProposalFormData } from './ProposalFormWizard';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { ClientSelect } from './ClientSelect';
-import type { Page } from '../../types/app';
+import type { Page } from '../MainApp';
 
 interface ProposalStep1GeneralProps {
   formData: ProposalFormData;

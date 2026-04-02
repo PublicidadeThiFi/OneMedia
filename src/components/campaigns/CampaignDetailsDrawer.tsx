@@ -14,7 +14,7 @@ import {
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import apiClient from '../../lib/apiClient';
 import { toast } from 'sonner';
-import { useNavigation } from '../../contexts/NavigationContext';
+import { useNavigation } from '../../App';
 import {
   formatBRL,
   formatBRLFromCents,

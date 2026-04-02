@@ -25,10 +25,28 @@ import { Settings } from './Settings';
 import { SuperAdmin } from './SuperAdmin';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
-import { useNavigation } from '../contexts/NavigationContext';
+import { useNavigation } from '../App';
 import { useTutorial } from '../contexts/TutorialContext';
 import { TutorialOverlay } from './tutorial/TutorialOverlay';
-import type { Page } from '../types/app';
+
+// Define all possible pages in the application
+export type Page =
+  | 'home'
+  | 'dashboard'
+  | 'inventory'
+  | 'mediamap'
+  | 'clients'
+  | 'products'
+  | 'proposals'
+  | 'campaigns'
+  | 'reservations'
+  | 'financial'
+  | 'messages'
+  | 'mediakit'
+  | 'promotions'
+  | 'activities'
+  | 'settings'
+  | 'superadmin';
 
 interface MainAppProps {
   initialPage?: Page;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
-import { useNavigation } from '../../contexts/NavigationContext';
+import { useNavigation } from '../../App';
 import { LoginCredentials } from '../../types/auth';
 import { useWaitlist } from '../../contexts/WaitlistContext';
 import { TurnstileWidget } from '../turnstile/TurnstileWidget';

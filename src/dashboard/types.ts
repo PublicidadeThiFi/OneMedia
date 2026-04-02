@@ -1,4 +1,4 @@
-import type { Page } from '../types/app';
+import type { Page } from '../App';
 import type { DrilldownRow as DrilldownRowContract } from './contracts/drilldown';
 
 // Props do componente (mantemos em types.ts pois depende do roteamento do app).

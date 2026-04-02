@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '../ui/dialog';
 import apiClient from '../../lib/apiClient';
 import { Proposal } from '../../types';
 import { ProposalStatusBadge } from './ProposalStatusBadge';
-import type { Page } from '../../types/app';
+import type { Page } from '../MainApp';
 
 type PublicTokenResponse = { token: string; publicHash: string };
 
