@@ -143,3 +143,6 @@ export async function uploadAdminNewsImage(
 
   return response.data;
 }
+
+// Re-export auth storage functions
+export { clearAdminNewsAccessToken, getAdminNewsAccessToken, setAdminNewsAccessToken } from '../lib/adminAuthStorage';
