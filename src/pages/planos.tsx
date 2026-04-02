@@ -1,4 +1,4 @@
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useWaitlist } from '../contexts/WaitlistContext';
 import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';

@@ -1,0 +1,17 @@
+export type Page =
+  | 'home'
+  | 'dashboard'
+  | 'inventory'
+  | 'mediamap'
+  | 'clients'
+  | 'products'
+  | 'proposals'
+  | 'campaigns'
+  | 'reservations'
+  | 'financial'
+  | 'messages'
+  | 'mediakit'
+  | 'promotions'
+  | 'activities'
+  | 'settings'
+  | 'superadmin';

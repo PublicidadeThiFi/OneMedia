@@ -1,5 +1,5 @@
 import { Linkedin, Instagram, Mail, MessageCircle } from 'lucide-react';
-import { useNavigation } from '../../App';
+import { useNavigation } from '../../contexts/NavigationContext';
 
 export function Footer() {
   const navigate = useNavigation();

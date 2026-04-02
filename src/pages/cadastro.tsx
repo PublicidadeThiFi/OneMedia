@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import { SignupStepper } from '../components/signup/SignupStepper';
 import { Step1Plan } from '../components/signup/Step1Plan';
 import { Step2Company } from '../components/signup/Step2Company';

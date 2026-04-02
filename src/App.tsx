@@ -48,12 +48,12 @@ import { UploadQueueProvider } from './contexts/UploadQueueContext';
 import { TutorialProvider } from './contexts/TutorialContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 
-// Backward-compatible re-exports (many components import these from "../App")
+// Backward-compatible re-exports (many components import these from "../contexts/NavigationContext")
 export { useNavigation } from './contexts/NavigationContext';
 export type { NavigateFunction } from './contexts/NavigationContext';
 
-// Re-export Page type for components
-export type { Page } from './components/MainApp';
+// Re-export Page type for backward compatibility.
+export type { Page } from './types/app';
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }>{
   state = { hasError: false, message: '' };

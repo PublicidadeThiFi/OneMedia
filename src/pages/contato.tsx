@@ -1,5 +1,5 @@
 import { ArrowLeft, Mail, MessageCircle } from 'lucide-react';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Contato() {
