@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import * as DismissableLayerPrimitive from '@radix-ui/react-dismissable-layer';
 import { RefreshCcw, Sparkles, X } from 'lucide-react';
 import { useTutorial, type TutorialPlacement } from '../../contexts/TutorialContext';
 import { Button } from '../ui/button';
@@ -444,8 +443,7 @@ export function TutorialOverlay() {
         </div>
       ) : null}
 
-      <DismissableLayerPrimitive.Branch asChild>
-        <div
+      <div
           ref={cardRef}
           tabIndex={-1}
           className="fixed w-[min(360px,calc(100vw-24px))] pointer-events-auto outline-none"
@@ -559,7 +557,6 @@ export function TutorialOverlay() {
             </CardFooter>
           </Card>
         </div>
-      </DismissableLayerPrimitive.Branch>
     </div>,
     portalHostRef.current ?? document.body,
   );
