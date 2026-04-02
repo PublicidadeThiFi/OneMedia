@@ -97,7 +97,7 @@ export type DashboardEndpointResponseMap = {
   funnel: C.DashboardFunnelDTO;
   alerts: C.DashboardAlertsDTO;
   drilldown: C.DashboardDrilldownDTO;
-  meta: Record<string, unknown>;
+  meta: C.DashboardMetaDTO;
   kpiDefinitions: C.DashboardKpiDefinitionsDTO;
 
   commercialSummary: C.DashboardCommercialSummaryDTO;
@@ -147,7 +147,7 @@ export type DashboardEndpointContract = {
     | 'DashboardFunnelDTO'
     | 'DashboardAlertsDTO'
     | 'DashboardDrilldownDTO'
-    | 'Record<string, unknown>'
+    | 'DashboardMetaResponse'
     | 'DashboardKpiDefinitionsDTO'
     | 'DashboardCommercialSummaryDTO'
     | 'DashboardStalledProposalsDTO'
@@ -187,7 +187,7 @@ export const DASHBOARD_ENDPOINTS: Record<DashboardEndpointKey, DashboardEndpoint
     path: DASHBOARD_BACKEND_ROUTES.meta,
     description: 'Catalogo do modulo agregador do Dashboard (rotas, filtros e compatibilidade)',
     query: 'None',
-    response: 'Record<string, unknown>',
+    response: 'DashboardMetaResponse',
   },
   overview: {
     method: 'GET',

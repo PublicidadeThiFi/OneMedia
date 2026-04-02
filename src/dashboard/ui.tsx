@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Inbox } from 'lucide-react';
+import { AlertTriangle, Inbox, Info, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import type { AlertItem } from './types';
 
@@ -25,6 +25,55 @@ export function ErrorState({ title, description }: { title: string; description?
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-red-500 shadow-sm">
           <AlertTriangle className="h-4 w-4" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-900">{title}</p>
+          {description ? <p className="mt-1 text-xs leading-relaxed text-gray-600">{description}</p> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function StatusBanner({
+  title,
+  description,
+  variant = 'info',
+}: {
+  title: string;
+  description?: string;
+  variant?: 'info' | 'warning' | 'error' | 'muted';
+}) {
+  const palette =
+    variant === 'error'
+      ? {
+          wrapper: 'border-red-100 bg-red-50/70',
+          iconWrap: 'bg-white text-red-500',
+          icon: <AlertTriangle className="h-4 w-4" />,
+        }
+      : variant === 'warning'
+        ? {
+            wrapper: 'border-amber-100 bg-amber-50/80',
+            iconWrap: 'bg-white text-amber-500',
+            icon: <RefreshCw className="h-4 w-4" />,
+          }
+        : variant === 'muted'
+          ? {
+              wrapper: 'border-gray-200 bg-gray-50/80',
+              iconWrap: 'bg-white text-gray-500',
+              icon: <Inbox className="h-4 w-4" />,
+            }
+          : {
+              wrapper: 'border-blue-100 bg-blue-50/80',
+              iconWrap: 'bg-white text-blue-500',
+              icon: <Info className="h-4 w-4" />,
+            };
+
+  return (
+    <div className={`rounded-xl border px-4 py-4 ${palette.wrapper}`}>
+      <div className="flex items-start gap-3">
+        <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${palette.iconWrap}`}>
+          {palette.icon}
         </div>
         <div>
           <p className="text-sm font-medium text-gray-900">{title}</p>

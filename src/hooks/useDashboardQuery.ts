@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { isDashboardDiagnosticsEnabled, recordDashboardDiagnostic } from '../dashboard/diagnostics';
 
 export type DashboardDataMode = 'backend';
 
@@ -17,6 +18,7 @@ type UseDashboardQueryArgs<T> = {
   mode?: DashboardDataMode;
   deps: unknown[];
   fetcher?: (signal: AbortSignal) => Promise<T>;
+  queryKey?: string;
 };
 
 function errorToMessage(err: unknown): string {
@@ -34,8 +36,27 @@ function errorToMessage(err: unknown): string {
   }
 }
 
+function stringifyDep(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  if (Array.isArray(value)) return `[${value.map(stringifyDep).join(',')}]`;
+  if (value instanceof Date) return value.toISOString();
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return Object.prototype.toString.call(value);
+  }
+}
+
+function depsToSignature(deps: unknown[]): string {
+  return deps.map(stringifyDep).join('|');
+}
+
 export function useDashboardQuery<T>(args: UseDashboardQueryArgs<T>): DashboardQueryState<T> {
-  const { enabled, deps, fetcher } = args;
+  const { enabled, deps, fetcher, queryKey } = args;
   const [nonce, setNonce] = useState(0);
 
   const [state, setState] = useState<Omit<DashboardQueryState<T>, 'refetch'>>({
@@ -45,21 +66,56 @@ export function useDashboardQuery<T>(args: UseDashboardQueryArgs<T>): DashboardQ
     source: 'backend',
   });
 
-  const sourceHint: DashboardQuerySource = useMemo(() => 'backend', []);
+  const sourceHint: DashboardQuerySource = 'backend';
+  const depsSignature = depsToSignature(deps);
+  const fetcherRef = useRef<UseDashboardQueryArgs<T>['fetcher'] | undefined>(fetcher);
 
   useEffect(() => {
+    fetcherRef.current = fetcher;
+  }, [fetcher]);
+
+  useEffect(() => {
+    const debugEnabled = isDashboardDiagnosticsEnabled();
+    const stableQueryKey = queryKey || 'dashboard-query';
+
+    if (debugEnabled) {
+      recordDashboardDiagnostic({
+        kind: 'effect-start',
+        queryKey: stableQueryKey,
+        message: enabled ? 'Effect da query iniciado.' : 'Effect da query avaliado com enabled=false.',
+        details: {
+          enabled,
+          depsSignature,
+          nonce,
+        },
+      });
+    }
+
     if (!enabled) {
       setState({ status: 'idle', data: undefined, errorMessage: undefined, source: sourceHint });
       return;
     }
 
-    if (!fetcher) {
+    const activeFetcher = fetcherRef.current;
+    if (!activeFetcher) {
+      const message = 'Fetcher não configurado para o Dashboard.';
       setState({
         status: 'error',
         data: undefined,
-        errorMessage: 'Fetcher não configurado para o Dashboard.',
+        errorMessage: message,
         source: sourceHint,
       });
+
+      if (debugEnabled) {
+        recordDashboardDiagnostic({
+          kind: 'warning',
+          queryKey: stableQueryKey,
+          message,
+          details: {
+            depsSignature,
+          },
+        });
+      }
       return;
     }
 
@@ -69,7 +125,7 @@ export function useDashboardQuery<T>(args: UseDashboardQueryArgs<T>): DashboardQ
 
     const run = async () => {
       try {
-        const data = await fetcher(controller.signal);
+        const data = await activeFetcher(controller.signal);
         if (controller.signal.aborted) return;
         setState({ status: 'ready', data, errorMessage: undefined, source: 'backend' });
       } catch (e) {
@@ -82,9 +138,20 @@ export function useDashboardQuery<T>(args: UseDashboardQueryArgs<T>): DashboardQ
     run();
 
     return () => {
+      if (debugEnabled) {
+        recordDashboardDiagnostic({
+          kind: 'effect-cleanup',
+          queryKey: stableQueryKey,
+          message: 'Cleanup do effect da query executado; abortando requisição em andamento.',
+          details: {
+            depsSignature,
+            nonce,
+          },
+        });
+      }
       controller.abort();
     };
-  }, [enabled, nonce, sourceHint, fetcher, ...deps]);
+  }, [enabled, nonce, sourceHint, depsSignature, queryKey]);
 
   return {
     ...state,

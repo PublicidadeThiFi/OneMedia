@@ -8,6 +8,7 @@
 
 import axios from 'axios';
 import apiClient from '../lib/apiClient';
+import { getDashboardResolvedUrl, isDashboardDiagnosticsEnabled, normalizeDashboardRequestPath, recordDashboardDiagnostic } from '../dashboard/diagnostics';
 
 export type DashboardHttpError = {
   status: number;
@@ -62,10 +63,40 @@ export async function dashboardGetJson<T>(
   opts?: {
     signal?: AbortSignal;
     headers?: Record<string, string>;
+    widgetKey?: string;
   },
 ): Promise<T> {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const requestPath = normalizeDashboardRequestPath(path);
+  const normalizedPath = requestPath.normalizedPath;
   const url = `${normalizedPath}${queryString ? `?${queryString}` : ''}`;
+  const requestInfo = getDashboardResolvedUrl(path, queryString);
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+  if (isDashboardDiagnosticsEnabled()) {
+    if (requestInfo.duplicateApiPrefix) {
+      recordDashboardDiagnostic({
+        kind: 'warning',
+        queryKey: opts?.widgetKey,
+        path: normalizedPath,
+        url: requestInfo.url,
+        message: 'Detectado prefixo /api duplicado entre apiClient e rota do Dashboard; rota normalizada antes do request.',
+        details: {
+          baseURL: requestInfo.baseURL,
+          path: requestInfo.normalizedPath,
+        },
+      });
+    }
+
+    recordDashboardDiagnostic({
+      kind: 'request-start',
+      queryKey: opts?.widgetKey,
+      path: normalizedPath,
+      url: requestInfo.url,
+      details: {
+        baseURL: requestInfo.baseURL,
+      },
+    });
+  }
 
   try {
     const response = await apiClient.get<T>(url, {
@@ -76,8 +107,52 @@ export async function dashboardGetJson<T>(
       },
     });
 
+    if (isDashboardDiagnosticsEnabled()) {
+      const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      recordDashboardDiagnostic({
+        kind: 'request-success',
+        queryKey: opts?.widgetKey,
+        path: normalizedPath,
+        url: requestInfo.url,
+        durationMs: Math.max(0, Math.round(endedAt - startedAt)),
+      });
+    }
+
     return response.data as T;
   } catch (error) {
-    throw buildError(error);
+    const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const durationMs = Math.max(0, Math.round(endedAt - startedAt));
+
+    if (opts?.signal?.aborted || axios.isCancel(error)) {
+      if (isDashboardDiagnosticsEnabled()) {
+        recordDashboardDiagnostic({
+          kind: 'request-abort',
+          queryKey: opts?.widgetKey,
+          path: normalizedPath,
+          url: requestInfo.url,
+          durationMs,
+          message: 'Requisição abortada antes de concluir.',
+        });
+      }
+      throw buildError(error);
+    }
+
+    const built = buildError(error);
+
+    if (isDashboardDiagnosticsEnabled()) {
+      recordDashboardDiagnostic({
+        kind: 'request-error',
+        queryKey: opts?.widgetKey,
+        path: normalizedPath,
+        url: requestInfo.url,
+        durationMs,
+        message: built.message,
+        details: {
+          status: built.status,
+        },
+      });
+    }
+
+    throw built;
   }
 }

@@ -41,10 +41,10 @@ import { buildDashboardBackendQuery, toQueryString } from './query';
 import { getDashboardPermissions } from './permissions';
 import { deleteSavedView, loadActiveSavedViewId, loadSavedViews, makeSavedViewId, persistActiveSavedViewId, upsertSavedView, type SavedDashboardView } from './savedViews';
 import { useCachedQueryData } from './cache';
-import { useWidgetMetrics } from './metrics';
 import { DashboardErrorBoundary } from './DashboardErrorBoundary';
 import type {
   DashboardAlertsDTO,
+  DashboardMetaDTO,
   DashboardCommercialSummaryDTO,
   DashboardDoohSummaryDTO,
   DashboardKpiDefinitionsDTO,
@@ -99,9 +99,23 @@ import {
   timeseriesToSpark,
   uniqById,
 } from './utils';
-import { EmptyState, ErrorState, KpiCard, Pill, SeverityDot, Skeleton, Sparkline, TabButton, WidgetCard } from './ui';
+import { EmptyState, ErrorState, KpiCard, Pill, SeverityDot, Skeleton, Sparkline, StatusBanner, TabButton, WidgetCard } from './ui';
 import { InventoryMap } from './components/InventoryMap';
 import { findDashboardKpiDefinition, type DashboardKpiDefinitionKey } from './kpiDefinitions';
+import { validateDashboardMetaContract } from './contractValidation';
+import { useDashboardDiagnosticsFeed, recordDashboardDiagnostic } from './diagnostics';
+import { getStoredAppVersion } from '../versionGuard';
+
+
+type DashboardRuntimeDebugInfo = {
+  appVersion: string;
+  startedAt: string;
+  nodeEnv: string;
+  dashboard: {
+    contractVersion: string;
+    kpiVersion: string;
+  };
+};
 
 function resolveWidgetMode(_baseMode: DashboardDataMode, _widgetKey: string): DashboardDataMode {
   return 'backend';
@@ -178,6 +192,123 @@ function uniqueSources(sources: Array<DashboardQuerySource | undefined>) {
   return Array.from(new Set(sources.filter(Boolean))) as DashboardQuerySource[];
 }
 
+type TabDataContextStatus = 'loading' | 'ready' | 'partial' | 'empty' | 'error';
+
+type TabDataContext = {
+  status: TabDataContextStatus;
+  ready: boolean;
+  hasData: boolean;
+  sources: DashboardQuerySource[];
+  marker: string;
+  loadingCount: number;
+  errorCount: number;
+};
+
+function buildTabDataContext({
+  sources,
+  statuses,
+  hasData,
+  markerBase,
+}: {
+  sources: DashboardQuerySource[];
+  statuses: Array<'idle' | 'loading' | 'ready' | 'error'>;
+  hasData: boolean;
+  markerBase: string;
+}): TabDataContext {
+  const loadingCount = statuses.filter((status) => status === 'loading' || status === 'idle').length;
+  const errorCount = statuses.filter((status) => status === 'error').length;
+  const readyCount = statuses.filter((status) => status === 'ready').length;
+  const settledCount = readyCount + errorCount;
+
+  let status: TabDataContextStatus;
+  if (loadingCount > 0 && !hasData && readyCount === 0 && errorCount === 0) {
+    status = 'loading';
+  } else if (hasData && (loadingCount > 0 || errorCount > 0)) {
+    status = 'partial';
+  } else if (!hasData && errorCount > 0 && readyCount === 0) {
+    status = 'error';
+  } else if (!hasData && settledCount === statuses.length) {
+    status = 'empty';
+  } else if (hasData && errorCount === 0 && loadingCount === 0) {
+    status = 'ready';
+  } else if (hasData) {
+    status = 'partial';
+  } else if (loadingCount > 0) {
+    status = 'loading';
+  } else if (errorCount > 0) {
+    status = 'error';
+  } else {
+    status = 'empty';
+  }
+
+  const shouldPersistMarker = status === 'ready' || status === 'partial' || status === 'empty';
+
+  return {
+    status,
+    ready: status === 'ready' || status === 'partial' || status === 'empty',
+    hasData,
+    sources,
+    loadingCount,
+    errorCount,
+    marker: shouldPersistMarker ? `${markerBase}|${status}|load:${loadingCount}|err:${errorCount}` : '',
+  };
+}
+
+function describeTabDataStatus(status: TabDataContextStatus) {
+  switch (status) {
+    case 'loading':
+      return 'Carregando dados iniciais';
+    case 'partial':
+      return 'Dados parciais / atualização em andamento';
+    case 'empty':
+      return 'Sem dados para o recorte atual';
+    case 'error':
+      return 'Falha antes da primeira atualização';
+    case 'ready':
+    default:
+      return 'Atualizado';
+  }
+}
+
+function getTabStatusBanner(context: TabDataContext) {
+  if (context.status === 'loading') {
+    return {
+      variant: 'info' as const,
+      title: 'Carregando o painel desta aba',
+      description: 'Os widgets estão buscando os dados iniciais do recorte atual. Assim que os primeiros blocos estabilizarem, a aba deixa de parecer travada.',
+    };
+  }
+
+  if (context.status === 'partial') {
+    return {
+      variant: 'warning' as const,
+      title: context.errorCount > 0 ? 'A aba exibiu dados parciais' : 'Atualizando os blocos desta aba',
+      description:
+        context.errorCount > 0
+          ? 'Parte do painel já carregou, mas um ou mais widgets falharam ou ainda estão atualizando. O que já apareceu continua utilizável.'
+          : 'Os dados principais já estão visíveis. Alguns blocos seguem atualizando em segundo plano sem prender a tela inteira em loading.',
+    };
+  }
+
+  if (context.status === 'empty') {
+    return {
+      variant: 'muted' as const,
+      title: 'Nenhum dado encontrado para este recorte',
+      description: 'A aba respondeu sem erro, mas o período ou os filtros atuais não retornaram dados suficientes para montar esta leitura.',
+    };
+  }
+
+  if (context.status === 'error') {
+    return {
+      variant: 'error' as const,
+      title: 'Não foi possível carregar esta aba por completo',
+      description: 'O painel não recebeu dados suficientes para sair do estado inicial. Revise os filtros ou tente recarregar os widgets desta aba.',
+    };
+  }
+
+  return null;
+}
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { user } = useAuth();
   const { company } = useCompany();
@@ -229,6 +360,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [kpiRulesOpen, setKpiRulesOpen] = useState(false);
 
   const dataMode: DashboardDataMode = 'backend';
+  const dashboardDiagnostics = useDashboardDiagnosticsFeed();
+  const [runtimeDebug, setRuntimeDebug] = useState<{
+    status: 'idle' | 'loading' | 'ready' | 'error';
+    frontendVersion: string | null;
+    backend?: DashboardRuntimeDebugInfo;
+    errorMessage?: string;
+  }>({
+    status: 'idle',
+    frontendVersion: getStoredAppVersion(),
+  });
 
   // Etapa 3: este objeto representa exatamente o que vira query params no backend.
   const backendQuery = useMemo(() => buildDashboardBackendQuery(filters), [filters]);
@@ -273,7 +414,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const doohSummaryMode = resolveWidgetMode(dataMode, 'doohSummary');
   const drilldownMode = resolveWidgetMode(dataMode, 'drilldown');
 
+  const metaQ = useDashboardQuery<DashboardMetaDTO>({
+    queryKey: 'metaQ',
+    enabled: !!user,
+    mode: 'backend',
+    deps: [company?.id, (user as any)?.id, (user as any)?.email],
+    fetcher: (signal) => dashboardGetJson<DashboardMetaDTO>(DASHBOARD_BACKEND_ROUTES.meta, undefined, { signal }),
+  });
+
   const kpiDefinitionsQ = useDashboardQuery<DashboardKpiDefinitionsDTO>({
+    queryKey: 'kpiDefinitionsQ',
     enabled: !!user,
     mode: 'backend',
     deps: [company?.id, (user as any)?.id, (user as any)?.email],
@@ -281,12 +431,106 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       dashboardGetJson<DashboardKpiDefinitionsDTO>(DASHBOARD_BACKEND_ROUTES.kpiDefinitions, undefined, { signal }),
   });
 
+  const dashboardMetaDto = metaQ.data;
+  const contractValidation = useMemo(() => validateDashboardMetaContract(dashboardMetaDto), [dashboardMetaDto]);
+  const contractStatusBanner = useMemo(() => {
+    if (metaQ.status === 'error') {
+      return {
+        title: 'Catálogo do Dashboard indisponível',
+        description: metaQ.errorMessage || 'Não foi possível validar os contratos finais do Dashboard nesta sessão.',
+        variant: 'warning' as const,
+      };
+    }
+
+    if (!dashboardMetaDto) return null;
+
+    if (!contractValidation.ok) {
+      const extraWarnings = contractValidation.warnings.length > 0 ? ` Avisos: ${contractValidation.warnings.join(' ')}` : '';
+      return {
+        title: 'Contrato do Dashboard divergente',
+        description: `${contractValidation.issues.join(' ')}${extraWarnings}`.trim(),
+        variant: 'warning' as const,
+      };
+    }
+
+    return null;
+  }, [contractValidation, dashboardMetaDto, metaQ.errorMessage, metaQ.status]);
+
   const kpiDefinitionsDto = kpiDefinitionsQ.data;
   const kpiDefinitionOrder = kpiDefinitionsDto?.order ?? [];
   const kpiDefinitions = kpiDefinitionsDto?.definitions ?? {};
   const kpiDefinitionsSourceLabel = 'Sincronizado com backend';
   const kpiDefinitionsUpdatedAtLabel = formatShortDate(kpiDefinitionsDto?.updatedAt);
   const kpiDefinition = (key: DashboardKpiDefinitionKey) => findDashboardKpiDefinition(kpiDefinitionsDto, key);
+
+  useEffect(() => {
+    setRuntimeDebug((current) => ({
+      ...current,
+      frontendVersion: getStoredAppVersion(),
+    }));
+
+    if (!dashboardDiagnostics.enabled || !user) return;
+
+    const controller = new AbortController();
+    setRuntimeDebug((current) => ({
+      ...current,
+      status: 'loading',
+      errorMessage: undefined,
+    }));
+
+    dashboardGetJson<DashboardRuntimeDebugInfo>('/health/runtime', undefined, {
+      signal: controller.signal,
+      widgetKey: 'healthRuntimeQ',
+    })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setRuntimeDebug({
+          status: 'ready',
+          frontendVersion: getStoredAppVersion(),
+          backend: data,
+          errorMessage: undefined,
+        });
+      })
+      .catch((error: any) => {
+        if (controller.signal.aborted) return;
+        setRuntimeDebug((current) => ({
+          ...current,
+          status: 'error',
+          frontendVersion: getStoredAppVersion(),
+          errorMessage: error?.message || 'Não foi possível carregar o runtime do backend.',
+        }));
+      });
+
+    return () => controller.abort();
+  }, [dashboardDiagnostics.enabled, user]);
+
+  useEffect(() => {
+    if (!dashboardDiagnostics.enabled) return;
+
+    if (metaQ.status === 'error') {
+      recordDashboardDiagnostic({
+        kind: 'warning',
+        queryKey: 'metaQ',
+        path: DASHBOARD_BACKEND_ROUTES.meta,
+        message: metaQ.errorMessage || 'Falha ao carregar catálogo de contratos do Dashboard.',
+      });
+      return;
+    }
+
+    if (dashboardMetaDto && !contractValidation.ok) {
+      recordDashboardDiagnostic({
+        kind: 'warning',
+        queryKey: 'metaQ',
+        path: DASHBOARD_BACKEND_ROUTES.meta,
+        message: 'Contrato do Dashboard divergente entre frontend e backend.',
+        details: {
+          version: dashboardMetaDto.version,
+          issues: contractValidation.issues,
+          warnings: contractValidation.warnings,
+        },
+      });
+    }
+  }, [contractValidation, dashboardDiagnostics.enabled, dashboardMetaDto, metaQ.errorMessage, metaQ.status]);
 
   const [drilldown, setDrilldown] = useState<DrilldownState>({
     open: false,
@@ -309,6 +553,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardOverview(company.id, backendQuery)
   const overviewQ = useDashboardQuery<DashboardOverviewDTO>({
+    queryKey: 'overviewQ',
     enabled: !!company,
     mode: overviewMode,
     deps: [company?.id, backendQs, tab, overviewMode],
@@ -318,6 +563,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardFunnel(company.id, backendQuery)
   const funnelQ = useDashboardQuery<DashboardFunnelDTO>({
+    queryKey: 'funnelQ',
     enabled: !!company && (tab === 'executivo' || tab === 'comercial'),
     mode: funnelMode,
     deps: [company?.id, backendQs, funnelMode],
@@ -327,6 +573,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // Comercial (Etapa 7): KPIs e listas dedicadas (mantendo a UI igual)
   const commercialSummaryQ = useDashboardQuery<DashboardCommercialSummaryDTO>({
+    queryKey: 'commercialSummaryQ',
     enabled: !!company && tab === 'comercial',
     mode: commercialSummaryMode,
     deps: [company?.id, backendQs, commercialSummaryMode],
@@ -335,6 +582,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const stalledProposalsQ = useDashboardQuery<DashboardStalledProposalsDTO>({
+    queryKey: 'stalledProposalsQ',
     enabled: !!company && tab === 'comercial',
     mode: stalledProposalsMode,
     deps: [company?.id, backendQs, stalledProposalsMode],
@@ -343,6 +591,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const sellerRankingQ = useDashboardQuery<DashboardSellerRankingDTO>({
+    queryKey: 'sellerRankingQ',
     enabled: !!company && tab === 'comercial',
     mode: sellerRankingMode,
     deps: [company?.id, backendQs, sellerRankingMode],
@@ -351,6 +600,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const commercialProposalsTimeseriesQ = useDashboardQuery<DashboardCommercialProposalsTimeseriesDTO>({
+    queryKey: 'commercialProposalsTimeseriesQ',
     enabled: !!company && tab === 'comercial',
     mode: commercialProposalsTimeseriesMode,
     deps: [company?.id, backendQs, commercialProposalsTimeseriesMode],
@@ -359,6 +609,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const commercialHighValueOpenQ = useDashboardQuery<DashboardHighValueOpenProposalsDTO>({
+    queryKey: 'commercialHighValueOpenQ',
     enabled: !!company && tab === 'comercial',
     mode: commercialHighValueOpenMode,
     deps: [company?.id, backendQs, commercialHighValueOpenMode],
@@ -368,6 +619,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   // BACKEND SWAP POINT (Etapa 4+): useDashboardAlerts(company.id, backendQuery)
   const alertsQ = useDashboardQuery<DashboardAlertsDTO>({
+    queryKey: 'alertsQ',
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro'),
     mode: alertsMode,
     deps: [company?.id, backendQs, alertsMode],
@@ -388,6 +640,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [backendQuery, backendQs, drilldown.key, drilldown.cursor, drilldown.sortBy, drilldown.sortDir, drilldown.params]);
 
   const drilldownQ = useDashboardQuery<DashboardDrilldownDTO>({
+    queryKey: 'drilldownQ',
     enabled: !!company && drilldown.open && !!drilldown.key,
     mode: drilldownMode,
     deps: [company?.id, drilldown.key, drilldownQs, drilldownMode],
@@ -459,6 +712,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [drilldown.open, drilldown.key, drilldownQ.status, drilldownQ.data, drilldownQ.errorMessage]);
 
   const revenueTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
+    queryKey: 'revenueTsQ',
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro'),
     mode: revenueTimeseriesMode,
     deps: [company?.id, backendQs, revenueTimeseriesMode],
@@ -467,6 +721,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const cashflowTsQ = useDashboardQuery<DashboardTimeseriesDTO>({
+    queryKey: 'cashflowTsQ',
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro'),
     mode: cashflowTimeseriesMode,
     deps: [company?.id, backendQs, cashflowTimeseriesMode],
@@ -475,6 +730,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventorySummaryQ = useDashboardQuery<DashboardInventorySummaryDTO>({
+    queryKey: 'inventorySummaryQ',
     enabled: !!company && tab === 'inventario',
     mode: inventorySummaryMode,
     deps: [company?.id, backendQs, inventorySummaryMode],
@@ -483,6 +739,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventoryMapQ = useDashboardQuery<DashboardInventoryMapDTO>({
+    queryKey: 'inventoryMapQ',
     enabled: !!company && (tab === 'executivo' || tab === 'inventario'),
     mode: inventoryMapMode,
     deps: [company?.id, backendQs, inventoryMapMode],
@@ -491,6 +748,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventoryRegionDistributionQ = useDashboardQuery<DashboardInventoryRegionDistributionDTO>({
+    queryKey: 'inventoryRegionDistributionQ',
     enabled: !!company && tab === 'inventario',
     mode: inventoryRegionDistributionMode,
     deps: [company?.id, backendQs, inventoryRegionDistributionMode],
@@ -499,6 +757,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventoryTypeDistributionQ = useDashboardQuery<DashboardInventoryTypeDistributionDTO>({
+    queryKey: 'inventoryTypeDistributionQ',
     enabled: !!company && tab === 'inventario',
     mode: inventoryTypeDistributionMode,
     deps: [company?.id, backendQs, inventoryTypeDistributionMode],
@@ -507,6 +766,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventorySubtypeDistributionQ = useDashboardQuery<DashboardInventorySubtypeDistributionDTO>({
+    queryKey: 'inventorySubtypeDistributionQ',
     enabled: !!company && tab === 'inventario',
     mode: inventorySubtypeDistributionMode,
     deps: [company?.id, backendQs, inventorySubtypeDistributionMode],
@@ -515,6 +775,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventoryOpportunitySummaryQ = useDashboardQuery<DashboardInventoryOpportunitySummaryDTO>({
+    queryKey: 'inventoryOpportunitySummaryQ',
     enabled: !!company && tab === 'inventario',
     mode: inventoryOpportunitySummaryMode,
     deps: [company?.id, backendQs, inventoryOpportunitySummaryMode],
@@ -523,6 +784,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const inventoryRankingQ = useDashboardQuery<DashboardInventoryRankingDTO>({
+    queryKey: 'inventoryRankingQ',
     enabled: !!company && tab === 'inventario',
     mode: inventoryRankingMode,
     deps: [company?.id, backendQs, inventoryRankingMode],
@@ -531,6 +793,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const topClientsQ = useDashboardQuery<DashboardTopClientsDTO>({
+    queryKey: 'topClientsQ',
     enabled: !!company && (tab === 'executivo' || tab === 'financeiro' || tab === 'clientes'),
     mode: topClientsMode,
     deps: [company?.id, backendQs, topClientsMode],
@@ -539,6 +802,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const agingQ = useDashboardQuery<DashboardReceivablesAgingSummaryDTO>({
+    queryKey: 'agingQ',
     enabled: !!company && tab === 'financeiro',
     mode: agingMode,
     deps: [company?.id, backendQs, agingMode],
@@ -547,6 +811,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const financialSummaryQ = useDashboardQuery<DashboardFinancialSummaryDTO>({
+    queryKey: 'financialSummaryQ',
     enabled: !!company && tab === 'financeiro',
     mode: financialSummaryMode,
     deps: [company?.id, backendQs, financialSummaryMode],
@@ -555,6 +820,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const receivablesCompositionQ = useDashboardQuery<DashboardReceivablesCompositionDTO>({
+    queryKey: 'receivablesCompositionQ',
     enabled: !!company && tab === 'financeiro',
     mode: receivablesCompositionMode,
     deps: [company?.id, backendQs, receivablesCompositionMode],
@@ -563,6 +829,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const criticalInvoicesQ = useDashboardQuery<DashboardCriticalInvoicesDTO>({
+    queryKey: 'criticalInvoicesQ',
     enabled: !!company && tab === 'financeiro',
     mode: criticalInvoicesMode,
     deps: [company?.id, backendQs, criticalInvoicesMode],
@@ -571,6 +838,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const lateClientsQ = useDashboardQuery<DashboardLateClientsDTO>({
+    queryKey: 'lateClientsQ',
     enabled: !!company && (tab === 'financeiro' || tab === 'clientes'),
     mode: lateClientsMode,
     deps: [company?.id, backendQs, lateClientsMode],
@@ -579,6 +847,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const largestOpenReceivablesQ = useDashboardQuery<DashboardLargestOpenReceivablesDTO>({
+    queryKey: 'largestOpenReceivablesQ',
     enabled: !!company && tab === 'financeiro',
     mode: largestOpenReceivablesMode,
     deps: [company?.id, backendQs, largestOpenReceivablesMode],
@@ -587,6 +856,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const largestExpensesQ = useDashboardQuery<DashboardLargestExpensesDTO>({
+    queryKey: 'largestExpensesQ',
     enabled: !!company && tab === 'financeiro',
     mode: largestExpensesMode,
     deps: [company?.id, backendQs, largestExpensesMode],
@@ -595,6 +865,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const clientsSummaryQ = useDashboardQuery<DashboardClientsSummaryDTO>({
+    queryKey: 'clientsSummaryQ',
     enabled: !!company && tab === 'clientes',
     mode: clientsSummaryMode,
     deps: [company?.id, backendQs, clientsSummaryMode],
@@ -603,6 +874,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const clientsTopCampaignsQ = useDashboardQuery<DashboardClientsTopCampaignsDTO>({
+    queryKey: 'clientsTopCampaignsQ',
     enabled: !!company && tab === 'clientes',
     mode: clientsTopCampaignsMode,
     deps: [company?.id, backendQs, clientsTopCampaignsMode],
@@ -611,6 +883,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const clientsOpenProposalsQ = useDashboardQuery<DashboardClientsOpenProposalsDTO>({
+    queryKey: 'clientsOpenProposalsQ',
     enabled: !!company && tab === 'clientes',
     mode: clientsOpenProposalsMode,
     deps: [company?.id, backendQs, clientsOpenProposalsMode],
@@ -619,6 +892,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const clientsInactiveRiskQ = useDashboardQuery<DashboardClientsInactiveRiskDTO>({
+    queryKey: 'clientsInactiveRiskQ',
     enabled: !!company && tab === 'clientes',
     mode: clientsInactiveRiskMode,
     deps: [company?.id, backendQs, clientsInactiveRiskMode],
@@ -627,6 +901,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const clientsRegionDistributionQ = useDashboardQuery<DashboardClientsRegionDistributionDTO>({
+    queryKey: 'clientsRegionDistributionQ',
     enabled: !!company && tab === 'clientes',
     mode: clientsRegionDistributionMode,
     deps: [company?.id, backendQs, clientsRegionDistributionMode],
@@ -635,6 +910,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const oohOpsQ = useDashboardQuery<DashboardOohOpsSummaryDTO>({
+    queryKey: 'oohOpsQ',
     enabled: !!company && (tab === 'executivo' || tab === 'operacoes'),
     mode: oohOpsMode,
     deps: [company?.id, backendQs, oohOpsMode],
@@ -643,6 +919,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const operationsLateRegionsQ = useDashboardQuery<DashboardOperationsLateRegionsDTO>({
+    queryKey: 'operationsLateRegionsQ',
     enabled: !!company && tab === 'operacoes',
     mode: operationsLateRegionsMode,
     deps: [company?.id, backendQs, operationsLateRegionsMode],
@@ -651,6 +928,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const operationsCityStatusQ = useDashboardQuery<DashboardOperationsCityStatusDTO>({
+    queryKey: 'operationsCityStatusQ',
     enabled: !!company && tab === 'operacoes',
     mode: operationsCityStatusMode,
     deps: [company?.id, backendQs, operationsCityStatusMode],
@@ -659,6 +937,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   });
 
   const doohSummaryQ = useDashboardQuery<DashboardDoohSummaryDTO>({
+    queryKey: 'doohSummaryQ',
     enabled: !!company && tab === 'operacoes',
     mode: doohSummaryMode,
     deps: [company?.id, backendQs, doohSummaryMode],
@@ -832,7 +1111,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     Partial<Record<DashboardTab, { marker: string; at: string }>>
   >({});
 
-  const currentTabDataContext = useMemo(() => {
+  const currentTabDataContext = useMemo<TabDataContext>(() => {
     switch (tab) {
       case 'executivo': {
         const sources = uniqueSources([
@@ -844,21 +1123,27 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           inventoryMapQ.source,
           oohOpsQ.source,
         ]);
-        const ready =
-          !!overview &&
-          alertsQ.status === 'ready' &&
-          revenueTsQ.status === 'ready' &&
-          cashflowTsQ.status === 'ready' &&
-          funnelQ.status === 'ready' &&
-          inventoryMapQ.status === 'ready' &&
-          oohOpsQ.status === 'ready';
-        return {
-          ready,
+        return buildTabDataContext({
           sources,
-          marker: ready
-            ? `${backendQs}|executivo|${sources.join('|')}|${overview?.revenueRecognizedCents ?? 0}|${alerts.length}|${revenueTs.length}|${cashflowTs.length}`
-            : '',
-        };
+          statuses: [
+            overviewQ.status,
+            alertsQ.status,
+            revenueTsQ.status,
+            cashflowTsQ.status,
+            funnelQ.status,
+            inventoryMapQ.status,
+            oohOpsQ.status,
+          ],
+          hasData:
+            !!overview ||
+            alerts.length > 0 ||
+            revenueTs.length > 0 ||
+            cashflowTs.length > 0 ||
+            !!(funnel?.stages?.length) ||
+            inventoryPins.length > 0 ||
+            oohOpsItems.length > 0,
+          markerBase: `${backendQs}|executivo|${sources.join('|')}|${overview?.revenueRecognizedCents ?? 0}|${alerts.length}|${revenueTs.length}|${cashflowTs.length}`,
+        });
       }
       case 'comercial': {
         const sources = uniqueSources([
@@ -869,20 +1154,25 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           commercialProposalsTimeseriesQ.source,
           commercialHighValueOpenQ.source,
         ]);
-        const ready =
-          !!commercialSummary &&
-          funnelQ.status === 'ready' &&
-          sellerRankingQ.status === 'ready' &&
-          stalledProposalsQ.status === 'ready' &&
-          commercialProposalsTimeseriesQ.status === 'ready' &&
-          commercialHighValueOpenQ.status === 'ready';
-        return {
-          ready,
+        return buildTabDataContext({
           sources,
-          marker: ready
-            ? `${backendQs}|comercial|${sources.join('|')}|${commercialSummary?.proposalsCreatedCount ?? 0}|${sellerRankingRows.length}|${stalledProposalsRows.length}|${highValueOpenRows.length}`
-            : '',
-        };
+          statuses: [
+            commercialSummaryQ.status,
+            funnelQ.status,
+            sellerRankingQ.status,
+            stalledProposalsQ.status,
+            commercialProposalsTimeseriesQ.status,
+            commercialHighValueOpenQ.status,
+          ],
+          hasData:
+            !!commercialSummary ||
+            !!(funnel?.stages?.length) ||
+            sellerRankingRows.length > 0 ||
+            stalledProposalsRows.length > 0 ||
+            commercialProposalsSeries.length > 0 ||
+            highValueOpenRows.length > 0,
+          markerBase: `${backendQs}|comercial|${sources.join('|')}|${commercialSummary?.proposalsCreatedCount ?? 0}|${sellerRankingRows.length}|${stalledProposalsRows.length}|${highValueOpenRows.length}`,
+        });
       }
       case 'financeiro': {
         const sources = uniqueSources([
@@ -897,24 +1187,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           largestExpensesQ.source,
           topClientsQ.source,
         ]);
-        const ready =
-          !!financialSummary &&
-          revenueTsQ.status === 'ready' &&
-          agingQ.status === 'ready' &&
-          cashflowTsQ.status === 'ready' &&
-          receivablesCompositionQ.status === 'ready' &&
-          criticalInvoicesQ.status === 'ready' &&
-          lateClientsQ.status === 'ready' &&
-          largestOpenReceivablesQ.status === 'ready' &&
-          largestExpensesQ.status === 'ready' &&
-          topClientsQ.status === 'ready';
-        return {
-          ready,
+        return buildTabDataContext({
           sources,
-          marker: ready
-            ? `${backendQs}|financeiro|${sources.join('|')}|${financialSummary?.revenueRecognizedCents ?? 0}|${criticalInvoicesRows.length}|${lateClientsRows.length}`
-            : '',
-        };
+          statuses: [
+            financialSummaryQ.status,
+            revenueTsQ.status,
+            agingQ.status,
+            cashflowTsQ.status,
+            receivablesCompositionQ.status,
+            criticalInvoicesQ.status,
+            lateClientsQ.status,
+            largestOpenReceivablesQ.status,
+            largestExpensesQ.status,
+            topClientsQ.status,
+          ],
+          hasData:
+            !!financialSummary ||
+            revenueTs.length > 0 ||
+            !!(agingSummary?.buckets?.length) ||
+            cashflowTs.length > 0 ||
+            !!receivablesComposition ||
+            criticalInvoicesRows.length > 0 ||
+            lateClientsRows.length > 0 ||
+            largestOpenReceivablesRows.length > 0 ||
+            largestExpensesRows.length > 0 ||
+            topClientsRows.length > 0,
+          markerBase: `${backendQs}|financeiro|${sources.join('|')}|${financialSummary?.revenueRecognizedCents ?? 0}|${criticalInvoicesRows.length}|${lateClientsRows.length}`,
+        });
       }
       case 'operacoes': {
         const sources = uniqueSources([
@@ -923,18 +1222,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           operationsLateRegionsQ.source,
           operationsCityStatusQ.source,
         ]);
-        const ready =
-          oohOpsQ.status === 'ready' &&
-          doohSummaryQ.status === 'ready' &&
-          operationsLateRegionsQ.status === 'ready' &&
-          operationsCityStatusQ.status === 'ready';
-        return {
-          ready,
+        return buildTabDataContext({
           sources,
-          marker: ready
-            ? `${backendQs}|operacoes|${sources.join('|')}|${oohOpsItems.length}|${doohSummaryRows.length}|${operationsLateRegionRows.length}|${operationsCityStatusRows.length}`
-            : '',
-        };
+          statuses: [oohOpsQ.status, doohSummaryQ.status, operationsLateRegionsQ.status, operationsCityStatusQ.status],
+          hasData:
+            oohOpsItems.length > 0 ||
+            doohSummaryRows.length > 0 ||
+            operationsLateRegionRows.length > 0 ||
+            operationsCityStatusRows.length > 0 ||
+            oohOpsQ.status === 'ready' ||
+            doohSummaryQ.status === 'ready',
+          markerBase: `${backendQs}|operacoes|${sources.join('|')}|${oohOpsItems.length}|${doohSummaryRows.length}|${operationsLateRegionRows.length}|${operationsCityStatusRows.length}`,
+        });
       }
       case 'inventario': {
         const sources = uniqueSources([
@@ -946,21 +1245,27 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           inventorySubtypeDistributionQ.source,
           inventoryOpportunitySummaryQ.source,
         ]);
-        const ready =
-          inventorySummaryQ.status === 'ready' &&
-          inventoryMapQ.status === 'ready' &&
-          inventoryRankingQ.status === 'ready' &&
-          inventoryRegionDistributionQ.status === 'ready' &&
-          inventoryTypeDistributionQ.status === 'ready' &&
-          inventorySubtypeDistributionQ.status === 'ready' &&
-          inventoryOpportunitySummaryQ.status === 'ready';
-        return {
-          ready,
+        return buildTabDataContext({
           sources,
-          marker: ready
-            ? `${backendQs}|inventario|${sources.join('|')}|${inventoryPins.length}|${inventoryRankingRows.length}|${inventoryOpportunityRows.length}`
-            : '',
-        };
+          statuses: [
+            inventorySummaryQ.status,
+            inventoryMapQ.status,
+            inventoryRankingQ.status,
+            inventoryRegionDistributionQ.status,
+            inventoryTypeDistributionQ.status,
+            inventorySubtypeDistributionQ.status,
+            inventoryOpportunitySummaryQ.status,
+          ],
+          hasData:
+            !!inventorySummary ||
+            inventoryPins.length > 0 ||
+            inventoryRankingRows.length > 0 ||
+            inventoryRegionRows.length > 0 ||
+            inventoryTypeRows.length > 0 ||
+            inventorySubtypeRows.length > 0 ||
+            inventoryOpportunityRows.length > 0,
+          markerBase: `${backendQs}|inventario|${sources.join('|')}|${inventoryPins.length}|${inventoryRankingRows.length}|${inventoryOpportunityRows.length}`,
+        });
       }
       case 'clientes': {
         const sources = uniqueSources([
@@ -972,24 +1277,30 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           clientsInactiveRiskQ.source,
           clientsRegionDistributionQ.source,
         ]);
-        const ready =
-          clientsSummaryQ.status === 'ready' &&
-          topClientsQ.status === 'ready' &&
-          clientsTopCampaignsQ.status === 'ready' &&
-          lateClientsQ.status === 'ready' &&
-          clientsOpenProposalsQ.status === 'ready' &&
-          clientsInactiveRiskQ.status === 'ready' &&
-          clientsRegionDistributionQ.status === 'ready';
-        return {
-          ready,
+        return buildTabDataContext({
           sources,
-          marker: ready
-            ? `${backendQs}|clientes|${sources.join('|')}|${clientsSummary?.activeClientsCount ?? 0}|${topClientsRows.length}|${clientsInactiveRiskRows.length}`
-            : '',
-        };
+          statuses: [
+            clientsSummaryQ.status,
+            topClientsQ.status,
+            clientsTopCampaignsQ.status,
+            lateClientsQ.status,
+            clientsOpenProposalsQ.status,
+            clientsInactiveRiskQ.status,
+            clientsRegionDistributionQ.status,
+          ],
+          hasData:
+            !!clientsSummary ||
+            topClientsRows.length > 0 ||
+            clientsTopCampaignRows.length > 0 ||
+            lateClientsRows.length > 0 ||
+            clientsOpenProposalRows.length > 0 ||
+            clientsInactiveRiskRows.length > 0 ||
+            clientsRegionRows.length > 0,
+          markerBase: `${backendQs}|clientes|${sources.join('|')}|${clientsSummary?.activeClientsCount ?? 0}|${topClientsRows.length}|${clientsInactiveRiskRows.length}`,
+        });
       }
       default:
-        return { ready: false, sources: [], marker: '' };
+        return buildTabDataContext({ sources: [], statuses: [], hasData: false, markerBase: `${backendQs}|unknown` });
     }
   }, [
     tab,
@@ -998,23 +1309,36 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     alerts.length,
     revenueTs.length,
     cashflowTs.length,
+    funnel?.stages?.length,
     commercialSummary,
     sellerRankingRows.length,
     stalledProposalsRows.length,
+    commercialProposalsSeries.length,
     highValueOpenRows.length,
     financialSummary,
+    agingSummary?.buckets?.length,
+    !!receivablesComposition,
     criticalInvoicesRows.length,
     lateClientsRows.length,
+    largestOpenReceivablesRows.length,
+    largestExpensesRows.length,
     oohOpsItems.length,
     doohSummaryRows.length,
     operationsLateRegionRows.length,
     operationsCityStatusRows.length,
+    inventorySummary,
     inventoryPins.length,
     inventoryRankingRows.length,
+    inventoryRegionRows.length,
+    inventoryTypeRows.length,
+    inventorySubtypeRows.length,
     inventoryOpportunityRows.length,
     clientsSummary,
     topClientsRows.length,
+    clientsTopCampaignRows.length,
+    clientsOpenProposalRows.length,
     clientsInactiveRiskRows.length,
+    clientsRegionRows.length,
     overviewQ.source,
     alertsQ.source,
     revenueTsQ.source,
@@ -1049,6 +1373,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     clientsOpenProposalsQ.source,
     clientsInactiveRiskQ.source,
     clientsRegionDistributionQ.source,
+    overviewQ.status,
     alertsQ.status,
     revenueTsQ.status,
     cashflowTsQ.status,
@@ -1135,42 +1460,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     (oohOpsSummary.pendingCheckinsCount || 0) +
     (oohOpsSummary.overdueCheckinsCount || 0) +
     (oohOpsSummary.awaitingMaterialCount || 0);
-
-  const metricsCtx = useMemo(
-    () => ({ companyId: company?.id ? String(company.id) : undefined, tab, backendQs }),
-    [company?.id, tab, backendQs],
-  );
-
-  useWidgetMetrics('overview', overviewQ, metricsCtx);
-  useWidgetMetrics('alerts', alertsQ, metricsCtx);
-  useWidgetMetrics('funnel', funnelQ, metricsCtx);
-  useWidgetMetrics('commercialSummary', commercialSummaryQ, metricsCtx);
-  useWidgetMetrics('stalledProposals', stalledProposalsQ, metricsCtx);
-  useWidgetMetrics('sellerRanking', sellerRankingQ, metricsCtx);
-  useWidgetMetrics('commercialProposalsTimeseries', commercialProposalsTimeseriesQ, metricsCtx);
-  useWidgetMetrics('commercialHighValueOpen', commercialHighValueOpenQ, metricsCtx);
-  useWidgetMetrics('revenueTs', revenueTsQ, metricsCtx);
-  useWidgetMetrics('cashflowTs', cashflowTsQ, metricsCtx);
-  useWidgetMetrics('topClients', topClientsQ, metricsCtx);
-  useWidgetMetrics('aging', agingQ, metricsCtx);
-  useWidgetMetrics('financialSummary', financialSummaryQ, metricsCtx);
-  useWidgetMetrics('receivablesComposition', receivablesCompositionQ, metricsCtx);
-  useWidgetMetrics('criticalInvoices', criticalInvoicesQ, metricsCtx);
-  useWidgetMetrics('lateClients', lateClientsQ, metricsCtx);
-  useWidgetMetrics('largestOpenReceivables', largestOpenReceivablesQ, metricsCtx);
-  useWidgetMetrics('largestExpenses', largestExpensesQ, metricsCtx);
-  useWidgetMetrics('clientsSummary', clientsSummaryQ, metricsCtx);
-  useWidgetMetrics('clientsTopCampaigns', clientsTopCampaignsQ, metricsCtx);
-  useWidgetMetrics('clientsOpenProposals', clientsOpenProposalsQ, metricsCtx);
-  useWidgetMetrics('clientsInactiveRisk', clientsInactiveRiskQ, metricsCtx);
-  useWidgetMetrics('clientsRegionDistribution', clientsRegionDistributionQ, metricsCtx);
-  useWidgetMetrics('oohOps', oohOpsQ, metricsCtx);
-  useWidgetMetrics('operationsLateRegions', operationsLateRegionsQ, metricsCtx);
-  useWidgetMetrics('operationsCityStatus', operationsCityStatusQ, metricsCtx);
-  useWidgetMetrics('doohSummary', doohSummaryQ, metricsCtx);
-  useWidgetMetrics('inventoryMap', inventoryMapQ, metricsCtx);
-  useWidgetMetrics('inventoryRanking', inventoryRankingQ, metricsCtx);
-  useWidgetMetrics('drilldown', drilldownQ, metricsCtx);
 
   // Reset drilldown when tab changes (evita confusão)
   useEffect(() => {
@@ -1567,7 +1856,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const currentTabSourceSummary = currentTabDataContext.sources.length
     ? currentTabDataContext.sources.map((source) => describeQuerySource(source)).join(' + ')
     : describeDashboardDataMode(dataMode);
-  const currentTabLastUpdatedLabel = formatDateTimeLabel(currentTabLastUpdated);
+  const currentTabLastUpdatedLabel = currentTabLastUpdated
+    ? formatDateTimeLabel(currentTabLastUpdated)
+    : describeTabDataStatus(currentTabDataContext.status);
+  const currentTabStatusBanner = getTabStatusBanner(currentTabDataContext);
 
   const applySavedView = (view: SavedDashboardView) => {
     const desiredTab = perms.allowedTabs.includes(view.tab) ? view.tab : perms.allowedTabs[0] || 'executivo';
@@ -1661,8 +1953,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   // Etapa 15: tratamento de erro padronizado por widget
-  const widgetError = (title: string, q: { status?: string; errorMessage?: string }) =>
-    q.status === 'error'
+  const widgetError = (title: string, q: { status?: string; errorMessage?: string }, hasRenderableData = false) =>
+    q.status === 'error' && !hasRenderableData
       ? { title, description: q.errorMessage || 'Tente novamente.' }
       : null;
 
@@ -1683,8 +1975,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const commercialOverviewError = !commercialSummary && commercialSummaryQ.status === 'error'
     ? { title: 'Falha ao carregar indicadores comerciais', description: commercialSummaryQ.errorMessage || 'Tente novamente.' }
     : null;
-  const commercialTimeseriesError = widgetError('Falha ao carregar evolução das propostas', commercialProposalsTimeseriesQ);
-  const commercialHighValueError = widgetError('Falha ao carregar negociações prioritárias', commercialHighValueOpenQ);
+  const commercialTimeseriesError = widgetError('Falha ao carregar evolução das propostas', commercialProposalsTimeseriesQ, commercialProposalsSeries.length > 0);
+  const commercialHighValueError = widgetError('Falha ao carregar negociações prioritárias', commercialHighValueOpenQ, highValueOpenRows.length > 0);
+  const financialSummaryError = !financialSummary && financialSummaryQ.status === 'error'
+    ? { title: 'Falha ao carregar indicadores financeiros', description: financialSummaryQ.errorMessage || 'Tente novamente.' }
+    : null;
+  const clientsSummaryError = !clientsSummary && clientsSummaryQ.status === 'error'
+    ? { title: 'Falha ao carregar indicadores da carteira', description: clientsSummaryQ.errorMessage || 'Tente novamente.' }
+    : null;
   const runtimeFallback = (
     <div className="p-6 md:p-8">
       <Card>
@@ -1914,6 +2212,122 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </CardContent>
         </Card>
 
+        {dashboardDiagnostics.enabled ? (
+          <Card className="mb-4 border-amber-200 bg-amber-50/60">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base text-amber-950">Diagnóstico controlado do Dashboard</CardTitle>
+                  <p className="mt-1 text-sm text-amber-900/80">
+                    Etapa 7: validação final do bundle, do runtime e das queries do Dashboard antes do deploy limpo.
+                  </p>
+                </div>
+                <Button variant="outline" className="h-8" onClick={dashboardDiagnostics.clear}>
+                  Limpar diagnóstico
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Eventos capturados</p>
+                  <p className="mt-1 text-2xl font-semibold text-amber-950">{dashboardDiagnostics.events.length}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Avisos de /api duplicado</p>
+                  <p className="mt-1 text-2xl font-semibold text-amber-950">{dashboardDiagnostics.summary.duplicateApiWarnings}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Avisos de fetcher instável</p>
+                  <p className="mt-1 text-2xl font-semibold text-amber-950">{dashboardDiagnostics.summary.fetcherIdentityWarnings}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white p-3 md:col-span-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Leitura rápida</p>
+                  <p className="mt-1 text-sm text-amber-950">
+                    Nesta etapa, a leitura final precisa bater: bundle servido, versão do backend, contrato do Dashboard e sinais de queries estáveis.
+                    Se isso divergir, o deploy ainda não está limpo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Bundle do frontend</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-950">{runtimeDebug.frontendVersion || 'Ainda não identificado'}</p>
+                  <p className="mt-1 text-xs text-gray-600">Versão persistida no navegador após a última checagem de build.</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Runtime do backend</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-950">{runtimeDebug.backend?.appVersion || 'Aguardando'}</p>
+                  <p className="mt-1 text-xs text-gray-600">{runtimeDebug.status === 'error' ? runtimeDebug.errorMessage : 'Versão exposta por /health/runtime.'}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Contrato / KPI</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-950">
+                    {runtimeDebug.backend ? `${runtimeDebug.backend.dashboard.contractVersion} / ${runtimeDebug.backend.dashboard.kpiVersion}` : 'Aguardando'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-600">Confere a espinha dorsal de contratos congelados do Dashboard.</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <p className="text-xs uppercase tracking-wide text-amber-700">Backend iniciado em</p>
+                  <p className="mt-1 text-sm font-semibold text-amber-950">{runtimeDebug.backend ? formatDateTimeLabel(runtimeDebug.backend.startedAt) : 'Aguardando'}</p>
+                  <p className="mt-1 text-xs text-gray-600">Ajuda a confirmar se o deploy carregado é realmente o mais recente.</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1.2fr,0.8fr]">
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-amber-950">Queries mais sensíveis</p>
+                    <p className="text-xs text-amber-700">starts / cleanups / aborts / warnings / errors</p>
+                  </div>
+                  <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                    {dashboardDiagnostics.summary.byQuery.length ? (
+                      dashboardDiagnostics.summary.byQuery.slice(0, 10).map((item) => (
+                        <div key={item.queryKey} className="rounded-md border border-amber-100 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900">{item.queryKey}</p>
+                            <p className="text-xs text-gray-500">
+                              {item.starts} / {item.cleanups} / {item.aborts} / {item.warnings} / {item.errors}
+                            </p>
+                          </div>
+                          {item.lastMessage ? <p className="mt-1 text-xs text-gray-600">{item.lastMessage}</p> : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-600">Nenhum evento capturado ainda. Ative com ?dashboardDebug=1 ou localStorage dashboard.debug=1.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-amber-950">Últimos eventos</p>
+                    <p className="text-xs text-amber-700">mais recentes primeiro</p>
+                  </div>
+                  <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                    {dashboardDiagnostics.events.length ? (
+                      [...dashboardDiagnostics.events].reverse().slice(0, 12).map((event) => (
+                        <div key={event.id} className="rounded-md border border-amber-100 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-amber-700">{event.kind}</p>
+                            <p className="text-[11px] text-gray-500">{formatDateTimeLabel(event.at)}</p>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-900">{event.queryKey || event.path || 'global'}</p>
+                          {event.message ? <p className="mt-1 text-xs text-gray-600">{event.message}</p> : null}
+                          {event.url ? <p className="mt-1 break-all text-[11px] text-gray-500">{event.url}</p> : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-600">Sem eventos registrados.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* Tabs by persona */}
         <div className="flex items-center gap-2 flex-wrap">
           {perms.allowedTabs.includes('executivo') ? (
@@ -1990,6 +2404,22 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             </div>
           </CardContent>
         </Card>
+
+        {currentTabStatusBanner ? (
+          <StatusBanner
+            title={currentTabStatusBanner.title}
+            description={currentTabStatusBanner.description}
+            variant={currentTabStatusBanner.variant}
+          />
+        ) : null}
+
+        {contractStatusBanner ? (
+          <StatusBanner
+            title={contractStatusBanner.title}
+            description={contractStatusBanner.description}
+            variant={contractStatusBanner.variant}
+          />
+        ) : null}
       </div>
 
       {/* Tab Content */}
@@ -2094,7 +2524,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Tendência de receita"
                 subtitle={`Série principal da Visão Geral • ${describeQuerySource(revenueTsQ.source)}`}
                 loading={revenueTsQ.status === 'loading' && !revenueTsDto}
-                error={widgetError('Falha ao carregar série', revenueTsQ)}
+                error={widgetError('Falha ao carregar série', revenueTsQ, revenueTs.length > 0)}
                 empty={revenueTs.length === 0 && revenueTsQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Não há pontos suficientes para exibir a tendência de receita neste recorte.')}
@@ -2153,7 +2583,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Atenção imediata"
                 subtitle={`Pendências mais urgentes com os filtros aplicados • ${describeQuerySource(alertsQ.source)}`}
                 loading={alertsQ.status === 'loading' && !alertsDto}
-                error={widgetError('Falha ao carregar alertas', alertsQ)}
+                error={widgetError('Falha ao carregar alertas', alertsQ, alerts.length > 0)}
                 empty={alerts.length === 0 && alertsQ.status === 'ready'}
                 emptyTitle="Sem alertas"
                 emptyDescription={smartEmpty('Nada crítico para destacar no recorte atual.')}
@@ -2200,7 +2630,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Tendência de fluxo de caixa"
               subtitle={`Leitura complementar do período • ${describeQuerySource(cashflowTsQ.source)}`}
               loading={cashflowTsQ.status === 'loading' && !cashflowTsDto}
-              error={widgetError('Falha ao carregar série', cashflowTsQ)}
+              error={widgetError('Falha ao carregar série', cashflowTsQ, cashflowTs.length > 0)}
               empty={cashflowTs.length === 0 && cashflowTsQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty('Ainda não há movimentos suficientes para compor a leitura de caixa.')}
@@ -2250,7 +2680,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Funil comercial resumido"
               subtitle={`Leitura rápida de conversão no recorte • ${describeQuerySource(funnelQ.source)}`}
               loading={funnelQ.status === 'loading' && !funnel}
-              error={widgetError('Falha ao carregar funil', funnelQ)}
+              error={widgetError('Falha ao carregar funil', funnelQ, !!(funnel?.stages?.length))}
               empty={(!funnel?.stages?.length) && funnelQ.status === 'ready'}
               emptyTitle="Sem dados"
               emptyDescription={smartEmpty('O funil não retornou etapas no recorte selecionado.')}
@@ -2298,7 +2728,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Ocupação por região"
                 subtitle={`Resumo espacial da oferta no recorte • ${describeQuerySource(inventoryMapQ.source)}`}
                 loading={inventoryMapQ.status === 'loading' && !inventoryMapDto}
-                error={widgetError('Falha ao carregar ocupação por região', inventoryMapQ)}
+                error={widgetError('Falha ao carregar ocupação por região', inventoryMapQ, executiveRegionRows.length > 0)}
                 empty={executiveRegionRows.length === 0 && inventoryMapQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Ainda não há pontos suficientes para resumir a ocupação por região.')}
@@ -2560,7 +2990,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Funil por status"
                 subtitle={`Pipeline por etapa • ${describeQuerySource(funnelQ.source)}`}
                 loading={commercialLoading}
-                error={widgetError('Falha ao carregar funil', funnelQ)}
+                error={widgetError('Falha ao carregar funil', funnelQ, !!(funnel?.stages?.length))}
                 actions={
                   <div className="flex items-center gap-2">
                     <Button variant="outline" className="h-9" onClick={() => funnelQ.refetch()}>
@@ -2702,7 +3132,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Ranking de vendedores"
                 subtitle={`Resultados por responsável • ${describeQuerySource(sellerRankingQ.source)}`}
                 loading={sellerRankingQ.status === 'loading' && !sellerRankingDto}
-                error={widgetError('Falha ao carregar ranking', sellerRankingQ)}
+                error={widgetError('Falha ao carregar ranking', sellerRankingQ, sellerRankingRows.length > 0)}
                 empty={sellerRankingRows.length === 0 && sellerRankingQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Nenhum vendedor encontrado com os filtros atuais.')}
@@ -2779,7 +3209,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Pipeline por responsável"
                 subtitle={`Foco no valor ainda em negociação • ${describeQuerySource(sellerRankingQ.source)}`}
                 loading={sellerRankingQ.status === 'loading' && !sellerRankingDto}
-                error={widgetError('Falha ao carregar pipeline por responsável', sellerRankingQ)}
+                error={widgetError('Falha ao carregar pipeline por responsável', sellerRankingQ, pipelineBySellerRows.length > 0)}
                 empty={pipelineBySellerRows.length === 0 && sellerRankingQ.status === 'ready'}
                 emptyTitle="Sem pipeline aberto"
                 emptyDescription={smartEmpty('Nenhum responsável tem pipeline aberto no recorte atual.')}
@@ -2834,7 +3264,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Propostas paradas"
               subtitle={`Maior tempo sem avanço • ${describeQuerySource(stalledProposalsQ.source)}`}
               loading={stalledProposalsQ.status === 'loading' && !stalledProposalsDto}
-              error={widgetError('Falha ao carregar lista', stalledProposalsQ)}
+              error={widgetError('Falha ao carregar lista', stalledProposalsQ, stalledProposalsRows.length > 0)}
               empty={stalledProposalsRows.length === 0 && stalledProposalsQ.status === 'ready'}
               emptyTitle="Nada aqui"
               emptyDescription={smartEmpty('Nenhuma proposta parou com os filtros atuais.')}
@@ -3026,7 +3456,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Status operacional (OOH)"
                 subtitle={`Execução, SLA e criticidade • ${describeQuerySource(oohOpsQ.source)}`}
                 loading={oohOpsQ.status === 'loading' && !oohOpsDto}
-                error={widgetError('Falha ao carregar status operacional', oohOpsQ)}
+                error={widgetError('Falha ao carregar status operacional', oohOpsQ, oohOpsItems.length > 0)}
                 empty={oohOpsItems.length === 0 && oohOpsQ.status === 'ready'}
                 emptyTitle="Sem campanhas operacionais"
                 emptyDescription={smartEmpty('Nenhuma campanha OOH operacional foi encontrada para o recorte atual.')}
@@ -3106,7 +3536,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Resumo operacional (DOOH)"
                 subtitle={`Telas, campanhas vinculadas e atividade recente • ${describeQuerySource(doohSummaryQ.source)}`}
                 loading={doohSummaryQ.status === 'loading' && !doohSummaryDto}
-                error={widgetError('Falha ao carregar resumo operacional DOOH', doohSummaryQ)}
+                error={widgetError('Falha ao carregar resumo operacional DOOH', doohSummaryQ, doohSummaryRows.length > 0)}
                 empty={doohSummaryRows.length === 0 && doohSummaryQ.status === 'ready'}
                 emptyTitle="Sem telas DOOH"
                 emptyDescription={smartEmpty('Nenhuma tela DOOH encontrada com os filtros atuais.')}
@@ -3193,7 +3623,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Campanhas críticas"
               subtitle={`Ação imediata • ${describeQuerySource(oohOpsQ.source)}`}
               loading={oohOpsQ.status === 'loading' && !oohOpsDto}
-              error={widgetError('Falha ao carregar campanhas críticas', oohOpsQ)}
+              error={widgetError('Falha ao carregar campanhas críticas', oohOpsQ, criticalCampaignRows.length > 0)}
               empty={criticalCampaignRows.length === 0 && oohOpsQ.status === 'ready'}
               emptyTitle="Sem campanhas críticas"
               emptyDescription={smartEmpty('Nenhuma campanha crítica encontrada para o recorte atual.')}
@@ -3225,7 +3655,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Instalações vencidas"
               subtitle={`Prazo estourado • ${describeQuerySource(oohOpsQ.source)}`}
               loading={oohOpsQ.status === 'loading' && !oohOpsDto}
-              error={widgetError('Falha ao carregar instalações vencidas', oohOpsQ)}
+              error={widgetError('Falha ao carregar instalações vencidas', oohOpsQ, overdueInstallationRows.length > 0)}
               empty={overdueInstallationRows.length === 0 && oohOpsQ.status === 'ready'}
               emptyTitle="Sem instalações vencidas"
               emptyDescription={smartEmpty('Nenhuma instalação vencida encontrada para o recorte atual.')}
@@ -3256,7 +3686,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Itens sem check-in"
               subtitle={`Comprovação pendente • ${describeQuerySource(oohOpsQ.source)}`}
               loading={oohOpsQ.status === 'loading' && !oohOpsDto}
-              error={widgetError('Falha ao carregar itens sem check-in', oohOpsQ)}
+              error={widgetError('Falha ao carregar itens sem check-in', oohOpsQ, missingCheckinRows.length > 0)}
               empty={missingCheckinRows.length === 0 && oohOpsQ.status === 'ready'}
               emptyTitle="Sem itens pendentes"
               emptyDescription={smartEmpty('Nenhum item sem check-in encontrado para o recorte atual.')}
@@ -3290,7 +3720,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Regiões com maior atraso"
                 subtitle={`Leitura territorial OOH • ${describeQuerySource(operationsLateRegionsQ.source)}`}
                 loading={operationsLateRegionsQ.status === 'loading' && !operationsLateRegionsDto}
-                error={widgetError('Falha ao carregar regiões com atraso', operationsLateRegionsQ)}
+                error={widgetError('Falha ao carregar regiões com atraso', operationsLateRegionsQ, operationsLateRegionRows.length > 0)}
                 empty={operationsLateRegionRows.length === 0 && operationsLateRegionsQ.status === 'ready'}
                 emptyTitle="Sem regiões críticas"
                 emptyDescription={smartEmpty('Nenhuma região com atraso operacional encontrada para o recorte atual.')}
@@ -3330,7 +3760,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Campanhas por cidade/status"
                 subtitle={`Distribuição operacional por cidade • ${describeQuerySource(operationsCityStatusQ.source)}`}
                 loading={operationsCityStatusQ.status === 'loading' && !operationsCityStatusDto}
-                error={widgetError('Falha ao carregar campanhas por cidade/status', operationsCityStatusQ)}
+                error={widgetError('Falha ao carregar campanhas por cidade/status', operationsCityStatusQ, operationsCityStatusRows.length > 0)}
                 empty={operationsCityStatusRows.length === 0 && operationsCityStatusQ.status === 'ready'}
                 emptyTitle="Sem distribuição operacional"
                 emptyDescription={smartEmpty('Nenhuma cidade com campanhas operacionais encontrada para o recorte atual.')}
@@ -3370,6 +3800,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
       {tab === 'financeiro' ? (
         <div id="dashboard-export-root" className="space-y-6">
+          {financialSummaryError ? (
+            <Card>
+              <CardContent className="pt-5">
+                <ErrorState title={financialSummaryError.title} description={financialSummaryError.description} />
+              </CardContent>
+            </Card>
+          ) : null}
+
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
             <KpiCard
               label="Receita reconhecida"
@@ -3420,7 +3858,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Revenue timeseries"
                 subtitle={`Receita reconhecida no período • ${describeQuerySource(revenueTsQ.source)}`}
                 loading={revenueTsQ.status === 'loading' && !revenueTsDto}
-                error={widgetError('Falha ao carregar receita reconhecida', revenueTsQ)}
+                error={widgetError('Falha ao carregar receita reconhecida', revenueTsQ, revenueTs.length > 0)}
                 empty={revenueTs.length === 0 && revenueTsQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Não há receita reconhecida para o período/filtros atuais.')}
@@ -3487,7 +3925,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Aging de recebíveis"
                 subtitle={`Distribuição por faixa • ${describeQuerySource(agingQ.source)}`}
                 loading={agingQ.status === 'loading' && !agingSummary}
-                error={widgetError('Falha ao carregar aging', agingQ)}
+                error={widgetError('Falha ao carregar aging', agingQ, !!(agingSummary?.buckets?.length))}
                 empty={(agingSummary?.buckets?.length || 0) === 0 && agingQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Não há faixas de aging para o período/filtros atuais.')}
@@ -3544,7 +3982,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Cashflow timeseries"
                 subtitle={`Fluxo de caixa líquido • ${describeQuerySource(cashflowTsQ.source)}`}
                 loading={cashflowTsQ.status === 'loading' && !cashflowTsDto}
-                error={widgetError('Falha ao carregar fluxo de caixa', cashflowTsQ)}
+                error={widgetError('Falha ao carregar fluxo de caixa', cashflowTsQ, cashflowTs.length > 0)}
                 empty={cashflowTs.length === 0 && cashflowTsQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Não há movimentações para o período/filtros atuais.')}
@@ -3604,7 +4042,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Composição recebido vs aberto vs vencido"
                 subtitle={`Leitura simples de liquidez e risco • ${describeQuerySource(receivablesCompositionQ.source)}`}
                 loading={financialCompositionLoading}
-                error={widgetError('Falha ao carregar composição financeira', receivablesCompositionQ)}
+                error={widgetError('Falha ao carregar composição financeira', receivablesCompositionQ, !!receivablesComposition)}
                 empty={!receivablesComposition?.totalCents && receivablesCompositionQ.status === 'ready'}
                 emptyTitle="Sem dados"
                 emptyDescription={smartEmpty('Não há composição financeira para o período/filtros atuais.')}
@@ -3653,7 +4091,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Faturas críticas"
               subtitle={`Ação financeira imediata • ${describeQuerySource(criticalInvoicesQ.source)}`}
               loading={criticalInvoicesQ.status === 'loading' && !criticalInvoicesDto}
-              error={widgetError('Falha ao carregar faturas críticas', criticalInvoicesQ)}
+              error={widgetError('Falha ao carregar faturas críticas', criticalInvoicesQ, criticalInvoicesRows.length > 0)}
               empty={criticalInvoicesRows.length === 0 && criticalInvoicesQ.status === 'ready'}
               emptyTitle="Sem faturas críticas"
               emptyDescription={smartEmpty('Nenhuma fatura crítica encontrada para o recorte atual.')}
@@ -3703,7 +4141,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Clientes com maior atraso"
               subtitle={`Concentração de risco por cliente • ${describeQuerySource(lateClientsQ.source)}`}
               loading={lateClientsQ.status === 'loading' && !lateClientsDto}
-              error={widgetError('Falha ao carregar clientes em atraso', lateClientsQ)}
+              error={widgetError('Falha ao carregar clientes em atraso', lateClientsQ, lateClientsRows.length > 0)}
               empty={lateClientsRows.length === 0 && lateClientsQ.status === 'ready'}
               emptyTitle="Sem clientes em atraso"
               emptyDescription={smartEmpty('Nenhum cliente em atraso encontrado para o recorte atual.')}
@@ -3750,7 +4188,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Maiores contas em aberto"
               subtitle={`Maiores títulos pendentes • ${describeQuerySource(largestOpenReceivablesQ.source)}`}
               loading={largestOpenReceivablesQ.status === 'loading' && !largestOpenReceivablesDto}
-              error={widgetError('Falha ao carregar contas em aberto', largestOpenReceivablesQ)}
+              error={widgetError('Falha ao carregar contas em aberto', largestOpenReceivablesQ, largestOpenReceivablesRows.length > 0)}
               empty={largestOpenReceivablesRows.length === 0 && largestOpenReceivablesQ.status === 'ready'}
               emptyTitle="Sem contas em aberto"
               emptyDescription={smartEmpty('Nenhuma conta em aberto encontrada para o recorte atual.')}
@@ -3799,7 +4237,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Top clientes por faturamento"
               subtitle={`Receita reconhecida por cliente • ${describeQuerySource(topClientsQ.source)}`}
               loading={topClientsQ.status === 'loading' && !topClientsDto}
-              error={widgetError('Falha ao carregar top clientes', topClientsQ)}
+              error={widgetError('Falha ao carregar top clientes', topClientsQ, topClientsRows.length > 0)}
               empty={topClientsRows.length === 0 && topClientsQ.status === 'ready'}
               emptyTitle="Sem clientes"
               emptyDescription={smartEmpty('Nenhum cliente encontrado para o recorte atual.')}
@@ -3845,7 +4283,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Maiores despesas do período"
               subtitle={`Saídas pagas com maior peso no caixa • ${describeQuerySource(largestExpensesQ.source)}`}
               loading={largestExpensesQ.status === 'loading' && !largestExpensesDto}
-              error={widgetError('Falha ao carregar despesas do período', largestExpensesQ)}
+              error={widgetError('Falha ao carregar despesas do período', largestExpensesQ, largestExpensesRows.length > 0)}
               empty={largestExpensesRows.length === 0 && largestExpensesQ.status === 'ready'}
               emptyTitle="Sem despesas relevantes"
               emptyDescription={smartEmpty('Nenhuma despesa relevante encontrada para o recorte atual.')}
@@ -3940,7 +4378,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Mapa real do inventário"
                 subtitle={`Leitura espacial alinhada ao Mídia Map • ${describeQuerySource(inventoryMapQ.source)}`}
                 loading={inventoryMapQ.status === 'loading' && !inventoryMapDto}
-                error={widgetError('Falha ao carregar mapa do inventário', inventoryMapQ)}
+                error={widgetError('Falha ao carregar mapa do inventário', inventoryMapQ, inventoryPins.length > 0)}
                 empty={inventoryPins.length === 0 && inventoryMapQ.status === 'ready'}
                 emptyTitle="Sem pontos"
                 emptyDescription={smartEmpty('Nenhum ponto encontrado para os filtros atuais.')}
@@ -3984,7 +4422,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Resumo de oportunidade"
                 subtitle={`Ociosidade, concentração e pontos premium subutilizados • ${describeQuerySource(inventoryOpportunitySummaryQ.source)}`}
                 loading={inventoryOpportunitySummaryQ.status === 'loading' && !inventoryOpportunitySummaryDto}
-                error={widgetError('Falha ao carregar oportunidades', inventoryOpportunitySummaryQ)}
+                error={widgetError('Falha ao carregar oportunidades', inventoryOpportunitySummaryQ, inventoryOpportunityRows.length > 0)}
                 empty={inventoryOpportunityRows.length === 0 && inventoryOpportunitySummaryQ.status === 'ready'}
                 emptyTitle="Sem oportunidades destacadas"
                 emptyDescription={smartEmpty('O recorte atual não gerou alertas de oportunidade relevantes.')}
@@ -4052,7 +4490,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Ranking dos pontos"
                 subtitle={`Pontos com melhor combinação de ocupação, campanhas e receita • ${describeQuerySource(inventoryRankingQ.source)}`}
                 loading={inventoryRankingQ.status === 'loading' && !inventoryRankingDto}
-                error={widgetError('Falha ao carregar ranking do inventário', inventoryRankingQ)}
+                error={widgetError('Falha ao carregar ranking do inventário', inventoryRankingQ, inventoryRankingRows.length > 0)}
                 empty={inventoryRankingRows.length === 0 && inventoryRankingQ.status === 'ready'}
                 emptyTitle="Sem ranking"
                 emptyDescription={smartEmpty('Ainda não há pontos ranqueados no recorte atual.')}
@@ -4103,7 +4541,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 title="Distribuição por cidade/estado"
                 subtitle={`Concentração territorial e disponibilidade por praça • ${describeQuerySource(inventoryRegionDistributionQ.source)}`}
                 loading={inventoryRegionDistributionQ.status === 'loading' && !inventoryRegionDistributionDto}
-                error={widgetError('Falha ao carregar distribuição regional', inventoryRegionDistributionQ)}
+                error={widgetError('Falha ao carregar distribuição regional', inventoryRegionDistributionQ, inventoryRegionRows.length > 0)}
                 empty={inventoryRegionRows.length === 0 && inventoryRegionDistributionQ.status === 'ready'}
                 emptyTitle="Sem distribuição"
                 emptyDescription={smartEmpty('Ainda não há regiões suficientes para compor a distribuição.')}
@@ -4145,7 +4583,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Distribuição por tipo"
               subtitle={`Composição do inventário por OOH/DOOH • ${describeQuerySource(inventoryTypeDistributionQ.source)}`}
               loading={inventoryTypeDistributionQ.status === 'loading' && !inventoryTypeDistributionDto}
-              error={widgetError('Falha ao carregar distribuição por tipo', inventoryTypeDistributionQ)}
+              error={widgetError('Falha ao carregar distribuição por tipo', inventoryTypeDistributionQ, inventoryTypeRows.length > 0)}
               empty={inventoryTypeRows.length === 0 && inventoryTypeDistributionQ.status === 'ready'}
               emptyTitle="Sem composição"
               emptyDescription={smartEmpty('Ainda não há dados para distribuir o inventário por tipo.')}
@@ -4184,7 +4622,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               title="Distribuição por subcategoria/ambiente"
               subtitle={`Leitura da composição e especialização do inventário • ${describeQuerySource(inventorySubtypeDistributionQ.source)}`}
               loading={inventorySubtypeDistributionQ.status === 'loading' && !inventorySubtypeDistributionDto}
-              error={widgetError('Falha ao carregar distribuição por subcategoria', inventorySubtypeDistributionQ)}
+              error={widgetError('Falha ao carregar distribuição por subcategoria', inventorySubtypeDistributionQ, inventorySubtypeRows.length > 0)}
               empty={inventorySubtypeRows.length === 0 && inventorySubtypeDistributionQ.status === 'ready'}
               emptyTitle="Sem composição"
               emptyDescription={smartEmpty('Ainda não há dados para distribuir o inventário por subcategoria e ambiente.')}
@@ -4230,6 +4668,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
 {tab === 'clientes' ? (
   <div id="dashboard-export-root" className="space-y-6">
+    {clientsSummaryError ? (
+      <Card>
+        <CardContent className="pt-5">
+          <ErrorState title={clientsSummaryError.title} description={clientsSummaryError.description} />
+        </CardContent>
+      </Card>
+    ) : null}
+
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
       <KpiCard
         label="Clientes ativos"
@@ -4282,7 +4728,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           title="Top clientes por receita"
           subtitle={`Receita reconhecida por cliente • ${describeQuerySource(topClientsQ.source)}`}
           loading={topClientsQ.status === 'loading' && !topClientsDto}
-          error={widgetError('Falha ao carregar top clientes por receita', topClientsQ)}
+          error={widgetError('Falha ao carregar top clientes por receita', topClientsQ, topClientsRows.length > 0)}
           empty={topClientsRows.length === 0 && topClientsQ.status === 'ready'}
           emptyTitle="Sem clientes"
           emptyDescription={smartEmpty('Nenhum cliente com receita foi encontrado para o recorte atual.')}
@@ -4319,7 +4765,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           title="Top clientes por campanhas"
           subtitle={`Concentração de campanhas válidas • ${describeQuerySource(clientsTopCampaignsQ.source)}`}
           loading={clientsTopCampaignsQ.status === 'loading' && !clientsTopCampaignsDto}
-          error={widgetError('Falha ao carregar clientes por campanhas', clientsTopCampaignsQ)}
+          error={widgetError('Falha ao carregar clientes por campanhas', clientsTopCampaignsQ, clientsTopCampaignRows.length > 0)}
           empty={clientsTopCampaignRows.length === 0 && clientsTopCampaignsQ.status === 'ready'}
           emptyTitle="Sem campanhas"
           emptyDescription={smartEmpty('Nenhum cliente com campanhas válidas foi encontrado para o recorte atual.')}
@@ -4358,7 +4804,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           title="Clientes em atraso"
           subtitle={`Risco financeiro da carteira • ${describeQuerySource(lateClientsQ.source)}`}
           loading={lateClientsQ.status === 'loading' && !lateClientsDto}
-          error={widgetError('Falha ao carregar clientes em atraso', lateClientsQ)}
+          error={widgetError('Falha ao carregar clientes em atraso', lateClientsQ, lateClientsRows.length > 0)}
           empty={lateClientsRows.length === 0 && lateClientsQ.status === 'ready'}
           emptyTitle="Sem clientes em atraso"
           emptyDescription={smartEmpty('Nenhum cliente em atraso encontrado para o recorte atual.')}
@@ -4395,7 +4841,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           title="Clientes com propostas em aberto"
           subtitle={`Pressão comercial e pipeline por cliente • ${describeQuerySource(clientsOpenProposalsQ.source)}`}
           loading={clientsOpenProposalsQ.status === 'loading' && !clientsOpenProposalsDto}
-          error={widgetError('Falha ao carregar clientes com propostas em aberto', clientsOpenProposalsQ)}
+          error={widgetError('Falha ao carregar clientes com propostas em aberto', clientsOpenProposalsQ, clientsOpenProposalRows.length > 0)}
           empty={clientsOpenProposalRows.length === 0 && clientsOpenProposalsQ.status === 'ready'}
           emptyTitle="Sem pipeline aberto"
           emptyDescription={smartEmpty('Nenhum cliente com propostas em aberto foi encontrado para o recorte atual.')}
@@ -4433,7 +4879,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         title="Clientes sem campanha ativa"
         subtitle={`Carteira sem operação em curso • ${describeQuerySource(clientsInactiveRiskQ.source)}`}
         loading={clientsInactiveRiskQ.status === 'loading' && !clientsInactiveRiskDto}
-        error={widgetError('Falha ao carregar clientes sem campanha ativa', clientsInactiveRiskQ)}
+        error={widgetError('Falha ao carregar clientes sem campanha ativa', clientsInactiveRiskQ, clientsWithoutCampaignRows.length > 0)}
         empty={clientsWithoutCampaignRows.length === 0 && clientsInactiveRiskQ.status === 'ready'}
         emptyTitle="Sem clientes sem campanha ativa"
         emptyDescription={smartEmpty('A carteira carregada possui campanha ativa para todos os clientes visíveis.')}
@@ -4454,7 +4900,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         title="Clientes com risco de inatividade"
         subtitle={`Sinais de esfriamento da carteira • ${describeQuerySource(clientsInactiveRiskQ.source)}`}
         loading={clientsInactiveRiskQ.status === 'loading' && !clientsInactiveRiskDto}
-        error={widgetError('Falha ao carregar risco de inatividade', clientsInactiveRiskQ)}
+        error={widgetError('Falha ao carregar risco de inatividade', clientsInactiveRiskQ, clientsInactiveRiskRows.length > 0)}
         empty={clientsInactiveRiskRows.length === 0 && clientsInactiveRiskQ.status === 'ready'}
         emptyTitle="Sem risco relevante"
         emptyDescription={smartEmpty('Nenhum cliente com sinal relevante de inatividade foi encontrado no recorte atual.')}
@@ -4480,7 +4926,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         title="Distribuição de clientes por região"
         subtitle={`Concentração territorial da carteira • ${describeQuerySource(clientsRegionDistributionQ.source)}`}
         loading={clientsRegionDistributionQ.status === 'loading' && !clientsRegionDistributionDto}
-        error={widgetError('Falha ao carregar distribuição regional da carteira', clientsRegionDistributionQ)}
+        error={widgetError('Falha ao carregar distribuição regional da carteira', clientsRegionDistributionQ, clientsRegionRows.length > 0)}
         empty={clientsRegionRows.length === 0 && clientsRegionDistributionQ.status === 'ready'}
         emptyTitle="Sem distribuição regional"
         emptyDescription={smartEmpty('Ainda não há regiões suficientes para compor a leitura da carteira.')}

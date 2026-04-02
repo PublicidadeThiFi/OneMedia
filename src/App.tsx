@@ -3,7 +3,6 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
 import { WaitlistProvider } from './contexts/WaitlistContext';
-import { ensureLatestBuild, manualCacheRescueIfRequested } from './versionGuard';
 
 // Pages
 import Home from './pages/index';
@@ -104,17 +103,6 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
 export default function App() {
   const getCurrentPath = () => window.location.pathname + window.location.search;
   const [currentPath, setCurrentPath] = useState(getCurrentPath());
-
-  // Etapa 7 — proteção contra HTML/bundles em cache (evita tela branca pós-deploy)
-  useEffect(() => {
-    // best-effort; nunca deve quebrar o render
-    void manualCacheRescueIfRequested();
-    void ensureLatestBuild();
-
-    const onFocus = () => void ensureLatestBuild();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, []);
 
   const isMobileDevice = () => {
     const width = window.innerWidth || document.documentElement.clientWidth;
