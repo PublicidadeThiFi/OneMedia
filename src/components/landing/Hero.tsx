@@ -1,5 +1,5 @@
 import { ArrowRight, Check } from 'lucide-react';
-import { useNavigation } from '../../App';
+import { useNavigation } from '../../contexts/NavigationContext';
 
 export function Hero() {
   const navigate = useNavigation();

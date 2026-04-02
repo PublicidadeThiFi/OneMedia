@@ -6,7 +6,7 @@ import { Proposal, ProposalStatus, ProposalItem } from '../../types';
 import { ProposalStep1General } from './ProposalStep1General';
 import { ProposalStep2Items } from './ProposalStep2Items';
 import { Progress } from '../ui/progress';
-import type { Page } from '../MainApp';
+import type { Page } from '../../types/app';
 import { toNumber } from '../../lib/number';
 
 interface ProposalFormWizardProps {

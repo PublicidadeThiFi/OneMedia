@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle, Home, LogIn, Send } from 'lucide-react';
-import { useNavigation } from '../../App';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { publicApiClient } from '../../lib/apiClient';
 import { getApiError } from '../../lib/getApiError';
 

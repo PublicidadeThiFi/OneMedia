@@ -31,7 +31,7 @@ import {
   type MediaMapLayer,
   useMediaMapPoints,
 } from '../hooks/useMediaMap';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 
 import apiClient from '../lib/apiClient';
 import { reverseGeocodeOSM } from '../lib/geocode';

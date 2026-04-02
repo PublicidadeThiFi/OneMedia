@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import { fetchPublishedNews } from '../services/news';
 import type { PublishedNewsListItem } from '../types/news';
 import { NewsGrid } from './home/NewsGrid';
