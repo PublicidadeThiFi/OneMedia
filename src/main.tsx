@@ -6,13 +6,15 @@ import "leaflet/dist/leaflet.css";
 import { manualCacheRescueIfRequested, ensureLatestBuild } from "./versionGuard";
 
 // Run cache guards ASAP (safe even without PWA/Service Worker)
-manualCacheRescueIfRequested();
-ensureLatestBuild();
+void (async () => {
+  await manualCacheRescueIfRequested();
+  await ensureLatestBuild(true);
+})();
 
 // Also re-check when the tab becomes visible again (lightweight)
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
-    ensureLatestBuild();
+    void ensureLatestBuild();
   }
 });
 

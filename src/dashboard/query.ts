@@ -29,7 +29,6 @@ export function buildDashboardBackendQuery(filters: DashboardFilters): Dashboard
     dateTo,
     q: filters.query?.trim() ? filters.query.trim() : undefined,
     city: filters.city?.trim() ? filters.city.trim() : undefined,
-    region: filters.city?.trim() ? filters.city.trim() : undefined,
     state: undefined,
     mediaType: filters.mediaType === 'ALL' ? undefined : filters.mediaType,
   };
@@ -42,7 +41,6 @@ export function toQueryString(query: DashboardBackendQuery, extra?: Record<strin
     dateTo: query.dateTo,
     q: query.q,
     city: query.city,
-    region: query.region,
     state: query.state,
     mediaType: query.mediaType,
     ...(extra || {}),

@@ -2,6 +2,10 @@ type VersionPayload = { version?: string };
 
 const VERSION_KEY = "app_version";
 const RESCUE_KEY = "cache_rescue_for_version";
+const BUILD_CHECK_THROTTLE_MS = 15_000;
+
+let latestBuildPromise: Promise<void> | null = null;
+let lastBuildCheckAt = 0;
 
 function normalizeAppRootPath(url: URL) {
   // GitHub Pages / Fastly costumam canonizar "/app" -> "/app/" (301).
@@ -73,6 +77,14 @@ async function clearSWAndCaches(): Promise<void> {
   }
 }
 
+export function getStoredAppVersion(): string | null {
+  try {
+    return localStorage.getItem(VERSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Manual escape hatch: add ?clearcache=1 to the URL.
  * Useful for support when a specific user is stuck.
@@ -94,44 +106,67 @@ export async function manualCacheRescueIfRequested(): Promise<void> {
   }
 }
 
+async function runLatestBuildCheck(): Promise<void> {
+  const res = await fetch(`/version.json?ts=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) return;
+
+  const data = (await res.json()) as VersionPayload;
+  const version = data?.version;
+  if (!version) return;
+
+  // Make reloads cache-safe (CDN may cache HTML for minutes).
+  ensureUrlHasVersion(version);
+
+  const local = getStoredAppVersion();
+
+  // First visit: store and move on
+  if (!local) {
+    localStorage.setItem(VERSION_KEY, version);
+    return;
+  }
+
+  if (local !== version) {
+    // Only do the heavy cleanup once per detected version to avoid loops
+    const rescuedFor = localStorage.getItem(RESCUE_KEY);
+    if (rescuedFor !== version) {
+      await clearSWAndCaches();
+      localStorage.setItem(RESCUE_KEY, version);
+    }
+
+    localStorage.setItem(VERSION_KEY, version);
+
+    // Use a versioned URL to avoid reusing cached HTML from the CDN.
+    hardReloadWithVersion(version);
+  }
+}
+
 /**
  * Fetches /version.json (no-store) and reloads the page if a new build is detected.
  * This prevents users from getting stuck on old bundles due to cached index.html or SW.
+ *
+ * Etapa 7:
+ * - deduplica checks em voo;
+ * - aplica throttle curto para evitar requests redundantes quando main/App/focus/visibility
+ *   disparam quase ao mesmo tempo.
  */
-export async function ensureLatestBuild(): Promise<void> {
-  try {
-    const res = await fetch(`/version.json?ts=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return;
-
-    const data = (await res.json()) as VersionPayload;
-    const version = data?.version;
-    if (!version) return;
-
-    // Make reloads cache-safe (CDN may cache HTML for minutes).
-    ensureUrlHasVersion(version);
-
-    const local = localStorage.getItem(VERSION_KEY);
-
-    // First visit: store and move on
-    if (!local) {
-      localStorage.setItem(VERSION_KEY, version);
-      return;
-    }
-
-    if (local !== version) {
-      // Only do the heavy cleanup once per detected version to avoid loops
-      const rescuedFor = localStorage.getItem(RESCUE_KEY);
-      if (rescuedFor !== version) {
-        await clearSWAndCaches();
-        localStorage.setItem(RESCUE_KEY, version);
-      }
-
-      localStorage.setItem(VERSION_KEY, version);
-
-      // Use a versioned URL to avoid reusing cached HTML from the CDN.
-      hardReloadWithVersion(version);
-    }
-  } catch {
-    // ignore (offline, etc.)
+export async function ensureLatestBuild(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && latestBuildPromise) {
+    return latestBuildPromise;
   }
+
+  if (!force && now - lastBuildCheckAt < BUILD_CHECK_THROTTLE_MS) {
+    return;
+  }
+
+  lastBuildCheckAt = now;
+  latestBuildPromise = runLatestBuildCheck()
+    .catch(() => {
+      // ignore (offline, etc.)
+    })
+    .finally(() => {
+      latestBuildPromise = null;
+    });
+
+  return latestBuildPromise;
 }

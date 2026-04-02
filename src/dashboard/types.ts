@@ -31,6 +31,9 @@ export type {
 } from './contracts/shared';
 
 
+// Meta
+export type { DashboardMetaFilterKey, DashboardMetaFilterDescriptor, DashboardMetaEndpointKey, DashboardMetaEndpointDescriptor, DashboardMetaDTO } from './contracts/meta';
+
 // KPI definitions
 export type { DashboardKpiDefinitionKey, DashboardKpiDefinition, DashboardKpiDefinitionsDTO } from './contracts/kpis';
 

@@ -24,7 +24,6 @@ export type DashboardBackendQuery = {
   dateTo: string; // ISO datetime
   q?: string; // busca textual
   city?: string;
-  region?: string; // alias aceito pelo backend para city
   state?: string;
   mediaType?: Exclude<MediaTypeFilter, 'ALL'>;
 };

@@ -7,3 +7,5 @@ export * from './inventory';
 export * from './clients';
 export * from './drilldown';
 export * from './kpis';
+
+export * from './meta';
