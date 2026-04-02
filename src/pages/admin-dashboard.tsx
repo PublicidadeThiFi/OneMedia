@@ -13,7 +13,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useNavigation } from '../App';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import { formatDateTimeBR } from '../lib/format';
 import {
