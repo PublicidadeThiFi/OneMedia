@@ -874,7 +874,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
           <Label>Imagem da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}</Label>
           <Input
             type="file"
-            accept="image/jpeg,image/png,image/gif"
+            accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
             multiple
             onChange={handleImageChange}
             className="flex-1"

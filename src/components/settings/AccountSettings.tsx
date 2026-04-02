@@ -9,6 +9,7 @@ import { User, Shield } from 'lucide-react';
 import { TwoFactorType, User as UserType } from '../../types';
 import { AuthUser } from '../../types/auth';
 import { toast } from 'sonner';
+import { validateFileBinarySignature } from '../../lib/mediaValidation';
 
 interface AccountSettingsProps {
   currentUser: AuthUser;
@@ -25,11 +26,17 @@ export function AccountSettings({ currentUser, onUpdateUser }: AccountSettingsPr
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
         toast.error('Por favor, selecione apenas arquivos de imagem.');
+        return;
+      }
+
+      const signatureError = await validateFileBinarySignature(file, 'image');
+      if (signatureError) {
+        toast.error(signatureError);
         return;
       }
       

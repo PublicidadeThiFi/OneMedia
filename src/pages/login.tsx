@@ -8,6 +8,9 @@ import { LoginCredentials, TwoFactorPayload } from '../types/auth';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
 import { clearAccessState } from '../lib/accessControl';
+import { clearStoredTokens } from '../lib/authStorage';
+import { stripOAuthErrorParams } from '../lib/urlSecurity';
+import { appendRetryAfter } from '../lib/retryAfter';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 type ResendVerificationResponse = {
@@ -49,6 +52,7 @@ export default function Login() {
                   : 'Não foi possível autenticar com Google.';
 
       setError((prev) => prev || (desc ? `${friendly}\n${desc}` : friendly));
+      stripOAuthErrorParams('/login');
     } catch {
       // ignore
     }
@@ -101,8 +105,7 @@ export default function Login() {
     (async () => {
       try {
         clearAccessState();
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        clearStoredTokens();
 
         if ('serviceWorker' in navigator) {
           const regs = await navigator.serviceWorker.getRegistrations();
@@ -174,7 +177,7 @@ export default function Login() {
       await login(credentials);
     } catch (err) {
       const apiErr = getApiError(err, 'Erro ao fazer login');
-      setError(apiErr.message);
+      setError(appendRetryAfter(apiErr.message, apiErr.retryAfterSeconds));
       setEmailNotVerified(apiErr.code === 'EMAIL_NOT_VERIFIED');
     } finally {
       setIsLoading(false);
@@ -190,7 +193,7 @@ export default function Login() {
       await verifyTwoFactor(payload);
     } catch (err) {
       const apiErr = getApiError(err, 'Erro ao verificar código');
-      setError(apiErr.message);
+      setError(appendRetryAfter(apiErr.message, apiErr.retryAfterSeconds));
       setEmailNotVerified(apiErr.code === 'EMAIL_NOT_VERIFIED');
     } finally {
       setIsLoading(false);

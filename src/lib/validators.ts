@@ -76,8 +76,12 @@ export function handlePhoneInput(value: string): string {
 // Password Validation
 // ========================================
 
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 128;
+
 export interface PasswordRequirements {
   minLength: boolean;
+  maxLength: boolean;
   hasUpperCase: boolean;
   hasNumber: boolean;
   hasSpecialChar: boolean;
@@ -93,17 +97,19 @@ export interface PasswordRequirements {
  * - At least 1 special character
  */
 export function validatePasswordRequirements(password: string): PasswordRequirements {
-  const minLength = password.length >= 8;
+  const minLength = password.length >= PASSWORD_MIN_LENGTH;
+  const maxLength = password.length <= PASSWORD_MAX_LENGTH;
   const hasUpperCase = /[A-Z]/.test(password);
   const hasNumber = /\d/.test(password);
   const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
   
   return {
     minLength,
+    maxLength,
     hasUpperCase,
     hasNumber,
     hasSpecialChar,
-    isValid: minLength && hasUpperCase && hasNumber && hasSpecialChar,
+    isValid: minLength && maxLength && hasUpperCase && hasNumber && hasSpecialChar,
   };
 }
 
@@ -117,7 +123,8 @@ export function getPasswordErrorMessage(password: string): string | null {
   
   if (!reqs.isValid) {
     const missing: string[] = [];
-    if (!reqs.minLength) missing.push('8 caracteres');
+    if (!reqs.minLength) missing.push(`${PASSWORD_MIN_LENGTH} caracteres`);
+    if (!reqs.maxLength) missing.push(`no máximo ${PASSWORD_MAX_LENGTH} caracteres`);
     if (!reqs.hasUpperCase) missing.push('1 letra maiúscula');
     if (!reqs.hasNumber) missing.push('1 número');
     if (!reqs.hasSpecialChar) missing.push('1 caractere especial');

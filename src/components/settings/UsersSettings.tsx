@@ -14,6 +14,9 @@ import { useAuth } from '../../contexts/AuthContext';
 export function UsersSettings() {
   const { user: authUser } = useAuth();
   const currentUserId = authUser?.id || '';
+  const currentUserRoles = authUser?.roles || [];
+  const canManageUsers = Boolean(authUser?.isSuperAdmin || currentUserRoles.includes(UserRoleType.ADMINISTRATIVO));
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const { users, loading, error, refetch, inviteUser, updateUser, updateUserStatus, updateUserRoles } = useUsers({ search: debouncedSearch });
@@ -83,7 +86,8 @@ export function UsersSettings() {
       setIsInviteDialogOpen(false);
       await refetch();
     } catch (e) {
-      toast.error('Falha ao convidar usuário.');
+      const status = (e as any)?.response?.status;
+      toast.error(status === 403 ? 'Você não tem permissão para gerenciar usuários.' : 'Falha ao convidar usuário.');
     }
   };
 
@@ -129,7 +133,8 @@ export function UsersSettings() {
       setEditingUser(null);
       await refetch();
     } catch (e) {
-      toast.error('Falha ao atualizar usuário.');
+      const status = (e as any)?.response?.status;
+      toast.error(status === 403 ? 'Você não tem permissão para gerenciar usuários.' : 'Falha ao atualizar usuário.');
     }
   };
 
@@ -144,9 +149,25 @@ export function UsersSettings() {
       toast.success(`Usuário ${newStatus === UserStatus.ACTIVE ? 'ativado' : 'desativado'}.`);
       await refetch();
     } catch (e) {
-      toast.error('Falha ao alterar status do usuário.');
+      const status = (e as any)?.response?.status;
+      toast.error(status === 403 ? 'Você não tem permissão para gerenciar usuários.' : 'Falha ao alterar status do usuário.');
     }
   };
+
+  if (!canManageUsers) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Usuários da Empresa (User + UserRole)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Apenas usuários com o perfil <strong>ADMINISTRATIVO</strong> podem gerenciar usuários e acessos.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <>

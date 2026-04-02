@@ -4,6 +4,7 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { LoginCredentials } from '../../types/auth';
 import { useWaitlist } from '../../contexts/WaitlistContext';
 import { TurnstileWidget } from '../turnstile/TurnstileWidget';
+import { getEmailErrorMessage, normalizeEmailInput, PASSWORD_MAX_LENGTH } from '../../lib/validators';
 
 type LoginFormProps = {
   onSubmit: (credentials: LoginCredentials) => Promise<void>;
@@ -26,10 +27,12 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction, captchaSite
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!email.trim()) {
+    const normalizedEmail = normalizeEmailInput(email);
+    if (!normalizedEmail) {
       newErrors.email = 'E-mail é obrigatório';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = 'E-mail inválido';
+    } else {
+      const emailError = getEmailErrorMessage(normalizedEmail);
+      if (emailError) newErrors.email = emailError;
     }
 
     if (!password) {
@@ -51,7 +54,7 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction, captchaSite
       return;
     }
 
-    await onSubmit({ email, password, rememberMe, captchaToken: captchaSiteKey ? captchaToken : undefined });
+    await onSubmit({ email: normalizeEmailInput(email), password, rememberMe, captchaToken: captchaSiteKey ? captchaToken : undefined });
   };
 
   const handleForgotPassword = () => {
@@ -86,12 +89,13 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction, captchaSite
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(normalizeEmailInput(e.target.value))}
             placeholder="seu.email@empresa.com.br"
             className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
               errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
             }`}
             disabled={isLoading}
+            maxLength={254}
           />
         </div>
         {errors.email && (
@@ -111,6 +115,7 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction, captchaSite
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
+            maxLength={PASSWORD_MAX_LENGTH}
             className={`w-full pl-12 pr-12 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all ${
               errors.password ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-gray-50'
             }`}

@@ -25,8 +25,10 @@ import {
 } from '../lib/validators';
 
 import apiClient, { publicApiClient } from '../lib/apiClient';
+import { appendRetryAfter } from '../lib/retryAfter';
 import { useAuth } from '../contexts/AuthContext';
 import { SocialAuthButtons } from '../components/auth/SocialAuthButtons';
+import { stripOAuthErrorParams } from '../lib/urlSecurity';
 
 export default function Cadastro() {
   const navigate = useNavigation();
@@ -131,6 +133,7 @@ export default function Cadastro() {
 
       setStep1Error(desc ? `${friendly}\n${desc}` : friendly);
       setCurrentStep(1);
+      stripOAuthErrorParams('/cadastro');
     } catch {
       // ignore
     }
@@ -474,11 +477,15 @@ export default function Cadastro() {
       }
     } catch (err: any) {
       const apiMessage = err?.response?.data?.message;
-      const message = Array.isArray(apiMessage)
-        ? apiMessage.join('\n')
-        : typeof apiMessage === 'string'
-          ? apiMessage
-          : 'Erro ao criar conta. Verifique os dados e tente novamente.';
+      const retryAfterSeconds = typeof err?.response?.data?.retryAfterSeconds === 'number' ? err.response.data.retryAfterSeconds : undefined;
+      const message = appendRetryAfter(
+        Array.isArray(apiMessage)
+          ? apiMessage.join('\n')
+          : typeof apiMessage === 'string'
+            ? apiMessage
+            : 'Erro ao criar conta. Verifique os dados e tente novamente.',
+        retryAfterSeconds,
+      );
 
       setStep3Errors({ api: message });
     } finally {

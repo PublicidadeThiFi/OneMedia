@@ -11,19 +11,7 @@ import type {
   NewsEditorSchema,
 } from '../types/news';
 
-export const ADMIN_NEWS_ACCESS_TOKEN_KEY = 'news_admin_access_token';
-
-export function getAdminNewsAccessToken(): string | null {
-  return localStorage.getItem(ADMIN_NEWS_ACCESS_TOKEN_KEY);
-}
-
-export function setAdminNewsAccessToken(token: string): void {
-  localStorage.setItem(ADMIN_NEWS_ACCESS_TOKEN_KEY, token);
-}
-
-export function clearAdminNewsAccessToken(): void {
-  localStorage.removeItem(ADMIN_NEWS_ACCESS_TOKEN_KEY);
-}
+import { clearAdminNewsAccessToken, getAdminNewsAccessToken, setAdminNewsAccessToken } from '../lib/adminAuthStorage';
 
 function buildAdminAuthHeaders(token?: string | null) {
   const accessToken = token ?? getAdminNewsAccessToken();
@@ -155,3 +143,6 @@ export async function uploadAdminNewsImage(
 
   return response.data;
 }
+
+// Re-export auth storage functions
+export { clearAdminNewsAccessToken, getAdminNewsAccessToken, setAdminNewsAccessToken } from '../lib/adminAuthStorage';

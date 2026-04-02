@@ -124,7 +124,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
 
 
   // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
-  // to bootstrap /auth/me using tokens from localStorage.
+  // to bootstrap /auth/me using the persisted auth session (sessionStorage / refresh token).
   // While authReady=false we must NOT redirect yet.
   useEffect(() => {
     if (!authReady) return;

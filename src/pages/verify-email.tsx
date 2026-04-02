@@ -2,13 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { publicApiClient } from '../lib/apiClient';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
+import { stripTokenParam } from '../lib/urlSecurity';
+import { appendRetryAfter } from '../lib/retryAfter';
 
 type Status = 'loading' | 'success' | 'error';
 
 function extractApiMessage(err: any): string {
   const msg = err?.response?.data?.message;
-  if (typeof msg === 'string' && msg.trim()) return msg;
-  return 'Não foi possível confirmar seu e-mail. Tente novamente.';
+  const retryAfterSeconds = typeof err?.response?.data?.retryAfterSeconds === 'number' ? err.response.data.retryAfterSeconds : undefined;
+  const base = typeof msg === 'string' && msg.trim() ? msg : 'Não foi possível confirmar seu e-mail. Tente novamente.';
+  return appendRetryAfter(base, retryAfterSeconds);
 }
 
 export default function VerifyEmail() {
@@ -23,6 +26,10 @@ export default function VerifyEmail() {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (typeof window !== 'undefined' && window.location.search) {
+      stripTokenParam('/verify-email');
+    }
 
     const run = async () => {
       if (!token) {

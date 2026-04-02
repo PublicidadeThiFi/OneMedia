@@ -3,7 +3,7 @@
  * Based on schema.prisma User model and Infra.pdf Auth module
  */
 
-import { UserStatus, TwoFactorType } from './index';
+import { UserRoleType, UserStatus, TwoFactorType } from './index';
 
 export interface LoginCredentials {
   email: string;
@@ -30,6 +30,7 @@ export interface AuthUser {
   status: UserStatus;
   twoFactorEnabled: boolean;
   twoFactorType: TwoFactorType | null;
+  roles?: UserRoleType[];
 
   /**
    * True when the user has completed the required onboarding steps

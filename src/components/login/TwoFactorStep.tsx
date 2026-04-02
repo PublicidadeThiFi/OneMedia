@@ -116,9 +116,6 @@ export function TwoFactorStep({ email, onSubmit, onBack, isLoading, error }: Two
           ))}
 
         </div>
-        <p className="text-xs text-gray-500 text-center mt-3 px-2">
-          💡 Dica para teste: use o código <span className="font-mono font-semibold">123456</span>
-        </p>
       </div>
 
       {/* Buttons */}

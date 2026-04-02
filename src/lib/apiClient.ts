@@ -7,6 +7,7 @@ import {
   setAccessState,
   subscribeAccessState,
 } from './accessControl';
+import { clearStoredTokens, getAccessToken, getRefreshToken, persistRotatedTokens } from './authStorage';
 
 function isSafeWhenBlocked(url: string): boolean {
   const u = String(url || '');
@@ -25,7 +26,7 @@ function isSafeWhenBlocked(url: string): boolean {
 // Exemplo em produção (Vercel):
 // VITE_API_URL=https://sua-api.vercel.app/api
 // Se o BD for instanciado localmente, usa 'http://localhost:3333/api' como fallback lá no .env 
-// Se o BD for instanciado remotamente, usa 'http://174.129.69.244:3333/api' como fallback lá no .env -> Sendo usado no momento.
+// Em produção, defina sempre VITE_API_URL apontando para a origem HTTPS da API.
 // src/lib/apiClient.ts
 
 const MISSING_API_BASE_URL = '__MISSING_API_BASE_URL__';
@@ -193,7 +194,7 @@ apiClient.interceptors.request.use(
       }
     }
 
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     const url = String(config.url ?? '');
     // Important: do NOT attach an existing Authorization header to public auth endpoints
     // (login / verify-2fa), otherwise a stale token can make the backend treat the request
@@ -295,12 +296,11 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem('refresh_token');
+      const refreshToken = getRefreshToken();
       if (!refreshToken) {
         // If token expired, ensure we don't keep a stale blocked state after redirecting.
         clearAccessState();
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        clearStoredTokens();
         window.location.href = '/login';
         return Promise.reject(error);
       }
@@ -339,12 +339,10 @@ apiClient.interceptors.response.use(
         const newRefreshToken: string | undefined =
           data.refresh_token ?? data.refreshToken;
 
-        if (newAccessToken) {
-          localStorage.setItem('access_token', newAccessToken);
-        }
-        if (newRefreshToken) {
-          localStorage.setItem('refresh_token', newRefreshToken);
-        }
+        persistRotatedTokens({
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        });
 
         onRefreshed(newAccessToken ?? null);
         isRefreshing = false;
@@ -356,8 +354,7 @@ apiClient.interceptors.response.use(
         isRefreshing = false;
         onRefreshed(null);
         clearAccessState();
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        clearStoredTokens();
         window.location.href = '/login';
         return Promise.reject(refreshErr);
       }
