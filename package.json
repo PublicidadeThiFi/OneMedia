@@ -68,7 +68,12 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "prebuild": "node -e \"const fs=require('fs');const v=process.env.VERCEL_GIT_COMMIT_SHA||process.env.GITHUB_SHA||String(Date.now());fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/version.json',JSON.stringify({version:v}));console.log('version.json ->',v);\"",
-    "predev": "node -e \"const fs=require('fs');const v=process.env.VERCEL_GIT_COMMIT_SHA||process.env.GITHUB_SHA||String(Date.now());fs.mkdirSync('public',{recursive:true});fs.writeFileSync('public/version.json',JSON.stringify({version:v}));console.log('version.json ->',v);\""
+    "validate:public-env": "node ./scripts/validate-public-env.mjs",
+    "generate:version": "node ./scripts/generate-version.mjs",
+    "prebuild": "npm run validate:public-env && npm run generate:version",
+    "predev": "npm run validate:public-env && npm run generate:version",
+    "security:scan": "node ./scripts/security-scan.mjs",
+    "security:audit": "npm audit --audit-level=high --omit=dev",
+    "ci:security": "npm run security:scan && npm run validate:public-env && npm run security:audit && npm run build"
   }
 }

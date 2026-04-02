@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { parseOAuthCallbackParams } from '../lib/oauth';
+import { stripOAuthCallbackParams } from '../lib/urlSecurity';
 
 /**
  * OAuth Callback Page
@@ -21,6 +22,7 @@ export default function OAuthCallback() {
     let cancelled = false;
     (async () => {
       const { accessToken, refreshToken, error, errorDescription, next } = parseOAuthCallbackParams();
+      stripOAuthCallbackParams('/oauth-callback');
 
       if (error) {
         const code = String(error);
@@ -48,9 +50,6 @@ export default function OAuthCallback() {
       try {
         const me = await completeOAuthLogin({ accessToken, refreshToken });
         if (cancelled) return;
-
-        // Remove tokens/params da URL para evitar vazamentos em histórico.
-        window.history.replaceState(null, '', '/oauth-callback');
 
         // If onboarding isn't completed, force the flow.
         if (me?.onboardingCompleted === false) {

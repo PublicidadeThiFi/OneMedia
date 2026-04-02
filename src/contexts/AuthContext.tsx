@@ -14,6 +14,7 @@ import {
 import { useNavigation } from '../contexts/NavigationContext';
 import apiClient, { publicApiClient } from '../lib/apiClient';
 import { clearAccessState } from '../lib/accessControl';
+import { clearStoredTokens, getStoredTokens, storeTokens } from '../lib/authStorage';
 import {
   AuthUser,
   AuthTokens,
@@ -73,6 +74,7 @@ type AuthResponse = {
     companyId: string | null;
     isSuperAdmin?: boolean;
     twoFactorEnabled?: boolean;
+    roles?: import('../types').UserRoleType[];
   };
   tokens?: {
     accessToken?: string;
@@ -98,27 +100,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return response.data;
   };
 
-  const setSessionFromTokens = async (newTokens: AuthTokens): Promise<AuthUser> => {
+  const setSessionFromTokens = async (newTokens: AuthTokens, opts?: { remember?: boolean }): Promise<AuthUser> => {
     clearAccessState();
-
-    localStorage.setItem('access_token', newTokens.accessToken);
-    localStorage.setItem('refresh_token', newTokens.refreshToken);
-
+    storeTokens(newTokens, { remember: !!opts?.remember });
     setTokens(newTokens);
-    const me = await fetchMe();
-    setUser(me);
-    setRequiresTwoFactor(false);
-    setPendingEmail(null);
-    setAuthReady(true);
-    return me;
+
+    try {
+      const me = await fetchMe();
+      setUser(me);
+      setRequiresTwoFactor(false);
+      setPendingEmail(null);
+      setAuthReady(true);
+      return me;
+    } catch (err) {
+      clearStoredTokens();
+      setUser(null);
+      setTokens(null);
+      throw err;
+    }
   };
 
-  // Tenta carregar usuário atual ao montar, se houver tokens no localStorage
+  // Tenta carregar usuário atual ao montar, se houver tokens persistidos no navegador
   useEffect(() => {
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
+    const stored = getStoredTokens();
 
-    if (!accessToken && !refreshToken) {
+    if (!stored?.accessToken && !stored?.refreshToken) {
       setAuthReady(true);
       return;
     }
@@ -128,11 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(true);
         const me = await fetchMe();
         setUser(me);
-        setTokens({
-          accessToken: accessToken || '',
-          refreshToken: refreshToken || '',
-        });
+        setTokens(getStoredTokens() ?? stored);
       } catch {
+        clearStoredTokens();
         setUser(null);
         setTokens(null);
       } finally {
@@ -197,8 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // Salva tokens no localStorage
-      await setSessionFromTokens(extracted);
+      // Salva tokens respeitando o modo de persistência escolhido
+      await setSessionFromTokens(extracted, { remember: !!credentials.rememberMe });
 
         // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
         // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
@@ -226,10 +230,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      await setSessionFromTokens(extracted);
-        // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
-        // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
-        navigate('/app/');
+      await setSessionFromTokens(extracted, { remember: false });
+      // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
+      // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
+      navigate('/app/');
     } finally {
       setLoading(false);
     }
@@ -238,16 +242,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const completeOAuthLogin = async (newTokens: AuthTokens) => {
     setLoading(true);
     try {
-      return await setSessionFromTokens(newTokens);
+      return await setSessionFromTokens(newTokens, { remember: false });
     } finally {
       setLoading(false);
     }
   };
 
   const refreshMe = async () => {
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (!accessToken && !refreshToken) {
+    const stored = getStoredTokens();
+    if (!stored?.accessToken && !stored?.refreshToken) {
       setUser(null);
       setTokens(null);
       setAuthReady(true);
@@ -258,10 +261,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await fetchMe();
       setUser(me);
-      setTokens({ accessToken: accessToken || '', refreshToken: refreshToken || '' });
+      setTokens(getStoredTokens() ?? stored);
       setAuthReady(true);
       return me;
     } catch {
+      clearStoredTokens();
       setUser(null);
       setTokens(null);
       setAuthReady(true);
@@ -273,13 +277,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await apiClient.post('/auth/logout');
+      await apiClient.post('/auth/logout', {
+        refreshToken: getStoredTokens()?.refreshToken ?? undefined,
+      });
     } catch {
       // ignora erro de logout
     }
     clearAccessState();
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    clearStoredTokens();
     setUser(null);
     setTokens(null);
     setRequiresTwoFactor(false);

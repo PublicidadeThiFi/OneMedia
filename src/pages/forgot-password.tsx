@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { useNavigation } from '../contexts/NavigationContext';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
+import { getEmailErrorMessage, normalizeEmailInput } from '../lib/validators';
+import { appendRetryAfter } from '../lib/retryAfter';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 type ForgotPasswordResponse = {
@@ -29,12 +31,21 @@ export default function ForgotPassword() {
     e.preventDefault();
     if (isLoading || cooldown > 0) return;
 
+    const normalizedEmail = normalizeEmailInput(email);
+    const emailError = getEmailErrorMessage(normalizedEmail);
+    if (!normalizedEmail || emailError) {
+      const message = emailError || 'Informe um e-mail válido.';
+      setInfo(message);
+      toast.error(message);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setInfo(null);
 
       const response = await publicApiClient.post<ForgotPasswordResponse>('/auth/forgot-password', {
-        email,
+        email: normalizedEmail,
       });
 
       const msg =
@@ -49,8 +60,9 @@ export default function ForgotPassword() {
       if (retry > 0) setCooldown(Math.max(1, Math.min(600, retry)));
     } catch (err) {
       const apiErr = getApiError(err, 'Não foi possível enviar o e-mail. Tente novamente.');
-      setInfo(apiErr.message);
-      toast.error(apiErr.message);
+      const message = appendRetryAfter(apiErr.message, apiErr.retryAfterSeconds);
+      setInfo(message);
+      toast.error(message);
       if (apiErr.retryAfterSeconds) setCooldown(Math.max(1, Math.min(600, apiErr.retryAfterSeconds)));
     } finally {
       setIsLoading(false);
@@ -86,10 +98,11 @@ export default function ForgotPassword() {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => setEmail(normalizeEmailInput(e.target.value))}
                 placeholder="seuemail@exemplo.com"
                 className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                 required
+                maxLength={254}
               />
             </div>
 

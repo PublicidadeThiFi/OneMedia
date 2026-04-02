@@ -38,11 +38,102 @@ export function detectKind(file: File): MediaUploadKind | null {
   if (t.startsWith('video/')) return 'video';
 
   const ext = normalizeExt(file.name);
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image';
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif'].includes(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
   if (['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(ext)) return 'video';
 
   return null;
+}
+
+
+const IMAGE_SIGNATURE_ERROR = 'O arquivo selecionado não corresponde a uma imagem válida.';
+const PDF_SIGNATURE_ERROR = 'O arquivo selecionado não corresponde a um PDF válido.';
+const VIDEO_SIGNATURE_ERROR = 'O arquivo selecionado não corresponde a um vídeo válido compatível.';
+
+function startsWithBytes(bytes: Uint8Array, expected: number[]): boolean {
+  if (bytes.length < expected.length) return false;
+  return expected.every((value, index) => bytes[index] === value);
+}
+
+function asciiAt(bytes: Uint8Array, start: number, end: number): string {
+  return new TextDecoder('ascii').decode(bytes.slice(start, end));
+}
+
+async function readFileHeader(file: File, length = 64): Promise<Uint8Array> {
+  const buffer = await file.slice(0, length).arrayBuffer();
+  return new Uint8Array(buffer);
+}
+
+function getNormalizedExtension(file: File): string {
+  const m = /\.([a-z0-9]+)$/i.exec(file.name || '');
+  return `.${(m?.[1] ?? '').toLowerCase()}`;
+}
+
+function isJpeg(bytes: Uint8Array): boolean {
+  return startsWithBytes(bytes, [0xff, 0xd8, 0xff]);
+}
+
+function isPng(bytes: Uint8Array): boolean {
+  return startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+}
+
+function isGif(bytes: Uint8Array): boolean {
+  const header = asciiAt(bytes, 0, 6);
+  return header === 'GIF87a' || header === 'GIF89a';
+}
+
+function isWebp(bytes: Uint8Array): boolean {
+  return asciiAt(bytes, 0, 4) === 'RIFF' && asciiAt(bytes, 8, 12) === 'WEBP';
+}
+
+function isAvif(bytes: Uint8Array): boolean {
+  return asciiAt(bytes, 4, 8) === 'ftyp' && ['avif', 'avis'].includes(asciiAt(bytes, 8, 12));
+}
+
+function isPdf(bytes: Uint8Array): boolean {
+  return asciiAt(bytes, 0, 5) === '%PDF-';
+}
+
+function isEbmlVideo(bytes: Uint8Array): boolean {
+  return startsWithBytes(bytes, [0x1a, 0x45, 0xdf, 0xa3]);
+}
+
+function isAvi(bytes: Uint8Array): boolean {
+  return asciiAt(bytes, 0, 4) === 'RIFF' && asciiAt(bytes, 8, 11) === 'AVI';
+}
+
+function isIsoBaseMediaVideo(bytes: Uint8Array): boolean {
+  if (asciiAt(bytes, 4, 8) !== 'ftyp') return false;
+  const brand = asciiAt(bytes, 8, 12);
+  return ['isom', 'iso2', 'mp41', 'mp42', 'avc1', 'qt  ', 'M4V ', 'M4VH', 'mmp4'].includes(brand);
+}
+
+export async function validateFileBinarySignature(file: File, kind: MediaUploadKind): Promise<string | null> {
+  const bytes = await readFileHeader(file, 64);
+  const ext = getNormalizedExtension(file);
+
+  if (kind === 'image') {
+    const ok =
+      (ext === '.jpg' || ext === '.jpeg') ? isJpeg(bytes) :
+      ext === '.png' ? isPng(bytes) :
+      ext === '.gif' ? isGif(bytes) :
+      ext === '.webp' ? isWebp(bytes) :
+      ext === '.avif' ? isAvif(bytes) :
+      (isJpeg(bytes) || isPng(bytes) || isGif(bytes) || isWebp(bytes) || isAvif(bytes));
+    return ok ? null : IMAGE_SIGNATURE_ERROR;
+  }
+
+  if (kind === 'pdf') {
+    return isPdf(bytes) ? null : PDF_SIGNATURE_ERROR;
+  }
+
+  const ok =
+    ext === '.webm' || ext === '.mkv'
+      ? isEbmlVideo(bytes)
+      : ext === '.avi'
+        ? isAvi(bytes)
+        : (isIsoBaseMediaVideo(bytes) || isEbmlVideo(bytes) || isAvi(bytes));
+  return ok ? null : VIDEO_SIGNATURE_ERROR;
 }
 
 export async function getVideoDurationSeconds(file: File): Promise<number | null> {
@@ -87,6 +178,9 @@ export async function validateFileAgainstEntitlements(
   kind: MediaUploadKind,
   entitlements: PlatformSubscriptionEntitlementsResponse | null | undefined
 ): Promise<string | null> {
+  const signatureError = await validateFileBinarySignature(file, kind);
+  if (signatureError) return signatureError;
+
   const limits = entitlements?.limits?.file;
   if (!limits) return null;
 

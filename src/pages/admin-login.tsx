@@ -2,13 +2,18 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import { appendRetryAfter } from '../lib/retryAfter';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 function getErrorMessage(error: any): string {
   const message = error?.response?.data?.message;
-  if (Array.isArray(message)) return message.join(', ');
-  if (typeof message === 'string' && message.trim()) return message;
-  return 'Não foi possível autenticar o acesso administrativo.';
+  const retryAfterSeconds = typeof error?.response?.data?.retryAfterSeconds === 'number' ? error.response.data.retryAfterSeconds : undefined;
+  const base = Array.isArray(message)
+    ? message.join(', ')
+    : typeof message === 'string' && message.trim()
+      ? message
+      : 'Não foi possível autenticar o acesso administrativo.';
+  return appendRetryAfter(base, retryAfterSeconds);
 }
 
 export default function AdminLoginPage() {
@@ -73,8 +78,11 @@ export default function AdminLoginPage() {
                   <span className="mb-2 block text-sm font-medium text-slate-200">Usuário</span>
                   <input
                     value={username}
-                    onChange={(event) => setUsername(event.target.value)}
+                    onChange={(event) => setUsername(event.target.value.trimStart())}
                     autoComplete="username"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    maxLength={120}
                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30"
                     placeholder="admin"
                   />
@@ -87,6 +95,7 @@ export default function AdminLoginPage() {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
+                    maxLength={128}
                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30"
                     placeholder="••••••••"
                   />

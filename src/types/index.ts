@@ -293,6 +293,7 @@ export interface User {
   twoFactorType?: TwoFactorType;
   twoFactorSecret?: string;
   status: UserStatus;
+  roles?: UserRoleType[];
   lastLoginAt?: Date;
   lastLoginIp?: string;
   createdAt: Date;
@@ -503,6 +504,7 @@ export interface MediaPointContract {
   mediaPointId: string;
   fileName: string;
   s3Key: string;
+  url?: string;
   signedAt?: Date | null;
   expiresAt?: Date | null;
   createdAt: Date;

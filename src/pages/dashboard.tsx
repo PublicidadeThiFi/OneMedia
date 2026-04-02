@@ -141,7 +141,7 @@ export default function Dashboard() {
                 <li>• Com 2FA: carlos.mendes@outdoorbrasil.com.br</li>
                 <li>• Sem 2FA: ana.silva@outdoorbrasil.com.br</li>
                 <li>• Senha: senha123</li>
-                <li>• Código 2FA: 123456</li>
+                <li>• 2FA: temporariamente indisponível até a implantação do fluxo seguro</li>
               </ul>
             </div>
           </div>

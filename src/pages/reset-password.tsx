@@ -1,8 +1,11 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { useNavigation } from '../contexts/NavigationContext';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
+import { getPasswordErrorMessage, PASSWORD_MAX_LENGTH } from '../lib/validators';
+import { stripTokenParam } from '../lib/urlSecurity';
+import { appendRetryAfter } from '../lib/retryAfter';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 type ResetPasswordResponse = {
@@ -22,6 +25,13 @@ export default function ResetPassword() {
   }, []);
 
   const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search) {
+      stripTokenParam('/reset-password');
+    }
+  }, []);
+
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -34,8 +44,9 @@ export default function ResetPassword() {
       return;
     }
 
-    if (newPassword.length < 8) {
-      toast.error('A senha deve ter no mínimo 8 caracteres.');
+    const passwordError = getPasswordErrorMessage(newPassword);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
 
@@ -57,7 +68,7 @@ export default function ResetPassword() {
       navigate('/login');
     } catch (err) {
       const apiErr = getApiError(err, 'Não foi possível redefinir a senha.');
-      toast.error(apiErr.message);
+      toast.error(appendRetryAfter(apiErr.message, apiErr.retryAfterSeconds));
     } finally {
       setIsLoading(false);
     }
@@ -99,6 +110,7 @@ export default function ResetPassword() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                 minLength={8}
                 required
@@ -112,6 +124,7 @@ export default function ResetPassword() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
                 minLength={8}
                 required
