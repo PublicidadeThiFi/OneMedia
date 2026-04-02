@@ -3,50 +3,46 @@ import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
 import { WaitlistProvider } from './contexts/WaitlistContext';
-
-// Pages
-import Home from './pages/index';
-import Cadastro from './pages/cadastro';
-import Login from './pages/login';
-import VerifyEmail from './pages/verify-email';
-import ForgotPassword from './pages/forgot-password';
-import ResetPassword from './pages/reset-password';
-import Dashboard from './pages/dashboard';
-import Contato from './pages/contato';
-import Termos from './pages/termos';
-import Privacidade from './pages/privacidade';
-import MobileLandingPage from './pages/landing-mobile';
-import Planos from './pages/planos';
-import PropostaPublica from './pages/proposta-publica';
-import MidiaKitPublico from './pages/midia-kit-publico';
-import MenuHome from './pages/menu';
-import MenuSelectUF from './pages/menu-uf';
-import MenuSelectCity from './pages/menu-cidades';
-import MenuPontosPlaceholder from './pages/menu-pontos';
-import MenuDetalhe from './pages/menu-detalhe';
-import MenuFaces from './pages/menu-faces';
-import MenuCarrinho from './pages/menu-carrinho';
-import MenuCheckout from './pages/menu-checkout';
-import MenuEnviado from './pages/menu-enviado';
-import MenuAcompanhar from './pages/menu-acompanhar';
-import MenuProposta from './pages/menu-proposta';
-import MenuDonoWorkspace from './pages/menu-dono-workspace';
-import MenuDonoEnviada from './pages/menu-dono-enviada';
-import MenuDonoRevisao from './pages/menu-dono-revisao';
-import MenuDonoAprovada from './pages/menu-dono-aprovada';
-import OAuthCallback from './pages/oauth-callback';
-import AdminLoginPage from './pages/admin-login';
-import AdminDashboardPage from './pages/admin-dashboard';
-import AdminNewsEditorPage from './pages/admin-news-editor';
-import NewsDetailPage from './pages/news-detail';
-
-// Internal App
-const MainApp = lazy(() => import('./components/MainApp').then((m) => ({ default: m.MainApp })));
-
 import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
 import { TutorialProvider } from './contexts/TutorialContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
+
+const Home = lazy(() => import('./pages/index'));
+const Cadastro = lazy(() => import('./pages/cadastro'));
+const Login = lazy(() => import('./pages/login'));
+const VerifyEmail = lazy(() => import('./pages/verify-email'));
+const ForgotPassword = lazy(() => import('./pages/forgot-password'));
+const ResetPassword = lazy(() => import('./pages/reset-password'));
+const Dashboard = lazy(() => import('./pages/dashboard'));
+const Contato = lazy(() => import('./pages/contato'));
+const Termos = lazy(() => import('./pages/termos'));
+const Privacidade = lazy(() => import('./pages/privacidade'));
+const MobileLandingPage = lazy(() => import('./pages/landing-mobile'));
+const Planos = lazy(() => import('./pages/planos'));
+const PropostaPublica = lazy(() => import('./pages/proposta-publica'));
+const MidiaKitPublico = lazy(() => import('./pages/midia-kit-publico'));
+const MenuHome = lazy(() => import('./pages/menu'));
+const MenuSelectUF = lazy(() => import('./pages/menu-uf'));
+const MenuSelectCity = lazy(() => import('./pages/menu-cidades'));
+const MenuPontosPlaceholder = lazy(() => import('./pages/menu-pontos'));
+const MenuDetalhe = lazy(() => import('./pages/menu-detalhe'));
+const MenuFaces = lazy(() => import('./pages/menu-faces'));
+const MenuCarrinho = lazy(() => import('./pages/menu-carrinho'));
+const MenuCheckout = lazy(() => import('./pages/menu-checkout'));
+const MenuEnviado = lazy(() => import('./pages/menu-enviado'));
+const MenuAcompanhar = lazy(() => import('./pages/menu-acompanhar'));
+const MenuProposta = lazy(() => import('./pages/menu-proposta'));
+const MenuDonoWorkspace = lazy(() => import('./pages/menu-dono-workspace'));
+const MenuDonoEnviada = lazy(() => import('./pages/menu-dono-enviada'));
+const MenuDonoRevisao = lazy(() => import('./pages/menu-dono-revisao'));
+const MenuDonoAprovada = lazy(() => import('./pages/menu-dono-aprovada'));
+const OAuthCallback = lazy(() => import('./pages/oauth-callback'));
+const AdminLoginPage = lazy(() => import('./pages/admin-login'));
+const AdminDashboardPage = lazy(() => import('./pages/admin-dashboard'));
+const AdminNewsEditorPage = lazy(() => import('./pages/admin-news-editor'));
+const NewsDetailPage = lazy(() => import('./pages/news-detail'));
+const MainApp = lazy(() => import('./components/MainApp').then((m) => ({ default: m.MainApp })));
 
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; message: string }>{
   state = { hasError: false, message: '' };
@@ -57,7 +53,6 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
   }
 
   componentDidCatch(err: unknown) {
-    // eslint-disable-next-line no-console
     console.error('Root render crashed:', err);
   }
 
@@ -72,18 +67,11 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
             Isso pode acontecer após uma atualização quando o navegador/CDN entrega arquivos em cache.
           </p>
           <p className="mt-3 text-xs text-gray-500 break-words">{this.state.message}</p>
-
           <div className="mt-5 flex flex-col sm:flex-row gap-3">
-            <button
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-              onClick={() => window.location.reload()}
-            >
+            <button className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" onClick={() => window.location.reload()}>
               Recarregar
             </button>
-            <button
-              className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
-              onClick={() => (window.location.href = '/?clearcache=1')}
-            >
+            <button className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50" onClick={() => (window.location.href = '/?clearcache=1')}>
               Limpar cache e abrir o site
             </button>
           </div>
@@ -92,7 +80,6 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
     );
   }
 }
-
 
 function AppRouteFallback() {
   return (
@@ -104,34 +91,76 @@ function AppRouteFallback() {
   );
 }
 
+function Suspended({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<AppRouteFallback />}>{children}</Suspense>;
+}
+
+function MarketingShell({ children }: { children: ReactNode }) {
+  return <WaitlistProvider>{children}</WaitlistProvider>;
+}
+
+function AuthShell({ children }: { children: ReactNode }) {
+  return (
+    <AuthProvider>
+      <WaitlistProvider>{children}</WaitlistProvider>
+    </AuthProvider>
+  );
+}
+
+function AdminShell({ children }: { children: ReactNode }) {
+  return <AdminAuthProvider>{children}</AdminAuthProvider>;
+}
+
+function InternalAppShell({ children }: { children: ReactNode }) {
+  return (
+    <AuthProvider>
+      <CompanyProvider>
+        <UploadQueueProvider>
+          <TutorialProvider>{children}</TutorialProvider>
+        </UploadQueueProvider>
+      </CompanyProvider>
+    </AuthProvider>
+  );
+}
+
+function wrap(shell: 'marketing' | 'auth' | 'admin' | 'internal' | 'none', children: ReactNode) {
+  switch (shell) {
+    case 'marketing':
+      return <MarketingShell>{children}</MarketingShell>;
+    case 'auth':
+      return <AuthShell>{children}</AuthShell>;
+    case 'admin':
+      return <AdminShell>{children}</AdminShell>;
+    case 'internal':
+      return <InternalAppShell>{children}</InternalAppShell>;
+    default:
+      return children;
+  }
+}
+
 export default function App() {
   const getCurrentPath = () => window.location.pathname + window.location.search;
   const [currentPath, setCurrentPath] = useState(getCurrentPath());
 
   const isMobileDevice = () => {
     const width = window.innerWidth || document.documentElement.clientWidth;
-    const ua = navigator.userAgent || navigator.vendor;
+    const ua = navigator.userAgent || (navigator as any).vendor;
     return width <= 768 || /Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry/i.test(ua);
   };
 
-  // Listen to browser back/forward buttons
   useEffect(() => {
-    const handlePopState = () => {
-      setCurrentPath(getCurrentPath());
-    };
+    const handlePopState = () => setCurrentPath(getCurrentPath());
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Navigation function
   const navigate: NavigateFunction = (path: string) => {
     if (getCurrentPath() === path) return;
     window.history.pushState({}, '', path);
     setCurrentPath(path);
-    window.scrollTo(0, 0); // Scroll to top on navigation
+    window.scrollTo(0, 0);
   };
 
-  // Redirect root to mobile landing when on mobile devices
   useEffect(() => {
     const cleanPath = getCurrentPath().split('?')[0].replace(/\/$/, '') || '/';
     if (cleanPath === '/' && isMobileDevice()) {
@@ -139,146 +168,96 @@ export default function App() {
     }
   }, [currentPath]);
 
-  
-  // Route component based on current path
   const renderRoute = () => {
-    // Remove trailing slash and query params for matching
     const cleanPath = currentPath.split('?')[0].replace(/\/$/, '') || '/';
 
-    // PUBLIC PROPOSAL ROUTE
-    // /p/<publicHash> (optional query string ?t=<decisionToken>)
     if (cleanPath.startsWith('/p/')) {
-      return <PropostaPublica />;
+      return wrap('none', <Suspended><PropostaPublica /></Suspended>);
     }
-
-
-    // PUBLIC MEDIA KIT ROUTE
-    // /mk?token=<publicToken>
     if (cleanPath === '/mk') {
-      return <MidiaKitPublico />;
+      return wrap('none', <Suspended><MidiaKitPublico /></Suspended>);
     }
 
-    // PUBLIC MENU (CARDÁPIO) ROUTES (prototype)
-    // /menu?token=<publicToken>
-    // /menu/uf?token=<publicToken>
-    // /menu/cidades?token=<publicToken>&uf=XX
-    // /menu/pontos?token=<publicToken>&uf=XX&city=YYY
-    // /menu/detalhe?token=<publicToken>&id=<pointId>
-    // /menu/faces?token=<publicToken>&id=<pointId>
-    // /menu/carrinho?token=<publicToken>
-    // /menu/checkout?token=<publicToken>
-    // /menu/enviado?token=<publicToken>&rid=<requestId>
-    // /menu/acompanhar?token=<publicToken>&rid=<requestId>
-    if (cleanPath === '/menu') return <MenuHome />;
-    if (cleanPath === '/menu/uf') return <MenuSelectUF />;
-    if (cleanPath === '/menu/cidades') return <MenuSelectCity />;
-    if (cleanPath === '/menu/pontos') return <MenuPontosPlaceholder />;
-    if (cleanPath === '/menu/detalhe') return <MenuDetalhe />;
-    if (cleanPath === '/menu/faces') return <MenuFaces />;
-    if (cleanPath === '/menu/carrinho') return <MenuCarrinho />;
-    if (cleanPath === '/menu/checkout') return <MenuCheckout />;
-    if (cleanPath === '/menu/enviado') return <MenuEnviado />;
-    if (cleanPath === '/menu/acompanhar') return <MenuAcompanhar />;
-  if (cleanPath === '/menu/proposta') return <MenuProposta />;
-
-  if (cleanPath === '/menu/dono') return <MenuDonoWorkspace />;
-  if (cleanPath === '/menu/dono/enviada') return <MenuDonoEnviada />;
-  if (cleanPath === '/menu/dono/revisao') return <MenuDonoRevisao />;
-  if (cleanPath === '/menu/dono/aprovada') return <MenuDonoAprovada />;
-
+    if (cleanPath === '/menu') return wrap('none', <Suspended><MenuHome /></Suspended>);
+    if (cleanPath === '/menu/uf') return wrap('none', <Suspended><MenuSelectUF /></Suspended>);
+    if (cleanPath === '/menu/cidades') return wrap('none', <Suspended><MenuSelectCity /></Suspended>);
+    if (cleanPath === '/menu/pontos') return wrap('none', <Suspended><MenuPontosPlaceholder /></Suspended>);
+    if (cleanPath === '/menu/detalhe') return wrap('none', <Suspended><MenuDetalhe /></Suspended>);
+    if (cleanPath === '/menu/faces') return wrap('none', <Suspended><MenuFaces /></Suspended>);
+    if (cleanPath === '/menu/carrinho') return wrap('none', <Suspended><MenuCarrinho /></Suspended>);
+    if (cleanPath === '/menu/checkout') return wrap('none', <Suspended><MenuCheckout /></Suspended>);
+    if (cleanPath === '/menu/enviado') return wrap('none', <Suspended><MenuEnviado /></Suspended>);
+    if (cleanPath === '/menu/acompanhar') return wrap('none', <Suspended><MenuAcompanhar /></Suspended>);
+    if (cleanPath === '/menu/proposta') return wrap('none', <Suspended><MenuProposta /></Suspended>);
+    if (cleanPath === '/menu/dono') return wrap('none', <Suspended><MenuDonoWorkspace /></Suspended>);
+    if (cleanPath === '/menu/dono/enviada') return wrap('none', <Suspended><MenuDonoEnviada /></Suspended>);
+    if (cleanPath === '/menu/dono/revisao') return wrap('none', <Suspended><MenuDonoRevisao /></Suspended>);
+    if (cleanPath === '/menu/dono/aprovada') return wrap('none', <Suspended><MenuDonoAprovada /></Suspended>);
 
     const newsDetailMatch = cleanPath.match(/^\/noticias\/([^/]+)$/);
     if (newsDetailMatch) {
-      return <NewsDetailPage slug={decodeURIComponent(newsDetailMatch[1])} />;
+      return wrap('none', <Suspended><NewsDetailPage slug={decodeURIComponent(newsDetailMatch[1])} /></Suspended>);
     }
 
     if (cleanPath === '/admin') {
-      return <AdminLoginPage />;
+      return wrap('admin', <Suspended><AdminLoginPage /></Suspended>);
     }
-
     if (cleanPath === '/admin/dashboard') {
-      return <AdminDashboardPage />;
+      return wrap('admin', <Suspended><AdminDashboardPage /></Suspended>);
     }
-
     if (cleanPath === '/admin/materias/nova') {
-      return <AdminNewsEditorPage />;
+      return wrap('admin', <Suspended><AdminNewsEditorPage /></Suspended>);
     }
-
     const adminNewsEditMatch = cleanPath.match(/^\/admin\/materias\/([^/]+)\/editar$/);
     if (adminNewsEditMatch) {
-      return <AdminNewsEditorPage articleId={decodeURIComponent(adminNewsEditMatch[1])} />;
+      return wrap('admin', <Suspended><AdminNewsEditorPage articleId={decodeURIComponent(adminNewsEditMatch[1])} /></Suspended>);
     }
 
-    // INTERNAL APPLICATION ROUTES (updated 02/12/2024)
-    // All /app/* routes render the MainApp component with sidebar and modules
-    // This is the authenticated user's main interface
     if (cleanPath.startsWith('/app')) {
-      // Extract page from path like /app/dashboard, /app/inventory, etc.
       const pagePath = cleanPath.replace('/app/', '').replace('/app', '');
-
-      // If just /app, default to the internal home page
-      if (!pagePath || pagePath === '') {
-        return <Suspense fallback={<AppRouteFallback />}><MainApp initialPage="home" /></Suspense>;
-      }
-
-      // Map path to page
-      // Valid pages: home, dashboard, inventory, clients, products, proposals, campaigns,
-      // reservations, financial, messages, mediakit, activities, settings, superadmin
-      return <Suspense fallback={<AppRouteFallback />}><MainApp key={cleanPath} initialPage={pagePath as any} /></Suspense>;
+      const initialPage = (!pagePath || pagePath === '') ? 'home' : (pagePath as any);
+      return wrap('internal', <Suspended><MainApp key={cleanPath} initialPage={initialPage} /></Suspended>);
     }
 
     switch (cleanPath) {
       case '/':
-        return <Home />;
+        return wrap('marketing', <Suspended><Home /></Suspended>);
       case '/signup':
       case '/cadastro':
-        return <Cadastro />;
+        return wrap('marketing', <Suspended><Cadastro /></Suspended>);
       case '/planos':
-        return <Planos />;
+        return wrap('marketing', <Suspended><Planos /></Suspended>);
       case '/landing-mobile':
-        return <MobileLandingPage />;
+        return wrap('marketing', <Suspended><MobileLandingPage /></Suspended>);
       case '/login':
-        return <Login />;
+        return wrap('auth', <Suspended><Login /></Suspended>);
       case '/forgot-password':
-        return <ForgotPassword />;
+        return wrap('auth', <Suspended><ForgotPassword /></Suspended>);
       case '/reset-password':
-        return <ResetPassword />;
+        return wrap('auth', <Suspended><ResetPassword /></Suspended>);
       case '/verify-email':
-        return <VerifyEmail />;
+        return wrap('auth', <Suspended><VerifyEmail /></Suspended>);
       case '/oauth-callback':
-        return <OAuthCallback />;
+        return wrap('auth', <Suspended><OAuthCallback /></Suspended>);
       case '/dashboard':
-        return <Dashboard />;
+        return wrap('auth', <Suspended><Dashboard /></Suspended>);
       case '/contato':
-        return <Contato />;
+        return wrap('marketing', <Suspended><Contato /></Suspended>);
       case '/termos':
-        return <Termos />;
+        return wrap('marketing', <Suspended><Termos /></Suspended>);
       case '/privacidade':
-        return <Privacidade />;
+        return wrap('marketing', <Suspended><Privacidade /></Suspended>);
       default:
-        // 404 - redirect to home
         navigate('/');
-        return <Home />;
+        return wrap('marketing', <Suspended><Home /></Suspended>);
     }
   };
 
   return (
     <RootErrorBoundary>
       <NavigationContext.Provider value={navigate}>
-        <AuthProvider>
-          <AdminAuthProvider>
-            <CompanyProvider>
-              <WaitlistProvider>
-                <UploadQueueProvider>
-                  <TutorialProvider>
-                    {renderRoute()}
-                    <Toaster richColors position="top-right" />
-                  </TutorialProvider>
-                </UploadQueueProvider>
-              </WaitlistProvider>
-            </CompanyProvider>
-          </AdminAuthProvider>
-        </AuthProvider>
+        {renderRoute()}
+        <Toaster richColors position="top-right" />
       </NavigationContext.Provider>
     </RootErrorBoundary>
   );
