@@ -515,7 +515,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timeoutId);
       retryTimeoutsRef.current.delete(taskId);
     }
-  }, [clearRetryTimeout]);
+  }, []);
 
   const scheduleEntitlementRefresh = useCallback(() => {
     if (refreshTimerRef.current) window.clearTimeout(refreshTimerRef.current);
