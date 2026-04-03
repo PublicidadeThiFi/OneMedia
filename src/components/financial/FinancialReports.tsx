@@ -1,9 +1,14 @@
 import { useMemo, useState } from 'react';
-import { CalendarRange, FileText, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { CalendarRange, Download, FileSpreadsheet, FileText, Mail, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { toast } from 'sonner';
+import apiClient from '../../lib/apiClient';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Input } from '../ui/input';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import {
   Select,
   SelectContent,
@@ -72,6 +77,20 @@ function formatDateRange(dateFrom: string, dateTo: string) {
   return `${formatDateBr(dateFrom)} → ${formatDateBr(dateTo)}`;
 }
 
+
+function formatDateTimeBr(value?: string | Date | null) {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('pt-BR');
+}
+
+function periodModeLabel(mode: PeriodMode) {
+  if (mode === 'monthly') return 'Visualização mensal';
+  if (mode === 'bimonthly') return 'Visualização de 2 meses';
+  return 'Visualização personalizada';
+}
+
 function monthLabel(month: string) {
   const [year, monthNumber] = month.split('-').map((value) => parseInt(value, 10));
   const date = new Date(year, monthNumber - 1, 1);
@@ -93,6 +112,18 @@ const cashFlowLabels: Record<string, string> = {
   [CashFlowType.PESSOAS]: 'Pessoas',
 };
 
+function parseFilename(contentDisposition?: string): string | null {
+  if (!contentDisposition) return null;
+  const match = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+  const raw = (match?.[1] || match?.[2])?.trim();
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
 export function FinancialReports() {
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`;
@@ -100,6 +131,13 @@ export function FinancialReports() {
   const [month, setMonth] = useState(currentMonth);
   const [customDateFrom, setCustomDateFrom] = useState(() => monthRange(currentMonth).dateFrom);
   const [customDateTo, setCustomDateTo] = useState(() => monthRange(currentMonth).dateTo);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailRecipients, setEmailRecipients] = useState('');
+  const [sendPdfByEmail, setSendPdfByEmail] = useState(true);
+  const [sendExcelByEmail, setSendExcelByEmail] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const computedPeriod = useMemo(() => {
     if (periodMode === 'custom') {
@@ -134,6 +172,134 @@ export function FinancialReports() {
     dateTo: computedPeriod.dateTo,
     enabled: !validationMessage,
   });
+
+  const hasReportData = Boolean(
+    report && (report.details.invoices.length > 0 || report.details.transactions.length > 0),
+  );
+
+  const handleDownloadPdf = async () => {
+    if (validationMessage) {
+      toast.error(validationMessage);
+      return;
+    }
+
+    try {
+      setDownloadingPdf(true);
+      const response = await apiClient.get<Blob>('/financial-reports', {
+        params: {
+          dateFrom: computedPeriod.dateFrom,
+          dateTo: computedPeriod.dateTo,
+          format: 'pdf',
+        },
+        responseType: 'blob',
+      });
+
+      const contentType = response.headers['content-type'] || 'application/pdf';
+      const filename =
+        parseFilename(response.headers['content-disposition']) ||
+        `relatorio-financeiro-${computedPeriod.dateFrom}-${computedPeriod.dateTo}.pdf`;
+
+      const blob = new Blob([response.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF do relatório baixado com sucesso.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Falha ao baixar o PDF do relatório.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+
+
+
+  const handleSendEmail = async () => {
+    if (validationMessage) {
+      toast.error(validationMessage);
+      return;
+    }
+
+    const recipients = emailRecipients
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const formats = [
+      sendPdfByEmail ? 'pdf' : null,
+      sendExcelByEmail ? 'excel' : null,
+    ].filter(Boolean) as Array<'pdf' | 'excel'>;
+
+    if (!recipients.length) {
+      toast.error('Informe pelo menos um e-mail para envio.');
+      return;
+    }
+
+    if (!formats.length) {
+      toast.error('Selecione pelo menos um formato para enviar por e-mail.');
+      return;
+    }
+
+    try {
+      setSendingEmail(true);
+      await apiClient.post('/financial-reports/send', {
+        dateFrom: computedPeriod.dateFrom,
+        dateTo: computedPeriod.dateTo,
+        recipients,
+        formats,
+      });
+      toast.success('Relatório enviado por e-mail com sucesso.');
+      setEmailDialogOpen(false);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Falha ao enviar o relatório por e-mail.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    if (validationMessage) {
+      toast.error(validationMessage);
+      return;
+    }
+
+    try {
+      setDownloadingExcel(true);
+      const response = await apiClient.get<Blob>('/financial-reports', {
+        params: {
+          dateFrom: computedPeriod.dateFrom,
+          dateTo: computedPeriod.dateTo,
+          format: 'excel',
+        },
+        responseType: 'blob',
+      });
+
+      const contentType = response.headers['content-type'] || 'application/vnd.ms-excel';
+      const filename =
+        parseFilename(response.headers['content-disposition']) ||
+        `relatorio-financeiro-${computedPeriod.dateFrom}-${computedPeriod.dateTo}.xls`;
+
+      const blob = new Blob([response.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Relatório em Excel baixado com sucesso.');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Falha ao baixar o relatório em Excel.');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -183,6 +349,22 @@ export function FinancialReports() {
           <Button variant="outline" onClick={() => refetch()} disabled={!!validationMessage || loading}>
             Atualizar
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setEmailDialogOpen(true)}
+            disabled={!!validationMessage || loading}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            Enviar por e-mail
+          </Button>
+          <Button variant="outline" onClick={handleDownloadExcel} disabled={!!validationMessage || loading || downloadingExcel}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            {downloadingExcel ? 'Baixando Excel...' : 'Baixar Excel'}
+          </Button>
+          <Button onClick={handleDownloadPdf} disabled={!!validationMessage || loading || downloadingPdf}>
+            <Download className="mr-2 h-4 w-4" />
+            {downloadingPdf ? 'Baixando PDF...' : 'Baixar PDF'}
+          </Button>
         </div>
       </div>
 
@@ -191,13 +373,7 @@ export function FinancialReports() {
           <CalendarRange className="h-3.5 w-3.5" />
           {formatDateRange(computedPeriod.dateFrom, computedPeriod.dateTo)}
         </Badge>
-        <Badge variant="outline">
-          {periodMode === 'monthly'
-            ? 'Visualização mensal'
-            : periodMode === 'bimonthly'
-              ? 'Visualização de 2 meses'
-              : 'Visualização personalizada'}
-        </Badge>
+        <Badge variant="outline">{periodModeLabel(periodMode)}</Badge>
         {!validationMessage && report?.period ? (
           <>
             <Badge variant="outline">{report.period.totalDays} dias</Badge>
@@ -214,12 +390,120 @@ export function FinancialReports() {
         </Card>
       ) : null}
 
-      {loading && <div>Carregando relatório...</div>}
-      {!loading && error && <div className="text-red-600">Erro ao carregar relatório.</div>}
+      {loading ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-900">Gerando prévia do relatório...</p>
+              <p className="text-sm text-gray-600">Estamos consolidando cobranças, fluxo de caixa e indicadores do período selecionado.</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Enviar relatório por e-mail</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="financial-report-email">Destinatários</Label>
+              <Input
+                id="financial-report-email"
+                value={emailRecipients}
+                onChange={(e) => setEmailRecipients(e.target.value)}
+                placeholder="financeiro@empresa.com, diretoria@empresa.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Você pode informar um ou mais e-mails, separados por vírgula.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Formatos enviados</Label>
+              <div className="space-y-2 rounded-lg border p-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={sendPdfByEmail} onCheckedChange={(value) => setSendPdfByEmail(value === true)} />
+                  <span>PDF</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={sendExcelByEmail} onCheckedChange={(value) => setSendExcelByEmail(value === true)} />
+                  <span>Excel</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+              <p><strong>Período:</strong> {formatDateRange(computedPeriod.dateFrom, computedPeriod.dateTo)}</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={sendingEmail}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSendEmail} disabled={sendingEmail}>
+              <Mail className="mr-2 h-4 w-4" />
+              {sendingEmail ? 'Enviando...' : 'Enviar relatório'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {!loading && error ? (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-red-700">Não foi possível carregar o relatório.</p>
+              <p className="text-sm text-gray-600">Revise o período escolhido e tente atualizar novamente.</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!loading && !error && report && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-2">
+                  <div>
+                    <h3 className="text-gray-900">Resumo executivo do período</h3>
+                    <p className="text-sm text-gray-600">Use a prévia abaixo para conferir os tópicos principais antes de baixar ou enviar o relatório.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-600">
+                    <Badge variant="secondary">Gerado em {formatDateTimeBr(report.generatedAt)}</Badge>
+                    <Badge variant="secondary">{hasReportData ? 'Com dados para exportação' : 'Sem movimentações no período'}</Badge>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 text-sm text-gray-600 sm:grid-cols-2">
+                  <div className="rounded-lg border bg-gray-50 px-4 py-3">
+                    <p className="font-medium text-gray-900">Cobranças listadas</p>
+                    <p>{report.details.invoices.length} registro(s)</p>
+                  </div>
+                  <div className="rounded-lg border bg-gray-50 px-4 py-3">
+                    <p className="font-medium text-gray-900">Lançamentos listados</p>
+                    <p>{report.details.transactions.length} registro(s)</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {!hasReportData ? (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-gray-900">Nenhuma movimentação encontrada no período.</p>
+                  <p className="text-sm text-gray-600">Você ainda pode baixar ou enviar o relatório, mas ele será gerado com as seções vazias para esse intervalo.</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
             <Card>
               <CardContent className="pt-6">
                 <div className="mb-2 flex items-center gap-3">
@@ -269,19 +553,19 @@ export function FinancialReports() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <Card>
               <CardContent className="pt-6">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-gray-900">Resumo de Cobranças</h3>
-                    <p className="text-sm text-gray-600">Totais organizados por status.</p>
+                    <p className="text-sm text-gray-600">Valores consolidados por status no período.</p>
                   </div>
                   <Badge variant="outline">{report.summary.invoicesCount} cobrança(s)</Badge>
                 </div>
 
                 <div className="space-y-3 text-sm">
-                  {report.sections.billingByStatus.map((item) => (
+                  {report.sections.billingByStatus.some((item) => item.count > 0 || item.totalAmount > 0) ? report.sections.billingByStatus.map((item) => (
                     <div key={item.status} className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-gray-900">{billingStatusLabels[item.status] ?? item.status}</p>
@@ -289,7 +573,9 @@ export function FinancialReports() {
                       </div>
                       <span className="text-gray-900">{formatMoney(item.totalAmount)}</span>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-gray-500">Nenhuma cobrança encontrada para o período selecionado.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -305,7 +591,7 @@ export function FinancialReports() {
                 </div>
 
                 <div className="space-y-3 text-sm">
-                  {report.sections.cashByFlowType.map((item) => (
+                  {report.sections.cashByFlowType.some((item) => item.count > 0 || item.totalAmount > 0) ? report.sections.cashByFlowType.map((item) => (
                     <div key={item.flowType} className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-gray-900">{cashFlowLabels[item.flowType] ?? item.flowType}</p>
@@ -313,13 +599,15 @@ export function FinancialReports() {
                       </div>
                       <span className="text-gray-900">{formatMoney(item.totalAmount)}</span>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-gray-500">Nenhum lançamento de fluxo de caixa encontrado para o período selecionado.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <Card>
               <CardContent className="pt-6">
                 <div className="mb-4 flex items-center justify-between">
