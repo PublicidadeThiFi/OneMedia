@@ -13,6 +13,9 @@ import { useNavigation } from '../contexts/NavigationContext';
 import type { Page } from '../types/app-page';
 import { useTutorial } from '../contexts/TutorialContext';
 import { TutorialOverlay } from './tutorial/TutorialOverlay';
+import { useAssistant } from '../contexts/AssistantContext';
+import { AssistantLauncher } from './assistant/AssistantLauncher';
+import { getAssistantModuleLabel } from '../lib/assistant';
 
 
 const HomePage = lazy(() => import('./HomePage').then((m) => ({ default: m.HomePage })));
@@ -96,6 +99,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, logout, authReady } = useAuth();
   const { hasTutorialForModule, openModuleTutorial, setCurrentModule } = useTutorial();
+  const { setScreenContext } = useAssistant();
   const navigate = useNavigation();
 
   const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
@@ -103,6 +107,18 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   useEffect(() => {
     setCurrentModule(currentPage);
   }, [currentPage, setCurrentModule]);
+
+  useEffect(() => {
+    const currentPath = typeof window !== 'undefined'
+      ? `${window.location.pathname}${window.location.search}`
+      : `/app/${currentPage}`;
+
+    setScreenContext({
+      currentModule: currentPage,
+      currentPath,
+      currentTitle: getAssistantModuleLabel(currentPage),
+    });
+  }, [currentPage, setScreenContext]);
 
 
   const pastDueGraceDaysLeft = useMemo(() => {
@@ -408,6 +424,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
       </div>
     </div>
       <TutorialOverlay />
+      <AssistantLauncher />
     </>
   );
 }

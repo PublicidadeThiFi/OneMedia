@@ -7,6 +7,7 @@ import { NavigationContext, NavigateFunction } from './contexts/NavigationContex
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
 import { TutorialProvider } from './contexts/TutorialContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
+import { AssistantProvider } from './contexts/AssistantContext';
 
 const Home = lazy(() => import('./pages/index'));
 const Cadastro = lazy(() => import('./pages/cadastro'));
@@ -116,7 +117,9 @@ function InternalAppShell({ children }: { children: ReactNode }) {
     <AuthProvider>
       <CompanyProvider>
         <UploadQueueProvider>
-          <TutorialProvider>{children}</TutorialProvider>
+          <TutorialProvider>
+            <AssistantProvider>{children}</AssistantProvider>
+          </TutorialProvider>
         </UploadQueueProvider>
       </CompanyProvider>
     </AuthProvider>
