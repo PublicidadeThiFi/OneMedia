@@ -17,6 +17,8 @@ function isSafeWhenBlocked(url: string): boolean {
   if (/^\/signup\b/i.test(u)) return true;
   // allow subscription/renew flows
   if (/^\/platform-subscription\b/i.test(u)) return true;
+  // allow assistant contextual help even when the account is blocked
+  if (/^\/assistant\b/i.test(u)) return true;
   return false;
 }
 
