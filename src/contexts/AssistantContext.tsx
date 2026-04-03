@@ -58,8 +58,8 @@ function buildWelcomeMessage(module?: string | null): AssistantMessage {
     createdAt: new Date().toISOString(),
     content:
       module && module !== 'home'
-        ? `Olá! Já estou acompanhando o módulo ${moduleLabel}. Nesta Etapa 8 eu separo leitura e escrita, explico a tela atual, navego entre módulos, busco inventário por cidade/estado/tipo, contextualizo o Mídia Kit, crio rascunhos reais de proposta, cadastro clientes, produtos, pontos de mídia e faces/unidades por linguagem natural, faço leitura analítica de Dashboard e Financeiro e agora também mantenho continuidade da conversa com memória própria do assistente, trilha auditável e sugestões proativas, sempre com confirmação antes de qualquer escrita.`
-        : 'Olá! Eu sou o assistente da plataforma. Nesta Etapa 8 eu separo leitura e escrita, explico a tela atual, navego entre módulos, busco inventário por cidade/estado/tipo, contextualizo o Mídia Kit, crio rascunhos reais de proposta, cadastro clientes, produtos, pontos de mídia e faces/unidades por linguagem natural, faço leitura analítica de Dashboard e Financeiro e agora também mantenho continuidade da conversa com memória própria do assistente, trilha auditável e sugestões proativas, sempre com confirmação antes de qualquer escrita.',
+        ? `Oi! Já estou acompanhando ${moduleLabel}. Posso explicar esta tela, resumir dados ou te ajudar com uma ação.`
+        : 'Oi! Sou o assistente da OneMedia. Posso explicar a tela, resumir dados e te ajudar com ações do sistema.',
   };
 }
 
