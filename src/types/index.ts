@@ -366,6 +366,12 @@ export interface MediaUnit {
   priceMonth?: number;
   priceWeek?: number;
   priceDay?: number;
+  productionCosts?: {
+    lona?: number;
+    adesivo?: number;
+    vinil?: number;
+    montagem?: number;
+  } | null;
   imageUrl?: string | null; // imagem específica da face/tela
   videoUrl?: string | null; // vídeo específico da face/tela
   mediaAssets?: MediaAsset[];
