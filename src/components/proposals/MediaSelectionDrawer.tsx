@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, MapPin, Search, Gift } from 'lucide-react';
+import { Building2, ChevronDown, ChevronUp, Gift, Image as ImageIcon, MapPin, Search } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Input } from '../ui/input';
@@ -13,22 +13,12 @@ import { useCompany } from '../../contexts/CompanyContext';
 interface MediaSelectionDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddItem: (item: ProposalItem) => void;
-  /**
-   * Se informado, o drawer já abre com este ponto selecionado.
-   * Usado quando o usuário veio do Mídia Map.
-   */
+  onAddItems: (items: ProposalItem[]) => void;
   initialMediaPointId?: string;
-  /**
-   * Se informado, restringe a lista de pontos disponíveis (ex: seleção por área do Mídia Map).
-   */
   allowedMediaPointIds?: string[];
-  /**
-   * Data de início de referência da campanha (passo 1). Usada para checar ocupação (reservas) do período.
-   * Se não for informada, usamos a data atual apenas para não permitir seleção sem verificação.
-   */
   referenceStartDate?: Date | null;
   onReferenceStartDateChange?: (date: Date) => void;
+  existingMediaUnitIds?: string[];
 }
 
 type AvailabilityStatus = 'checking' | 'available' | 'occupied' | 'unknown';
@@ -40,214 +30,431 @@ type MediaUnitWithPoint = MediaUnit & {
   pointType?: MediaType;
   pointAddress?: string;
   dimensions?: string;
-  productionCosts?: ProductionCosts | null;
+  pointProductionCosts?: ProductionCosts | null;
 };
 
-export function MediaSelectionDrawer({
-  open,
-  onOpenChange,
-  onAddItem,
-  initialMediaPointId,
-  allowedMediaPointIds,
+type DraftSnapshot = {
+  mediaUnitId: string;
+  mediaPointId: string;
+  mediaPointOwnerId?: string | null;
+  description: string;
+  startDate?: Date;
+  endDate?: Date;
+  occupationDays: number;
+  clientProvidesBanner: boolean;
+  priceMonthSnapshot: number;
+  priceBiweeklySnapshot: number;
+  productionCostSnapshot: number;
+  installationCostSnapshot: number;
+  rentTotalSnapshot: number;
+  upfrontTotalSnapshot: number;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  discountApplyTo: ProposalItemDiscountApplyTo;
+  rentDiscountPercent?: number;
+  rentDiscountAmount?: number;
+  costDiscountPercent?: number;
+  costDiscountAmount?: number;
+  totalDiscountPercent?: number;
+  totalDiscountAmount?: number;
+  isGift: boolean;
+  nextAvailableAt?: Date | string | null;
+  isValid: boolean;
+  shouldAutoUseNextAvailable: boolean;
+};
+
+const OCCUPATION_MAX_DAYS = 365 * 10 + 30 * 24 + 31;
+
+function parseLocalDate(yyyyMmDd: string) {
+  return new Date(`${yyyyMmDd}T00:00:00`);
+}
+
+function normalizeLocalDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + Math.max(0, Math.floor(days)));
+  return next;
+}
+
+function safeNumber(value: unknown) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatPrice(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatAddress(point: MediaPoint) {
+  return [point.addressStreet, point.addressNumber, point.addressDistrict, point.addressCity, point.addressState]
+    .filter(Boolean)
+    .join(', ');
+}
+
+function formatDimensions(unit: MediaUnit) {
+  if (unit.widthM && unit.heightM) {
+    return `${Number(unit.widthM)}m x ${Number(unit.heightM)}m`;
+  }
+  if (unit.resolutionWidthPx && unit.resolutionHeightPx) {
+    return `${unit.resolutionWidthPx}x${unit.resolutionHeightPx}px`;
+  }
+  return undefined;
+}
+
+function formatShortDate(date: Date) {
+  const iso = normalizeLocalDay(date).toISOString().slice(0, 10);
+  const [year, month, day] = iso.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function computeRentPerUnit(days: number, priceMonth: number, priceBiweekly: number) {
+  const normalizedDays = Math.max(0, Math.floor(days));
+  const month = Math.max(0, safeNumber(priceMonth));
+  const biweekly = Math.max(0, safeNumber(priceBiweekly));
+
+  if (normalizedDays <= 0) return 0;
+  if (normalizedDays <= 15 && biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  if (month > 0) {
+    return month * Math.max(1, normalizedDays / 30);
+  }
+  if (biweekly > 0) {
+    return biweekly * Math.max(1, normalizedDays / 15);
+  }
+  return 0;
+}
+
+function isDateWithinRange(date: Date, start: Date, end: Date) {
+  const current = normalizeLocalDay(date).getTime();
+  const from = normalizeLocalDay(start).getTime();
+  const to = normalizeLocalDay(end).getTime();
+  return current >= from && current <= to;
+}
+
+function isDayOccupied(date: Date, ranges: Array<{ startDate: string; endDate: string }>) {
+  return ranges.some((range) => {
+    const rangeStart = new Date(range.startDate);
+    const rangeEnd = new Date(range.endDate);
+    if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) return false;
+    return isDateWithinRange(date, rangeStart, rangeEnd);
+  });
+}
+
+function findFirstConflictDateInRange(start: Date, end: Date, ranges: Array<{ startDate: string; endDate: string }>) {
+  const from = normalizeLocalDay(start);
+  const to = normalizeLocalDay(end);
+
+  for (const range of ranges) {
+    const rangeStart = normalizeLocalDay(new Date(range.startDate));
+    const rangeEnd = normalizeLocalDay(new Date(range.endDate));
+    const overlaps = !(rangeEnd.getTime() < from.getTime() || rangeStart.getTime() > to.getTime());
+    if (!overlaps) continue;
+    return rangeStart.getTime() < from.getTime() ? from : rangeStart;
+  }
+
+  return null;
+}
+
+function findNextAvailableStartOnOrAfter(date: Date, ranges: Array<{ startDate: string; endDate: string }>) {
+  const sorted = [...ranges]
+    .map((range) => ({
+      startDate: normalizeLocalDay(new Date(range.startDate)),
+      endDate: normalizeLocalDay(new Date(range.endDate)),
+    }))
+    .filter((range) => !Number.isNaN(range.startDate.getTime()) && !Number.isNaN(range.endDate.getTime()))
+    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+  let candidate = normalizeLocalDay(date);
+  for (const range of sorted) {
+    if (range.endDate.getTime() < candidate.getTime()) continue;
+    if (range.startDate.getTime() > candidate.getTime()) break;
+    candidate = addDays(range.endDate, 1);
+  }
+  return candidate;
+}
+
+function buildInitialDraft(unit: MediaUnitWithPoint, point: MediaPoint, referenceStartDate?: Date | null, snapshot?: DraftSnapshot) {
+  return {
+    description: snapshot?.description?.replace(/ \(Brinde\)$/u, '') || `${point.name} - ${unit.label}`,
+    quantity: snapshot?.quantity ?? 1,
+    unitPrice: snapshot?.unitPrice ?? 0,
+    discountPercent: snapshot?.discountPercent ?? 0,
+    discountAmount: snapshot?.discountAmount ?? 0,
+    rentDiscountPercent: snapshot?.rentDiscountPercent ?? 0,
+    rentDiscountAmount: snapshot?.rentDiscountAmount ?? 0,
+    costDiscountPercent: snapshot?.costDiscountPercent ?? 0,
+    costDiscountAmount: snapshot?.costDiscountAmount ?? 0,
+    totalDiscountPercent: snapshot?.totalDiscountPercent ?? 0,
+    totalDiscountAmount: snapshot?.totalDiscountAmount ?? 0,
+    isGift: snapshot?.isGift ?? false,
+    mediaPointOwnerId: snapshot?.mediaPointOwnerId ?? '',
+    occupationMode: snapshot ? ((snapshot.startDate && referenceStartDate && normalizeLocalDay(snapshot.startDate).getTime() !== normalizeLocalDay(referenceStartDate).getTime()) ? 'custom' : (snapshot.occupationDays === 15 ? '15' : snapshot.occupationDays === 30 ? '30' : 'custom')) : '30',
+    occupationDays: snapshot?.occupationDays ?? 30,
+    clientProvidesBanner: snapshot?.clientProvidesBanner ?? false,
+    customStartDate: snapshot?.startDate ? normalizeLocalDay(new Date(snapshot.startDate)) : null as Date | null,
+    useNextAvailableDate: snapshot?.shouldAutoUseNextAvailable ?? false,
+    calendarMonth: snapshot?.startDate ? normalizeLocalDay(new Date(snapshot.startDate)) : normalizeLocalDay(referenceStartDate ?? new Date()),
+  };
+}
+
+interface MediaUnitCardProps {
+  unit: MediaUnitWithPoint;
+  point: MediaPoint;
+  selected: boolean;
+  initialSnapshot?: DraftSnapshot;
+  referenceStartDate?: Date | null;
+  onSelectedChange: () => void;
+  onDraftChange: (draft: DraftSnapshot | null) => void;
+}
+
+function MediaUnitCard({
+  unit,
+  point,
+  selected,
+  initialSnapshot,
   referenceStartDate,
-  onReferenceStartDateChange,
-}: MediaSelectionDrawerProps) {
+  onSelectedChange,
+  onDraftChange,
+}: MediaUnitCardProps) {
   const { company } = useCompany();
-  // companyId é usado apenas para preencher o item local. A API usa o companyId do token.
 
-  const allowedKey = useMemo(() => (allowedMediaPointIds ?? []).join('|'), [allowedMediaPointIds]);
-  const allowedSet = useMemo(() => new Set((allowedMediaPointIds ?? []).filter(Boolean)), [allowedKey]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const initial = useMemo(() => buildInitialDraft(unit, point, referenceStartDate, initialSnapshot), [unit, point, referenceStartDate, initialSnapshot]);
 
-  const [mediaPoints, setMediaPoints] = useState<MediaPoint[]>([]);
-  const [mediaUnits, setMediaUnits] = useState<MediaUnitWithPoint[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [description, setDescription] = useState(initial.description);
+  const [quantity, setQuantity] = useState(initial.quantity);
+  const [unitPrice, setUnitPrice] = useState(initial.unitPrice);
+  const [discountPercent, setDiscountPercent] = useState(initial.discountPercent);
+  const [discountAmount, setDiscountAmount] = useState(initial.discountAmount);
+  const [rentDiscountPercent, setRentDiscountPercent] = useState(initial.rentDiscountPercent);
+  const [rentDiscountAmount, setRentDiscountAmount] = useState(initial.rentDiscountAmount);
+  const [costDiscountPercent, setCostDiscountPercent] = useState(initial.costDiscountPercent);
+  const [costDiscountAmount, setCostDiscountAmount] = useState(initial.costDiscountAmount);
+  const [totalDiscountPercent, setTotalDiscountPercent] = useState(initial.totalDiscountPercent);
+  const [totalDiscountAmount, setTotalDiscountAmount] = useState(initial.totalDiscountAmount);
+  const [isGift, setIsGift] = useState(initial.isGift);
+  const [mediaPointOwnerId, setMediaPointOwnerId] = useState(initial.mediaPointOwnerId);
+  const [occupationMode, setOccupationMode] = useState<'15' | '30' | 'custom'>(initial.occupationMode as '15' | '30' | 'custom');
+  const [occupationDays, setOccupationDays] = useState(initial.occupationDays);
+  const [clientProvidesBanner, setClientProvidesBanner] = useState(initial.clientProvidesBanner);
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(initial.customStartDate);
+  const [useNextAvailableDate, setUseNextAvailableDate] = useState(initial.useNextAvailableDate);
+  const [calendarMonth, setCalendarMonth] = useState<Date>(initial.calendarMonth);
 
-  // Seleção
-  const [selectedMediaPointId, setSelectedMediaPointId] = useState<string | null>(null);
-  const [selectedMediaUnit, setSelectedMediaUnit] = useState<MediaUnitWithPoint | null>(null);
-
-  // Preseleção quando vindo do Mídia Map
-  const prefillDoneRef = useRef(false);
-
-  const [mediaPointOwners, setMediaPointOwners] = useState<MediaPointOwner[]>([]);
+  const [owners, setOwners] = useState<MediaPointOwner[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
   const [ownersError, setOwnersError] = useState<string | null>(null);
-  const [selectedMediaPointOwnerId, setSelectedMediaPointOwnerId] = useState<string>('');
-  const [description, setDescription] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [unitPrice, setUnitPrice] = useState(0);
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [discountAmount, setDiscountAmount] = useState(0);
-  const [rentDiscountPercent, setRentDiscountPercent] = useState(0);
-  const [rentDiscountAmount, setRentDiscountAmount] = useState(0);
-  const [costDiscountPercent, setCostDiscountPercent] = useState(0);
-  const [costDiscountAmount, setCostDiscountAmount] = useState(0);
-  const [totalDiscountPercent, setTotalDiscountPercent] = useState(0);
-  const [totalDiscountAmount, setTotalDiscountAmount] = useState(0);
-  const [isGift, setIsGift] = useState(false);
 
-  // Novo fluxo: tempo de ocupação com duração flexível (seguindo a lógica do cardápio)
-  const OCCUPATION_MAX_DAYS = 365 * 10 + 30 * 24 + 31;
-  const [occupationMode, setOccupationMode] = useState<'15' | '30' | 'custom'>('30');
-  const [occupationDays, setOccupationDays] = useState<number>(30);
-  const [clientProvidesBanner, setClientProvidesBanner] = useState<boolean>(false);
-
-  // Disponibilidade (ocupação por reservas existentes)
-  const [availabilityByUnitId, setAvailabilityByUnitId] = useState<Record<string, AvailabilityInfo>>({});
+  const [availability, setAvailability] = useState<AvailabilityInfo>({ status: 'checking', nextAvailableAt: null, conflictCount: 0 });
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
-  const [useNextAvailableDate, setUseNextAvailableDate] = useState(false);
-  const [reservationRangesByUnitId, setReservationRangesByUnitId] = useState<Record<string, Array<{ startDate: string; endDate: string }>>>({});
+  const [reservationRanges, setReservationRanges] = useState<Array<{ startDate: string; endDate: string }>>([]);
   const [reservationRangesLoading, setReservationRangesLoading] = useState(false);
   const [reservationRangesError, setReservationRangesError] = useState<string | null>(null);
-  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
-  const [customCalendarMonth, setCustomCalendarMonth] = useState<Date>(referenceStartDate ? new Date(referenceStartDate) : new Date());
 
-  const normalizeLocalDay = (d: Date) => {
-    const x = new Date(d);
-    x.setHours(0, 0, 0, 0);
-    return x;
-  };
+  const wasSelectedRef = useRef(false);
 
-  const addDays = (d: Date, days: number) => {
-    const x = new Date(d);
-    x.setDate(x.getDate() + Math.max(0, Math.floor(days)));
-    return x;
-  };
-
-  const isDateWithinRange = (date: Date, start: Date, end: Date) => {
-    const current = normalizeLocalDay(date).getTime();
-    const from = normalizeLocalDay(start).getTime();
-    const to = normalizeLocalDay(end).getTime();
-    return current >= from && current <= to;
-  };
-
-  const findFirstConflictDateInRange = (
-    start: Date,
-    end: Date,
-    ranges: Array<{ startDate: string; endDate: string }>,
-  ) => {
-    const from = normalizeLocalDay(start);
-    const to = normalizeLocalDay(end);
-
-    for (const range of ranges) {
-      const rangeStart = normalizeLocalDay(new Date(range.startDate));
-      const rangeEnd = normalizeLocalDay(new Date(range.endDate));
-      const overlaps = !(rangeEnd.getTime() < from.getTime() || rangeStart.getTime() > to.getTime());
-      if (!overlaps) continue;
-      return rangeStart.getTime() < from.getTime() ? from : rangeStart;
+  useEffect(() => {
+    if (!selected) {
+      wasSelectedRef.current = false;
+      onDraftChange(null);
+      return;
     }
 
-    return null;
-  };
+    if (wasSelectedRef.current) return;
+    wasSelectedRef.current = true;
 
-  const isDayOccupied = (date: Date, ranges: Array<{ startDate: string; endDate: string }>) => {
-    return ranges.some((range) => {
-      const rangeStart = new Date(range.startDate);
-      const rangeEnd = new Date(range.endDate);
-      if (Number.isNaN(rangeStart.getTime()) || Number.isNaN(rangeEnd.getTime())) return false;
-      return isDateWithinRange(date, rangeStart, rangeEnd);
-    });
-  };
+    setDescription(initial.description);
+    setQuantity(initial.quantity);
+    setUnitPrice(initial.unitPrice);
+    setDiscountPercent(initial.discountPercent);
+    setDiscountAmount(initial.discountAmount);
+    setRentDiscountPercent(initial.rentDiscountPercent);
+    setRentDiscountAmount(initial.rentDiscountAmount);
+    setCostDiscountPercent(initial.costDiscountPercent);
+    setCostDiscountAmount(initial.costDiscountAmount);
+    setTotalDiscountPercent(initial.totalDiscountPercent);
+    setTotalDiscountAmount(initial.totalDiscountAmount);
+    setIsGift(initial.isGift);
+    setMediaPointOwnerId(initial.mediaPointOwnerId);
+    setOccupationMode(initial.occupationMode as '15' | '30' | 'custom');
+    setOccupationDays(initial.occupationDays);
+    setClientProvidesBanner(initial.clientProvidesBanner);
+    setCustomStartDate(initial.customStartDate);
+    setUseNextAvailableDate(initial.useNextAvailableDate);
+    setCalendarMonth(initial.calendarMonth);
+  }, [selected, initial, onDraftChange]);
 
-  const findNextAvailableStartOnOrAfter = (
-    date: Date,
-    ranges: Array<{ startDate: string; endDate: string }>,
-  ) => {
-    const sorted = [...ranges]
-      .map((range) => ({
-        startDate: normalizeLocalDay(new Date(range.startDate)),
-        endDate: normalizeLocalDay(new Date(range.endDate)),
-      }))
-      .filter((range) => !Number.isNaN(range.startDate.getTime()) && !Number.isNaN(range.endDate.getTime()))
-      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  useEffect(() => {
+    if (!selected) return;
+    let cancelled = false;
+    setOwnersLoading(true);
+    setOwnersError(null);
 
-    let candidate = normalizeLocalDay(date);
+    apiClient.get<any>(`/media-points/${point.id}/owners`)
+      .then((res) => {
+        if (cancelled) return;
+        const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
+        const parsed: MediaPointOwner[] = Array.isArray(data) ? data : [];
+        setOwners(parsed);
+        if (!mediaPointOwnerId) {
+          const primary = parsed.find((owner: any) => owner?.ownerCompany?.isPrimary);
+          if (primary) setMediaPointOwnerId(primary.id);
+          else if (parsed.length === 1) setMediaPointOwnerId(parsed[0].id);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOwners([]);
+        setOwnersError('Erro ao carregar empresas vinculadas ao ponto.');
+      })
+      .finally(() => {
+        if (!cancelled) setOwnersLoading(false);
+      });
 
-    for (const range of sorted) {
-      if (range.endDate.getTime() < candidate.getTime()) continue;
-      if (range.startDate.getTime() > candidate.getTime()) break;
-      candidate = addDays(range.endDate, 1);
-    }
-
-    return candidate;
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, point.id]);
 
   const availabilityWindow = useMemo(() => {
-    const resolvedCustomStart = occupationMode === 'custom' && customStartDate
-      ? normalizeLocalDay(customStartDate)
-      : null;
-
-    // Se não vier a data de início, usamos hoje — e bloqueamos seleção até checar
+    const resolvedCustomStart = occupationMode === 'custom' && customStartDate ? normalizeLocalDay(customStartDate) : null;
     const start = resolvedCustomStart ?? normalizeLocalDay(referenceStartDate ?? new Date());
     const end = addDays(start, occupationDays);
     return { start, end };
-  }, [referenceStartDate, occupationDays, occupationMode, customStartDate]);
+  }, [occupationMode, customStartDate, referenceStartDate, occupationDays]);
 
-  const computeRentPerUnit = (days: number, priceMonth: number, priceBiweekly: number) => {
-    const normalizedDays = Math.max(0, Math.floor(days));
-    const month = Math.max(0, safeNumber(priceMonth));
-    const biweekly = Math.max(0, safeNumber(priceBiweekly));
+  useEffect(() => {
+    if (!selected) return;
+    let cancelled = false;
+    setAvailability({ status: 'checking', nextAvailableAt: null, conflictCount: 0 });
+    setAvailabilityError(null);
 
-    if (normalizedDays <= 0) return 0;
-    if (normalizedDays <= 15 && biweekly > 0) {
-      return biweekly * Math.max(1, normalizedDays / 15);
-    }
-    if (month > 0) {
-      return month * Math.max(1, normalizedDays / 30);
-    }
-    if (biweekly > 0) {
-      return biweekly * Math.max(1, normalizedDays / 15);
-    }
-    return 0;
-  };
+    apiClient.get<any>('/reservations/availability', {
+      params: {
+        mediaUnitId: unit.id,
+        startDate: availabilityWindow.start.toISOString(),
+        endDate: availabilityWindow.end.toISOString(),
+      },
+    })
+      .then((res) => {
+        if (cancelled) return;
+        const payload = res.data ?? {};
+        const available = Boolean(payload?.available);
+        const conflicts = Array.isArray(payload?.conflicts) ? payload.conflicts : [];
+        const nextAvailableAtRaw = payload?.nextAvailableAt ? new Date(payload.nextAvailableAt) : null;
+        const nextAvailableAt = !available && nextAvailableAtRaw && !Number.isNaN(nextAvailableAtRaw.getTime())
+          ? nextAvailableAtRaw.toISOString()
+          : null;
+        setAvailability({
+          status: available ? 'available' : 'occupied',
+          nextAvailableAt,
+          conflictCount: conflicts.length,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAvailability({ status: 'unknown', nextAvailableAt: null, conflictCount: 0 });
+        setAvailabilityError('Não foi possível verificar a disponibilidade desta face.');
+      });
 
-  const safeNumber = (v: any) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const mediaPointById = useMemo(() => {
-    const m = new Map<string, MediaPoint>();
-    for (const p of mediaPoints) {
-      m.set((p as any).id, p);
-    }
-    return m;
-  }, [mediaPoints]);
-
-  const computedPricing = useMemo(() => {
-    const point = selectedMediaUnit ? mediaPointById.get((selectedMediaUnit as any).mediaPointId) : undefined;
-    const priceMonth = safeNumber(selectedMediaUnit?.priceMonth ?? point?.basePriceMonth ?? 0);
-    const priceBiweekly = safeNumber((selectedMediaUnit as any)?.priceWeek ?? point?.basePriceWeek ?? 0);
-    const bannerCost = safeNumber(selectedMediaUnit?.productionCosts?.lona ?? 0);
-    const adhesiveCost = safeNumber((selectedMediaUnit?.productionCosts as any)?.adesivo ?? 0);
-    const vinylCost = safeNumber((selectedMediaUnit?.productionCosts as any)?.vinil ?? 0);
-    const installationCost = safeNumber(selectedMediaUnit?.productionCosts?.montagem ?? 0);
-
-    const rentPerUnit = computeRentPerUnit(occupationDays, priceMonth, priceBiweekly);
-    const upfrontPerUnit = installationCost + adhesiveCost + vinylCost + (clientProvidesBanner ? 0 : bannerCost);
-    const perUnitTotal = rentPerUnit + upfrontPerUnit;
-
-    return {
-      priceMonth,
-      priceBiweekly,
-      bannerCost,
-      adhesiveCost,
-      vinylCost,
-      installationCost,
-      rentPerUnit,
-      upfrontPerUnit,
-      perUnitTotal,
+    return () => {
+      cancelled = true;
     };
-  }, [selectedMediaUnit, occupationDays, clientProvidesBanner]);
+  }, [selected, unit.id, availabilityWindow.start, availabilityWindow.end]);
+
+  useEffect(() => {
+    if (!selected) return;
+    let cancelled = false;
+    setReservationRangesLoading(true);
+    setReservationRangesError(null);
+
+    apiClient.get<any>('/reservations/occupancy', { params: { mediaUnitId: unit.id } })
+      .then((res) => {
+        if (cancelled) return;
+        const payload = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+        const ranges = Array.isArray(payload)
+          ? payload
+              .map((item: any) => ({ startDate: item?.startDate, endDate: item?.endDate }))
+              .filter((item: any) => item.startDate && item.endDate)
+          : [];
+        setReservationRanges(ranges);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setReservationRanges([]);
+        setReservationRangesError('Não foi possível carregar o calendário de ocupação desta face.');
+      })
+      .finally(() => {
+        if (!cancelled) setReservationRangesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, unit.id]);
+
+  useEffect(() => {
+    if (!selected) return;
+    if (availability.status === 'occupied' && availability.nextAvailableAt) {
+      setUseNextAvailableDate(true);
+    } else if (availability.status === 'available') {
+      setUseNextAvailableDate(false);
+    }
+  }, [selected, availability.status, availability.nextAvailableAt]);
+
+  useEffect(() => {
+    if (!selected || occupationMode !== 'custom') return;
+    const minimumStart = normalizeLocalDay(referenceStartDate ?? new Date());
+    const baseStart = customStartDate ? normalizeLocalDay(customStartDate) : minimumStart;
+    const nextCandidate = baseStart.getTime() < minimumStart.getTime() ? minimumStart : baseStart;
+
+    if (!customStartDate || isDayOccupied(nextCandidate, reservationRanges) || nextCandidate.getTime() < minimumStart.getTime()) {
+      const nextAvailableStart = findNextAvailableStartOnOrAfter(nextCandidate, reservationRanges);
+      if (!customStartDate || nextAvailableStart.getTime() !== normalizeLocalDay(customStartDate).getTime()) {
+        setCustomStartDate(nextAvailableStart);
+        setCalendarMonth(nextAvailableStart);
+      }
+    }
+  }, [selected, occupationMode, referenceStartDate, customStartDate, reservationRanges]);
+
+  useEffect(() => {
+    if (!selected || occupationMode !== 'custom') return;
+    setCalendarMonth(customStartDate ? normalizeLocalDay(customStartDate) : normalizeLocalDay(referenceStartDate ?? new Date()));
+  }, [selected, occupationMode, customStartDate, referenceStartDate]);
+
+  const pointPriceMonth = safeNumber(unit.priceMonth ?? point.basePriceMonth ?? 0);
+  const pointPriceBiweekly = safeNumber(unit.priceWeek ?? point.basePriceWeek ?? 0);
+  const pointProductionCosts = unit.pointProductionCosts ?? point.productionCosts ?? null;
+  const bannerCost = safeNumber(pointProductionCosts?.lona ?? 0);
+  const adhesiveCost = safeNumber((pointProductionCosts as any)?.adesivo ?? 0);
+  const vinylCost = safeNumber((pointProductionCosts as any)?.vinil ?? 0);
+  const installationCost = safeNumber(pointProductionCosts?.montagem ?? 0);
+
+  const rentPerUnit = useMemo(
+    () => computeRentPerUnit(occupationDays, pointPriceMonth, pointPriceBiweekly),
+    [occupationDays, pointPriceMonth, pointPriceBiweekly],
+  );
+
+  const upfrontPerUnit = installationCost + adhesiveCost + vinylCost + (clientProvidesBanner ? 0 : bannerCost);
+  const computedPerUnitTotal = rentPerUnit + upfrontPerUnit;
+
+  useEffect(() => {
+    if (!selected) return;
+    setUnitPrice(computedPerUnitTotal);
+  }, [selected, computedPerUnitTotal]);
 
   const discountCalc = useMemo(() => {
     const qty = Math.max(1, Number(quantity) || 1);
-
-    const rawRentTotal = qty * computedPricing.rentPerUnit;
-    const rawCostsTotal = qty * computedPricing.upfrontPerUnit;
+    const rawRentTotal = qty * rentPerUnit;
+    const rawCostsTotal = qty * upfrontPerUnit;
     const rawBaseTotal = rawRentTotal + rawCostsTotal;
 
     const applyReduction = (baseValue: number, pct: number, amt: number) => {
@@ -260,578 +467,92 @@ export function MediaSelectionDrawer({
       return Math.max(0, next);
     };
 
-    let rentAfter = applyReduction(rawRentTotal, rentDiscountPercent, rentDiscountAmount);
-    let costsAfter = applyReduction(rawCostsTotal, costDiscountPercent, costDiscountAmount);
-
+    const rentAfter = applyReduction(rawRentTotal, rentDiscountPercent, rentDiscountAmount);
+    const costsAfter = applyReduction(rawCostsTotal, costDiscountPercent, costDiscountAmount);
     const subtotalBeforeGeneral = rentAfter + costsAfter;
     let totalAfter = applyReduction(subtotalBeforeGeneral, totalDiscountPercent || discountPercent, totalDiscountAmount || discountAmount);
     if (isGift) totalAfter = 0;
 
     const factor = subtotalBeforeGeneral > 0 ? totalAfter / subtotalBeforeGeneral : 0;
-    const finalRent = isGift ? 0 : rentAfter * factor;
-    const finalCosts = isGift ? 0 : costsAfter * factor;
-    const totalPrice = Math.max(0, finalRent + finalCosts);
-    const computedDiscountValue = Math.max(0, rawBaseTotal - totalPrice);
-
     return {
-      qty,
-      rawRentTotal,
-      rawCostsTotal,
       rawBaseTotal,
-      finalRent,
-      finalCosts,
-      totalPrice,
-      computedDiscountValue,
+      finalRent: isGift ? 0 : rentAfter * factor,
+      finalCosts: isGift ? 0 : costsAfter * factor,
+      totalPrice: Math.max(0, totalAfter),
+      computedDiscountValue: Math.max(0, rawBaseTotal - Math.max(0, totalAfter)),
     };
-  }, [quantity, computedPricing.rentPerUnit, computedPricing.upfrontPerUnit, rentDiscountPercent, rentDiscountAmount, costDiscountPercent, costDiscountAmount, totalDiscountPercent, totalDiscountAmount, discountPercent, discountAmount, isGift]);
+  }, [quantity, rentPerUnit, upfrontPerUnit, rentDiscountPercent, rentDiscountAmount, costDiscountPercent, costDiscountAmount, totalDiscountPercent, totalDiscountAmount, discountPercent, discountAmount, isGift]);
 
-  const { rawBaseTotal: baseTotal, totalPrice, computedDiscountValue } = discountCalc;
+  const selectedNextAvailableAt = availability.nextAvailableAt ? new Date(availability.nextAvailableAt) : null;
+  const minimumCustomStartDate = normalizeLocalDay(referenceStartDate ?? new Date());
+  const resolvedCustomStartDate = occupationMode === 'custom' ? (customStartDate ? normalizeLocalDay(customStartDate) : null) : null;
+  const resolvedCustomEndDate = resolvedCustomStartDate ? addDays(resolvedCustomStartDate, occupationDays) : null;
+  const customRangeConflictDate =
+    occupationMode === 'custom' && resolvedCustomStartDate && resolvedCustomEndDate
+      ? findFirstConflictDateInRange(resolvedCustomStartDate, resolvedCustomEndDate, reservationRanges)
+      : null;
+
+  const customSelectionError = occupationMode !== 'custom'
+    ? null
+    : !resolvedCustomStartDate
+      ? 'Selecione a data inicial da ocupação.'
+      : resolvedCustomStartDate.getTime() < minimumCustomStartDate.getTime()
+        ? `A data inicial deve ser igual ou posterior a ${formatShortDate(minimumCustomStartDate)}.`
+        : customRangeConflictDate
+          ? `O período customizado cruza uma ocupação em ${formatShortDate(customRangeConflictDate)}.`
+          : null;
+
+  const isOccupationValid = occupationDays > 0 && occupationDays <= OCCUPATION_MAX_DAYS && (occupationMode !== 'custom' || !customSelectionError);
+  const canAutoScheduleFromNextAvailable =
+    occupationMode !== 'custom' &&
+    !!selectedNextAvailableAt &&
+    (!referenceStartDate || useNextAvailableDate || availability.status === 'occupied');
+  const isSelectedUnitAvailable = occupationMode === 'custom'
+    ? availability.status === 'available' && !customSelectionError
+    : availability.status === 'available' || canAutoScheduleFromNextAvailable || (availability.status === 'unknown' && !!unit.id);
+
+  const effectiveStartDate = useMemo(() => {
+    if (occupationMode === 'custom') {
+      return resolvedCustomStartDate ? new Date(resolvedCustomStartDate) : undefined;
+    }
+    if (canAutoScheduleFromNextAvailable && selectedNextAvailableAt) {
+      return new Date(selectedNextAvailableAt);
+    }
+    return referenceStartDate ? new Date(referenceStartDate) : new Date(availabilityWindow.start);
+  }, [occupationMode, resolvedCustomStartDate, canAutoScheduleFromNextAvailable, selectedNextAvailableAt, referenceStartDate, availabilityWindow.start]);
+
+  const isValid =
+    !!description &&
+    quantity > 0 &&
+    unitPrice >= 0 &&
+    isOccupationValid &&
+    isSelectedUnitAvailable &&
+    owners.length > 0 &&
+    !!mediaPointOwnerId &&
+    !ownersLoading &&
+    !ownersError &&
+    !!effectiveStartDate;
 
   useEffect(() => {
-    if (!selectedMediaUnit) {
-      setUnitPrice(0);
-      return;
-    }
-    setUnitPrice(computedPricing.perUnitTotal);
-  }, [selectedMediaUnit, computedPricing.perUnitTotal]);
-
-  const formatPrice = (price: number) => {
-    return price.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
-
-  const formatAddress = (p: MediaPoint) => {
-    const parts = [p.addressStreet, p.addressNumber, p.addressDistrict, p.addressCity, p.addressState].filter(Boolean);
-    return parts.join(', ');
-  };
-
-  const formatDimensions = (u: MediaUnit) => {
-    // OOH: metros
-    if (u.widthM && u.heightM) {
-      const w = Number(u.widthM);
-      const h = Number(u.heightM);
-      return `${w}m x ${h}m`;
-    }
-
-    // DOOH: resolução
-    if (u.resolutionWidthPx && u.resolutionHeightPx) {
-      return `${u.resolutionWidthPx}x${u.resolutionHeightPx}px`;
-    }
-
-    return undefined;
-  };
-
-  const formatShortDate = (d: Date) => {
-    const iso = new Date(d).toISOString().slice(0, 10); // YYYY-MM-DD
-    const [y, m, day] = iso.split('-');
-    return `${day}/${m}/${y}`;
-  };
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Reset de seleção a cada abertura
-        setSelectedMediaPointId(null);
-        setSelectedMediaUnit(null);
-        setMediaPointOwners([]);
-        setOwnersError(null);
-        setSelectedMediaPointOwnerId('');
-
-        // 1) Carrega TODOS os pontos (paginado)
-        const all: MediaPoint[] = [];
-        let page = 1;
-        const pageSize = 50;
-
-        while (true) {
-          // companyId vem do token (JwtAuthGuard). NÃO envie companyId via query.
-          const pointsRes = await apiClient.get<any>('/media-points', {
-            params: { page, pageSize },
-          });
-
-          const payload = pointsRes.data;
-          const batch: MediaPoint[] = Array.isArray(payload) ? payload : (payload?.data ?? []);
-          const total: number | undefined = Array.isArray(payload) ? undefined : payload?.total;
-
-          all.push(...batch);
-
-          // Se não houver paginação no backend (array), para na primeira.
-          if (Array.isArray(payload)) break;
-
-          if (!batch.length) break;
-          if (typeof total === 'number' && all.length >= total) break;
-
-          page += 1;
-        }
-
-        const filteredAll = allowedSet.size ? all.filter((p: any) => allowedSet.has((p as any).id)) : all;
-        setMediaPoints(filteredAll);
-
-        // 2) Flatten das unidades.
-        // Backend costuma retornar `units`, mas alguns endpoints antigos podem retornar `mediaUnits`.
-        const flattened: MediaUnitWithPoint[] = filteredAll.flatMap((p: any) => {
-          const rawUnits = Array.isArray(p?.units)
-            ? p.units
-            : Array.isArray(p?.mediaUnits)
-              ? p.mediaUnits
-              : [];
-
-          return rawUnits.map((u: any) => ({
-            ...u,
-            pointId: p.id,
-            pointName: p.name,
-            pointType: p.type,
-            pointAddress: formatAddress(p),
-            dimensions: formatDimensions(u),
-            mediaPointId: p.id,
-            productionCosts: (p as any).productionCosts ?? null,
-          }));
-        });
-
-        setMediaUnits(flattened);
-      } catch (e) {
-        setError('Erro ao carregar mídias do inventário.');
-        setMediaPoints([]);
-        setMediaUnits([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (open) {
-      prefillDoneRef.current = false;
-      // reset selecao
-      setSelectedMediaPointId(null);
-      setSelectedMediaUnit(null);
-      setAvailabilityByUnitId({});
-      setAvailabilityError(null);
-      setReservationRangesByUnitId({});
-      setReservationRangesError(null);
-      setCustomStartDate(null);
-      setSelectedMediaPointOwnerId('');
-      setDescription('');
-      setQuantity(1);
-      setDiscountPercent(0);
-      setDiscountAmount(0);
-      setRentDiscountPercent(0);
-      setRentDiscountAmount(0);
-      setCostDiscountPercent(0);
-      setCostDiscountAmount(0);
-      setTotalDiscountPercent(0);
-      setTotalDiscountAmount(0);
-      setUseNextAvailableDate(false);
-      setIsGift(false);
-      setOccupationMode('30');
-      setOccupationDays(30);
-      setClientProvidesBanner(false);
-      load();
-    } else {
-      prefillDoneRef.current = false;
-    }
-  }, [open, allowedKey]);
-
-  const unitsByPointId = useMemo(() => {
-    const map = new Map<string, MediaUnitWithPoint[]>();
-
-    for (const u of mediaUnits) {
-      const pointId = (u as any).mediaPointId as string | undefined;
-      if (!pointId) continue;
-      const curr = map.get(pointId) ?? [];
-      curr.push(u);
-      map.set(pointId, curr);
-    }
-
-    return map;
-  }, [mediaUnits]);
-
-  const filteredMediaPoints = useMemo(() => {
-    let filtered = mediaPoints;
-
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter((p) => (p as any).type === typeFilter);
-    }
-
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      filtered = filtered.filter((p) => {
-        const name = String((p as any).name ?? '').toLowerCase();
-        const addr = formatAddress(p).toLowerCase();
-        const units = unitsByPointId.get((p as any).id) ?? [];
-        const unitMatch = units.some((u) => String((u as any).label ?? '').toLowerCase().includes(q));
-        return name.includes(q) || addr.includes(q) || unitMatch;
-      });
-    }
-
-    return filtered;
-  }, [mediaPoints, typeFilter, searchQuery, unitsByPointId]);
-
-  const filteredUnitsCount = useMemo(() => {
-    return filteredMediaPoints.reduce((sum, p: any) => sum + (unitsByPointId.get(p.id)?.length ?? 0), 0);
-  }, [filteredMediaPoints, unitsByPointId]);
-
-  const selectedPoint = useMemo(() => {
-    if (!selectedMediaPointId) return null;
-    return mediaPoints.find((p: any) => p.id === selectedMediaPointId) ?? null;
-  }, [mediaPoints, selectedMediaPointId]);
-
-  const selectedPointUnits = useMemo(() => {
-    if (!selectedMediaPointId) return [];
-    return unitsByPointId.get(selectedMediaPointId) ?? [];
-  }, [unitsByPointId, selectedMediaPointId]);
-
-  useEffect(() => {
-    if (!selectedMediaUnit) return;
-    const info = availabilityByUnitId[selectedMediaUnit.id];
-    if (!info) return;
-    if (info.status === 'occupied' && info.nextAvailableAt) {
-      setUseNextAvailableDate(true);
-    } else if (info.status === 'available') {
-      setUseNextAvailableDate(false);
-    }
-  }, [selectedMediaUnit, availabilityByUnitId]);
-
-  // Checa ocupação das faces (unidades) do ponto selecionado no período considerado.
-  useEffect(() => {
-    if (!open) return;
-    if (!selectedMediaPointId) {
-      setAvailabilityByUnitId({});
-      setAvailabilityError(null);
-      return;
-    }
-
-    const units = selectedPointUnits;
-    if (!units.length) {
-      setAvailabilityByUnitId({});
-      setAvailabilityError(null);
-      return;
-    }
-
-    let cancelled = false;
-    const startDate = availabilityWindow.start.toISOString();
-    const endDate = availabilityWindow.end.toISOString();
-
-    // Marca todas como "verificando" antes do request.
-    setAvailabilityByUnitId((prev) => {
-      const next: Record<string, AvailabilityInfo> = { ...prev };
-      for (const u of units) next[u.id] = { status: 'checking', nextAvailableAt: null, conflictCount: 0 };
-      return next;
-    });
-    setAvailabilityError(null);
-
-    (async () => {
-      const results = await Promise.allSettled(
-        units.map((u) =>
-          apiClient.get<any>('/reservations/availability', {
-            params: {
-              mediaUnitId: u.id,
-              startDate,
-              endDate,
-            },
-          })
-        )
-      );
-
-      if (cancelled) return;
-
-      const next: Record<string, AvailabilityInfo> = {};
-      let hadError = false;
-
-      results.forEach((r, idx) => {
-        const unitId = units[idx]?.id;
-        if (!unitId) return;
-        if (r.status === 'fulfilled') {
-          const payload = (r.value as any)?.data ?? {};
-          const available = Boolean(payload?.available);
-          const conflicts = Array.isArray(payload?.conflicts) ? payload.conflicts : [];
-          const nextAvailableAtRaw = payload?.nextAvailableAt ? new Date(payload.nextAvailableAt) : null;
-          const nextAvailableAt =
-            !available && nextAvailableAtRaw && !Number.isNaN(nextAvailableAtRaw.getTime())
-              ? nextAvailableAtRaw
-              : null;
-          next[unitId] = {
-            status: available ? 'available' : 'occupied',
-            nextAvailableAt: nextAvailableAt ? nextAvailableAt.toISOString() : null,
-            conflictCount: conflicts.length,
-          };
-        } else {
-          next[unitId] = { status: 'unknown', nextAvailableAt: null, conflictCount: 0 };
-          hadError = true;
-        }
-      });
-
-      setAvailabilityByUnitId(next);
-      if (hadError) {
-        setAvailabilityError('Não foi possível verificar a disponibilidade de uma ou mais faces.');
-      }
-    })().catch(() => {
-      if (cancelled) return;
-      const next: Record<string, AvailabilityInfo> = {};
-      for (const u of units) next[u.id] = { status: 'unknown', nextAvailableAt: null, conflictCount: 0 };
-      setAvailabilityByUnitId(next);
-      setAvailabilityError('Não foi possível verificar a disponibilidade das faces.');
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, selectedMediaPointId, selectedPointUnits, availabilityWindow.start, availabilityWindow.end]);
-
-  useEffect(() => {
-    if (!open || !selectedMediaUnit?.id) {
-      setReservationRangesError(null);
-      return;
-    }
-
-    if (reservationRangesByUnitId[selectedMediaUnit.id]) return;
-
-    let cancelled = false;
-    setReservationRangesLoading(true);
-    setReservationRangesError(null);
-
-    (async () => {
-      try {
-        const response = await apiClient.get<any>('/reservations/occupancy', {
-          params: {
-            mediaUnitId: selectedMediaUnit.id,
-          },
-        });
-
-        if (cancelled) return;
-
-        const payload = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
-        const ranges = Array.isArray(payload)
-          ? payload
-              .map((item: any) => ({
-                startDate: item?.startDate,
-                endDate: item?.endDate,
-              }))
-              .filter((item: any) => item.startDate && item.endDate)
-          : [];
-
-        setReservationRangesByUnitId((prev) => ({
-          ...prev,
-          [selectedMediaUnit.id]: ranges,
-        }));
-      } catch {
-        if (cancelled) return;
-        setReservationRangesError('Não foi possível carregar o calendário de ocupação desta face.');
-      } finally {
-        if (!cancelled) setReservationRangesLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, selectedMediaUnit?.id, reservationRangesByUnitId]);
-
-  useEffect(() => {
-    if (!open) return;
-    if (occupationMode !== 'custom') return;
-    if (!selectedMediaUnit?.id) return;
-
-    const ranges = reservationRangesByUnitId[selectedMediaUnit.id];
-    if (!ranges) return;
-
-    const minimumStart = normalizeLocalDay(referenceStartDate ?? new Date());
-    const baseStart = customStartDate ? normalizeLocalDay(customStartDate) : minimumStart;
-    const nextCandidate = baseStart.getTime() < minimumStart.getTime() ? minimumStart : baseStart;
-
-    if (!customStartDate || isDayOccupied(nextCandidate, ranges) || nextCandidate.getTime() < minimumStart.getTime()) {
-      const nextAvailableStart = findNextAvailableStartOnOrAfter(nextCandidate, ranges);
-      if (!customStartDate || nextAvailableStart.getTime() !== normalizeLocalDay(customStartDate).getTime()) {
-        setCustomStartDate(nextAvailableStart);
-        setCustomCalendarMonth(nextAvailableStart);
-      }
-    }
-  }, [open, occupationMode, selectedMediaUnit?.id, reservationRangesByUnitId, referenceStartDate, customStartDate]);
-
-  useEffect(() => {
-    if (!open || occupationMode !== 'custom') return;
-
-    const baseMonth = customStartDate
-      ? normalizeLocalDay(customStartDate)
-      : normalizeLocalDay(referenceStartDate ?? new Date());
-
-    setCustomCalendarMonth(baseMonth);
-  }, [open, occupationMode, customStartDate, referenceStartDate, selectedMediaUnit?.id]);
-
-  // Mantém a seleção consistente entre pontos com faces livres ou ocupadas.
-  // Se houver face livre, prefere a primeira disponível; se todas estiverem ocupadas,
-  // mantém a primeira unidade visível/selecionável para o usuário decidir a data.
-  useEffect(() => {
-    if (!open) return;
-    if (!selectedMediaPointId) return;
-    if (!selectedPointUnits.length) return;
-
-    if (!Object.keys(availabilityByUnitId).length) return;
-
-    const firstAvailable = selectedPointUnits.find((u) => availabilityByUnitId[u.id]?.status === 'available');
-    const fallbackUnit = firstAvailable ?? selectedPointUnits[0];
-
-    if (!selectedMediaUnit) {
-      handleSelectMediaUnit(fallbackUnit);
-      return;
-    }
-
-    const stillExists = selectedPointUnits.some((u) => u.id === selectedMediaUnit.id);
-    if (!stillExists) {
-      handleSelectMediaUnit(fallbackUnit);
-    }
-  }, [open, selectedMediaPointId, selectedPointUnits, availabilityByUnitId, selectedMediaUnit]);
-
-  const handleSelectMediaUnit = (media: MediaUnitWithPoint) => {
-    setSelectedMediaUnit(media);
-    setDescription(`${media.pointName || 'Ponto'} - ${media.label}`);
-    setDiscountPercent(0);
-    setDiscountAmount(0);
-    setRentDiscountPercent(0);
-    setRentDiscountAmount(0);
-    setCostDiscountPercent(0);
-    setCostDiscountAmount(0);
-    setTotalDiscountPercent(0);
-    setTotalDiscountAmount(0);
-    setUseNextAvailableDate(false);
-    setIsGift(false);
-    setQuantity(1);
-    setOccupationMode('30');
-    setOccupationDays(30);
-    setCustomStartDate(null);
-    setCustomCalendarMonth(referenceStartDate ? new Date(referenceStartDate) : new Date());
-    setClientProvidesBanner(false);
-  };
-
-  const loadOwnersForPoint = async (mediaPointId: string) => {
-    try {
-      setOwnersLoading(true);
-      setOwnersError(null);
-      setMediaPointOwners([]);
-      setSelectedMediaPointOwnerId('');
-
-      const res = await apiClient.get<any>(`/media-points/${mediaPointId}/owners`);
-      const data = Array.isArray(res.data) ? res.data : (res.data?.data ?? []);
-      const owners: MediaPointOwner[] = Array.isArray(data) ? data : [];
-
-      setMediaPointOwners(owners);
-
-      // Preferir OwnerCompany primário quando existir
-      const primary = owners.find((o: any) => o?.ownerCompany?.isPrimary);
-      if (primary) {
-        setSelectedMediaPointOwnerId(primary.id);
-      } else if (owners.length === 1) {
-        setSelectedMediaPointOwnerId(owners[0].id);
-      }
-    } catch (e) {
-      setOwnersError('Erro ao carregar empresas vinculadas ao ponto.');
-      setMediaPointOwners([]);
-      setSelectedMediaPointOwnerId('');
-    } finally {
-      setOwnersLoading(false);
-    }
-  };
-
-  const handleSelectPoint = (point: MediaPoint) => {
-    setSelectedMediaPointId((point as any).id);
-
-    void loadOwnersForPoint((point as any).id);
-
-    const units = unitsByPointId.get((point as any).id) ?? [];
-    if (units.length > 0) {
-      handleSelectMediaUnit(units[0]);
-      return;
-    }
-
-    // Ponto sem unidades: mostra detalhes, mas não permite confirmar.
-    setSelectedMediaUnit(null);
-    setDescription(`${(point as any).name || 'Ponto'}`);
-    setUnitPrice(0);
-    setDiscountPercent(0);
-    setDiscountAmount(0);
-    setRentDiscountPercent(0);
-    setRentDiscountAmount(0);
-    setCostDiscountPercent(0);
-    setCostDiscountAmount(0);
-    setTotalDiscountPercent(0);
-    setTotalDiscountAmount(0);
-    setUseNextAvailableDate(false);
-    setIsGift(false);
-    setQuantity(1);
-    setOccupationMode('30');
-    setOccupationDays(30);
-    setCustomStartDate(null);
-    setClientProvidesBanner(false);
-  };
-
-  // Se veio do Mídia Map, seleciona automaticamente o ponto (ou o 1º da lista restrita).
-  useEffect(() => {
-    if (!open) return;
-    // aguarda carregar
-    if (!mediaPoints.length) return;
-
-    if (prefillDoneRef.current) return;
-
-    let targetId: string | undefined = initialMediaPointId;
-    if (targetId && allowedSet.size && !allowedSet.has(targetId)) {
-      targetId = undefined;
-    }
-    if (!targetId && (allowedMediaPointIds ?? []).length) {
-      targetId = (allowedMediaPointIds ?? [])[0];
-    }
-    if (!targetId) return;
-
-    prefillDoneRef.current = true;
-    if (selectedMediaPointId === targetId) return;
-
-    const p = mediaPoints.find((x: any) => x.id === targetId);
-    if (!p) return;
-
-    handleSelectPoint(p);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialMediaPointId, allowedKey, mediaPoints.length, selectedMediaPointId]);
-
-  const handleConfirm = () => {
-    if (!selectedMediaUnit) return;
-
-    const days = occupationDays;
-    const shouldAutoUseNextAvailable =
-      occupationMode !== 'custom' &&
-      !!selectedNextAvailableAt &&
-      (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
-    const effectiveStartDate = occupationMode === 'custom'
-      ? (resolvedCustomStartDate ? new Date(resolvedCustomStartDate) : null)
-      : shouldAutoUseNextAvailable
-        ? new Date(selectedNextAvailableAt)
-        : (referenceStartDate ? new Date(referenceStartDate) : new Date(availabilityWindow.start));
-
-    if (!effectiveStartDate) return;
-
-    const rentTotalSnapshot = discountCalc.finalRent;
-    const upfrontTotalSnapshot = discountCalc.finalCosts;
-
-    const item: ProposalItem = {
-      id: `item${Date.now()}${Math.random()}`,
-      companyId: company?.id || (selectedMediaUnit as any).companyId || '',
-      proposalId: '',
-      mediaUnitId: selectedMediaUnit.id,
-      productId: undefined,
-      mediaPointOwnerId: selectedMediaUnit.id ? (selectedMediaPointOwnerId || null) : null,
+    if (!selected) return;
+    onDraftChange({
+      mediaUnitId: unit.id,
+      mediaPointId: point.id,
+      mediaPointOwnerId: mediaPointOwnerId || null,
       description: isGift ? `${description} (Brinde)` : description,
       startDate: effectiveStartDate,
-      endDate: effectiveStartDate ? new Date(effectiveStartDate.getTime() + days * 24 * 60 * 60 * 1000) : undefined,
-      occupationDays: days,
+      endDate: effectiveStartDate ? addDays(effectiveStartDate, occupationDays) : undefined,
+      occupationDays,
       clientProvidesBanner,
-      priceMonthSnapshot: computedPricing.priceMonth,
-      priceBiweeklySnapshot: computedPricing.priceBiweekly,
-      productionCostSnapshot: computedPricing.bannerCost,
-      installationCostSnapshot: computedPricing.adhesiveCost + computedPricing.vinylCost + computedPricing.installationCost,
-      rentTotalSnapshot,
-      upfrontTotalSnapshot,
+      priceMonthSnapshot: pointPriceMonth,
+      priceBiweeklySnapshot: pointPriceBiweekly,
+      productionCostSnapshot: bannerCost,
+      installationCostSnapshot: adhesiveCost + vinylCost + installationCost,
+      rentTotalSnapshot: discountCalc.finalRent,
+      upfrontTotalSnapshot: discountCalc.finalCosts,
       quantity,
       unitPrice,
+      totalPrice: discountCalc.totalPrice,
       discountPercent: totalDiscountPercent > 0 ? totalDiscountPercent : (discountPercent > 0 ? discountPercent : undefined),
       discountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : (discountAmount > 0 ? discountAmount : undefined),
       discountApplyTo: ProposalItemDiscountApplyTo.TOTAL,
@@ -842,111 +563,498 @@ export function MediaSelectionDrawer({
       totalDiscountPercent: totalDiscountPercent > 0 ? totalDiscountPercent : undefined,
       totalDiscountAmount: totalDiscountAmount > 0 ? totalDiscountAmount : undefined,
       isGift,
-      nextAvailableAt: selectedAvailability?.nextAvailableAt ?? null,
-      totalPrice,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      nextAvailableAt: availability.nextAvailableAt ?? null,
+      isValid,
+      shouldAutoUseNextAvailable: canAutoScheduleFromNextAvailable,
+    });
+  }, [
+    selected,
+    unit.id,
+    point.id,
+    mediaPointOwnerId,
+    description,
+    effectiveStartDate,
+    occupationDays,
+    clientProvidesBanner,
+    pointPriceMonth,
+    pointPriceBiweekly,
+    bannerCost,
+    adhesiveCost,
+    vinylCost,
+    installationCost,
+    discountCalc.finalRent,
+    discountCalc.finalCosts,
+    quantity,
+    unitPrice,
+    discountCalc.totalPrice,
+    totalDiscountPercent,
+    discountPercent,
+    totalDiscountAmount,
+    discountAmount,
+    rentDiscountPercent,
+    rentDiscountAmount,
+    costDiscountPercent,
+    costDiscountAmount,
+    isGift,
+    availability.nextAvailableAt,
+    isValid,
+    canAutoScheduleFromNextAvailable,
+  ]);
 
-    if (shouldAutoUseNextAvailable && selectedNextAvailableAt) {
-      onReferenceStartDateChange?.(new Date(selectedNextAvailableAt));
-    }
+  return (
+    <div className={`rounded-xl border transition-all ${selected ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-gray-200 bg-white'}`}>
+      <button type="button" className="w-full p-4 text-left" onClick={onSelectedChange}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className={`mt-0.5 rounded-xl p-2 ${point.type === 'DOOH' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+              <ImageIcon className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-medium text-gray-900">{unit.label}</h3>
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700">{point.type}</span>
+                {unit.unitType ? <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-700">{unit.unitType}</span> : null}
+                {selected ? <span className="inline-flex items-center rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] text-white">Selecionado</span> : null}
+              </div>
+              <div className="mt-1 text-sm text-gray-900">{point.name}</div>
+              <p className="mt-1 text-sm text-gray-500">{unit.pointAddress || formatAddress(point)}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                {unit.dimensions ? <span className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-gray-700">{unit.dimensions}</span> : null}
+                <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 ${!selected ? 'border-gray-200 bg-gray-50 text-gray-600' : availability.status === 'available' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : availability.status === 'occupied' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                  {!selected ? 'Selecione para configurar' : availability.status === 'checking' ? 'Verificando disponibilidade…' : availability.status === 'available' ? 'Disponível' : availability.status === 'occupied' ? 'Ocupada' : 'Disponibilidade pendente'}
+                </span>
+              </div>
+              <div className="mt-3 text-base font-medium text-indigo-600">{formatPrice(pointPriceMonth)}/mês</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={selected}
+              onClick={(event) => event.stopPropagation()}
+              onCheckedChange={() => onSelectedChange()}
+            />
+            {selected ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+          </div>
+        </div>
+      </button>
 
-    onAddItem(item);
-    handleClose();
-  };
+      {selected ? (
+        <div className="border-t px-4 pb-4 pt-3 space-y-4">
+          {availabilityError ? <div className="text-xs text-red-600">{availabilityError}</div> : null}
+          {reservationRangesError ? <div className="text-xs text-red-600">{reservationRangesError}</div> : null}
+          {ownersError ? <div className="text-xs text-red-600">{ownersError}</div> : null}
+
+          {availability.status === 'occupied' && availability.nextAvailableAt ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 space-y-1">
+              <div>Esta face está ocupada no período analisado.</div>
+              <label className="flex items-center gap-2">
+                <Checkbox checked={true} disabled />
+                <span>Definir automaticamente a data de início para {formatShortDate(new Date(availability.nextAvailableAt))}.</span>
+              </label>
+              <div className="text-xs">Esta opção é obrigatória enquanto a face estiver ocupada no período analisado.</div>
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm text-gray-600">Empresa vinculada *</label>
+              <Select value={mediaPointOwnerId} onValueChange={setMediaPointOwnerId} disabled={ownersLoading || !owners.length}>
+                <SelectTrigger>
+                  <SelectValue placeholder={ownersLoading ? 'Carregando...' : owners.length ? 'Selecione a empresa vinculada' : 'Nenhuma empresa vinculada'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {owners.map((owner) => {
+                    const label = owner.ownerCompany?.name || owner.ownerName;
+                    const sub = owner.ownerCompany?.document || owner.ownerDocument;
+                    return (
+                      <SelectItem key={owner.id} value={owner.id}>
+                        {label}{sub ? ` • ${sub}` : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">A empresa selecionada será usada como referência do item (e no PDF na próxima etapa).</p>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm text-gray-600">Descrição *</label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm text-gray-600">Tempo de ocupação *</label>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant={occupationMode === '15' ? 'default' : 'outline'} onClick={() => { setOccupationMode('15'); setOccupationDays(15); }}>
+                  15 dias
+                </Button>
+                <Button type="button" size="sm" variant={occupationMode === '30' ? 'default' : 'outline'} onClick={() => { setOccupationMode('30'); setOccupationDays(30); }}>
+                  30 dias
+                </Button>
+                <Button type="button" size="sm" variant={occupationMode === 'custom' ? 'default' : 'outline'} onClick={() => setOccupationMode('custom')}>
+                  Personalizado
+                </Button>
+              </div>
+              {occupationMode === 'custom' ? (
+                <div className="mt-2 rounded-lg border p-3 space-y-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-600">Data inicial</label>
+                      <Input
+                        type="date"
+                        value={customStartDate ? normalizeLocalDay(customStartDate).toISOString().slice(0, 10) : ''}
+                        min={normalizeLocalDay(referenceStartDate ?? new Date()).toISOString().slice(0, 10)}
+                        onChange={(e) => {
+                          if (!e.target.value) {
+                            setCustomStartDate(null);
+                            return;
+                          }
+                          const nextDate = parseLocalDate(e.target.value);
+                          setCustomStartDate(nextDate);
+                          setCalendarMonth(nextDate);
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-gray-600">Duração (dias)</label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max={String(OCCUPATION_MAX_DAYS)}
+                        value={occupationDays}
+                        onChange={(e) => setOccupationDays(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+                      />
+                    </div>
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={customStartDate ?? undefined}
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    onSelect={(date: Date | undefined) => {
+                      if (!date) return;
+                      const nextDate = normalizeLocalDay(date);
+                      const minDate = normalizeLocalDay(referenceStartDate ?? new Date());
+                      if (nextDate.getTime() < minDate.getTime()) return;
+                      if (isDayOccupied(nextDate, reservationRanges)) {
+                        const nextFreeDate = findNextAvailableStartOnOrAfter(nextDate, reservationRanges);
+                        setCustomStartDate(nextFreeDate);
+                        setCalendarMonth(nextFreeDate);
+                        return;
+                      }
+                      setCustomStartDate(nextDate);
+                    }}
+                    disabled={(date: Date) => {
+                      const nextDate = normalizeLocalDay(date);
+                      const minDate = normalizeLocalDay(referenceStartDate ?? new Date());
+                      return nextDate.getTime() < minDate.getTime() || isDayOccupied(nextDate, reservationRanges);
+                    }}
+                    className="rounded-md border w-full"
+                  />
+                  {reservationRangesLoading ? <div className="text-xs text-gray-500">Carregando calendário de ocupação…</div> : null}
+                  {customSelectionError ? <div className="text-xs text-red-600">{customSelectionError}</div> : null}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 md:col-span-2">
+              <div className="flex items-center gap-2 text-sm text-amber-800">
+                <Gift className="h-4 w-4" />
+                Adicionar como brinde
+              </div>
+              <Checkbox checked={isGift} onCheckedChange={(value: boolean | 'indeterminate') => setIsGift(value === true)} />
+            </div>
+
+            <div className="flex items-start gap-2 md:col-span-2">
+              <Checkbox checked={clientProvidesBanner} onCheckedChange={(value: boolean | 'indeterminate') => setClientProvidesBanner(value === true)} />
+              <div>
+                <div className="text-sm text-gray-700">Cliente irá fornecer a lona</div>
+                <div className="text-xs text-gray-500">Se marcado, não contabiliza custo de produção.</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-gray-600">Preço mensal</label>
+              <Input value={formatPrice(pointPriceMonth)} readOnly disabled />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-600">Preço bi-semana</label>
+              <Input value={formatPrice(pointPriceBiweekly)} readOnly disabled />
+            </div>
+
+            <div className="rounded-lg border bg-gray-50 p-3 md:col-span-2 text-sm space-y-1">
+              <div className="flex justify-between"><span>Aluguel por unidade</span><span>{formatPrice(rentPerUnit)}</span></div>
+              <div className="flex justify-between"><span>Custos (produção/instalação)</span><span>{formatPrice(upfrontPerUnit)}</span></div>
+              <div className="flex justify-between font-medium border-t pt-1"><span>Total por unidade</span><span>{formatPrice(computedPerUnitTotal)}</span></div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm text-gray-600">Quantidade *</label>
+              <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value || '1', 10)))} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-600">Preço por unidade (calculado)</label>
+              <Input value={formatPrice(unitPrice)} readOnly disabled />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3 md:col-span-2">
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="font-medium text-gray-900">Desconto no aluguel</div>
+                <Input type="number" min="0" step="0.01" value={rentDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setRentDiscountPercent(v); if (v > 0) setRentDiscountAmount(0); }} disabled={isGift || !!rentDiscountAmount} placeholder="%" />
+                <Input type="number" min="0" step="0.01" value={rentDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setRentDiscountAmount(v); if (v > 0) setRentDiscountPercent(0); }} disabled={isGift || !!rentDiscountPercent} placeholder="R$" />
+              </div>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="font-medium text-gray-900">Desconto nos custos</div>
+                <Input type="number" min="0" step="0.01" value={costDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setCostDiscountPercent(v); if (v > 0) setCostDiscountAmount(0); }} disabled={isGift || !!costDiscountAmount} placeholder="%" />
+                <Input type="number" min="0" step="0.01" value={costDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setCostDiscountAmount(v); if (v > 0) setCostDiscountPercent(0); }} disabled={isGift || !!costDiscountPercent} placeholder="R$" />
+              </div>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="font-medium text-gray-900">Desconto geral adicional</div>
+                <Input type="number" min="0" step="0.01" value={totalDiscountPercent || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setTotalDiscountPercent(v); setDiscountPercent(v); if (v > 0) { setTotalDiscountAmount(0); setDiscountAmount(0); } }} disabled={isGift || !!totalDiscountAmount} placeholder="%" />
+                <Input type="number" min="0" step="0.01" value={totalDiscountAmount || 0} onChange={(e) => { const v = Math.max(0, parseFloat(e.target.value) || 0); setTotalDiscountAmount(v); setDiscountAmount(v); if (v > 0) { setTotalDiscountPercent(0); setDiscountPercent(0); } }} disabled={isGift || !!totalDiscountPercent} placeholder="R$" />
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200 md:col-span-2">
+              <div className="flex justify-between items-center">
+                <span className="text-indigo-900">Total do Item:</span>
+                <span className="text-indigo-900 font-medium">{formatPrice(discountCalc.totalPrice)}</span>
+              </div>
+              <p className="text-sm text-indigo-700 mt-1">{isGift ? 'Item marcado como brinde.' : `${quantity} x ${formatPrice(unitPrice)}`}</p>
+              {discountCalc.computedDiscountValue > 0 ? (
+                <div className="mt-2 text-xs text-indigo-800">
+                  <div className="flex justify-between"><span>Original:</span><span>{formatPrice(discountCalc.rawBaseTotal)}</span></div>
+                  <div className="flex justify-between"><span>Desconto total aplicado:</span><span>-{formatPrice(discountCalc.computedDiscountValue)}</span></div>
+                </div>
+              ) : null}
+            </div>
+
+            {!isValid ? <div className="text-xs text-red-600 md:col-span-2">Complete os dados obrigatórios e selecione uma unidade disponível para adicionar este item.</div> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function MediaSelectionDrawer({
+  open,
+  onOpenChange,
+  onAddItems,
+  initialMediaPointId,
+  allowedMediaPointIds,
+  referenceStartDate,
+  onReferenceStartDateChange,
+  existingMediaUnitIds = [],
+}: MediaSelectionDrawerProps) {
+  const { company } = useCompany();
+  const allowedKey = useMemo(() => (allowedMediaPointIds ?? []).join('|'), [allowedMediaPointIds]);
+  const allowedSet = useMemo(() => new Set((allowedMediaPointIds ?? []).filter(Boolean)), [allowedKey]);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [mediaPoints, setMediaPoints] = useState<MediaPoint[]>([]);
+  const [mediaUnits, setMediaUnits] = useState<MediaUnitWithPoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, DraftSnapshot>>({});
+  const prefillDoneRef = useRef(false);
 
   const handleClose = () => {
     setSearchQuery('');
     setTypeFilter('all');
-    setSelectedMediaPointId(null);
-    setSelectedMediaUnit(null);
-    setAvailabilityByUnitId({});
-    setAvailabilityError(null);
-    setReservationRangesByUnitId({});
-    setReservationRangesError(null);
-    setMediaPointOwners([]);
-    setOwnersError(null);
-    setSelectedMediaPointOwnerId('');
-    setDescription('');
-    setQuantity(1);
-    setUnitPrice(0);
-    setDiscountPercent(0);
-    setDiscountAmount(0);
-    setRentDiscountPercent(0);
-    setRentDiscountAmount(0);
-    setCostDiscountPercent(0);
-    setCostDiscountAmount(0);
-    setTotalDiscountPercent(0);
-    setTotalDiscountAmount(0);
-    setUseNextAvailableDate(false);
-    setIsGift(false);
-    setOccupationMode('30');
-    setOccupationDays(30);
-    setCustomStartDate(null);
-    setClientProvidesBanner(false);
+    setSelectedIds([]);
+    setDrafts({});
     onOpenChange(false);
   };
 
-  const hasOwners = mediaPointOwners.length > 0;
-  const selectedAvailability = selectedMediaUnit ? availabilityByUnitId[selectedMediaUnit.id] : undefined;
-  const selectedAvailabilityStatus = selectedAvailability?.status;
-  const selectedNextAvailableAt = selectedAvailability?.nextAvailableAt ? new Date(selectedAvailability.nextAvailableAt) : null;
-  const selectedReservationRanges = selectedMediaUnit ? (reservationRangesByUnitId[selectedMediaUnit.id] ?? []) : [];
-  const minimumCustomStartDate = normalizeLocalDay(referenceStartDate ?? new Date());
-  const resolvedCustomStartDate = occupationMode === 'custom'
-    ? (customStartDate ? normalizeLocalDay(customStartDate) : null)
-    : null;
-  const resolvedCustomEndDate = resolvedCustomStartDate ? addDays(resolvedCustomStartDate, occupationDays) : null;
-  const customRangeConflictDate =
-    occupationMode === 'custom' && resolvedCustomStartDate && resolvedCustomEndDate
-      ? findFirstConflictDateInRange(resolvedCustomStartDate, resolvedCustomEndDate, selectedReservationRanges)
-      : null;
-  const customSelectionError = occupationMode !== 'custom'
-    ? null
-    : !resolvedCustomStartDate
-      ? 'Selecione a data inicial da ocupação.'
-      : resolvedCustomStartDate.getTime() < minimumCustomStartDate.getTime()
-        ? `A data inicial deve ser igual ou posterior a ${formatShortDate(minimumCustomStartDate)}.`
-        : customRangeConflictDate
-          ? `O período customizado cruza uma ocupação em ${formatShortDate(customRangeConflictDate)}. Ajuste o início ou a duração.`
-          : null;
-  const isOccupationValid =
-    occupationDays > 0 &&
-    occupationDays <= OCCUPATION_MAX_DAYS &&
-    (occupationMode !== 'custom' || !customSelectionError);
-  const canAutoScheduleFromNextAvailable =
-    occupationMode !== 'custom' &&
-    !!selectedNextAvailableAt &&
-    (!referenceStartDate || useNextAvailableDate || selectedAvailabilityStatus === 'occupied');
-  const isSelectedUnitAvailable = occupationMode === 'custom'
-    ? selectedAvailabilityStatus === 'available' && !customSelectionError
-    : selectedAvailabilityStatus === 'available' ||
-      canAutoScheduleFromNextAvailable ||
-      (!selectedAvailabilityStatus && !!selectedMediaUnit);
-  const isValid =
-    !!selectedMediaUnit &&
-    !!description &&
-    quantity > 0 &&
-    unitPrice >= 0 &&
-    isOccupationValid &&
-    isSelectedUnitAvailable &&
-    hasOwners &&
-    !!selectedMediaPointOwnerId &&
-    !ownersLoading &&
-    !ownersError;
+  useEffect(() => {
+    if (!open) {
+      prefillDoneRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setSelectedIds([]);
+        setDrafts({});
+
+        const all: MediaPoint[] = [];
+        let page = 1;
+        const pageSize = 50;
+
+        while (true) {
+          const pointsRes = await apiClient.get<any>('/media-points', { params: { page, pageSize } });
+          const payload = pointsRes.data;
+          const batch: MediaPoint[] = Array.isArray(payload) ? payload : (payload?.data ?? []);
+          const total: number | undefined = Array.isArray(payload) ? undefined : payload?.total;
+
+          all.push(...batch);
+          if (Array.isArray(payload)) break;
+          if (!batch.length) break;
+          if (typeof total === 'number' && all.length >= total) break;
+          page += 1;
+        }
+
+        if (cancelled) return;
+
+        const filteredPoints = allowedSet.size ? all.filter((point: any) => allowedSet.has(point.id)) : all;
+        setMediaPoints(filteredPoints);
+
+        const existingSet = new Set((existingMediaUnitIds ?? []).map(String));
+        const flattened: MediaUnitWithPoint[] = filteredPoints.flatMap((point: any) => {
+          const rawUnits = Array.isArray(point?.units) ? point.units : Array.isArray(point?.mediaUnits) ? point.mediaUnits : [];
+          return rawUnits
+            .filter((unit: any) => !existingSet.has(String(unit.id)))
+            .map((unit: any) => ({
+              ...unit,
+              pointId: point.id,
+              pointName: point.name,
+              pointType: point.type,
+              pointAddress: formatAddress(point),
+              dimensions: formatDimensions(unit),
+              mediaPointId: point.id,
+              pointProductionCosts: point.productionCosts ?? null,
+            }));
+        });
+
+        setMediaUnits(flattened);
+      } catch {
+        if (cancelled) return;
+        setError('Erro ao carregar mídias do inventário.');
+        setMediaPoints([]);
+        setMediaUnits([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, allowedKey, existingMediaUnitIds.join('|')]);
+
+  const mediaPointById = useMemo(() => {
+    const map = new Map<string, MediaPoint>();
+    mediaPoints.forEach((point: any) => map.set(point.id, point));
+    return map;
+  }, [mediaPoints]);
+
+  const filteredUnits = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return mediaUnits.filter((unit) => {
+      const point = unit.mediaPointId ? mediaPointById.get(unit.mediaPointId) : undefined;
+      if (!point) return false;
+      if (typeFilter !== 'all' && point.type !== typeFilter) return false;
+      if (!q) return true;
+      return [unit.label, unit.pointName, unit.pointAddress, unit.dimensions, point.name, formatAddress(point)]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q));
+    });
+  }, [mediaUnits, mediaPointById, typeFilter, searchQuery]);
+
+  const filteredPointsCount = useMemo(() => {
+    return new Set(filteredUnits.map((unit) => unit.mediaPointId).filter(Boolean)).size;
+  }, [filteredUnits]);
 
   const mediaTypes = useMemo(() => {
-    const types = new Set(mediaPoints.map((p: any) => p.type));
+    const types = new Set(mediaPoints.map((point: any) => point.type));
     return Array.from(types) as MediaType[];
   }, [mediaPoints]);
+
+  useEffect(() => {
+    if (!open || prefillDoneRef.current) return;
+    if (!initialMediaPointId) return;
+    const firstUnit = filteredUnits.find((unit) => unit.mediaPointId === initialMediaPointId);
+    if (!firstUnit) return;
+    prefillDoneRef.current = true;
+    setSelectedIds([firstUnit.id]);
+  }, [open, initialMediaPointId, filteredUnits]);
+
+  const toggleSelect = (unitId: string) => {
+    setSelectedIds((prev) => prev.includes(unitId) ? prev.filter((id) => id !== unitId) : [...prev, unitId]);
+  };
+
+  const updateDraft = (unitId: string, draft: DraftSnapshot | null) => {
+    setDrafts((prev) => {
+      if (!draft) {
+        const next = { ...prev };
+        delete next[unitId];
+        return next;
+      }
+      return { ...prev, [unitId]: draft };
+    });
+  };
+
+  const canConfirm = selectedIds.length > 0 && selectedIds.every((id) => drafts[id]?.isValid);
+
+  const handleConfirm = () => {
+    const now = new Date();
+    const items: ProposalItem[] = selectedIds
+      .map((unitId) => {
+        const unit = mediaUnits.find((item) => item.id === unitId);
+        const draft = drafts[unitId];
+        if (!unit || !draft || !draft.isValid) return null;
+        return {
+          id: `item${Date.now()}${Math.random()}`,
+          companyId: company?.id || (unit as any).companyId || '',
+          proposalId: '',
+          mediaUnitId: unit.id,
+          productId: undefined,
+          mediaPointOwnerId: draft.mediaPointOwnerId || null,
+          description: draft.description,
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          occupationDays: draft.occupationDays,
+          clientProvidesBanner: draft.clientProvidesBanner,
+          priceMonthSnapshot: draft.priceMonthSnapshot,
+          priceBiweeklySnapshot: draft.priceBiweeklySnapshot,
+          productionCostSnapshot: draft.productionCostSnapshot,
+          installationCostSnapshot: draft.installationCostSnapshot,
+          rentTotalSnapshot: draft.rentTotalSnapshot,
+          upfrontTotalSnapshot: draft.upfrontTotalSnapshot,
+          quantity: draft.quantity,
+          unitPrice: draft.unitPrice,
+          discountPercent: draft.discountPercent,
+          discountAmount: draft.discountAmount,
+          discountApplyTo: ProposalItemDiscountApplyTo.TOTAL,
+          rentDiscountPercent: draft.rentDiscountPercent,
+          rentDiscountAmount: draft.rentDiscountAmount,
+          costDiscountPercent: draft.costDiscountPercent,
+          costDiscountAmount: draft.costDiscountAmount,
+          totalDiscountPercent: draft.totalDiscountPercent,
+          totalDiscountAmount: draft.totalDiscountAmount,
+          isGift: draft.isGift,
+          nextAvailableAt: draft.nextAvailableAt ?? null,
+          totalPrice: draft.totalPrice,
+          createdAt: now,
+          updatedAt: now,
+        } as ProposalItem;
+      })
+      .filter(Boolean) as ProposalItem[];
+
+    if (!items.length) return;
+
+    const dates = items.map((item) => item.startDate).filter(Boolean) as Date[];
+    if (dates.length) {
+      const earliest = new Date(Math.min(...dates.map((date) => new Date(date).getTime())));
+      onReferenceStartDateChange?.(earliest);
+    }
+
+    onAddItems(items);
+    handleClose();
+  };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen: boolean) => {
-        // ShadCN/Radix dispara onOpenChange tanto para abrir quanto para fechar.
-        // Se fechou, resetamos; se abriu, delegamos para o estado do pai.
         if (!nextOpen) return handleClose();
         onOpenChange(true);
       }}
@@ -960,647 +1068,78 @@ export function MediaSelectionDrawer({
           maxHeight: 'calc(100vh - 2rem)',
         }}
       >
-        <DialogHeader className="px-6 py-4 border-b">
+        <DialogHeader className="px-6 py-4 border-b bg-white">
           <DialogTitle>Selecionar Mídia do Inventário</DialogTitle>
         </DialogHeader>
 
-        {loading && <div className="p-6 text-gray-600">Carregando mídias...</div>}
-        {!loading && error && <div className="p-6 text-red-600">{error}</div>}
+        {loading ? <div className="p-6 text-gray-600">Carregando mídias...</div> : null}
+        {!loading && error ? <div className="p-6 text-red-600">{error}</div> : null}
 
-        {!loading && !error && (
-          <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-            {/* Lista de Pontos */}
-            <div className="md:w-1/2 md:h-full h-[40%] md:border-r border-b md:border-b-0 border-gray-200 overflow-y-auto p-4 md:p-6">
-              <div className="space-y-4 mb-6">
-                <div className="flex gap-4">
-                  <div className="flex-1 relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                      placeholder="Buscar mídia, ponto ou endereço..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {mediaTypes.map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        {!loading && !error ? (
+          <>
+            <div className="px-6 py-4 border-b bg-gray-50/60 space-y-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex gap-2 flex-wrap">
+                  <Button type="button" variant={typeFilter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setTypeFilter('all')}>
+                    Todos
+                  </Button>
+                  {mediaTypes.map((type) => (
+                    <Button key={type} type="button" variant={typeFilter === type ? 'default' : 'outline'} size="sm" onClick={() => setTypeFilter(type)}>
+                      {type}
+                    </Button>
+                  ))}
                 </div>
-
-                <p className="text-sm text-gray-600">
-                  {filteredMediaPoints.length} {filteredMediaPoints.length === 1 ? 'ponto' : 'pontos'} • {filteredUnitsCount}{' '}
-                  {filteredUnitsCount === 1 ? 'mídia' : 'mídias'} disponível(is)
-                </p>
+                <div className="relative w-full md:max-w-md">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" placeholder="Buscar mídia, ponto ou endereço" />
+                </div>
               </div>
 
-              <div className="space-y-3">
-                {filteredMediaPoints.map((point: any) => {
-                  const units = unitsByPointId.get(point.id) ?? [];
-                  const basePointPrice = Number(point?.basePriceMonth ?? 0);
-                  const minUnitPrice = units.reduce((min, u) => {
-                    const p = Number((u as any).priceMonth ?? 0);
-                    if (!Number.isFinite(p) || p <= 0) return min;
-                    return min === null || p < min ? p : min;
-                  }, null as number | null);
-                  const minPrice =
-                    minUnitPrice !== null
-                      ? minUnitPrice
-                      : Number.isFinite(basePointPrice) && basePointPrice > 0
-                        ? basePointPrice
-                        : null;
-                  const dims = units.length === 1 ? (units[0] as any).dimensions : undefined;
-
-                  return (
-                    <div
-                      key={point.id}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md ${
-                        selectedMediaPointId === point.id
-                          ? 'border-indigo-500 bg-indigo-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => handleSelectPoint(point)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="text-gray-900 mb-1">{point.name}</h3>
-                          <p className="text-sm text-gray-600 mb-2">
-                            {point.type}{units.length ? ` • ${units.length} ${units.length === 1 ? 'unidade' : 'unidades'}` : ' • sem unidades'}
-                          </p>
-
-                          {formatAddress(point) && (
-                            <div className="flex items-center gap-1 text-sm text-gray-500 mb-2">
-                              <MapPin className="w-3 h-3" />
-                              <span className="truncate">{formatAddress(point)}</span>
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-indigo-600 font-medium">
-                              {minPrice !== null ? formatPrice(minPrice) + (units.length ? '/mês' : '') : '--'}
-                            </span>
-                            {dims && <span className="text-gray-500">{dims}</span>}
-                          </div>
-                        </div>
-
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {filteredMediaPoints.length === 0 && (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">Nenhum ponto encontrado</p>
-                  </div>
-                )}
+              <div className="text-sm text-gray-500">
+                {filteredPointsCount} ponto(s) • {filteredUnits.length} mídia(s) disponível(is) para adicionar
               </div>
             </div>
 
-            {/* Detalhes/Confirmação */}
-            <div className="md:w-1/2 md:h-full h-[60%] flex-1 overflow-hidden p-4 md:p-6">
-              <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-y-auto pr-1">
-                  {selectedPoint ? (
-                    selectedPointUnits.length ? (
-                      <div className="space-y-6">
-                        <div>
-                          <h2 className="text-gray-900 mb-2">Detalhes da Mídia</h2>
-                          <div className="bg-gray-50 p-4 rounded-lg">
-                            <h3 className="text-gray-900 mb-1">{selectedPoint.name}</h3>
-                            <p className="text-gray-600 mb-2">{selectedPoint.type}</p>
-                            {formatAddress(selectedPoint) && (
-                              <p className="text-sm text-gray-500">{formatAddress(selectedPoint)}</p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                            <label className="text-sm text-gray-600 mb-1 block">Unidade</label>
-                            <Select
-                              value={selectedMediaUnit?.id ?? ''}
-                              onValueChange={(unitId: string) => {
-                                const u = selectedPointUnits.find((x) => x.id === unitId);
-                                if (u) handleSelectMediaUnit(u);
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione uma unidade" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {selectedPointUnits.map((u) => {
-                                  const info = availabilityByUnitId[u.id];
-                                  const st = info?.status;
-                                  const nextDate = info?.nextAvailableAt ? new Date(info.nextAvailableAt) : null;
-
-                                  return (
-                                    <SelectItem key={u.id} value={u.id}>
-                                      {u.label}{st === 'occupied' ? ' (Ocupada)' : st === 'unknown' ? ' (Indisponível)' : st === 'checking' ? ' (Verificando...)' : ''}{nextDate ? ` • livre em ${formatShortDate(nextDate)}` : ''}
-                                    </SelectItem>
-                                  );
-                                })}
-                              </SelectContent>
-                            </Select>
-
-                            <div className="mt-1 text-xs text-gray-500">
-                              Período considerado: {formatShortDate(availabilityWindow.start)} – {formatShortDate(availabilityWindow.end)}
-                            </div>
-                            {!referenceStartDate && (
-                              <div className="mt-1 text-xs text-amber-700">
-                                Você pode selecionar a face agora. Se necessário, a proposta será ajustada para a próxima data livre.
-                              </div>
-                            )}
-                            {availabilityError && <div className="mt-1 text-xs text-red-600">{availabilityError}</div>}
-                          </div>
-
-                        {selectedMediaUnit && (
-                          <div className="text-xs">
-                            {selectedAvailabilityStatus === 'checking' && <div className="text-gray-500 mt-1">Verificando ocupação...</div>}
-                            {occupationMode !== 'custom' && selectedAvailabilityStatus === 'occupied' && (
-                              <div className="space-y-2">
-                                <div className="text-amber-700 mt-1">Esta face está ocupada no período analisado.</div>
-                                {selectedNextAvailableAt ? (
-                                  <div className="flex items-start gap-2">
-                                    <Checkbox id="use-next-available-date" checked={selectedAvailabilityStatus === 'occupied' ? true : useNextAvailableDate} disabled aria-readonly />
-                                    <label htmlFor="use-next-available-date" className="text-gray-700">
-                                      Definir automaticamente a data de início para {formatShortDate(selectedNextAvailableAt)}.
-                                    </label>
-                                  </div>
-                                ) : null}
-                                {selectedNextAvailableAt ? (
-                                  <div className="text-xs text-amber-700">
-                                    Esta opção é obrigatória enquanto a face estiver ocupada no período analisado.
-                                  </div>
-                                ) : null}
-                              </div>
-                            )}
-                            {occupationMode === 'custom' && customSelectionError && (
-                              <div className="text-amber-700 mt-1">{customSelectionError}</div>
-                            )}
-                            {occupationMode === 'custom' && !customSelectionError && selectedAvailabilityStatus === 'occupied' && (
-                              <div className="text-amber-700 mt-1">Ajuste a data inicial ou a duração para evitar o período já ocupado desta face.</div>
-                            )}
-                            {selectedAvailabilityStatus === 'unknown' && (
-                              <div className="text-red-600 mt-1">Não foi possível verificar a ocupação desta face.</div>
-                            )}
-                            {selectedAvailabilityStatus === 'available' && !customSelectionError && (
-                              <div className="text-emerald-700 mt-1">Face disponível para o período analisado.</div>
-                            )}
-                          </div>
-                        )}
-
-                        {selectedMediaUnit && (
-                          <div className="space-y-4">
-                            <div>
-                              <label className="text-sm text-gray-600 mb-1 block">Empresa vinculada *</label>
-                              {ownersLoading && <div className="text-sm text-gray-500">Carregando empresas...</div>}
-                              {!ownersLoading && ownersError && <div className="text-sm text-red-600">{ownersError}</div>}
-                              {!ownersLoading && !ownersError && (
-                                mediaPointOwners.length ? (
-                                  <Select value={selectedMediaPointOwnerId} onValueChange={setSelectedMediaPointOwnerId}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder={mediaPointOwners.length > 1 ? 'Selecione a empresa' : 'Empresa'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {mediaPointOwners.map((o) => {
-                                        const name = (o.ownerCompany?.name || o.ownerName || 'Empresa').trim();
-                                        const doc = (o.ownerCompany?.document || o.ownerDocument || '').trim();
-                                        const label = doc ? `${name} • ${doc}` : name;
-                                        return (
-                                          <SelectItem key={o.id} value={o.id}>
-                                            {label}
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
-                                    Este ponto não possui empresa vinculada. Vincule uma empresa ao ponto no Inventário para poder adicioná-lo à proposta.
-                                  </div>
-                                )
-                              )}
-                              <p className="text-xs text-gray-500 mt-1">
-                                A empresa selecionada será usada como referência do item (e no PDF na próxima etapa).
-                              </p>
-                            </div>
-
-                            <div>
-                              <label className="text-sm text-gray-600 mb-1 block">Descrição *</label>
-                              <Input
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Descrição do item"
-                              />
-                            </div>
-
-                            {/* Tempo de ocupação (novo fluxo) */}
-                            <div className="space-y-3">
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Tempo de ocupação *</label>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={occupationMode === '15' ? 'default' : 'outline'}
-                                    onClick={() => {
-                                      setOccupationMode('15');
-                                      setOccupationDays(15);
-                                      setCustomStartDate(null);
-                                    }}
-                                  >
-                                    15 dias
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={occupationMode === '30' ? 'default' : 'outline'}
-                                    onClick={() => {
-                                      setOccupationMode('30');
-                                      setOccupationDays(30);
-                                      setCustomStartDate(null);
-                                    }}
-                                  >
-                                    30 dias
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={occupationMode === 'custom' ? 'default' : 'outline'}
-                                    onClick={() => {
-                                      setOccupationMode('custom');
-                                      setOccupationDays((prev) => (prev >= 15 ? prev : 15));
-                                      const baseStart = normalizeLocalDay(referenceStartDate ?? new Date());
-                                      const preferredStart = customStartDate
-                                        ? normalizeLocalDay(customStartDate)
-                                        : baseStart;
-                                      const safeStart = preferredStart.getTime() < baseStart.getTime() ? baseStart : preferredStart;
-                                      const nextAvailableStart = findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges);
-                                      setCustomStartDate(nextAvailableStart);
-                                      setCustomCalendarMonth(nextAvailableStart);
-                                    }}
-                                  >
-                                    Personalizado
-                                  </Button>
-                                </div>
-
-                                <div className="mt-2">
-                                  {occupationMode === 'custom' ? (
-                                    <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                      <div className="grid gap-4 md:grid-cols-2">
-                                        <div>
-                                          <label className="text-xs font-medium text-gray-600 mb-1 block">Data inicial</label>
-                                          <Input
-                                            type="date"
-                                            min={minimumCustomStartDate.toISOString().split('T')[0]}
-                                            value={resolvedCustomStartDate ? resolvedCustomStartDate.toISOString().split('T')[0] : ''}
-                                            onChange={(e) => {
-                                              const rawValue = e.target.value;
-                                              if (!rawValue) {
-                                                setCustomStartDate(null);
-                                                return;
-                                              }
-
-                                              const pickedDate = normalizeLocalDay(new Date(`${rawValue}T00:00:00`));
-                                              const safeStart = pickedDate.getTime() < minimumCustomStartDate.getTime()
-                                                ? minimumCustomStartDate
-                                                : pickedDate;
-
-                                              if (isDayOccupied(safeStart, selectedReservationRanges)) {
-                                                const nextAvailableStart = findNextAvailableStartOnOrAfter(safeStart, selectedReservationRanges);
-                                                setCustomStartDate(nextAvailableStart);
-                                                setCustomCalendarMonth(nextAvailableStart);
-                                                return;
-                                              }
-
-                                              setCustomStartDate(safeStart);
-                                              setCustomCalendarMonth(safeStart);
-                                            }}
-                                          />
-                                        </div>
-
-                                        <div>
-                                          <label className="text-xs font-medium text-gray-600 mb-1 block">Duração (dias)</label>
-                                          <Input
-                                            type="number"
-                                            min={1}
-                                            step={1}
-                                            max={OCCUPATION_MAX_DAYS}
-                                            value={occupationDays}
-                                            onChange={(e) => {
-                                              const nextValue = Math.max(0, Math.trunc(Number(e.target.value) || 0));
-                                              setOccupationDays(nextValue);
-                                            }}
-                                          />
-                                          <p className="mt-1 text-[11px] text-gray-500">
-                                            Informe a quantidade de dias. O calendário marca automaticamente o intervalo.
-                                          </p>
-                                        </div>
-                                      </div>
-
-                                      <div className="rounded-lg border bg-white">
-                                        <Calendar
-                                          mode="range"
-                                          month={customCalendarMonth}
-                                          onMonthChange={(date: Date) => setCustomCalendarMonth(normalizeLocalDay(date))}
-                                          className="w-full"
-                                          classNames={{
-                                            month: 'w-full space-y-4',
-                                            table: 'mx-auto w-full max-w-[340px] border-collapse space-y-1',
-                                            head_row: 'grid grid-cols-7',
-                                            row: 'mt-2 grid grid-cols-7',
-                                            cell: 'relative h-10 w-full p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-range-start)]:rounded-l-md',
-                                            head_cell: 'flex h-10 w-full items-center justify-center rounded-md text-[0.8rem] font-normal text-muted-foreground',
-                                            day: 'h-10 w-10 p-0 font-normal aria-selected:opacity-100',
-                                          }}
-                                          selected={resolvedCustomStartDate ? { from: resolvedCustomStartDate, to: resolvedCustomEndDate ?? resolvedCustomStartDate } : undefined}
-                                          onDayClick={(date: Date) => {
-                                            const pickedDate = normalizeLocalDay(date);
-                                            const safeStart = pickedDate.getTime() < minimumCustomStartDate.getTime()
-                                              ? minimumCustomStartDate
-                                              : pickedDate;
-
-                                            if (isDayOccupied(safeStart, selectedReservationRanges)) return;
-                                            setCustomStartDate(safeStart);
-                                            setCustomCalendarMonth(safeStart);
-                                          }}
-                                          disabled={(date: Date) => {
-                                            const localDate = normalizeLocalDay(date);
-                                            return localDate.getTime() < minimumCustomStartDate.getTime() || isDayOccupied(localDate, selectedReservationRanges);
-                                          }}
-                                        />
-                                      </div>
-
-                                      <div className="space-y-1 text-xs text-gray-600">
-                                        <div>Datas ocupadas ficam bloqueadas no calendário.</div>
-                                        {resolvedCustomStartDate && resolvedCustomEndDate ? (
-                                          <div>
-                                            Período customizado: <span className="font-medium text-gray-800">{formatShortDate(resolvedCustomStartDate)} – {formatShortDate(resolvedCustomEndDate)}</span>
-                                          </div>
-                                        ) : null}
-                                        {reservationRangesLoading ? (
-                                          <div className="text-gray-500">Carregando calendário de ocupação...</div>
-                                        ) : null}
-                                        {reservationRangesError ? (
-                                          <div className="text-red-600">{reservationRangesError}</div>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-gray-500">Total: {occupationDays} dias</p>
-                                  )}
-
-                                  {!isOccupationValid && (
-                                    <p className="text-xs text-red-600 mt-1">
-                                      Selecione um tempo válido (mínimo de 1 dia).
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-start gap-2">
-                                <Checkbox
-                                  id="clientProvidesBanner"
-                                  checked={clientProvidesBanner}
-                                  onCheckedChange={(v: boolean | 'indeterminate') => setClientProvidesBanner(v === true)}
-                                />
-                                <div>
-                                  <label htmlFor="clientProvidesBanner" className="text-sm text-gray-700">
-                                    Cliente irá fornecer a lona
-                                  </label>
-                                  <p className="text-xs text-gray-500">
-                                    Se marcado, não contabiliza custo de produção (somente instalação/montagem).
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <label className="text-sm text-gray-600 mb-1 block">Preço mensal</label>
-                                  <Input value={formatPrice(computedPricing.priceMonth)} readOnly disabled />
-                                </div>
-                                <div>
-                                  <label className="text-sm text-gray-600 mb-1 block">Preço bi-semana</label>
-                                  <Input value={formatPrice(computedPricing.priceBiweekly)} readOnly disabled />
-                                </div>
-                              </div>
-
-                              <div className="bg-gray-50 p-3 rounded-lg border">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-600">Aluguel por unidade</span>
-                                  <span className="text-gray-900">{formatPrice(computedPricing.rentPerUnit)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-600">Custos (produção/instalação)</span>
-                                  <span className="text-gray-900">{formatPrice(computedPricing.upfrontPerUnit)}</span>
-                                </div>
-                                <div className="flex justify-between text-sm font-medium border-t pt-2 mt-2">
-                                  <span className="text-gray-900">Total por unidade</span>
-                                  <span className="text-gray-900">{formatPrice(computedPricing.perUnitTotal)}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Quantidade *</label>
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={quantity}
-                                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-sm text-gray-600 mb-1 block">Preço por unidade (calculado)</label>
-                                <Input value={formatPrice(unitPrice)} readOnly disabled />
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                              <div className="flex items-center gap-2 text-sm text-amber-800">
-                                <Gift className="h-4 w-4" />
-                                Adicionar como brinde
-                              </div>
-                              <Checkbox
-                                checked={isGift}
-                                onCheckedChange={(v: boolean | 'indeterminate') => setIsGift(v === true)}
-                              />
-                            </div>
-
-                            <div className="grid gap-4 lg:grid-cols-3">
-                              <div className="rounded-lg border p-3 space-y-3">
-                                <div className="font-medium text-gray-900">Desconto no aluguel</div>
-                                <div className="grid gap-3">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={rentDiscountPercent || 0}
-                                    onChange={(e) => {
-                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                      setRentDiscountPercent(v);
-                                      if (v > 0) setRentDiscountAmount(0);
-                                    }}
-                                    disabled={isGift || !!rentDiscountAmount}
-                                    placeholder="%"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={rentDiscountAmount || 0}
-                                    onChange={(e) => {
-                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                      setRentDiscountAmount(v);
-                                      if (v > 0) setRentDiscountPercent(0);
-                                    }}
-                                    disabled={isGift || !!rentDiscountPercent}
-                                    placeholder="R$"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="rounded-lg border p-3 space-y-3">
-                                <div className="font-medium text-gray-900">Desconto nos custos</div>
-                                <div className="grid gap-3">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={costDiscountPercent || 0}
-                                    onChange={(e) => {
-                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                      setCostDiscountPercent(v);
-                                      if (v > 0) setCostDiscountAmount(0);
-                                    }}
-                                    disabled={isGift || !!costDiscountAmount}
-                                    placeholder="%"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={costDiscountAmount || 0}
-                                    onChange={(e) => {
-                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                      setCostDiscountAmount(v);
-                                      if (v > 0) setCostDiscountPercent(0);
-                                    }}
-                                    disabled={isGift || !!costDiscountPercent}
-                                    placeholder="R$"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="rounded-lg border p-3 space-y-3">
-                                <div className="font-medium text-gray-900">Desconto geral adicional</div>
-                                <div className="grid gap-3">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={totalDiscountPercent || 0}
-                                    onChange={(e) => {
-                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                      setTotalDiscountPercent(v);
-                                      setDiscountPercent(v);
-                                      if (v > 0) {
-                                        setTotalDiscountAmount(0);
-                                        setDiscountAmount(0);
-                                      }
-                                    }}
-                                    disabled={isGift || !!totalDiscountAmount}
-                                    placeholder="%"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={totalDiscountAmount || 0}
-                                    onChange={(e) => {
-                                      const v = Math.max(0, parseFloat(e.target.value) || 0);
-                                      setTotalDiscountAmount(v);
-                                      setDiscountAmount(v);
-                                      if (v > 0) {
-                                        setTotalDiscountPercent(0);
-                                        setDiscountPercent(0);
-                                      }
-                                    }}
-                                    disabled={isGift || !!totalDiscountPercent}
-                                    placeholder="R$"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-                              <div className="flex justify-between items-center">
-                                <span className="text-indigo-900">Total do Item:</span>
-                                <span className="text-indigo-900 font-medium">{formatPrice(totalPrice)}</span>
-                              </div>
-                              <p className="text-sm text-indigo-700 mt-1">
-                                {isGift ? 'Item marcado como brinde.' : `${quantity} x ${formatPrice(unitPrice)}`}
-                              </p>
-                              {computedDiscountValue > 0 && (
-                                <div className="mt-2 text-xs text-indigo-800">
-                                  <div className="flex justify-between">
-                                    <span>Original:</span>
-                                    <span>{formatPrice(baseTotal)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Desconto total aplicado:</span>
-                                    <span>-{formatPrice(computedDiscountValue)}</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500">Este ponto ainda não possui unidades/mídias cadastradas.</p>
-                          <p className="text-sm text-gray-400 mt-2">Cadastre unidades no módulo de Inventário.</p>
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500">Selecione um ponto para adicionar à proposta</p>
-                      </div>
-                    </div>
-                  )}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {filteredUnits.length ? (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {filteredUnits.map((unit) => {
+                    const point = unit.mediaPointId ? mediaPointById.get(unit.mediaPointId) : undefined;
+                    if (!point) return null;
+                    return (
+                      <MediaUnitCard
+                        key={unit.id}
+                        unit={unit}
+                        point={point}
+                        selected={selectedIds.includes(unit.id)}
+                        initialSnapshot={drafts[unit.id]}
+                        referenceStartDate={referenceStartDate}
+                        onSelectedChange={() => toggleSelect(unit.id)}
+                        onDraftChange={(draft) => updateDraft(unit.id, draft)}
+                      />
+                    );
+                  })}
                 </div>
-
-                {/* Footer fixo (sempre visível) */}
-                <div className="pt-4 mt-4 border-t flex flex-col sm:flex-row gap-3">
-                  <Button variant="outline" className="flex-1" onClick={handleClose}>
-                    Cancelar
-                  </Button>
-                  <Button className="flex-1" onClick={handleConfirm} disabled={!isValid}>
-                    Adicionar Item
-                  </Button>
+              ) : (
+                <div className="h-full min-h-[320px] rounded-xl border border-dashed border-gray-200 bg-gray-50/70 flex items-center justify-center">
+                  <div className="text-center px-6">
+                    <Building2 className="mx-auto h-10 w-10 text-gray-300" />
+                    <p className="mt-3 text-gray-600">Nenhuma mídia encontrada com os filtros aplicados.</p>
+                    <p className="mt-1 text-sm text-gray-400">Ajuste a busca ou o tipo para encontrar outros pontos e faces.</p>
+                  </div>
                 </div>
+              )}
+            </div>
+
+            <div className="border-t px-6 py-4 bg-white flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-gray-500">{selectedIds.length} item(ns) selecionado(s)</div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+                <Button onClick={handleConfirm} disabled={!canConfirm}>Adicionar selecionados</Button>
               </div>
             </div>
-          </div>
-        )}
+          </>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

@@ -34,8 +34,8 @@ export function ProposalStep2Items({
 
   const firstId = initialMediaPointId ?? (initialMediaPointIds?.[0] ?? null);
 
-  const handleAddMediaItem = (newItem: ProposalItem) => {
-    onItemsChange([...formData.items, newItem]);
+  const handleAddMediaItems = (newItems: ProposalItem[]) => {
+    onItemsChange([...(formData.items ?? []), ...newItems]);
     setShowMediaDrawer(false);
   };
 
@@ -408,11 +408,12 @@ export function ProposalStep2Items({
       <MediaSelectionDrawer
         open={showMediaDrawer}
         onOpenChange={setShowMediaDrawer}
-        onAddItem={handleAddMediaItem}
+        onAddItems={handleAddMediaItems}
         onReferenceStartDateChange={(nextDate) => onMetaChange({ campaignStartDate: nextDate } as any)}
         referenceStartDate={formData.campaignStartDate ?? null}
         initialMediaPointId={firstId ?? undefined}
         allowedMediaPointIds={initialMediaPointIds ?? undefined}
+        existingMediaUnitIds={(formData.items ?? []).filter((i) => !!i.mediaUnitId).map((i) => String(i.mediaUnitId))}
       />
 
 
