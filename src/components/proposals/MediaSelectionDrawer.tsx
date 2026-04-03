@@ -89,6 +89,28 @@ function safeNumber(value: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function pickOverrideOrFallback(primary: unknown, fallback: unknown) {
+  const primaryNumber = Number(primary);
+  if (Number.isFinite(primaryNumber) && primaryNumber > 0) return primaryNumber;
+
+  const fallbackNumber = Number(fallback);
+  if (Number.isFinite(fallbackNumber) && fallbackNumber > 0) return fallbackNumber;
+
+  return 0;
+}
+
+function resolveEffectiveProductionCosts(unit: Partial<{ productionCosts: ProductionCosts | null; pointProductionCosts: ProductionCosts | null }>, point: Partial<{ productionCosts: ProductionCosts | null }>) {
+  const unitCosts = (unit as any)?.productionCosts ?? null;
+  const pointCosts = unit.pointProductionCosts ?? point.productionCosts ?? null;
+
+  return {
+    lona: pickOverrideOrFallback(unitCosts?.lona, pointCosts?.lona),
+    adesivo: pickOverrideOrFallback((unitCosts as any)?.adesivo, (pointCosts as any)?.adesivo),
+    vinil: pickOverrideOrFallback((unitCosts as any)?.vinil, (pointCosts as any)?.vinil),
+    montagem: pickOverrideOrFallback(unitCosts?.montagem, pointCosts?.montagem),
+  };
+}
+
 function formatPrice(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -430,13 +452,13 @@ function MediaUnitCard({
     setCalendarMonth(customStartDate ? normalizeLocalDay(customStartDate) : normalizeLocalDay(referenceStartDate ?? new Date()));
   }, [selected, occupationMode, customStartDate, referenceStartDate]);
 
-  const pointPriceMonth = safeNumber(unit.priceMonth ?? point.basePriceMonth ?? 0);
-  const pointPriceBiweekly = safeNumber(unit.priceWeek ?? point.basePriceWeek ?? 0);
-  const pointProductionCosts = unit.pointProductionCosts ?? point.productionCosts ?? null;
-  const bannerCost = safeNumber(pointProductionCosts?.lona ?? 0);
-  const adhesiveCost = safeNumber((pointProductionCosts as any)?.adesivo ?? 0);
-  const vinylCost = safeNumber((pointProductionCosts as any)?.vinil ?? 0);
-  const installationCost = safeNumber(pointProductionCosts?.montagem ?? 0);
+  const pointPriceMonth = pickOverrideOrFallback(unit.priceMonth, point.basePriceMonth);
+  const pointPriceBiweekly = pickOverrideOrFallback(unit.priceWeek, point.basePriceWeek);
+  const effectiveProductionCosts = resolveEffectiveProductionCosts(unit, point);
+  const bannerCost = safeNumber(effectiveProductionCosts.lona);
+  const adhesiveCost = safeNumber(effectiveProductionCosts.adesivo);
+  const vinylCost = safeNumber(effectiveProductionCosts.vinil);
+  const installationCost = safeNumber(effectiveProductionCosts.montagem);
 
   const rentPerUnit = useMemo(
     () => computeRentPerUnit(occupationDays, pointPriceMonth, pointPriceBiweekly),
