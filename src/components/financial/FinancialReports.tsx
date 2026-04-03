@@ -27,7 +27,7 @@ import {
 import { BillingStatus, CashFlowType } from '../../types';
 import { useFinancialReports } from '../../hooks/useFinancialReports';
 
-type PeriodMode = 'monthly' | 'bimonthly' | 'custom';
+type PeriodMode = 'monthly' | 'semiannual' | 'custom';
 
 function pad2(value: number) {
   return String(value).padStart(2, '0');
@@ -49,10 +49,10 @@ function monthRange(monthValue: string) {
   return { dateFrom: toDateOnly(start), dateTo: toDateOnly(end) };
 }
 
-function bimonthRange(monthValue: string) {
+function semiannualRange(monthValue: string) {
   const { year, month } = parseMonthValue(monthValue);
   const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month + 1, 0);
+  const end = new Date(year, month + 5, 0);
   return { dateFrom: toDateOnly(start), dateTo: toDateOnly(end) };
 }
 
@@ -68,9 +68,21 @@ function formatMoney(value: number) {
 
 function formatDateBr(value?: string | Date | null) {
   if (!value) return '—';
-  const date = value instanceof Date ? value : new Date(String(value));
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '—';
+    return value.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  }
+
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split('-').map((item) => Number(item));
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  }
+
+  const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('pt-BR');
+  return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
 
 function formatDateRange(dateFrom: string, dateTo: string) {
@@ -87,7 +99,7 @@ function formatDateTimeBr(value?: string | Date | null) {
 
 function periodModeLabel(mode: PeriodMode) {
   if (mode === 'monthly') return 'Visualização mensal';
-  if (mode === 'bimonthly') return 'Visualização de 2 meses';
+  if (mode === 'semiannual') return 'Visualização de 6 meses';
   return 'Visualização personalizada';
 }
 
@@ -147,8 +159,8 @@ export function FinancialReports() {
       };
     }
 
-    if (periodMode === 'bimonthly') {
-      return bimonthRange(month);
+    if (periodMode === 'semiannual') {
+      return semiannualRange(month);
     }
 
     return monthRange(month);
@@ -172,6 +184,10 @@ export function FinancialReports() {
     dateTo: computedPeriod.dateTo,
     enabled: !validationMessage,
   });
+
+  const displayPeriod = report?.period
+    ? { dateFrom: report.period.dateFrom, dateTo: report.period.dateTo }
+    : computedPeriod;
 
   const hasReportData = Boolean(
     report && (report.details.invoices.length > 0 || report.details.transactions.length > 0),
@@ -307,7 +323,7 @@ export function FinancialReports() {
         <div>
           <h2 className="text-gray-900 text-lg">Relatórios</h2>
           <p className="text-gray-600 text-sm">
-            Consulte o consolidado financeiro por mês, 2 meses ou intervalo customizado de até 1 ano.
+            Consulte o consolidado financeiro por mês, 6 meses ou intervalo customizado de até 1 ano.
           </p>
         </div>
 
@@ -320,7 +336,7 @@ export function FinancialReports() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="monthly">Mês selecionado</SelectItem>
-                <SelectItem value="bimonthly">2 meses</SelectItem>
+                <SelectItem value="semiannual">6 meses</SelectItem>
                 <SelectItem value="custom">Intervalo personalizado</SelectItem>
               </SelectContent>
             </Select>
@@ -340,7 +356,7 @@ export function FinancialReports() {
           ) : (
             <div>
               <p className="mb-1 text-xs font-medium text-gray-600">
-                {periodMode === 'bimonthly' ? 'Mês inicial' : 'Mês'}
+                {periodMode === 'semiannual' ? 'Mês inicial' : 'Mês'}
               </p>
               <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-[180px]" />
             </div>
@@ -371,7 +387,7 @@ export function FinancialReports() {
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="gap-1">
           <CalendarRange className="h-3.5 w-3.5" />
-          {formatDateRange(computedPeriod.dateFrom, computedPeriod.dateTo)}
+          {formatDateRange(displayPeriod.dateFrom, displayPeriod.dateTo)}
         </Badge>
         <Badge variant="outline">{periodModeLabel(periodMode)}</Badge>
         {!validationMessage && report?.period ? (
@@ -436,7 +452,7 @@ export function FinancialReports() {
             </div>
 
             <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-              <p><strong>Período:</strong> {formatDateRange(computedPeriod.dateFrom, computedPeriod.dateTo)}</p>
+              <p><strong>Período:</strong> {formatDateRange(displayPeriod.dateFrom, displayPeriod.dateTo)}</p>
             </div>
           </div>
 
