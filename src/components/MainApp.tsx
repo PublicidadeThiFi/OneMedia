@@ -5,7 +5,7 @@
  */
 
 import { lazy, Suspense, useEffect, useState, useMemo, Component, type ReactNode } from 'react';
-import { Menu, Sparkles, X } from 'lucide-react';
+import { Bot, Menu, Sparkles, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
@@ -99,7 +99,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, logout, authReady } = useAuth();
   const { hasTutorialForModule, openModuleTutorial, setCurrentModule } = useTutorial();
-  const { setScreenContext } = useAssistant();
+  const { setScreenContext, setIsOpen: setIsAssistantOpen } = useAssistant();
   const navigate = useNavigation();
 
   const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
@@ -350,6 +350,16 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
                   {user.email}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsAssistantOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+                aria-label="Abrir assistente"
+              >
+                <Bot className="h-4 w-4" />
+                <span className="hidden sm:inline">Assistente</span>
+                <span className="sm:hidden">Chat</span>
+              </button>
               {currentPageHasTutorial ? (
                 <button
                   type="button"

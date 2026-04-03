@@ -86,7 +86,12 @@ export function AssistantLauncher() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-3 rounded-full bg-[#4F46E5] px-4 py-3 text-sm font-medium text-white shadow-lg transition-transform hover:-translate-y-0.5 hover:opacity-95"
+        className="fixed z-[120] inline-flex items-center gap-3 rounded-full bg-[#4F46E5] px-4 py-3 text-sm font-medium text-white shadow-[0_16px_40px_rgba(79,70,229,0.28)] transition-transform hover:-translate-y-0.5 hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2"
+        style={{
+          right: 'max(1.5rem, env(safe-area-inset-right))',
+          bottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+        }}
+        aria-label="Abrir assistente OneMedia"
         data-tour="assistant-launcher"
       >
         <Bot className="h-5 w-5" />
