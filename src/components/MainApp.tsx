@@ -353,12 +353,11 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
               <button
                 type="button"
                 onClick={() => setIsAssistantOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
-                aria-label="Abrir assistente"
+                className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50"
+                aria-label="Abrir chat da plataforma"
               >
                 <Bot className="h-4 w-4" />
-                <span className="hidden sm:inline">Assistente</span>
-                <span className="sm:hidden">Chat</span>
+                <span>Chat</span>
               </button>
               {currentPageHasTutorial ? (
                 <button
