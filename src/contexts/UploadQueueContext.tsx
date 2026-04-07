@@ -433,19 +433,25 @@ async function uploadTaskRequest(task: UploadTask, controller: AbortController, 
   }
 
   try {
+    const directHeaders: Record<string, string> = {
+      ...(initResponse.uploadHeaders ?? {}),
+    };
+    if (directHeaders["Content-Type"] == null && directHeaders["content-type"] == null && (initResponse.contentType || contentType)) {
+      directHeaders["Content-Type"] = initResponse.contentType || contentType;
+    }
+
     await axios.put(initResponse.uploadUrl, task.file, {
       signal: controller.signal,
-      headers: {
-        ...(initResponse.uploadHeaders ?? {}),
-        "Content-Type": initResponse.contentType || contentType,
-      },
+      headers: directHeaders,
       onUploadProgress: (event) => {
         reportProgress(Number(event.loaded ?? 0), Number(event.total ?? task.file?.size ?? 0));
       },
     });
   } catch (error: any) {
     const wasAborted = controller.signal.aborted || error?.code === "ERR_CANCELED" || error?.name === "CanceledError" || error?.name === "AbortError";
-    if (!wasAborted && !error?.response) {
+    const status = Number(error?.response?.status ?? 0);
+    const shouldFallbackToLegacy = !wasAborted && (!error?.response || status === 400 || status === 403 || status === 405 || status >= 500);
+    if (shouldFallbackToLegacy) {
       await runLegacyUpload();
       return;
     }
