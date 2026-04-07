@@ -19,6 +19,7 @@ import { useTransactionCategories } from '../../hooks/useTransactionCategories';
 import apiClient from '../../lib/apiClient';
 import { resolveUploadsUrl } from '../../lib/format';
 import { OOH_SUBCATEGORIES, DOOH_SUBCATEGORIES, ENVIRONMENTS, BRAZILIAN_STATES, SOCIAL_CLASSES } from '../../lib/mockData';
+import { sanitizeMediaPointPayload } from '../../lib/inventoryPayload';
 
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -419,7 +420,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     window.clearTimeout(geoTimerRef.current ?? undefined);
     setSubmitError(null);
     if (mediaPoint) {
-      setFormData(mediaPoint);
+      setFormData(sanitizeMediaPointPayload(mediaPoint));
       setPointSnapshot(mediaPoint);
       setType(mediaPoint.type);
       setImageFiles([]);
@@ -438,7 +439,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
         showInMediaKit: false,
         addressCountry: 'Brasil',
         socialClasses: [],
-        ...(initialData ?? {}),
+        ...sanitizeMediaPointPayload(initialData ?? {}),
       };
       setFormData(merged);
       setPointSnapshot(merged);
@@ -879,8 +880,7 @@ export function MediaPointFormDialog({ open, onOpenChange, mediaPoint, initialDa
     setIsSaving(true);
     setSubmitError(null);
 
-    // Remove campos que não devem ser enviados para a API
-    const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (formData as any) || {};
+    const payload = sanitizeMediaPointPayload(formData);
     // Não usamos mais basePriceDay (Preço Diário) na UI.
     delete (payload as any).basePriceDay;
 

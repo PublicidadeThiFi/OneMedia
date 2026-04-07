@@ -12,6 +12,7 @@ import { useMediaUnits } from '../../hooks/useMediaUnits';
 import { useCompany } from '../../contexts/CompanyContext';
 import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
 import { resolveUploadsUrl } from '../../lib/format';
+import { sanitizeMediaUnitPayload } from '../../lib/inventoryPayload';
 import { toast } from 'sonner';
 
 interface MediaUnitsDialogProps {
@@ -441,7 +442,7 @@ export function MediaUnitsDialog({
               entitlements={entitlements}
               onSave={async (data, imageFiles = [], videoFiles = []) => {
                 try {
-                  const clean = sanitizeUnitPayload(data);
+                  const clean = sanitizeMediaUnitPayload(sanitizeUnitPayload(data) as any);
 
                   if (editingUnit) {
                     const updated = await updateUnit(editingUnit.id, clean);
