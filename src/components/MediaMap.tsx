@@ -35,6 +35,7 @@ import { useNavigation } from '../contexts/NavigationContext';
 
 import apiClient from '../lib/apiClient';
 import { reverseGeocodeOSM } from '../lib/geocode';
+import { sanitizeMediaPointPayload } from '../lib/inventoryPayload';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 
@@ -1071,8 +1072,7 @@ export function MediaMap() {
   ]);
 
   const handleSavePointFromMap = async (data: Partial<MediaPoint>, imageFile?: File | null, videoFile?: File | null) => {
-    // Remove campos não aceitos/necessários pela API
-    const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
+    const payload = sanitizeMediaPointPayload(data);
 
     const response = await apiClient.post<MediaPoint>('/media-points', payload);
     const saved = response.data;

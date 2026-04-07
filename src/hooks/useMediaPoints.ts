@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { MediaPoint, MediaType } from '../types';
+import { sanitizeMediaPointPayload } from '../lib/inventoryPayload';
 
 export interface UseMediaPointsParams {
   search?: string;
@@ -76,13 +77,13 @@ export function useMediaPoints(params: UseMediaPointsParams = {}) {
   };
 
   const createMediaPoint = async (payload: Partial<MediaPoint>) => {
-    const response = await apiClient.post<MediaPoint>('/media-points', payload);
+    const response = await apiClient.post<MediaPoint>('/media-points', sanitizeMediaPointPayload(payload));
     setMediaPoints((prev: MediaPoint[]) => [...prev, response.data]);
     return response.data;
   };
 
   const updateMediaPoint = async (id: string, payload: Partial<MediaPoint>) => {
-    const response = await apiClient.put<MediaPoint>(`/media-points/${id}`, payload);
+    const response = await apiClient.put<MediaPoint>(`/media-points/${id}`, sanitizeMediaPointPayload(payload));
     setMediaPoints((prev: MediaPoint[]) =>
       prev.map((p: MediaPoint) => (p.id === id ? response.data : p))
     );

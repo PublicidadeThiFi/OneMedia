@@ -15,6 +15,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useUploadQueue } from '../contexts/UploadQueueContext';
 import apiClient from '../lib/apiClient';
 import { resolveUploadsUrl } from '../lib/format';
+import { sanitizeMediaPointPayload } from '../lib/inventoryPayload';
 import { toast } from 'sonner';
 import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
 import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
@@ -101,8 +102,7 @@ export function Inventory() {
   // Handlers
   const handleSavePoint = async (data: Partial<MediaPoint>, _imageFile?: File | null, _videoFile?: File | null) => {
     try {
-      // Remove campos não aceitos/necessários pela API
-      const { id, companyId, createdAt, updatedAt, units, owners, ...payload } = (data as any) || {};
+      const payload = sanitizeMediaPointPayload(data);
 
       let saved: MediaPoint;
       if (editingPoint?.id) {
@@ -207,8 +207,7 @@ export function Inventory() {
   }, []);
 
   const handleDuplicatePoint = async (point: MediaPoint) => {
-    const payload: Partial<MediaPoint> = { ...point };
-    delete (payload as any).id;
+    const payload: Partial<MediaPoint> = sanitizeMediaPointPayload(point);
     payload.name = `${point.name} (cópia)`;
     try {
       const response = await apiClient.post<MediaPoint>('/media-points', payload);
