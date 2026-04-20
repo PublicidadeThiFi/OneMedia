@@ -208,18 +208,14 @@ export default function MenuFaces() {
   const cartCount = useMemo(() => getCartCount(), [selectedCount, pointId]);
 
   return (
-    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fbff_0%,#eef4ff_32%,#f8fafc_100%)]">
+    <div className="menu-app-shell">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/80 px-3 py-1 text-slate-700 shadow-sm backdrop-blur">
+          <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 py-1 text-slate-700 shadow-sm backdrop-blur">
             Seleção de faces/telas
           </Badge>
-          {source === 'catalog' && (
-            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 py-1 text-slate-700 shadow-sm backdrop-blur">
-              Novo catálogo
-            </Badge>
-          )}
-          {city && <div className="text-sm text-slate-600">{city}{uf ? ` • ${uf}` : ''}</div>}
+          {point?.name && <div className="text-sm text-slate-600">{point.name}</div>}
+          {!point?.name && city && <div className="text-sm text-slate-600">{city}{uf ? ` • ${uf}` : ''}</div>}
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
               <Button
@@ -239,7 +235,7 @@ export default function MenuFaces() {
         </div>
 
         {error && (
-          <Card className="mt-5 rounded-[28px] border-amber-200 bg-amber-50 shadow-[0_16px_40px_rgba(245,158,11,0.08)]">
+          <Card className="menu-glass-card mt-5 rounded-[28px] border-amber-200 bg-amber-50/90">
             <CardContent className="py-4">
               <div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div>
               <div className="mt-1 text-sm text-amber-800">{error}</div>
@@ -248,7 +244,7 @@ export default function MenuFaces() {
         )}
 
         {loading && (
-          <Card className="mt-5 animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
+          <Card className="menu-glass-card mt-5 animate-pulse rounded-[30px]">
             <CardContent className="py-6">
               <div className="h-5 w-56 rounded bg-slate-200" />
               <div className="mt-3 h-3 w-80 rounded bg-slate-200" />
@@ -261,7 +257,7 @@ export default function MenuFaces() {
         )}
 
         {!loading && !error && !point && (
-          <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90">
+          <Card className="menu-glass-card mt-5 rounded-[28px]">
             <CardContent className="py-6">
               <div className="text-sm font-semibold text-slate-900">Ponto não encontrado</div>
               <div className="mt-1 text-sm text-slate-600">Volte e selecione outro ponto.</div>
@@ -276,7 +272,7 @@ export default function MenuFaces() {
 
         {point && (
           <>
-            <Card className="mt-5 overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/90 shadow-[0_18px_48px_rgba(15,23,42,0.08)] backdrop-blur">
+            <Card className="menu-glass-card mt-5 overflow-hidden rounded-[30px] border border-slate-200/80">
               <CardContent className="p-5 sm:p-6">
                 <div className="grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
                   <div className="grid gap-4 md:grid-cols-[240px_1fr]">
@@ -392,7 +388,7 @@ export default function MenuFaces() {
               </CardContent>
             </Card>
 
-            <div className="sticky top-3 z-20 mt-5 rounded-[22px] border border-slate-200/90 bg-white/95 p-4 shadow-[0_14px_36px_rgba(15,23,42,0.08)] backdrop-blur">
+            <div className="menu-glass-card sticky top-3 z-20 mt-5 rounded-[22px] border border-slate-200/90 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="text-sm font-semibold text-slate-950">Seleção atual</div>

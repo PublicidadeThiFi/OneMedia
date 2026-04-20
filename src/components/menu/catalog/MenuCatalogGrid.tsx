@@ -10,6 +10,9 @@ type MenuCatalogGridProps = {
   isAgency: boolean;
   markupPercent: number;
   onOpenDetail: (pointId: string) => void;
+  isSelectionMode?: boolean;
+  selectedPointIds?: string[];
+  onToggleSelection?: (pointId: string) => void;
   onClearFilters?: () => void;
   onChangeRegion?: () => void;
 };
@@ -20,36 +23,43 @@ export function MenuCatalogGrid({
   isAgency,
   markupPercent,
   onOpenDetail,
+  isSelectionMode = false,
+  selectedPointIds = [],
+  onToggleSelection,
   onClearFilters,
   onChangeRegion,
 }: MenuCatalogGridProps) {
   if (loading && points.length === 0) {
     return (
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <Card key={index} className="animate-pulse overflow-hidden rounded-[30px] border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.05)]">
-            <div className="aspect-[16/9] w-full bg-slate-200" />
-            <CardContent className="space-y-5 p-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="h-14 rounded-[18px] bg-slate-100" />
-                <div className="h-14 rounded-[18px] bg-slate-100" />
-              </div>
-              <div className="h-4 w-5/6 rounded bg-slate-200" />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-                <div className="h-24 rounded-[22px] bg-slate-100" />
-              </div>
-              <div className="h-11 rounded-2xl bg-slate-200" />
-            </CardContent>
+      <div className="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Card key={index} className="animate-pulse overflow-hidden rounded-[30px] border-sky-100 bg-[#ebf4ff] shadow-[0_18px_44px_rgba(15,23,42,0.05)]">
+            <div className="grid lg:grid-cols-[minmax(250px,320px)_minmax(0,1fr)]">
+              <div className="min-h-[240px] bg-slate-200" />
+              <CardContent className="space-y-4 p-6">
+                <div className="flex flex-col gap-3 border-b border-sky-100 pb-4 lg:flex-row lg:justify-between">
+                  <div className="space-y-2">
+                    <div className="h-6 w-56 rounded bg-white/90" />
+                    <div className="h-3 w-40 rounded bg-white/80" />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[240px] lg:grid-cols-1 xl:grid-cols-2">
+                    <div className="h-20 rounded-[20px] bg-white/90" />
+                    <div className="h-20 rounded-[20px] bg-white/90" />
+                  </div>
+                </div>
+                <div className="h-4 w-5/6 rounded bg-white/85" />
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {Array.from({ length: 8 }).map((__, lineIndex) => (
+                    <div key={lineIndex} className="h-4 rounded bg-white/80" />
+                  ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center border-t border-sky-100 pt-4">
+                  <div className="h-20 rounded-[18px] bg-white/85" />
+                  <div className="h-11 w-full rounded-2xl bg-white/90 sm:w-[180px]" />
+                </div>
+                <div className="h-11 w-full rounded-2xl bg-slate-200 sm:w-[180px]" />
+              </CardContent>
+            </div>
           </Card>
         ))}
       </div>
@@ -83,8 +93,10 @@ export function MenuCatalogGrid({
     );
   }
 
+  const selectedSet = new Set(selectedPointIds);
+
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:gap-5 xl:grid-cols-2">
       {points.map((point) => (
         <MenuCatalogCard
           key={point.id}
@@ -92,6 +104,9 @@ export function MenuCatalogGrid({
           isAgency={isAgency}
           markupPercent={markupPercent}
           onOpenDetail={onOpenDetail}
+          isSelectionMode={isSelectionMode}
+          isSelected={selectedSet.has(point.id)}
+          onToggleSelection={onToggleSelection}
         />
       ))}
     </div>

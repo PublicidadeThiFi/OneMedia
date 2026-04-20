@@ -1,34 +1,43 @@
+import { MouseEvent, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   ExternalLink,
+  ImageIcon,
   Layers3,
+  MapPinned,
   MapPin,
   MonitorPlay,
-  Ruler,
+  Play,
   Tag,
-  Users,
 } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
-import { Card, CardContent } from '../../ui/card';
+import { Card } from '../../ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { ImageWithFallback } from '../../figma/ImageWithFallback';
+import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
 import {
   Availability,
+  PublicMediaKitMediaItem,
   PublicMediaKitPoint,
   PublicMediaKitUnit,
   computePointPriceSummary,
   getPublicMediaKitPointAddress,
   getPublicMediaKitPointMapUrl,
-  getPublicMediaKitPointPrimaryImage,
+  getPublicMediaKitPointMediaGallery,
   normalizeAvailability,
 } from '../../../lib/publicMediaKit';
-import { formatBRL } from '../../../lib/format';
+import { formatBRL, resolveUploadsUrl } from '../../../lib/format';
 
 type MenuCatalogCardProps = {
   point: PublicMediaKitPoint;
   isAgency: boolean;
   markupPercent: number;
   onOpenDetail: (pointId: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (pointId: string) => void;
 };
 
 function resolveAvailabilityTone(value: Availability): string {
@@ -131,10 +140,408 @@ function buildOperationalSummary(
   return 'Sem disponibilidade imediata';
 }
 
-export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail }: MenuCatalogCardProps) {
+function InfoLine({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="text-sm leading-6 text-slate-700">
+      <span className="font-semibold text-slate-900">{label}: </span>
+      <span>{value || 'Não informado'}</span>
+    </div>
+  );
+}
+
+function MediaFallback({ pointName }: { pointName: string }) {
+  return (
+    <div className="relative flex h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#eff6ff_0%,#dbeafe_46%,#bfdbfe_100%)]">
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.04)_0%,rgba(15,23,42,0.1)_100%)]" />
+      <div className="relative z-10 flex flex-col items-center gap-3 px-6 text-center text-slate-700">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/80 bg-white/80 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
+          <ImageIcon className="h-7 w-7 text-slate-500" />
+        </div>
+        <div>
+          <div className="text-sm font-semibold text-slate-900">Mídia indisponível</div>
+          <div className="mt-1 max-w-[16rem] text-xs leading-5 text-slate-600">As mídias públicas deste ponto ainda não foram disponibilizadas para visualização.</div>
+        </div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{pointName}</div>
+      </div>
+    </div>
+  );
+}
+
+function hasValidPointCoordinates(point: Pick<PublicMediaKitPoint, 'latitude' | 'longitude'>): boolean {
+  const lat = Number(point.latitude);
+  const lng = Number(point.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+function CatalogCardMapAutoFit({ isActive }: { isActive: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!isActive) return undefined;
+
+    const invalidate = () => map.invalidateSize();
+    invalidate();
+    const timeout = window.setTimeout(invalidate, 260);
+
+    return () => window.clearTimeout(timeout);
+  }, [isActive, map]);
+
+  return null;
+}
+
+function CardMapFace({ point, isActive }: { point: PublicMediaKitPoint; isActive: boolean }) {
+  const lat = Number(point.latitude);
+  const lng = Number(point.longitude);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return (
+      <div className="flex h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full items-center justify-center bg-[radial-gradient(circle_at_top,#e0f2fe_0%,#dbeafe_40%,#bfdbfe_100%)] px-6 text-center">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">Mapa indisponível</div>
+          <div className="mt-2 text-xs leading-5 text-slate-600">As coordenadas públicas deste ponto ainda não estão disponíveis para exibição no card.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full" onClick={(event) => event.stopPropagation()}>
+      <MapContainer
+        center={[lat, lng]}
+        zoom={16}
+        scrollWheelZoom
+        className="h-full w-full"
+        attributionControl={false}
+      >
+        <CatalogCardMapAutoFit isActive={isActive} />
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution="&copy; OpenStreetMap contributors"
+        />
+        <CircleMarker
+          center={[lat, lng]}
+          radius={9}
+          pathOptions={{ color: '#0f172a', weight: 2, fillColor: '#f97316', fillOpacity: 0.95 }}
+        >
+          <Popup>
+            <div className="min-w-[160px]">
+              <div className="font-semibold text-slate-900">{point.name}</div>
+              <div className="mt-1 text-xs text-slate-600">{getPublicMediaKitPointAddress(point) || 'Localização pública do ponto'}</div>
+            </div>
+          </Popup>
+        </CircleMarker>
+      </MapContainer>
+    </div>
+  );
+}
+
+function CardMediaGallery({ point, availability, categoryLabel, typeLabel, environmentLabel, onOpenDetail, isSelectionMode = false, isSelected = false, isSelectable = false, onToggleSelection }: {
+  point: PublicMediaKitPoint;
+  availability: Availability;
+  categoryLabel: string;
+  typeLabel: string;
+  environmentLabel: string | null;
+  onOpenDetail: (pointId: string) => void;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  isSelectable?: boolean;
+  onToggleSelection?: (pointId: string) => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [failedKeys, setFailedKeys] = useState<string[]>([]);
+  const [isVideoDialogOpen, setIsVideoDialogOpen] = useState(false);
+  const [isMapFlipped, setIsMapFlipped] = useState(false);
+
+  const mediaGallery = useMemo(() => {
+    const gallery = getPublicMediaKitPointMediaGallery(point).filter((item) => item?.url);
+    if (failedKeys.length === 0) return gallery;
+    const failed = new Set(failedKeys);
+    return gallery.filter((item) => !failed.has(`${item.kind}:${item.url}`));
+  }, [point, failedKeys]);
+
+  const hasMapCoordinates = hasValidPointCoordinates(point);
+
+  useEffect(() => {
+    setFailedKeys([]);
+    setActiveIndex(0);
+    setIsVideoDialogOpen(false);
+    setIsMapFlipped(false);
+  }, [point.id]);
+
+  useEffect(() => {
+    if (mediaGallery.length === 0) {
+      if (activeIndex !== 0) setActiveIndex(0);
+      return;
+    }
+    if (activeIndex > mediaGallery.length - 1) {
+      setActiveIndex(mediaGallery.length - 1);
+    }
+  }, [activeIndex, mediaGallery]);
+
+  const activeMedia: PublicMediaKitMediaItem | null = mediaGallery[activeIndex] ?? null;
+  const activeMediaUrl = resolveUploadsUrl(activeMedia?.url ?? null) ?? activeMedia?.url ?? null;
+  const canNavigate = mediaGallery.length > 1;
+
+  useEffect(() => {
+    if (activeMedia?.kind !== 'video' && isVideoDialogOpen) {
+      setIsVideoDialogOpen(false);
+    }
+  }, [activeMedia?.kind, isVideoDialogOpen]);
+
+  const navigateGallery = (step: number) => {
+    if (mediaGallery.length <= 1) return;
+    setActiveIndex((current) => {
+      const nextIndex = current + step;
+      if (nextIndex < 0) return mediaGallery.length - 1;
+      if (nextIndex >= mediaGallery.length) return 0;
+      return nextIndex;
+    });
+  };
+
+  const handleMediaFailure = () => {
+    if (!activeMedia?.url) return;
+    const failureKey = `${activeMedia.kind}:${activeMedia.url}`;
+    setFailedKeys((current) => (current.includes(failureKey) ? current : [...current, failureKey]));
+  };
+
+  const handleNavigationClick = (event: MouseEvent<HTMLButtonElement>, step: number) => {
+    event.stopPropagation();
+    navigateGallery(step);
+  };
+
+  const handleVideoPreviewClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (activeMedia?.kind !== 'video' || !activeMediaUrl) return;
+    setIsVideoDialogOpen(true);
+  };
+
+  const handleFlipToggle = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (!hasMapCoordinates) return;
+    setIsMapFlipped((current) => !current);
+  };
+
+  const handlePrimaryMediaAction = () => {
+    if (isSelectionMode) {
+      if (isSelectable && typeof onToggleSelection === 'function') {
+        onToggleSelection(point.id);
+      }
+      return;
+    }
+
+    onOpenDetail(point.id);
+  };
+
+  return (
+    <>
+      <div className="relative h-full min-h-[220px] w-full [perspective:1800px] sm:min-h-[240px] lg:min-h-[260px]">
+        <div
+          className="relative h-full min-h-[220px] w-full transition-transform duration-700 [transform-style:preserve-3d] sm:min-h-[240px] lg:min-h-[260px]"
+          style={{ transform: isMapFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+        >
+          <div className="absolute inset-0 overflow-hidden rounded-none [backface-visibility:hidden]">
+            <div className="relative block h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full overflow-hidden bg-slate-100 text-left">
+              <button
+                type="button"
+                aria-label={`Abrir detalhes de ${point.name}`}
+                className="absolute inset-0 z-0"
+                onClick={handlePrimaryMediaAction}
+              />
+              {activeMedia && activeMediaUrl ? (
+                activeMedia.kind === 'video' ? (
+                  <div className="relative h-full w-full bg-slate-950">
+                    <button
+                      type="button"
+                      aria-label={`Expandir vídeo de ${point.name}`}
+                      className="absolute inset-0 z-10 cursor-zoom-in"
+                      onClick={handleVideoPreviewClick}
+                    />
+                    <video
+                      key={activeMedia.id}
+                      src={activeMediaUrl}
+                      className="h-full w-full object-cover"
+                      muted
+                      playsInline
+                      loop
+                      autoPlay
+                      preload="metadata"
+                      onError={handleMediaFailure}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.12)_34%,rgba(2,6,23,0.6)_100%)]" />
+                    <div className="absolute right-4 top-4 rounded-full border border-white/25 bg-black/35 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
+                      Vídeo
+                    </div>
+                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/20 bg-black/35 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
+                      <Play className="h-3.5 w-3.5 fill-current" />
+                      Clique para expandir
+                    </div>
+                    <div className="absolute inset-x-5 bottom-6 z-10 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-center text-sm font-medium text-white backdrop-blur-sm">
+                      Clique para expandir e visualizar o vídeo completo.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <ImageWithFallback
+                      src={activeMediaUrl}
+                      alt={point.name}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.12)_36%,rgba(15,23,42,0.52)_100%)]" />
+                  </>
+                )
+              ) : (
+                <MediaFallback pointName={point.name} />
+              )}
+
+              <div className="pointer-events-none absolute left-4 right-4 top-4 z-10 flex items-start justify-between gap-3">
+                <Badge className={`rounded-full px-3 py-1.5 text-xs font-semibold hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>
+                  {availability}
+                </Badge>
+                <div className="rounded-full border border-white/35 bg-white/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
+                  {isSelectionMode ? (isSelectable ? (isSelected ? 'Selecionado' : 'Selecionar') : 'Indisponível') : 'Ver detalhes'}
+                </div>
+              </div>
+
+              {canNavigate ? (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Ver mídia anterior"
+                    className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full sm:left-4 sm:h-10 sm:w-10 border border-[#ffd8a8] bg-[#f97316] text-white shadow-[0_12px_24px_rgba(249,115,22,0.34)] transition hover:scale-[1.03] hover:bg-[#ea580c]"
+                    onClick={(event) => handleNavigationClick(event, -1)}
+                  >
+                    <ArrowLeft className="h-4.5 w-4.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Ver próxima mídia"
+                    className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full sm:right-4 sm:h-10 sm:w-10 border border-[#ffd8a8] bg-[#f97316] text-white shadow-[0_12px_24px_rgba(249,115,22,0.34)] transition hover:scale-[1.03] hover:bg-[#ea580c]"
+                    onClick={(event) => handleNavigationClick(event, 1)}
+                  >
+                    <ArrowRight className="h-4.5 w-4.5" />
+                  </button>
+                </>
+              ) : null}
+
+              {mediaGallery.length > 0 ? (
+                <div className="absolute left-3 top-14 z-10 rounded-full sm:left-4 sm:top-1/2 sm:-translate-y-1/2 sm:translate-x-12 border border-white/25 bg-black/30 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                  {activeIndex + 1}/{mediaGallery.length}
+                </div>
+              ) : null}
+
+              {mediaGallery.length > 1 ? (
+                <div className="absolute bottom-3 left-[3.6rem] z-10 flex max-w-[calc(100%-4.4rem)] sm:bottom-4 sm:left-[4.55rem] sm:max-w-[calc(100%-5.5rem)] items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 backdrop-blur-sm">
+                  {mediaGallery.slice(0, 8).map((item, index) => (
+                    <span
+                      key={item.id}
+                      className={`block h-1.5 rounded-full transition-all ${index === activeIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/45'}`}
+                    />
+                  ))}
+                  {mediaGallery.length > 8 ? <span className="ml-1 text-[10px] font-semibold text-white/80">+{mediaGallery.length - 8}</span> : null}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                aria-label={isMapFlipped ? `Voltar para a mídia de ${point.name}` : `Ver mapa de ${point.name}`}
+                disabled={!hasMapCoordinates}
+                className={`absolute bottom-3 left-3 z-20 flex h-10 w-10 items-center justify-center rounded-full sm:bottom-4 sm:left-4 sm:h-11 sm:w-11 border border-white/35 backdrop-blur-sm transition ${hasMapCoordinates ? 'bg-white/90 text-slate-900 shadow-[0_12px_24px_rgba(15,23,42,0.18)] hover:scale-[1.03]' : 'cursor-not-allowed bg-white/55 text-slate-400'}`}
+                onClick={handleFlipToggle}
+              >
+                <MapPinned className="h-4.5 w-4.5" />
+              </button>
+
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 pl-12 text-white sm:inset-x-4 sm:bottom-4 sm:pl-14">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80">
+                  <span>{categoryLabel}</span>
+                  <span>•</span>
+                  <span>{typeLabel}</span>
+                  {environmentLabel ? (
+                    <>
+                      <span>•</span>
+                      <span>{environmentLabel}</span>
+                    </>
+                  ) : null}
+                </div>
+                <div className="mt-2 text-[1.05rem] font-semibold leading-tight tracking-tight sm:text-[1.25rem] lg:text-[1.4rem]">{point.name}</div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="absolute inset-0 overflow-hidden rounded-none bg-slate-100 [backface-visibility:hidden]"
+            style={{ transform: 'rotateY(180deg)' }}
+          >
+            <div className="relative h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full">
+              <CardMapFace point={point} isActive={isMapFlipped} />
+              <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] flex flex-col items-start gap-2 sm:inset-x-4 sm:top-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                <Badge className="rounded-full border border-sky-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-sky-900 shadow-[0_10px_30px_rgba(15,23,42,0.12)] hover:bg-white">
+                  Localização do ponto
+                </Badge>
+                <div className="rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700 shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
+                  Arraste para explorar
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label={`Voltar para a mídia de ${point.name}`}
+                className="absolute bottom-3 left-3 z-[500] flex h-10 w-10 items-center justify-center rounded-full sm:bottom-4 sm:left-4 sm:h-11 sm:w-11 border border-white/70 bg-white/95 text-slate-900 shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:scale-[1.03]"
+                onClick={handleFlipToggle}
+              >
+                <MapPinned className="h-4.5 w-4.5" />
+              </button>
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[500] rounded-2xl sm:inset-x-4 sm:bottom-4 border border-white/65 bg-white/88 px-4 py-3 text-slate-900 shadow-[0_14px_36px_rgba(15,23,42,0.16)] backdrop-blur-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Prévia do mapa</div>
+                <div className="mt-1 text-sm font-semibold">{point.name}</div>
+                <div className="mt-1 text-xs leading-5 text-slate-600">Clique novamente no ícone para voltar à mídia do card.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={isVideoDialogOpen} onOpenChange={setIsVideoDialogOpen}>
+        <DialogContent className="w-[calc(100vw-0.75rem)] max-w-5xl overflow-hidden border-slate-800 bg-slate-950 p-0 text-white shadow-[0_24px_80px_rgba(2,6,23,0.65)] sm:w-[calc(100vw-2rem)]">
+          <DialogHeader className="sr-only">
+            <DialogTitle>{point.name}</DialogTitle>
+            <DialogDescription>Visualização ampliada da mídia em vídeo selecionada no card do catálogo.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col">
+            <div className="flex flex-col items-start gap-2 border-b border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5">
+              <div className="min-w-0">
+                <div className="truncate text-base font-semibold text-white">{point.name}</div>
+                <div className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-white/65">
+                  Vídeo {mediaGallery.length > 0 ? `${activeIndex + 1} de ${mediaGallery.length}` : null}
+                </div>
+              </div>
+              <div className="rounded-full border border-white/15 bg-white/8 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80">
+                Clique fora para fechar
+              </div>
+            </div>
+
+            <div className="bg-black p-2 sm:p-3">
+              {activeMediaUrl ? (
+                <video
+                  key={`${point.id}:${activeMedia?.id ?? activeIndex}:${isVideoDialogOpen ? 'open' : 'closed'}`}
+                  src={activeMediaUrl}
+                  className="max-h-[78dvh] w-full rounded-[20px] bg-black object-contain"
+                  controls
+                  playsInline
+                  autoPlay
+                  preload="metadata"
+                />
+              ) : null}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, isSelectionMode = false, isSelected = false, onToggleSelection }: MenuCatalogCardProps) {
   const availability = normalizeAvailability(point);
   const address = getPublicMediaKitPointAddress(point);
-  const imageUrl = getPublicMediaKitPointPrimaryImage(point);
   const mapUrl = getPublicMediaKitPointMapUrl(point);
   const monthPrice = computePointPriceSummary(point, 'month');
   const weekPrice = computePointPriceSummary(point, 'week');
@@ -152,142 +559,141 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail }
   const categoryLabel = String(point.subcategory ?? '').trim() || 'Sem categoria';
   const typeLabel = String(point.type ?? '').trim() || 'Mídia';
   const environmentLabel = String(point.environment ?? '').trim() || null;
+  const isSelectable = availability === 'Disponível';
+
+  const handleToggleSelection = () => {
+    if (!isSelectable || typeof onToggleSelection !== 'function') return;
+    onToggleSelection(point.id);
+  };
 
   return (
-    <Card className="group overflow-hidden rounded-[30px] border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_24px_56px_rgba(15,23,42,0.10)]">
-      <button type="button" className="block w-full text-left" onClick={() => onOpenDetail(point.id)}>
-        <div className="relative aspect-[16/9] overflow-hidden bg-slate-100">
-          <ImageWithFallback
-            src={imageUrl ?? undefined}
-            alt={point.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.10)_0%,rgba(2,6,23,0.18)_35%,rgba(2,6,23,0.76)_100%)]" />
+    <Card className={`group overflow-hidden rounded-[30px] border bg-[#ebf4ff] shadow-[0_18px_44px_rgba(15,23,42,0.06)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_28px_60px_rgba(59,130,246,0.14)] ${isSelectionMode ? (isSelected ? 'border-emerald-300 ring-2 ring-emerald-200' : isSelectable ? 'border-sky-200' : 'border-slate-200 opacity-90') : 'border-sky-100'}`}>
+      <div className="grid gap-0 lg:grid-cols-[minmax(250px,320px)_minmax(0,1fr)]">
+        <CardMediaGallery
+          point={point}
+          availability={availability}
+          categoryLabel={categoryLabel}
+          typeLabel={typeLabel}
+          environmentLabel={environmentLabel}
+          onOpenDetail={onOpenDetail}
+          isSelectionMode={isSelectionMode}
+          isSelected={isSelected}
+          isSelectable={isSelectable}
+          onToggleSelection={onToggleSelection}
+        />
 
-          <div className="absolute left-4 right-4 top-4 flex items-start justify-between gap-3">
-            <Badge className={`rounded-full px-3 py-1.5 hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>{availability}</Badge>
-            <div className="rounded-full border border-white/20 bg-white/12 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-white backdrop-blur-sm">
-              Ver detalhes
+        <div className="flex min-w-0 flex-col justify-between p-4 sm:p-6">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 border-b border-sky-100/80 pb-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                <div className="text-[1.18rem] font-semibold leading-tight tracking-tight text-slate-950 sm:text-[1.28rem]">
+                  {point.name}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  <span>{categoryLabel}</span>
+                  <span>•</span>
+                  <span>{typeLabel}</span>
+                  {environmentLabel ? (
+                    <>
+                      <span>•</span>
+                      <span>{environmentLabel}</span>
+                    </>
+                  ) : null}
+                </div>
+                {isSelectionMode ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Badge className={`rounded-full px-2.5 py-1 text-[11px] font-semibold hover:bg-inherit ${isSelected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : isSelectable ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-slate-200 bg-slate-100 text-slate-500'}`}>
+                      {isSelected ? 'Selecionado' : isSelectable ? 'Disponível para seleção' : 'Indisponível para seleção'}
+                    </Badge>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:min-w-[240px] xl:grid-cols-2">
+                <div className="rounded-[20px] bg-white/85 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)]">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                    <Tag className="h-3.5 w-3.5" />
+                    Valor mensal
+                  </div>
+                  <div className="mt-1.5 text-lg font-semibold tracking-tight text-slate-950">
+                    {visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}
+                  </div>
+                </div>
+                <div className="rounded-[20px] bg-white/85 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.12)]">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                    <MonitorPlay className="h-3.5 w-3.5" />
+                    Valor bi-semana
+                  </div>
+                  <div className="mt-1.5 text-lg font-semibold tracking-tight text-slate-950">
+                    {visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 text-sm leading-6 text-slate-700">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+              <span>{address || 'Endereço indisponível'}</span>
+            </div>
+
+            <div className="grid gap-x-6 gap-y-3 md:grid-cols-2">
+              <InfoLine label="Categoria" value={categoryLabel} />
+              <InfoLine label="Tipo" value={typeLabel} />
+              <InfoLine label="Impacto Diário" value={point.dailyImpressions ? formatInteger(point.dailyImpressions) : null} />
+              <InfoLine label="Telas/Faces" value={unitsCount > 0 ? formatInteger(unitsCount) : null} />
+              <InfoLine label="Classes sociais" value={socialClasses} />
+              <InfoLine label="Dimensões do ponto" value={dimensions} />
+              <InfoLine label="Orientação" value={orientation} />
+              <div className="text-sm leading-6 text-slate-700">
+                <span className="font-semibold text-slate-900">Status: </span>
+                <Badge className={`ml-1 rounded-full px-2.5 py-0.5 align-middle text-[11px] font-semibold hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>
+                  {availability}
+                </Badge>
+              </div>
             </div>
           </div>
 
-          <div className="absolute inset-x-4 bottom-4 text-white">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/72">
-              <span>{categoryLabel}</span>
-              <span>•</span>
-              <span>{typeLabel}</span>
-              {environmentLabel ? (
-                <>
-                  <span>•</span>
-                  <span>{environmentLabel}</span>
-                </>
+          <div className="mt-4 flex flex-col gap-4 border-t border-sky-100/80 pt-4 sm:mt-5">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="rounded-[18px] bg-white/75 px-4 py-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.10)]">
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
+                  <Layers3 className="h-3.5 w-3.5" />
+                  Disponibilidade operacional
+                </div>
+                <div className="mt-1.5 text-sm font-medium text-slate-700">{operationalSummary}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {formatInteger(occupiedUnitsCount)} ocupadas • {formatInteger(availableUnitsCount)} disponíveis
+                </div>
+              </div>
+
+              {mapUrl ? (
+                <Button asChild variant="outline" className="h-11 w-full rounded-2xl border-sky-200 bg-white/85 px-4 text-slate-900 hover:bg-white sm:w-auto">
+                  <a href={mapUrl} target="_blank" rel="noreferrer noopener">
+                    Ver no Google Maps
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </a>
+                </Button>
               ) : null}
             </div>
-            <div className="mt-2 text-[1.35rem] font-semibold leading-tight tracking-tight sm:text-[1.45rem]">{point.name}</div>
+
+            {isSelectionMode ? (
+              <Button
+                className={`h-11 rounded-2xl sm:w-fit sm:min-w-[210px] ${isSelected ? 'bg-emerald-600 text-white hover:bg-emerald-700' : isSelectable ? 'bg-slate-950 text-white hover:bg-slate-900' : 'bg-slate-200 text-slate-500 hover:bg-slate-200'}`}
+                onClick={handleToggleSelection}
+                disabled={!isSelectable}
+              >
+                {isSelected ? 'Remover seleção' : isSelectable ? 'Selecionar ponto' : 'Indisponível para seleção'}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button className="h-11 rounded-2xl bg-slate-950 text-white hover:bg-slate-900 sm:w-fit sm:min-w-[180px]" onClick={() => onOpenDetail(point.id)}>
+                Ver detalhes
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
-      </button>
-
-      <CardContent className="space-y-5 p-5">
-        <div className="space-y-3">
-          <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
-            <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Categoria</div>
-              <div className="mt-1 font-medium text-slate-800">{categoryLabel}</div>
-            </div>
-            <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Tipo</div>
-              <div className="mt-1 font-medium text-slate-800">{typeLabel}</div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2 text-sm leading-6 text-slate-600">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-            <span>{address || 'Endereço indisponível'}</span>
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Impacto diário</div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">
-              {point.dailyImpressions ? formatInteger(point.dailyImpressions) : '—'}
-            </div>
-          </div>
-
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              <Layers3 className="h-3.5 w-3.5" />
-              Telas/Faces
-            </div>
-            <div className="mt-2 text-lg font-semibold text-slate-950">{unitsCount > 0 ? formatInteger(unitsCount) : '—'}</div>
-            <div className="mt-1 text-xs text-slate-500">{formatInteger(occupiedUnitsCount)} ocupadas • {formatInteger(availableUnitsCount)} disponíveis</div>
-          </div>
-
-          <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Status operacional</div>
-            <div className="mt-2 text-sm font-semibold text-slate-950">{availability}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-500">{operationalSummary}</div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              <Users className="h-3.5 w-3.5" />
-              Classes sociais
-            </div>
-            <div className="mt-2 leading-6 text-slate-700">{socialClasses || 'Não informado'}</div>
-          </div>
-
-          <div className="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              <Ruler className="h-3.5 w-3.5" />
-              Dimensões / orientação
-            </div>
-            <div className="mt-2 leading-6 text-slate-700">
-              {[dimensions, orientation].filter(Boolean).join(' • ') || 'Não informado'}
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              <Tag className="h-3.5 w-3.5" />
-              Valor mensal
-            </div>
-            <div className="mt-2 text-xl font-semibold tracking-tight text-slate-950">{visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-500">
-              {monthPrice.isStartingFrom ? 'Leitura comercial a partir da menor face ativa.' : 'Base principal do ponto.'}
-            </div>
-          </div>
-
-          <div className="rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_100%)] p-4">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-              <MonitorPlay className="h-3.5 w-3.5" />
-              Valor bi-semana
-            </div>
-            <div className="mt-2 text-xl font-semibold tracking-tight text-slate-950">{visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</div>
-            <div className="mt-1 text-xs leading-5 text-slate-500">Referência complementar para negociação do inventário.</div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button className="h-11 flex-1 rounded-2xl bg-slate-950 text-white hover:bg-slate-900" onClick={() => onOpenDetail(point.id)}>
-            Ver detalhes
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-          {mapUrl ? (
-            <Button asChild variant="outline" className="h-11 rounded-2xl border-slate-200 bg-white px-4">
-              <a href={mapUrl} target="_blank" rel="noreferrer noopener">
-                Ver no Google Maps
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </a>
-            </Button>
-          ) : null}
-        </div>
-      </CardContent>
+      </div>
     </Card>
   );
 }

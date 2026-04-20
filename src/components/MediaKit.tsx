@@ -1457,7 +1457,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
               <DialogTitle>Compartilhar Mídia Kit e Cardápio</DialogTitle>
               <DialogDescription>
-                Compartilhe o link institucional do Mídia Kit ou o link comercial do Cardápio. Se você tiver filtros ativos, os links já abrem
+                Compartilhe o link institucional do Mídia Kit ou o link oficial do Cardápio. Se você tiver filtros ativos, os links já abrem
                 com esse recorte aplicado — e quem receber ainda pode ajustar os filtros normalmente.
               </DialogDescription>
             </DialogHeader>
@@ -1485,12 +1485,12 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Abre o catálogo do Cardápio em /menu, já com os filtros ativos convertidos e prontos para seguir para detalhe, faces, carrinho e envio da proposta.
+                  Abre o catálogo oficial do Cardápio em /menu, já com os filtros ativos convertidos e prontos para seguir para detalhe, faces, carrinho e envio da proposta.
                 </p>
               </div>
 
                 <p className="text-sm text-gray-500">
-                  O link do Mídia Kit mantém a apresentação institucional. O link do Cardápio leva para a vitrine comercial em /menu. Em ambos os casos, os filtros ativos e a empresa responsável selecionada são preservados na abertura inicial.
+                  O link do Mídia Kit mantém a apresentação institucional. O link do Cardápio leva para a vitrine comercial oficial em /menu. Em ambos os casos, os filtros ativos e a empresa responsável selecionada são preservados na abertura inicial.
                 </p>
               </div>
             </div>

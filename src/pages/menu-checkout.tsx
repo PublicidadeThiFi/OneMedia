@@ -227,7 +227,7 @@ export default function MenuFinalizar() {
                     Seu checkout só aparece depois que o carrinho tiver pelo menos um ponto ou face.
                   </h1>
                   <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                    Volte para a vitrine, selecione os espaços desejados e então retorne para preencher os dados de contato.
+Volte para a vitrine, escolha os espaços desejados e depois retorne para preencher os dados de contato.
                   </p>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                     <Button className="rounded-2xl px-5" onClick={() => navigate(entryUrl)}>
@@ -256,11 +256,6 @@ export default function MenuFinalizar() {
           <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
             Cardápio
           </Badge>
-          {source === 'catalog' && (
-            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
-              Novo catálogo
-            </Badge>
-          )}
           {isAgencyFlow(flow) && (
             <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
               Agência
@@ -283,10 +278,10 @@ export default function MenuFinalizar() {
                 Finalize o pedido de proposta
               </div>
               <h1 className="menu-soft-title mt-4 max-w-3xl text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-                Um checkout mais claro para enviar seu pedido com confiança.
+                Finalize seu pedido com a mesma leitura visual do catálogo.
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                Preencha seus dados de contato, confira o resumo do carrinho e envie tudo para o responsável. Assim que a proposta ficar pronta, você recebe o link para acompanhar e decidir.
+                Preencha seus dados de contato, revise o resumo do carrinho e envie tudo para o responsável. Assim que a proposta ficar pronta, você recebe o link para acompanhar e decidir.
               </p>
             </div>
 
