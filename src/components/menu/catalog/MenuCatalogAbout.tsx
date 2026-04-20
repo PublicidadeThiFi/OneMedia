@@ -8,8 +8,7 @@ type MenuCatalogAboutProps = {
 
 function normalizeParagraphs(value: string): string[] {
   return value
-    .split(/
-{2,}|•\s*/g)
+    .split(/\n{2,}|•\s*/g)
     .map((item) => item.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 }
