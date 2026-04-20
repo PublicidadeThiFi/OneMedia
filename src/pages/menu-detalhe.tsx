@@ -298,16 +298,27 @@ export default function MenuDetalhe() {
   const mapsEmbed = point ? makeMapsEmbedUrl(point) : null;
 
   return (
-    <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f6f8fc_0%,#edf3ff_28%,#f8fafc_100%)]">
+    <div className="menu-app-shell">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="secondary" className="rounded-full border border-white/60 bg-white/90 px-3 text-slate-700 shadow-sm backdrop-blur-sm">Protótipo</Badge>
-          {source === 'catalog' && (
-            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/90 px-3 text-slate-700 shadow-sm backdrop-blur-sm">
-              Novo catálogo
+          <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
+            Detalhes do ponto
+          </Badge>
+          {point?.addressCity && (
+            <div className="text-sm text-slate-600">
+              {point.addressCity}{point.addressState ? ` • ${point.addressState}` : ''}
+            </div>
+          )}
+          {!point?.addressCity && city && (
+            <div className="text-sm text-slate-600">
+              {city}{uf ? ` • ${uf}` : ''}
+            </div>
+          )}
+          {mediaType && (
+            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
+              {mediaType}
             </Badge>
           )}
-          <div className="text-sm text-slate-600">Detalhes do ponto</div>
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
               <Button variant="outline" className="gap-2 rounded-2xl border-slate-200 bg-white/90 shadow-sm" onClick={() => navigate(cartUrl)}>
@@ -322,9 +333,9 @@ export default function MenuDetalhe() {
           </div>
         </div>
 
-        {error && <Card className="mt-5 rounded-[28px] border-amber-200 bg-amber-50"><CardContent className="py-4"><div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div><div className="mt-1 text-sm text-amber-800">{error}</div></CardContent></Card>}
-        {loading && !point && <Card className="mt-5 animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.05)]"><CardContent className="py-6"><div className="h-5 w-56 rounded bg-slate-200" /><div className="mt-3 h-3 w-80 rounded bg-slate-200" /><div className="mt-6 aspect-[1/1] max-w-xl rounded-[24px] bg-slate-200" /><div className="mt-4 grid grid-cols-3 gap-3"><div className="aspect-square rounded-2xl bg-slate-200" /><div className="aspect-square rounded-2xl bg-slate-200" /><div className="aspect-square rounded-2xl bg-slate-200" /></div></CardContent></Card>}
-        {!loading && !error && !point && <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>{source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar para os pontos'}</Button></div></CardContent></Card>}
+        {error && <Card className="menu-glass-card mt-5 rounded-[28px] border-amber-200 bg-amber-50/90"><CardContent className="py-4"><div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div><div className="mt-1 text-sm text-amber-800">{error}</div></CardContent></Card>}
+        {loading && !point && <Card className="menu-glass-card mt-5 animate-pulse rounded-[30px]"><CardContent className="py-6"><div className="h-5 w-56 rounded bg-slate-200" /><div className="mt-3 h-3 w-80 rounded bg-slate-200" /><div className="mt-6 aspect-[1/1] max-w-xl rounded-[24px] bg-slate-200" /><div className="mt-4 grid grid-cols-3 gap-3"><div className="aspect-square rounded-2xl bg-slate-200" /><div className="aspect-square rounded-2xl bg-slate-200" /><div className="aspect-square rounded-2xl bg-slate-200" /></div></CardContent></Card>}
+        {!loading && !error && !point && <Card className="menu-glass-card mt-5 rounded-[28px]"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>{source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar para os pontos'}</Button></div></CardContent></Card>}
 
         {point && (
           <div className="mt-5 space-y-5">
@@ -371,7 +382,7 @@ export default function MenuDetalhe() {
                       {point.name}
                     </h1>
                     <div className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 sm:text-[15px]">
-                      Catálogo visual com foco em leitura rápida: imagem da mídia, preço, disponibilidade, mapa e faces organizadas para uma decisão mais intuitiva.
+                      Veja a leitura comercial do ponto, compare valores, confirme a localização e siga para a escolha das faces/telas disponíveis sem sair do fluxo público.
                     </div>
                   </div>
 
@@ -513,7 +524,7 @@ export default function MenuDetalhe() {
                 <CardContent className="space-y-4 p-5 sm:p-6">
                   <div>
                     <div className="text-sm font-semibold text-slate-900">Faces/telas cadastradas</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-600">Cada unidade aparece como subcard mais compacto, com miniatura quadrada, status e preços visíveis sem exagero de tamanho.</div>
+                    <div className="mt-1 text-sm leading-6 text-slate-600">Escolha a face ou tela ideal para compor a proposta mantendo a leitura clara de status, medidas e preços.</div>
                   </div>
                   <div className="space-y-3">
                     {units.length > 0 ? units.map((u) => {

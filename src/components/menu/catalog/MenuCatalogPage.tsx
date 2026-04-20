@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import { Card, CardContent } from '../../ui/card';
 import { useNavigation } from '../../../contexts/NavigationContext';
@@ -14,8 +14,9 @@ import {
 } from '../../../lib/menuCatalogFilters';
 import { resolveMenuCatalogHeroContract } from '../../../lib/menuCatalogDataContract';
 import { formatBRL } from '../../../lib/format';
-import { computePointPriceSummary } from '../../../lib/publicMediaKit';
-import { getCartCount } from '../../../lib/menuCart';
+import { computePointPriceSummary, normalizeAvailability } from '../../../lib/publicMediaKit';
+import { addToCart, getCartCount, MENU_CART_UPDATED_EVENT } from '../../../lib/menuCart';
+import { toast } from 'sonner';
 import {
   buildMenuCatalogUrl,
   buildMenuUrl,
@@ -29,20 +30,6 @@ import { MenuCatalogActions } from './MenuCatalogActions';
 import { MenuCatalogFilters } from './MenuCatalogFilters';
 import { MenuCatalogGrid } from './MenuCatalogGrid';
 import { MenuCatalogHero } from './MenuCatalogHero';
-import { MenuCatalogResults } from './MenuCatalogResults';
-
-function buildFlowLabel(flow: 'default' | 'promotions' | 'agency'): string {
-  if (flow === 'agency') return 'Modo agência';
-  if (flow === 'promotions') return 'Modo promoções';
-  return 'Modo padrão';
-}
-
-function buildLocationLabel(uf: string | null, city: string | null): string | null {
-  if (city && uf) return `${city} • ${uf}`;
-  if (city) return city;
-  if (uf) return uf;
-  return null;
-}
 
 function formatCompactNumber(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '0';
@@ -60,13 +47,15 @@ function formatInteger(value: number): string {
 export default function MenuCatalogPage() {
   const navigate = useNavigation();
   const query = getMenuCatalogQueryParams();
-  const { data, loading, error, reload } = usePublicMediaKit({
+  const { data, loading, error } = usePublicMediaKit({
     token: query.token,
     ownerCompanyId: query.ownerCompanyId,
     flow: query.flow,
   });
 
   const [searchValue, setSearchValue] = useState(query.q ?? '');
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPointIds, setSelectedPointIds] = useState<string[]>([]);
   const [cartCount, setCartCount] = useState<number>(() => {
     try {
       return getCartCount();
@@ -75,36 +64,69 @@ export default function MenuCatalogPage() {
     }
   });
 
-  useEffect(() => {
-    setSearchValue(query.q ?? '');
-  }, [query.q]);
-
-  useEffect(() => {
+  const syncCartCount = useCallback(() => {
     try {
       setCartCount(getCartCount());
     } catch {
       setCartCount(0);
     }
+  }, []);
+
+  useEffect(() => {
+    setSearchValue(query.q ?? '');
+  }, [query.q]);
+
+  useEffect(() => {
+    syncCartCount();
 
     const onStorage = (event: StorageEvent) => {
       if (event.key === 'menu_cart') {
-        try {
-          setCartCount(getCartCount());
-        } catch {
-          setCartCount(0);
-        }
+        syncCartCount();
       }
     };
 
+    const onCartUpdated = () => {
+      syncCartCount();
+    };
+
+    const onPageVisible = () => {
+      syncCartCount();
+    };
+
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
+    window.addEventListener(MENU_CART_UPDATED_EVENT, onCartUpdated as EventListener);
+    window.addEventListener('focus', onPageVisible);
+    window.addEventListener('pageshow', onPageVisible);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(MENU_CART_UPDATED_EVENT, onCartUpdated as EventListener);
+      window.removeEventListener('focus', onPageVisible);
+      window.removeEventListener('pageshow', onPageVisible);
+    };
+  }, [syncCartCount]);
 
   const hero = useMemo(() => resolveMenuCatalogHeroContract(data), [data]);
   const isAgency = isAgencyFlow(query.flow);
   const agencyMarkupPercent = getAgencyMarkupPercent(data?.company);
 
   const allPoints = useMemo(() => (Array.isArray(data?.points) ? data.points : []), [data?.points]);
+
+  useEffect(() => {
+    if (allPoints.length === 0) {
+      setSelectedPointIds((current) => (current.length > 0 ? [] : current));
+      setIsSelectionMode((current) => (current ? false : current));
+      return;
+    }
+
+    const availablePointIds = new Set(
+      allPoints
+        .filter((point) => normalizeAvailability(point) === 'Disponível')
+        .map((point) => point.id),
+    );
+
+    setSelectedPointIds((current) => current.filter((id) => availablePointIds.has(id)));
+  }, [allPoints]);
 
   const regionScopedPoints = useMemo(() => getRegionScopedPoints(allPoints, query), [allPoints, query]);
   const cityScopedPoints = useMemo(() => getCityScopedPoints(regionScopedPoints, query), [regionScopedPoints, query]);
@@ -133,9 +155,21 @@ export default function MenuCatalogPage() {
   const baseStats = useMemo(() => summarizeMenuCatalogPoints(cityScopedPoints), [cityScopedPoints]);
   const filteredStats = useMemo(() => summarizeMenuCatalogPoints(filteredPoints), [filteredPoints]);
 
+  useEffect(() => {
+    if (!isSelectionMode) return;
+
+    const visibleAvailableIds = new Set(
+      filteredPoints
+        .filter((point) => normalizeAvailability(point) === 'Disponível')
+        .map((point) => point.id),
+    );
+
+    setSelectedPointIds((current) => current.filter((id) => visibleAvailableIds.has(id)));
+  }, [filteredPoints, isSelectionMode]);
+
   const featuredPoint = filteredPoints[0] ?? null;
   const featuredPrice = featuredPoint ? computePointPriceSummary(featuredPoint, 'month').startingFrom : null;
-  const locationLabel = buildLocationLabel(query.uf, query.city);
+  const selectedCount = selectedPointIds.length;
   const missingToken = !query.token;
 
   const changeCatalogQuery = (partial: Partial<MenuCatalogQueryParams>) => {
@@ -147,8 +181,29 @@ export default function MenuCatalogPage() {
     navigate(buildMenuCatalogUrl('/menu', next));
   };
 
+  const clearCatalogFilters = () => {
+    setSearchValue('');
+    setSelectedPointIds([]);
+    setIsSelectionMode(false);
+
+    changeCatalogQuery({
+      q: null,
+      type: null,
+      district: null,
+      environment: null,
+      availability: 'all',
+      sort: 'featured',
+    });
+  };
+
   const handleSearchSubmit = () => {
     changeCatalogQuery({ q: searchValue.trim() || null });
+
+    if (typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        document.getElementById('catalog-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
   };
 
   const handleChangeRegion = () => {
@@ -176,15 +231,6 @@ export default function MenuCatalogPage() {
         sort: query.sort,
       }),
     );
-  };
-
-  const handleScrollToGrid = () => {
-    const element = document.getElementById('catalog-grid');
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleOpenDetail = (pointId: string) => {
@@ -215,33 +261,101 @@ export default function MenuCatalogPage() {
     navigate(buildMenuCatalogUrl('/menu', removeMenuCatalogFilter(query, key)));
   };
 
+  const handleToggleSelectionMode = () => {
+    if (isSelectionMode) {
+      setIsSelectionMode(false);
+      setSelectedPointIds([]);
+      return;
+    }
+
+    setIsSelectionMode(true);
+  };
+
+  const handleTogglePointSelection = (pointId: string) => {
+    const point = allPoints.find((item) => item.id === pointId);
+    if (!point || normalizeAvailability(point) !== 'Disponível') return;
+
+    setSelectedPointIds((current) =>
+      current.includes(pointId) ? current.filter((id) => id !== pointId) : [...current, pointId],
+    );
+  };
+
+  const handleAddSelectedToCart = () => {
+    if (selectedPointIds.length === 0) {
+      toast.info('Selecione pelo menos um ponto disponível para adicionar ao carrinho.');
+      return;
+    }
+
+    const selectedPoints = allPoints.filter((point) =>
+      selectedPointIds.includes(point.id) && normalizeAvailability(point) === 'Disponível',
+    );
+
+    if (selectedPoints.length === 0) {
+      toast.error('Os itens selecionados não estão mais disponíveis para entrar no carrinho.');
+      setSelectedPointIds([]);
+      return;
+    }
+
+    let addedCount = 0;
+    let duplicatedCount = 0;
+
+    for (const point of selectedPoints) {
+      const result = addToCart({ point });
+      if (result.added) {
+        addedCount += 1;
+      } else {
+        duplicatedCount += 1;
+      }
+    }
+
+    syncCartCount();
+
+    setSelectedPointIds([]);
+
+    if (addedCount > 0 && duplicatedCount > 0) {
+      toast.success(`${addedCount} ponto${addedCount === 1 ? '' : 's'} adicionado${addedCount === 1 ? '' : 's'} ao carrinho.`, {
+        description: `${duplicatedCount} já ${duplicatedCount === 1 ? 'estava' : 'estavam'} no carrinho e ${duplicatedCount === 1 ? 'foi ignorado' : 'foram ignorados'}.`,
+      });
+      return;
+    }
+
+    if (addedCount > 0) {
+      toast.success(`${addedCount} ponto${addedCount === 1 ? '' : 's'} adicionado${addedCount === 1 ? '' : 's'} ao carrinho.`);
+      return;
+    }
+
+    toast.info('Os pontos selecionados já estão no carrinho.');
+  };
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef4ff_35%,#f8fafc_100%)] text-slate-900">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 lg:px-8 lg:py-8">
         <MenuCatalogHero
           companyName={hero.companyName || 'Mídia Kit'}
           logoUrl={hero.logoUrl}
           heroImageUrl={hero.heroImageUrl}
           generatedAt={hero.generatedAt}
+          lastInventoryChangeAt={hero.lastInventoryChangeAt}
           heroMetrics={hero.heroMetrics}
-          flowLabel={buildFlowLabel(query.flow)}
-          locationLabel={locationLabel}
         />
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] xl:gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
           <MenuCatalogAbout aboutText={hero.aboutText} companyName={hero.companyName || 'Mídia Kit'} />
 
           <MenuCatalogActions
-            onReload={reload}
             onOpenRegionList={handleOpenRegionList}
             onChangeRegion={handleChangeRegion}
-            onScrollToGrid={handleScrollToGrid}
+            onToggleSelectionMode={handleToggleSelectionMode}
             onOpenCart={handleOpenCart}
+            onAddSelectedToCart={handleAddSelectedToCart}
             regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
             disabled={loading}
             featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
             featuredPointName={featuredPoint?.name ?? null}
             cartCount={cartCount}
+            selectedCount={selectedCount}
+            canAddSelected={selectedCount > 0}
+            isSelectionMode={isSelectionMode}
           />
         </div>
 
@@ -271,51 +385,41 @@ export default function MenuCatalogPage() {
           </Card>
         ) : null}
 
-        <MenuCatalogFilters
-          searchValue={searchValue}
-          typeValue={query.type}
-          cityValue={query.city}
-          districtValue={query.district}
-          environmentValue={query.environment}
-          availabilityValue={query.availability}
-          sortValue={query.sort}
-          typeOptions={typeOptions}
-          cityOptions={cityOptions}
-          districtOptions={districtOptions}
-          environmentOptions={environmentOptions}
-          loading={loading}
-          activeFiltersCount={activeFiltersCount}
-          onSearchValueChange={setSearchValue}
-          onSearchSubmit={handleSearchSubmit}
-          onTypeChange={(value) => changeCatalogQuery({ type: value })}
-          onCityChange={(value) => changeCatalogQuery({ city: value, district: null, environment: null })}
-          onDistrictChange={(value) => changeCatalogQuery({ district: value })}
-          onEnvironmentChange={(value) => changeCatalogQuery({ environment: value })}
-          onAvailabilityChange={(value) => changeCatalogQuery({ availability: value })}
-          onSortChange={(value) => changeCatalogQuery({ sort: value })}
-          onClearFilters={() =>
-            changeCatalogQuery({
-              q: null,
-              type: null,
-              district: null,
-              environment: null,
-              availability: 'all',
-              sort: 'featured',
-            })
-          }
-        />
-
-        <MenuCatalogResults
-          totalPoints={baseStats.totalPoints}
-          filteredPoints={filteredPoints.length}
-          totalUnits={filteredStats.totalUnits}
-          totalImpressionsLabel={formatCompactNumber(filteredStats.totalImpressions)}
-          availableCount={filteredStats.available}
-          partialCount={filteredStats.partial}
-          occupiedCount={filteredStats.occupied}
-          activeFilters={activeFilters}
-          onRemoveFilter={handleRemoveFilter}
-        />
+        <section className="space-y-3">
+          <MenuCatalogFilters
+            searchValue={searchValue}
+            typeValue={query.type}
+            cityValue={query.city}
+            districtValue={query.district}
+            environmentValue={query.environment}
+            availabilityValue={query.availability}
+            sortValue={query.sort}
+            typeOptions={typeOptions}
+            cityOptions={cityOptions}
+            districtOptions={districtOptions}
+            environmentOptions={environmentOptions}
+            loading={loading}
+            activeFiltersCount={activeFiltersCount}
+            totalPoints={baseStats.totalPoints}
+            filteredPoints={filteredPoints.length}
+            totalUnits={filteredStats.totalUnits}
+            totalImpressionsLabel={formatCompactNumber(filteredStats.totalImpressions)}
+            availableCount={filteredStats.available}
+            partialCount={filteredStats.partial}
+            occupiedCount={filteredStats.occupied}
+            activeFilters={activeFilters}
+            onSearchValueChange={setSearchValue}
+            onSearchSubmit={handleSearchSubmit}
+            onTypeChange={(value) => changeCatalogQuery({ type: value })}
+            onCityChange={(value) => changeCatalogQuery({ city: value, district: null, environment: null })}
+            onDistrictChange={(value) => changeCatalogQuery({ district: value })}
+            onEnvironmentChange={(value) => changeCatalogQuery({ environment: value })}
+            onAvailabilityChange={(value) => changeCatalogQuery({ availability: value })}
+            onSortChange={(value) => changeCatalogQuery({ sort: value })}
+            onClearFilters={clearCatalogFilters}
+            onRemoveFilter={handleRemoveFilter}
+          />
+        </section>
 
         <section id="catalog-grid" className="scroll-mt-6">
           <MenuCatalogGrid
@@ -324,16 +428,10 @@ export default function MenuCatalogPage() {
             isAgency={isAgency}
             markupPercent={agencyMarkupPercent}
             onOpenDetail={handleOpenDetail}
-            onClearFilters={() =>
-              changeCatalogQuery({
-                q: null,
-                type: null,
-                district: null,
-                environment: null,
-                availability: 'all',
-                sort: 'featured',
-              })
-            }
+            isSelectionMode={isSelectionMode}
+            selectedPointIds={selectedPointIds}
+            onToggleSelection={handleTogglePointSelection}
+            onClearFilters={clearCatalogFilters}
             onChangeRegion={handleChangeRegion}
           />
         </section>

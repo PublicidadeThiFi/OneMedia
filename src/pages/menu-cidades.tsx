@@ -11,7 +11,6 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react';
-import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -118,7 +117,6 @@ export default function MenuSelectCity() {
     <div className="min-h-screen w-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2ff_32%,#f8fafc_100%)]">
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="secondary" className="rounded-full bg-white px-3 text-slate-700 shadow-sm">Protótipo</Badge>
           <div className="text-sm text-slate-600">Estado selecionado: <b>{uf || '—'}</b></div>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" className="gap-2 rounded-2xl" onClick={() => navigate(`/menu/uf${buildQuery({ token, uf, flow, ownerCompanyId })}`)}>

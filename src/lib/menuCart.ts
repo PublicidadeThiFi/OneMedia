@@ -2,6 +2,7 @@ import { MediaPoint, MediaType, MediaUnit, PromotionPayload, ProductionCosts, Un
 import { getEffectivePromotion } from './menuPromotions';
 
 export const CART_STORAGE_KEY = 'menu_cart';
+export const MENU_CART_UPDATED_EVENT = 'menu-cart-updated';
 
 export type DurationParts = {
   years: number;
@@ -193,6 +194,21 @@ export function writeCart(cart: MenuCart) {
   };
 
   localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(safe));
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent(MENU_CART_UPDATED_EVENT, {
+          detail: {
+            count: safe.items.length,
+            updatedAt: safe.updatedAt,
+          },
+        }),
+      );
+    }
+  } catch {
+    // noop
+  }
 }
 
 export function getCartCount(): number {

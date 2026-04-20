@@ -11,7 +11,7 @@ export default function MenuEnviado() {
   const navigate = useNavigation();
 
   const query = useMemo(() => getMenuCatalogQueryParams(), []);
-  const { token, source } = query;
+  const { token } = query;
   const { t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
@@ -59,11 +59,6 @@ export default function MenuEnviado() {
           <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
             Cardápio
           </Badge>
-          {source === 'catalog' && (
-            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
-              Novo catálogo
-            </Badge>
-          )}
           <div className="text-sm text-slate-600">Pedido enviado</div>
 
           <div className="ml-auto">
@@ -83,10 +78,10 @@ export default function MenuEnviado() {
                   Tudo certo com o envio
                 </div>
                 <h1 className="menu-soft-title mt-4 text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                  Pedido enviado com sucesso. Agora é só acompanhar a resposta por aqui.
+                  Pedido enviado com sucesso. Agora é só acompanhar o andamento por aqui.
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                  O responsável já recebeu seu pedido. Assim que a proposta for montada, este mesmo link passa a mostrar o andamento e os próximos passos.
+                  O responsável já recebeu seu pedido. Assim que a proposta for montada, este mesmo link passa a mostrar o andamento e os próximos passos do fluxo.
                 </p>
 
                 <div className="mt-6 grid gap-4 sm:grid-cols-2">

@@ -4,6 +4,23 @@ import { MenuCatalogSort, normalizeMenuFlow } from './menuFlow';
 
 export type Availability = 'Disponível' | 'Parcial' | 'Ocupado';
 export type UnitAvailability = 'Disponível' | 'Reservada' | 'Ocupado';
+export type PublicMediaKitMediaKind = 'image' | 'video';
+export type PublicMediaKitMediaSource = 'point' | 'unit';
+
+export type PublicMediaKitMediaItem = {
+  id: string;
+  kind: PublicMediaKitMediaKind;
+  url: string;
+  mimeType: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+  source: PublicMediaKitMediaSource;
+  sourceId: string;
+  unitId: string | null;
+  label: string | null;
+  createdAt: string | null;
+};
+
 export type PublicMediaKitHeroMetricKind =
   | 'points'
   | 'units'
@@ -34,6 +51,9 @@ export type PublicMediaKitUnit = {
   priceWeek?: number | null;
   priceDay?: number | null;
   imageUrl?: string | null;
+  videoUrl?: string | null;
+  mediaGallery?: PublicMediaKitMediaItem[];
+  orderedMediaCollection?: PublicMediaKitMediaItem[];
   isActive?: boolean;
   isOccupied?: boolean;
   isAvailable?: boolean;
@@ -46,6 +66,8 @@ export type PublicMediaKitUnit = {
 };
 
 export type PublicMediaKitPoint = MediaPoint & {
+  mediaGallery?: PublicMediaKitMediaItem[];
+  orderedMediaCollection?: PublicMediaKitMediaItem[];
   units?: PublicMediaKitUnit[];
   unitsCount?: number;
   occupiedUnitsCount?: number;
@@ -88,6 +110,7 @@ export type PublicMediaKitResponse = {
     totalImpressionsFormatted: string;
   };
   generatedAt: string;
+  lastInventoryChangeAt?: string | null;
   heroImageUrl?: string | null;
   aboutText?: string | null;
   heroMetrics?: PublicMediaKitHeroMetric[];
@@ -234,13 +257,114 @@ export function computePointPriceSummary(
   };
 }
 
+function inferMediaKindFromUrl(url?: string | null): PublicMediaKitMediaKind | null {
+  const value = String(url ?? '').trim().toLowerCase();
+  if (!value) return null;
+  if (/\.(mp4|webm|mov|m4v|avi|mkv)(?:$|[?#])/.test(value)) return 'video';
+  return 'image';
+}
+
+function dedupeMediaItems(items: PublicMediaKitMediaItem[]): PublicMediaKitMediaItem[] {
+  const seen = new Set<string>();
+  const next: PublicMediaKitMediaItem[] = [];
+
+  for (const item of items) {
+    if (!item?.url) continue;
+    const key = `${item.kind}::${item.url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    next.push(item);
+  }
+
+  return next;
+}
+
+function buildLegacyMediaItems(params: {
+  items: Array<{ url?: string | null; kind?: PublicMediaKitMediaKind | null }>;
+  source: PublicMediaKitMediaSource;
+  sourceId: string;
+  label?: string | null;
+  unitId?: string | null;
+}): PublicMediaKitMediaItem[] {
+  return dedupeMediaItems(
+    params.items
+      .map((item, index) => {
+        const url = String(item.url ?? '').trim();
+        const kind = item.kind ?? inferMediaKindFromUrl(item.url);
+        if (!url || !kind) return null;
+        return {
+          id: `${params.source}-${params.sourceId}-legacy-${kind}-${index + 1}`,
+          kind,
+          url,
+          mimeType: null,
+          sortOrder: index,
+          isPrimary: index === 0,
+          source: params.source,
+          sourceId: params.sourceId,
+          unitId: params.unitId ?? null,
+          label: params.label ?? null,
+          createdAt: null,
+        } satisfies PublicMediaKitMediaItem;
+      })
+      .filter(Boolean) as PublicMediaKitMediaItem[],
+  );
+}
+
+export function getPublicMediaKitUnitMediaGallery(unit: PublicMediaKitUnit): PublicMediaKitMediaItem[] {
+  const ordered = Array.isArray(unit.orderedMediaCollection) ? unit.orderedMediaCollection.filter(Boolean) : [];
+  if (ordered.length > 0) return dedupeMediaItems(ordered);
+
+  const gallery = Array.isArray(unit.mediaGallery) ? unit.mediaGallery.filter(Boolean) : [];
+  if (gallery.length > 0) return dedupeMediaItems(gallery);
+
+  return buildLegacyMediaItems({
+    items: [
+      { url: unit.imageUrl, kind: 'image' },
+      { url: unit.videoUrl, kind: 'video' },
+    ],
+    source: 'unit',
+    sourceId: String(unit.id ?? 'unit'),
+    label: String(unit.label ?? '').trim() || null,
+    unitId: String(unit.id ?? 'unit'),
+  });
+}
+
+export function getPublicMediaKitPointMediaGallery(point: PublicMediaKitPoint): PublicMediaKitMediaItem[] {
+  const ordered = Array.isArray(point.orderedMediaCollection) ? point.orderedMediaCollection.filter(Boolean) : [];
+  if (ordered.length > 0) return dedupeMediaItems(ordered);
+
+  const pointGallery = Array.isArray(point.mediaGallery) ? point.mediaGallery.filter(Boolean) : [];
+  const unitGallery = Array.isArray(point.units)
+    ? point.units.flatMap((unit) => getPublicMediaKitUnitMediaGallery(unit))
+    : [];
+
+  const merged = [...pointGallery, ...unitGallery];
+  if (merged.length > 0) return dedupeMediaItems(merged);
+
+  return buildLegacyMediaItems({
+    items: [
+      { url: point.mainImageUrl ?? point.imageUrl, kind: 'image' },
+      { url: point.mainVideoUrl ?? point.videoUrl, kind: 'video' },
+      ...(Array.isArray(point.galleryImages) ? point.galleryImages.map((url) => ({ url, kind: 'image' as const })) : []),
+      ...(Array.isArray(point.galleryVideos) ? point.galleryVideos.map((url) => ({ url, kind: 'video' as const })) : []),
+    ],
+    source: 'point',
+    sourceId: String(point.id ?? 'point'),
+    label: String(point.name ?? '').trim() || null,
+  });
+}
+
 export function getPublicMediaKitPointPrimaryImage(point: PublicMediaKitPoint): string | null {
+  const mediaGallery = getPublicMediaKitPointMediaGallery(point);
+  const firstImage = mediaGallery.find((item) => item.kind === 'image')?.url ?? null;
+  if (firstImage) return firstImage;
+
   const pointImage = String(point.mainImageUrl ?? point.imageUrl ?? '').trim();
   if (pointImage) return pointImage;
 
   if (Array.isArray(point.units)) {
     for (const unit of point.units) {
-      const unitImage = String(unit?.imageUrl ?? '').trim();
+      const unitImage = getPublicMediaKitUnitMediaGallery(unit).find((item) => item.kind === 'image')?.url ?? String(unit?.imageUrl ?? '').trim();
       if (unitImage) return unitImage;
     }
   }

@@ -16,6 +16,7 @@ export type MenuCatalogHeroContract = {
   companyName: string;
   logoUrl: string | null;
   generatedAt: string | null;
+  lastInventoryChangeAt: string | null;
   heroImageUrl: string | null;
   aboutText: string | null;
   heroMetrics: PublicMediaKitHeroMetric[];
@@ -128,6 +129,7 @@ export function resolveMenuCatalogHeroContract(data: PublicMediaKitResponse | nu
     companyName: String(data?.company?.name ?? '').trim(),
     logoUrl: data?.company?.logoUrl ?? null,
     generatedAt: data?.generatedAt ?? null,
+    lastInventoryChangeAt: data?.lastInventoryChangeAt ?? null,
     heroImageUrl: data?.heroImageUrl ?? null,
     aboutText: data?.aboutText ?? null,
     heroMetrics: deriveMenuCatalogHeroMetrics(data),
