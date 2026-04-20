@@ -5,38 +5,34 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { CheckCircle2, Copy, ArrowLeft, Activity, Link2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-
-function buildQuery(params: Record<string, string | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    const val = String(v ?? '').trim();
-    if (val) sp.set(k, val);
-  });
-  const qs = sp.toString();
-  return qs ? `?${qs}` : '';
-}
+import { getMenuCatalogQueryParams, getMenuEntryUrl } from '../lib/menuFlow';
 
 export default function MenuEnviado() {
   const navigate = useNavigation();
 
-  const { token, t, rid, uf, city } = useMemo(() => {
+  const query = useMemo(() => getMenuCatalogQueryParams(), []);
+  const { token, source } = query;
+  const { t, rid } = useMemo(() => {
     const sp = new URLSearchParams(window.location.search);
     return {
-      token: sp.get('token') || '',
       t: sp.get('t') || '',
       rid: sp.get('rid') || sp.get('requestId') || '',
-      uf: String(sp.get('uf') || '').trim().toUpperCase(),
-      city: String(sp.get('city') || '').trim(),
     };
   }, []);
 
   const [copied, setCopied] = useState(false);
 
-  const authQuery = useMemo(() => (t ? { t, rid } : { token, rid }), [t, token, rid]);
-
   const acompanhamentoUrl = useMemo(() => {
-    return `/menu/acompanhar${buildQuery(authQuery)}`;
-  }, [authQuery]);
+    const sp = new URLSearchParams();
+    if (t) {
+      sp.set('t', t);
+    } else if (token) {
+      sp.set('token', token);
+    }
+    if (rid) sp.set('rid', rid);
+    const qs = sp.toString();
+    return `/menu/acompanhar${qs ? `?${qs}` : ''}`;
+  }, [t, token, rid]);
 
   const fullAcompanhamentoUrl = useMemo(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -54,7 +50,7 @@ export default function MenuEnviado() {
     }
   };
 
-  const backToMenu = token ? `/menu/pontos${buildQuery({ token, uf, city })}` : '/menu';
+  const backToMenu = token ? getMenuEntryUrl(query) : '/menu';
 
   return (
     <div className="menu-app-shell">
@@ -63,6 +59,11 @@ export default function MenuEnviado() {
           <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
             Cardápio
           </Badge>
+          {source === 'catalog' && (
+            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
+              Novo catálogo
+            </Badge>
+          )}
           <div className="text-sm text-slate-600">Pedido enviado</div>
 
           <div className="ml-auto">

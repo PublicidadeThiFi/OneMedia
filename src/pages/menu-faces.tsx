@@ -22,19 +22,16 @@ import { computePointPriceSummary, PublicMediaKitPoint } from '../lib/publicMedi
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { MediaUnit } from '../types';
-import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import {
+  applyAgencyMarkup,
+  buildMenuUrl,
+  getAgencyMarkupPercent,
+  getMenuCatalogQueryParams,
+  getMenuEntryUrl,
+  isAgencyFlow,
+} from '../lib/menuFlow';
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion } from '../lib/menuPromotions';
 import { formatBRL } from '../lib/format';
-
-function buildQuery(params: Record<string, string | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    const val = String(v ?? '').trim();
-    if (val) sp.set(k, val);
-  });
-  const qs = sp.toString();
-  return qs ? `?${qs}` : '';
-}
 
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
@@ -130,17 +127,8 @@ function UnitPreview({ src, alt }: { src?: string | null; alt: string }) {
 export default function MenuFaces() {
   const navigate = useNavigation();
 
-  const { token, pointId, uf, city, flow, ownerCompanyId } = useMemo(() => {
-    const qp = getMenuQueryParams();
-    return {
-      token: qp.token,
-      pointId: qp.pointId || '',
-      uf: qp.uf || '',
-      city: qp.city || '',
-      flow: qp.flow,
-      ownerCompanyId: qp.ownerCompanyId,
-    };
-  }, []);
+  const query = useMemo(() => getMenuCatalogQueryParams(), []);
+  const { token, pointId, uf, city, flow, ownerCompanyId, source } = query;
 
   const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
@@ -176,10 +164,9 @@ export default function MenuFaces() {
   const selectedCount = selectedIds.length;
   const selectionProgress = selectableUnits.length > 0 ? Math.min(100, Math.round((selectedCount / selectableUnits.length) * 100)) : 0;
 
-  const backUrl = useMemo(
-    () => `/menu/detalhe${buildQuery({ token, pointId, uf, city, flow, ownerCompanyId })}`,
-    [token, pointId, uf, city, flow, ownerCompanyId],
-  );
+  const backUrl = useMemo(() => buildMenuUrl('/menu/detalhe', query, { pointId }), [query, pointId]);
+  const cartUrl = useMemo(() => buildMenuUrl('/menu/carrinho', query), [query]);
+  const entryUrl = useMemo(() => getMenuEntryUrl(query), [query]);
 
   const onToggle = (unitId: string, next: boolean) => {
     setSelected((prev) => ({ ...prev, [unitId]: next }));
@@ -215,7 +202,7 @@ export default function MenuFaces() {
       toast.info('Esses itens já estavam no seu carrinho.');
     }
 
-    navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`);
+    navigate(cartUrl);
   };
 
   const cartCount = useMemo(() => getCartCount(), [selectedCount, pointId]);
@@ -227,13 +214,18 @@ export default function MenuFaces() {
           <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/80 px-3 py-1 text-slate-700 shadow-sm backdrop-blur">
             Seleção de faces/telas
           </Badge>
+          {source === 'catalog' && (
+            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 py-1 text-slate-700 shadow-sm backdrop-blur">
+              Novo catálogo
+            </Badge>
+          )}
           {city && <div className="text-sm text-slate-600">{city}{uf ? ` • ${uf}` : ''}</div>}
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
               <Button
                 variant="outline"
                 className="gap-2 rounded-2xl border-slate-200 bg-white/90 shadow-sm"
-                onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}
+                onClick={() => navigate(cartUrl)}
               >
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})
@@ -241,7 +233,7 @@ export default function MenuFaces() {
             )}
             <Button variant="ghost" className="gap-2 rounded-2xl text-slate-700" onClick={() => navigate(backUrl)}>
               <ArrowLeft className="h-4 w-4" />
-              Voltar
+              {source === 'catalog' ? 'Voltar ao detalhe do catálogo' : 'Voltar'}
             </Button>
           </div>
         </div>
@@ -274,8 +266,8 @@ export default function MenuFaces() {
               <div className="text-sm font-semibold text-slate-900">Ponto não encontrado</div>
               <div className="mt-1 text-sm text-slate-600">Volte e selecione outro ponto.</div>
               <div className="mt-4">
-                <Button variant="outline" className="rounded-2xl" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
-                  Voltar para a lista
+                <Button variant="outline" className="rounded-2xl" onClick={() => navigate(entryUrl)}>
+                  {source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar para a lista'}
                 </Button>
               </div>
             </CardContent>

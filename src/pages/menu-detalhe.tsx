@@ -19,19 +19,16 @@ import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
 import { computePointPriceSummary, normalizeAvailability, normalizeMediaType, PublicMediaKitPoint } from '../lib/publicMediaKit';
 import { addToCart, formatAddress, getCartCount } from '../lib/menuCart';
-import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import {
+  applyAgencyMarkup,
+  buildMenuUrl,
+  getAgencyMarkupPercent,
+  getMenuCatalogQueryParams,
+  getMenuEntryUrl,
+  isAgencyFlow,
+} from '../lib/menuFlow';
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion, pickBestPromoForPoint } from '../lib/menuPromotions';
 import { formatBRL } from '../lib/format';
-
-function buildQuery(params: Record<string, string | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    const val = String(v ?? '').trim();
-    if (val) sp.set(k, val);
-  });
-  const qs = sp.toString();
-  return qs ? `?${qs}` : '';
-}
 
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
@@ -163,17 +160,9 @@ function GalleryFrame({ src, alt, className = '', imageClassName = '' }: { src?:
 export default function MenuDetalhe() {
   const navigate = useNavigation();
 
-  const { token, pointId, uf, city, flow, ownerCompanyId } = useMemo(() => {
-    const qp = getMenuQueryParams();
-    return {
-      token: qp.token,
-      pointId: qp.pointId,
-      uf: qp.uf,
-      city: qp.city,
-      flow: qp.flow,
-      ownerCompanyId: qp.ownerCompanyId,
-    };
-  }, []);
+  const query = useMemo(() => getMenuCatalogQueryParams(), []);
+
+  const { token, pointId, uf, city, flow, ownerCompanyId, source } = query;
 
   const { data, loading, error } = usePublicMediaKit({ token, ownerCompanyId, flow });
   const point = useMemo(() => {
@@ -249,7 +238,8 @@ export default function MenuDetalhe() {
     return () => window.removeEventListener('storage', onStorage);
   }, [pointId]);
 
-  const backUrl = useMemo(() => `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`,[token, uf, city, flow, ownerCompanyId]);
+  const backUrl = useMemo(() => getMenuEntryUrl(query), [query]);
+  const cartUrl = useMemo(() => buildMenuUrl('/menu/carrinho', query), [query]);
 
   const onAdd = () => {
     if (!point) return;
@@ -257,7 +247,7 @@ export default function MenuDetalhe() {
     const units = Array.isArray(point.units) ? point.units.filter((u: any) => u?.isActive !== false) : [];
     const selectableUnits = units.filter((u: any) => isUnitSelectable(u));
     if (selectableUnits.length > 1) {
-      navigate(`/menu/faces${buildQuery({ token, pointId: point.id, uf, city, flow, ownerCompanyId })}`);
+      navigate(buildMenuUrl('/menu/faces', query, { pointId: point.id }));
       return;
     }
 
@@ -312,24 +302,29 @@ export default function MenuDetalhe() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="secondary" className="rounded-full border border-white/60 bg-white/90 px-3 text-slate-700 shadow-sm backdrop-blur-sm">Protótipo</Badge>
+          {source === 'catalog' && (
+            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/90 px-3 text-slate-700 shadow-sm backdrop-blur-sm">
+              Novo catálogo
+            </Badge>
+          )}
           <div className="text-sm text-slate-600">Detalhes do ponto</div>
           <div className="ml-auto flex items-center gap-2">
             {cartCount > 0 && (
-              <Button variant="outline" className="gap-2 rounded-2xl border-slate-200 bg-white/90 shadow-sm" onClick={() => navigate(`/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
+              <Button variant="outline" className="gap-2 rounded-2xl border-slate-200 bg-white/90 shadow-sm" onClick={() => navigate(cartUrl)}>
                 <ShoppingCart className="h-4 w-4" />
                 Ver carrinho ({cartCount})
               </Button>
             )}
             <Button variant="ghost" className="gap-2 rounded-2xl" onClick={() => navigate(backUrl)}>
               <ArrowLeft className="h-4 w-4" />
-              Voltar
+              {source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar'}
             </Button>
           </div>
         </div>
 
         {error && <Card className="mt-5 rounded-[28px] border-amber-200 bg-amber-50"><CardContent className="py-4"><div className="text-sm font-semibold text-amber-900">Não foi possível carregar</div><div className="mt-1 text-sm text-amber-800">{error}</div></CardContent></Card>}
         {loading && !point && <Card className="mt-5 animate-pulse rounded-[30px] border-slate-200 bg-white/90 shadow-[0_16px_40px_rgba(15,23,42,0.05)]"><CardContent className="py-6"><div className="h-5 w-56 rounded bg-slate-200" /><div className="mt-3 h-3 w-80 rounded bg-slate-200" /><div className="mt-6 aspect-[1/1] max-w-xl rounded-[24px] bg-slate-200" /><div className="mt-4 grid grid-cols-3 gap-3"><div className="aspect-square rounded-2xl bg-slate-200" /><div className="aspect-square rounded-2xl bg-slate-200" /><div className="aspect-square rounded-2xl bg-slate-200" /></div></CardContent></Card>}
-        {!loading && !error && !point && <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>Voltar para os pontos</Button></div></CardContent></Card>}
+        {!loading && !error && !point && <Card className="mt-5 rounded-[28px] border-slate-200 bg-white/90"><CardContent className="py-6"><div className="text-sm font-semibold text-slate-900">Não achei esse ponto</div><div className="mt-1 text-sm text-slate-600">Volte para a lista e escolha outro ponto.</div><div className="mt-4"><Button variant="outline" className="rounded-2xl" onClick={() => navigate(backUrl)}>{source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar para os pontos'}</Button></div></CardContent></Card>}
 
         {point && (
           <div className="mt-5 space-y-5">
@@ -456,7 +451,7 @@ export default function MenuDetalhe() {
                       {units.length > 1 ? 'Escolher faces/telas' : 'Adicionar no carrinho'}
                     </Button>
                     <Button variant="outline" className="h-12 rounded-2xl border-slate-200 bg-white/90 shadow-sm" onClick={() => navigate(backUrl)}>
-                      Voltar para os pontos
+                      {source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar para os pontos'}
                     </Button>
                   </div>
                 </div>

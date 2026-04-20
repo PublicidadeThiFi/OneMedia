@@ -17,19 +17,16 @@ import {
   updateItemDurationParts,
 } from '../lib/menuCart';
 import { usePublicMediaKit } from '../hooks/usePublicMediaKit';
-import { applyAgencyMarkup, getAgencyMarkupPercent, getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import {
+  applyAgencyMarkup,
+  buildMenuUrl,
+  getAgencyMarkupPercent,
+  getMenuCatalogQueryParams,
+  getMenuEntryUrl,
+  isAgencyFlow,
+} from '../lib/menuFlow';
 import { buildPromoPrice, formatPromotionBadge, getEffectivePromotion } from '../lib/menuPromotions';
 import { formatBRL } from '../lib/format';
-
-function buildQuery(params: Record<string, string | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    const val = String(v ?? '').trim();
-    if (val) sp.set(k, val);
-  });
-  const qs = sp.toString();
-  return qs ? `?${qs}` : '';
-}
 
 function formatCurrencyBRL(value?: number | null): string {
   return formatBRL(value, '—');
@@ -46,16 +43,8 @@ function buildSavingsMeta(from: number | null | undefined, to: number | null | u
 export default function MenuCarrinho() {
   const navigate = useNavigation();
 
-  const { token, uf, city, flow, ownerCompanyId } = useMemo(() => {
-    const qp = getMenuQueryParams();
-    return {
-      token: qp.token,
-      uf: qp.uf || '',
-      city: qp.city || '',
-      flow: qp.flow,
-      ownerCompanyId: qp.ownerCompanyId,
-    };
-  }, []);
+  const query = useMemo(() => getMenuCatalogQueryParams(), []);
+  const { token, uf, city, flow, ownerCompanyId, source } = query;
 
   const { data } = usePublicMediaKit({ token, ownerCompanyId, flow });
 
@@ -76,10 +65,8 @@ export default function MenuCarrinho() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const backUrl = useMemo(
-    () => `/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`,
-    [token, uf, city, flow, ownerCompanyId],
-  );
+  const backUrl = useMemo(() => getMenuEntryUrl(query), [query]);
+  const checkoutUrl = useMemo(() => buildMenuUrl('/menu/checkout', query), [query]);
 
   const [bulkYears, setBulkYears] = useState<string>('0');
   const [bulkMonths, setBulkMonths] = useState<string>('1');
@@ -211,11 +198,16 @@ export default function MenuCarrinho() {
           <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
             Cardápio
           </Badge>
+          {source === 'catalog' && (
+            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
+              Novo catálogo
+            </Badge>
+          )}
           <div className="text-sm text-slate-600">Carrinho</div>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" className="gap-2 rounded-2xl text-slate-700" onClick={() => navigate(backUrl)}>
               <ArrowLeft className="h-4 w-4" />
-              Voltar
+              {source === 'catalog' ? 'Voltar ao catálogo' : 'Voltar'}
             </Button>
           </div>
         </div>
@@ -285,7 +277,7 @@ export default function MenuCarrinho() {
               </div>
               <div className="mt-6">
                 <Button className="rounded-2xl px-5" onClick={() => navigate(backUrl)}>
-                  Escolher pontos
+                  {source === 'catalog' ? 'Voltar ao catálogo' : 'Escolher pontos'}
                 </Button>
               </div>
             </CardContent>
@@ -586,7 +578,7 @@ export default function MenuCarrinho() {
                     </div>
                   </div>
 
-                  <Button className="h-11 w-full rounded-2xl" onClick={() => navigate(`/menu/checkout${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
+                  <Button className="h-11 w-full rounded-2xl" onClick={() => navigate(checkoutUrl)}>
                     Ir para o checkout
                   </Button>
                   <Button variant="outline" className="h-11 w-full rounded-2xl border-slate-200 bg-white" onClick={() => navigate(backUrl)}>

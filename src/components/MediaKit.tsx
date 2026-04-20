@@ -544,10 +544,34 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
   const buildMenuUrlFromMkBase = (mkBaseUrl: string) => {
     try {
-      const u = new URL(mkBaseUrl);
-      u.pathname = '/menu';
-      // Mantém o token no query param
-      return u.toString();
+      const sourceUrl = new URL(buildShareUrlWithFilters(mkBaseUrl));
+      const menuUrl = new URL(`${window.location.origin}/menu`);
+      const sourceParams = sourceUrl.searchParams;
+      const menuParams = menuUrl.searchParams;
+
+      const tokenValue = sourceParams.get('token');
+      if (tokenValue) menuParams.set('token', tokenValue);
+
+      const ownerCompanyValue = sourceParams.get('ownerCompanyId');
+      if (ownerCompanyValue) menuParams.set('ownerCompanyId', ownerCompanyValue);
+
+      const qValue = sourceParams.get('q');
+      if (qValue) menuParams.set('q', qValue);
+
+      const typeValue = sourceParams.get('type');
+      if (typeValue) menuParams.set('type', typeValue);
+
+      const cityValue = sourceParams.get('city');
+      if (cityValue) menuParams.set('city', cityValue);
+
+      const stateValue = sourceParams.get('state');
+      if (stateValue) menuParams.set('uf', stateValue);
+
+      const statusValue = sourceParams.get('status');
+      if (statusValue) menuParams.set('availability', statusValue);
+
+      menuParams.set('source', 'catalog');
+      return menuUrl.toString();
     } catch {
       return `${window.location.origin}/menu`;
     }
@@ -605,7 +629,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     if (!url) return;
 
     const onCopied = () => {
-      toast.success('Link do Cardápio (protótipo) copiado para a área de transferência!');
+      toast.success('Link do Cardápio copiado para a área de transferência!');
       setShareDialogOpen(false);
     };
 
@@ -1431,10 +1455,10 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
             }}
           >
             <DialogHeader className="shrink-0 border-b px-6 pt-6 pb-4">
-              <DialogTitle>Compartilhar Mídia Kit</DialogTitle>
+              <DialogTitle>Compartilhar Mídia Kit e Cardápio</DialogTitle>
               <DialogDescription>
-                Compartilhe o link público do Mídia Kit com seus clientes. Se você tiver filtros ativos, o link já abre
-                com esses filtros aplicados (mas quem receber pode alterá-los).
+                Compartilhe o link institucional do Mídia Kit ou o link comercial do Cardápio. Se você tiver filtros ativos, os links já abrem
+                com esse recorte aplicado — e quem receber ainda pode ajustar os filtros normalmente.
               </DialogDescription>
             </DialogHeader>
 
@@ -1452,7 +1476,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               </div>
 
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-gray-700">Link do Cardápio (protótipo)</div>
+                <div className="text-xs font-semibold text-gray-700">Link do Cardápio</div>
                 <div className="flex items-center gap-2">
                   <Input readOnly value={menuShareUrl || 'Gerando link...'} className="flex-1" />
                   <Button onClick={handleCopyMenuLink} className="gap-2" disabled={!menuShareUrl}>
@@ -1461,13 +1485,12 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Abre o fluxo do Cardápio (UF → Cidade → Pontos → Carrinho → Enviar proposta).
+                  Abre o novo catálogo do Cardápio em /menu, já com os filtros ativos convertidos e prontos para seguir para detalhe, faces, carrinho e envio da proposta.
                 </p>
               </div>
 
                 <p className="text-sm text-gray-500">
-                  Qualquer pessoa com o link pode visualizar seu portfólio. Se o link incluir filtros, eles serão aplicados
-                  inicialmente — e depois podem ser alterados normalmente.
+                  O link do Mídia Kit mantém a apresentação institucional. O link do Cardápio leva para a vitrine comercial em /menu. Em ambos os casos, os filtros ativos e a empresa responsável selecionada são preservados na abertura inicial.
                 </p>
               </div>
             </div>

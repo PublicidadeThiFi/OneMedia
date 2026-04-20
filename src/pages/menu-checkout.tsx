@@ -11,19 +11,14 @@ import { ArrowLeft, Building2, CheckCircle2, Mail, Phone, ShieldCheck, ShoppingC
 import { toast } from 'sonner';
 import { clearCart, formatDurationParts, readCart } from '../lib/menuCart';
 import { createMenuRequest, fetchPublicMenuConfig } from '../lib/menuRequestApi';
-import { getMenuQueryParams, isAgencyFlow } from '../lib/menuFlow';
+import {
+  buildMenuUrl,
+  getMenuCatalogQueryParams,
+  getMenuEntryUrl,
+  isAgencyFlow,
+} from '../lib/menuFlow';
 import { TurnstileWidget } from '../components/turnstile/TurnstileWidget';
 import { formatCpfCnpjDisplay, getCpfCnpjErrorMessage } from '../lib/validators';
-
-function buildQuery(params: Record<string, string | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    const val = String(v ?? '').trim();
-    if (val) sp.set(k, val);
-  });
-  const qs = sp.toString();
-  return qs ? `?${qs}` : '';
-}
 
 function isValidEmail(email: string): boolean {
   const e = String(email || '').trim();
@@ -47,22 +42,13 @@ function buildReservationCutoffNotice(cutoffTime?: string | null, fallbackNotice
 export default function MenuFinalizar() {
   const navigate = useNavigation();
 
-  const { token, uf, city, flow, ownerCompanyId } = useMemo(() => {
-    const qp = getMenuQueryParams();
-    return {
-      token: qp.token,
-      uf: qp.uf || '',
-      city: qp.city || '',
-      flow: qp.flow,
-      ownerCompanyId: qp.ownerCompanyId,
-    };
-  }, []);
+  const query = useMemo(() => getMenuCatalogQueryParams(), []);
+  const { token, uf, city, flow, ownerCompanyId, source } = query;
 
   const cart = useMemo(() => readCart(), []);
 
-  const backUrl = useMemo(() => {
-    return `/menu/carrinho${buildQuery({ token, uf, city, flow, ownerCompanyId })}`;
-  }, [token, uf, city, flow, ownerCompanyId]);
+  const backUrl = useMemo(() => buildMenuUrl('/menu/carrinho', query), [query]);
+  const entryUrl = useMemo(() => getMenuEntryUrl(query), [query]);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -136,7 +122,7 @@ export default function MenuFinalizar() {
     }
     if (!cart.items.length) {
       toast.error('Seu carrinho está vazio.');
-      navigate(`/menu/pontos${buildQuery({ token: t, uf, city, flow, ownerCompanyId })}`);
+      navigate(entryUrl);
       return;
     }
     if (!name) {
@@ -195,7 +181,7 @@ export default function MenuFinalizar() {
 
       clearCart();
       toast.success('Pronto! Pedido enviado.');
-      navigate(`/menu/enviado${buildQuery({ token: t, rid: requestId, uf, city, flow, ownerCompanyId })}`);
+      navigate(buildMenuUrl('/menu/enviado', query, { token: t, rid: requestId }));
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Não consegui enviar agora.';
       toast.error('Não foi possível enviar', { description: String(msg) });
@@ -244,8 +230,8 @@ export default function MenuFinalizar() {
                     Volte para a vitrine, selecione os espaços desejados e então retorne para preencher os dados de contato.
                   </p>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Button className="rounded-2xl px-5" onClick={() => navigate(`/menu/pontos${buildQuery({ token, uf, city, flow, ownerCompanyId })}`)}>
-                      Ver pontos
+                    <Button className="rounded-2xl px-5" onClick={() => navigate(entryUrl)}>
+                      {source === 'catalog' ? 'Voltar ao catálogo' : 'Ver pontos'}
                     </Button>
                     <Button variant="outline" className="rounded-2xl border-slate-200 bg-white px-5" onClick={() => navigate(backUrl)}>
                       Voltar ao carrinho
@@ -270,6 +256,11 @@ export default function MenuFinalizar() {
           <Badge variant="secondary" className="rounded-full border border-white/70 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
             Cardápio
           </Badge>
+          {source === 'catalog' && (
+            <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
+              Novo catálogo
+            </Badge>
+          )}
           {isAgencyFlow(flow) && (
             <Badge variant="outline" className="rounded-full border-slate-200 bg-white/85 px-3 text-slate-700 shadow-sm backdrop-blur">
               Agência
