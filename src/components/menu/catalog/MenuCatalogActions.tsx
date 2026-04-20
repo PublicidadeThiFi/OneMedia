@@ -4,11 +4,11 @@ import { Card, CardContent } from '../../ui/card';
 
 type MenuCatalogActionsProps = {
   onReload: () => void;
-  onOpenLegacy: () => void;
+  onOpenRegionList: () => void;
   onChangeRegion: () => void;
   onScrollToGrid: () => void;
   onOpenCart?: () => void;
-  legacyCtaLabel: string;
+  regionCtaLabel: string;
   featuredPointName?: string | null;
   featuredPrice?: string | null;
   cartCount?: number;
@@ -17,11 +17,11 @@ type MenuCatalogActionsProps = {
 
 export function MenuCatalogActions({
   onReload,
-  onOpenLegacy,
+  onOpenRegionList,
   onChangeRegion,
   onScrollToGrid,
   onOpenCart,
-  legacyCtaLabel,
+  regionCtaLabel,
   featuredPointName,
   featuredPrice,
   cartCount = 0,
@@ -52,9 +52,9 @@ export function MenuCatalogActions({
             <RefreshCcw className="mr-2 h-4 w-4" />
             Atualizar dados
           </Button>
-          <Button className="h-12 rounded-2xl bg-slate-100 px-4 text-slate-900 hover:bg-slate-200" onClick={onOpenLegacy}>
+          <Button className="h-12 rounded-2xl bg-slate-100 px-4 text-slate-900 hover:bg-slate-200" onClick={onOpenRegionList}>
             <ListFilter className="mr-2 h-4 w-4" />
-            {legacyCtaLabel}
+            {regionCtaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>

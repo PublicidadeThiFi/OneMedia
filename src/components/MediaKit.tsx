@@ -1485,7 +1485,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
                   </Button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Abre o novo catálogo do Cardápio em /menu, já com os filtros ativos convertidos e prontos para seguir para detalhe, faces, carrinho e envio da proposta.
+                  Abre o catálogo do Cardápio em /menu, já com os filtros ativos convertidos e prontos para seguir para detalhe, faces, carrinho e envio da proposta.
                 </p>
               </div>
 

@@ -155,7 +155,7 @@ export default function MenuCatalogPage() {
     navigate(buildMenuCatalogUrl('/menu/uf', query));
   };
 
-  const handleOpenLegacy = () => {
+  const handleOpenRegionList = () => {
     navigate(legacyUrl);
   };
 
@@ -233,11 +233,11 @@ export default function MenuCatalogPage() {
 
           <MenuCatalogActions
             onReload={reload}
-            onOpenLegacy={handleOpenLegacy}
+            onOpenRegionList={handleOpenRegionList}
             onChangeRegion={handleChangeRegion}
             onScrollToGrid={handleScrollToGrid}
             onOpenCart={handleOpenCart}
-            legacyCtaLabel={query.city || query.uf ? 'Abrir lista legada da região' : 'Escolher região no fluxo legado'}
+            regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
             disabled={loading}
             featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
             featuredPointName={featuredPoint?.name ?? null}
@@ -252,7 +252,7 @@ export default function MenuCatalogPage() {
               <div>
                 <div className="text-base font-semibold text-amber-950">Token ausente</div>
                 <div className="mt-1 text-sm leading-6 text-amber-900">
-                  Abra o cardápio usando o link compartilhado para que o novo catálogo consiga carregar os dados públicos corretamente.
+                  Abra o cardápio usando o link compartilhado para carregar os dados públicos corretamente e manter o recorte comercial esperado.
                 </div>
               </div>
             </CardContent>
