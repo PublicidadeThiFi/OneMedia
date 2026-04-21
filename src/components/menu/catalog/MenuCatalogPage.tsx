@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import './menuCatalogTheme.css';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import { Card, CardContent } from '../../ui/card';
 import { useNavigation } from '../../../contexts/NavigationContext';
@@ -30,6 +31,7 @@ import { MenuCatalogActions } from './MenuCatalogActions';
 import { MenuCatalogFilters } from './MenuCatalogFilters';
 import { MenuCatalogGrid } from './MenuCatalogGrid';
 import { MenuCatalogHero } from './MenuCatalogHero';
+import './menuCatalogTheme.css';
 
 function formatCompactNumber(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '0';
@@ -328,8 +330,8 @@ export default function MenuCatalogPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
-      <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="menu-catalog-screen">
+      <div className="menu-catalog-frame flex flex-col gap-5 sm:gap-6">
         <MenuCatalogHero
           companyName={hero.companyName || 'Mídia Kit'}
           logoUrl={hero.logoUrl}
@@ -339,22 +341,6 @@ export default function MenuCatalogPage() {
         />
 
         <MenuCatalogAbout aboutText={hero.aboutText} companyName={hero.companyName || 'Mídia Kit'} />
-
-        <MenuCatalogActions
-          onOpenRegionList={handleOpenRegionList}
-          onChangeRegion={handleChangeRegion}
-          onToggleSelectionMode={handleToggleSelectionMode}
-          onOpenCart={handleOpenCart}
-          onAddSelectedToCart={handleAddSelectedToCart}
-          regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
-          disabled={loading}
-          featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
-          featuredPointName={featuredPoint?.name ?? null}
-          cartCount={cartCount}
-          selectedCount={selectedCount}
-          canAddSelected={selectedCount > 0}
-          isSelectionMode={isSelectionMode}
-        />
 
         {missingToken ? (
           <Card className="rounded-[28px] border-amber-200 bg-amber-50 shadow-[0_12px_30px_rgba(245,158,11,0.08)]">
@@ -417,6 +403,22 @@ export default function MenuCatalogPage() {
             onRemoveFilter={handleRemoveFilter}
           />
         </section>
+
+        <MenuCatalogActions
+          onOpenRegionList={handleOpenRegionList}
+          onChangeRegion={handleChangeRegion}
+          onToggleSelectionMode={handleToggleSelectionMode}
+          onOpenCart={handleOpenCart}
+          onAddSelectedToCart={handleAddSelectedToCart}
+          regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
+          disabled={loading}
+          featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
+          featuredPointName={featuredPoint?.name ?? null}
+          cartCount={cartCount}
+          selectedCount={selectedCount}
+          canAddSelected={selectedCount > 0}
+          isSelectionMode={isSelectionMode}
+        />
 
         <section id="catalog-grid" className="scroll-mt-6">
           <MenuCatalogGrid

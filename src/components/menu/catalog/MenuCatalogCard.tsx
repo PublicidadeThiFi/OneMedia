@@ -555,94 +555,95 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
   };
 
   return (
-    <Card className={`group overflow-hidden rounded-[26px] border bg-[#dbe6f6] shadow-[0_12px_32px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(59,130,246,0.12)] ${isSelectionMode ? (isSelected ? 'border-emerald-300 ring-2 ring-emerald-200' : isSelectable ? 'border-sky-200' : 'border-slate-200 opacity-90') : 'border-[#cad8ec]'}`}>
-      <div className="grid gap-0 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
-        <CardMediaGallery
-          point={point}
-          availability={availability}
-          categoryLabel={categoryLabel}
-          typeLabel={typeLabel}
-          environmentLabel={environmentLabel}
-          onOpenDetail={onOpenDetail}
-          isSelectionMode={isSelectionMode}
-          isSelected={isSelected}
-          isSelectable={isSelectable}
-          onToggleSelection={onToggleSelection}
-        />
+    <Card className={`menu-card group ${isSelectionMode ? (isSelected ? 'border-emerald-300 ring-2 ring-emerald-200' : isSelectable ? 'border-sky-200' : 'border-slate-200 opacity-90') : ''}`}>
+      <div className="menu-card-inner">
+        <div className="menu-card-media">
+          <CardMediaGallery
+            point={point}
+            availability={availability}
+            categoryLabel={categoryLabel}
+            typeLabel={typeLabel}
+            environmentLabel={environmentLabel}
+            onOpenDetail={onOpenDetail}
+            isSelectionMode={isSelectionMode}
+            isSelected={isSelected}
+            isSelectable={isSelectable}
+            onToggleSelection={onToggleSelection}
+          />
+        </div>
 
-        <div className="flex min-w-0 flex-col justify-between p-4 sm:p-5">
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="text-[1.15rem] font-semibold leading-tight tracking-tight text-slate-950 sm:text-[1.25rem]">
-                  {point.name}
-                </div>
-              </div>
-
-              {!isSelectionMode ? (
-                <Button
-                  className="h-10 rounded-full bg-slate-950 px-4 text-sm text-white hover:bg-slate-900 sm:shrink-0"
-                  onClick={() => onOpenDetail(point.id)}
-                >
-                  Ver detalhes
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              ) : null}
+        <div className="menu-card-content">
+          <div className="menu-card-titlebar">
+            <div className="min-w-0">
+              <div className="menu-card-title">{point.name}</div>
             </div>
 
-            <div className="space-y-1 text-[13px] leading-6 text-slate-800 sm:text-[14px]">
-              <InfoLine label="Categoria" value={categoryLabel} />
-              <InfoLine label="Tipo" value={typeLabel} />
-              <InfoLine label="Endereço" value={address} />
-              <InfoLine label="Impacto Diário" value={point.dailyImpressions ? formatInteger(point.dailyImpressions) : null} />
-              <InfoLine label="Classes sociais" value={socialClasses} />
-              <InfoLine label="Dimensões do ponto" value={dimensions} />
-              <InfoLine label="Orientação" value={orientation} />
-            </div>
-
-            <div className="space-y-2 border-t border-slate-300/70 pt-3 text-[14px] text-slate-900">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="font-semibold">Valor mensal:</span>
-                <span className="font-medium">{visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</span>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="font-semibold">Valor Bi-semana:</span>
-                <span className="font-medium">{visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-3 border-t border-slate-300/70 pt-3">
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge className={`rounded-[10px] px-3 py-1.5 text-sm font-medium hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>
-                Status: {availability}
-              </Badge>
-
-              {mapUrl ? (
-                <Button asChild variant="outline" className="h-10 rounded-[12px] border-slate-300 bg-white px-4 text-sm text-slate-900 hover:bg-slate-50">
-                  <a href={mapUrl} target="_blank" rel="noreferrer noopener">
-                    <MapPin className="mr-2 h-4 w-4" />
-                    Ver no Google Maps
-                  </a>
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="text-xs leading-5 text-slate-600">
-              {operationalSummary} • {formatInteger(occupiedUnitsCount)} ocupadas • {formatInteger(availableUnitsCount)} disponíveis
-            </div>
-
-            {isSelectionMode ? (
+            {!isSelectionMode ? (
               <Button
-                className={`h-10 rounded-full sm:w-fit sm:min-w-[210px] ${isSelected ? 'bg-emerald-600 text-white hover:bg-emerald-700' : isSelectable ? 'bg-slate-950 text-white hover:bg-slate-900' : 'bg-slate-200 text-slate-500 hover:bg-slate-200'}`}
-                onClick={handleToggleSelection}
-                disabled={!isSelectable}
+                className="menu-card-detail-btn bg-slate-950 text-white hover:bg-slate-900 sm:shrink-0"
+                onClick={() => onOpenDetail(point.id)}
               >
-                {isSelected ? 'Remover seleção' : isSelectable ? 'Selecionar ponto' : 'Indisponível para seleção'}
+                Ver detalhes
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             ) : null}
           </div>
+
+          <div className="menu-card-info">
+            <div className="menu-card-info-grid">
+              <InfoLine label="Categoria" value={categoryLabel} />
+              <InfoLine label="Tipo" value={typeLabel} />
+            </div>
+            <InfoLine label="Endereço" value={address} />
+            <div className="menu-card-info-grid">
+              <InfoLine label="Impacto Diário" value={point.dailyImpressions ? formatInteger(point.dailyImpressions) : null} />
+              <InfoLine label="Classes sociais" value={socialClasses} />
+            </div>
+            <div className="menu-card-info-grid">
+              <InfoLine label="Dimensões do ponto" value={dimensions} />
+              <InfoLine label="Orientação" value={orientation} />
+            </div>
+          </div>
+
+          <div className="menu-card-price">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="font-semibold">Valor mensal:</span>
+              <span className="font-medium">{visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="font-semibold">Valor Bi-semana:</span>
+              <span className="font-medium">{visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</span>
+            </div>
+          </div>
+
+          <div className="menu-card-footer">
+            <Badge className={`rounded-md px-3 py-1.5 text-[12px] font-medium hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>
+              Status: {availability}
+            </Badge>
+
+            {mapUrl ? (
+              <a href={mapUrl} target="_blank" rel="noreferrer noopener" className="menu-card-maplink">
+                <MapPin className="h-3.5 w-3.5" />
+                Ver no Google Maps
+              </a>
+            ) : null}
+          </div>
+
+          <div className="mt-3 text-[12px] leading-5 text-slate-600">
+            {unitsCount > 0 ? `${formatInteger(unitsCount)} telas/faces • ` : ''}
+            {operationalSummary} • {formatInteger(occupiedUnitsCount)} ocupadas • {formatInteger(availableUnitsCount)} disponíveis
+          </div>
+
+          {isSelectionMode ? (
+            <Button
+              className={`menu-card-select-btn ${isSelected ? 'bg-emerald-600 text-white hover:bg-emerald-700' : isSelectable ? 'bg-slate-950 text-white hover:bg-slate-900' : 'bg-slate-200 text-slate-500 hover:bg-slate-200'}`}
+              onClick={handleToggleSelection}
+              disabled={!isSelectable}
+            >
+              {isSelected ? 'Remover seleção' : isSelectable ? 'Selecionar ponto' : 'Indisponível para seleção'}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
       </div>
     </Card>

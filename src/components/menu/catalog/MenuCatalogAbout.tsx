@@ -22,17 +22,14 @@ export function MenuCatalogAbout({ aboutText, companyName, className }: MenuCata
   const paragraphs = normalizeParagraphs(content);
 
   return (
-    <section className={cn('px-1 text-slate-900', className)} aria-label="Sobre nós">
-      <div className="max-w-5xl space-y-5">
-        <div className="text-[15px] font-semibold">Sobre nós:</div>
-
-        <div className="space-y-4 text-[15px] leading-8 text-slate-800 sm:text-[16px]">
-          {paragraphs.map((paragraph, index) => (
-            <p key={`${paragraph}-${index}`} className={index === 0 ? 'font-medium text-slate-900' : ''}>
-              {paragraph}
-            </p>
-          ))}
-        </div>
+    <section className={cn(className)} aria-label="Sobre nós">
+      <div className="menu-catalog-about-card">
+        <h2>Sobre nós:</h2>
+        {paragraphs.map((paragraph, index) => (
+          <p key={`${paragraph}-${index}`} className={index === 0 ? 'font-medium text-slate-900' : ''}>
+            {paragraph}
+          </p>
+        ))}
       </div>
     </section>
   );
