@@ -328,36 +328,33 @@ export default function MenuCatalogPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef4ff_35%,#f8fafc_100%)] text-slate-900">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900">
+      <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 lg:px-8 lg:py-8">
         <MenuCatalogHero
           companyName={hero.companyName || 'Mídia Kit'}
           logoUrl={hero.logoUrl}
           heroImageUrl={hero.heroImageUrl}
           generatedAt={hero.generatedAt}
           lastInventoryChangeAt={hero.lastInventoryChangeAt}
-          heroMetrics={hero.heroMetrics}
         />
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(300px,0.85fr)] xl:gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-          <MenuCatalogAbout aboutText={hero.aboutText} companyName={hero.companyName || 'Mídia Kit'} />
+        <MenuCatalogAbout aboutText={hero.aboutText} companyName={hero.companyName || 'Mídia Kit'} />
 
-          <MenuCatalogActions
-            onOpenRegionList={handleOpenRegionList}
-            onChangeRegion={handleChangeRegion}
-            onToggleSelectionMode={handleToggleSelectionMode}
-            onOpenCart={handleOpenCart}
-            onAddSelectedToCart={handleAddSelectedToCart}
-            regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
-            disabled={loading}
-            featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
-            featuredPointName={featuredPoint?.name ?? null}
-            cartCount={cartCount}
-            selectedCount={selectedCount}
-            canAddSelected={selectedCount > 0}
-            isSelectionMode={isSelectionMode}
-          />
-        </div>
+        <MenuCatalogActions
+          onOpenRegionList={handleOpenRegionList}
+          onChangeRegion={handleChangeRegion}
+          onToggleSelectionMode={handleToggleSelectionMode}
+          onOpenCart={handleOpenCart}
+          onAddSelectedToCart={handleAddSelectedToCart}
+          regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
+          disabled={loading}
+          featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
+          featuredPointName={featuredPoint?.name ?? null}
+          cartCount={cartCount}
+          selectedCount={selectedCount}
+          canAddSelected={selectedCount > 0}
+          isSelectionMode={isSelectionMode}
+        />
 
         {missingToken ? (
           <Card className="rounded-[28px] border-amber-200 bg-amber-50 shadow-[0_12px_30px_rgba(245,158,11,0.08)]">
@@ -436,11 +433,6 @@ export default function MenuCatalogPage() {
           />
         </section>
 
-        {!loading && filteredPoints.length > 0 ? (
-          <div className="pb-2 text-center text-xs uppercase tracking-[0.16em] text-slate-400">
-            Mostrando {formatInteger(filteredPoints.length)} de {formatInteger(baseStats.totalPoints)} veículos ativos no catálogo
-          </div>
-        ) : null}
       </div>
     </div>
   );
