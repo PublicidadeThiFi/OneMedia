@@ -51,7 +51,7 @@ export function MenuCatalogActions({
 
         <div className="menu-catalog-actions-group">
           <Button
-            className={`h-10 rounded-md px-4 text-[13px] ${isSelectionMode ? 'bg-rose-600 text-white hover:bg-rose-700' : 'bg-[#4169e1] text-white hover:bg-[#3557c7]'}`}
+            className={`menu-catalog-action-btn ${isSelectionMode ? 'menu-catalog-action-btn--danger' : 'menu-catalog-action-btn--primary'}`}
             onClick={onToggleSelectionMode}
           >
             {isSelectionMode ? <XCircle className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -60,7 +60,7 @@ export function MenuCatalogActions({
 
           {typeof onAddSelectedToCart === 'function' ? (
             <Button
-              className="h-10 rounded-md bg-slate-950 px-4 text-[13px] text-white hover:bg-slate-900 disabled:bg-slate-200 disabled:text-slate-500"
+              className="menu-catalog-action-btn menu-catalog-action-btn--cart"
               onClick={onAddSelectedToCart}
               disabled={!isSelectionMode || !canAddSelected}
             >
@@ -72,7 +72,7 @@ export function MenuCatalogActions({
           {typeof onOpenCart === 'function' ? (
             <Button
               variant="outline"
-              className="h-10 rounded-md border-slate-300 bg-white px-4 text-[13px] text-slate-900 hover:bg-slate-50"
+              className="menu-catalog-action-btn menu-catalog-action-btn--secondary"
               onClick={onOpenCart}
             >
               <ShoppingCart className="mr-2 h-4 w-4" />
@@ -83,7 +83,7 @@ export function MenuCatalogActions({
 
           <Button
             variant="outline"
-            className="h-10 rounded-md border-slate-300 bg-white px-4 text-[13px] text-slate-700 hover:bg-slate-50"
+            className="menu-catalog-action-btn menu-catalog-action-btn--secondary"
             onClick={onChangeRegion}
           >
             <MapPinned className="mr-2 h-4 w-4" />
@@ -93,7 +93,7 @@ export function MenuCatalogActions({
       </div>
 
       <div className="menu-catalog-actions-footer">
-        <div className="text-[13px] text-slate-600">
+        <div>
           {isSelectionMode ? (
             <span className="inline-flex items-center gap-2 font-medium text-slate-800">
               <CheckCircle2 className="h-4 w-4 text-[#4169e1]" />
@@ -108,7 +108,7 @@ export function MenuCatalogActions({
 
         <button
           type="button"
-          className="text-[13px] font-medium text-slate-600 underline-offset-4 transition hover:text-slate-900 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+          className="menu-catalog-actions-link"
           onClick={onOpenRegionList}
           disabled={disabled}
         >

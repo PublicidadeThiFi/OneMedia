@@ -4,16 +4,10 @@ import {
   ArrowRight,
   ExternalLink,
   ImageIcon,
-  Layers3,
   MapPinned,
   MapPin,
-  MonitorPlay,
   Play,
-  Tag,
 } from 'lucide-react';
-import { Badge } from '../../ui/badge';
-import { Button } from '../../ui/button';
-import { Card } from '../../ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { ImageWithFallback } from '../../figma/ImageWithFallback';
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
@@ -39,12 +33,6 @@ type MenuCatalogCardProps = {
   isSelected?: boolean;
   onToggleSelection?: (pointId: string) => void;
 };
-
-function resolveAvailabilityTone(value: Availability): string {
-  if (value === 'Disponível') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  if (value === 'Parcial') return 'border-amber-200 bg-amber-50 text-amber-700';
-  return 'border-rose-200 bg-rose-50 text-rose-700';
-}
 
 function applyMarkup(price: number | null, markupPercent: number, isAgency: boolean): number | null {
   if (!isAgency || price === null) return price;
@@ -140,26 +128,18 @@ function buildOperationalSummary(
   return 'Sem disponibilidade imediata';
 }
 
-function InfoLine({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="text-sm leading-6 text-slate-700">
-      <span className="font-semibold text-slate-900">{label}: </span>
-      <span>{value || 'Não informado'}</span>
-    </div>
-  );
-}
-
 function MediaFallback({ pointName }: { pointName: string }) {
   return (
-    <div className="relative flex h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_top,#eff6ff_0%,#dbeafe_46%,#bfdbfe_100%)]">
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.04)_0%,rgba(15,23,42,0.1)_100%)]" />
+    <div className="menu-card-media-fallback">
       <div className="relative z-10 flex flex-col items-center gap-3 px-6 text-center text-slate-700">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/80 bg-white/80 shadow-[0_12px_30px_rgba(15,23,42,0.08)]">
           <ImageIcon className="h-7 w-7 text-slate-500" />
         </div>
         <div>
           <div className="text-sm font-semibold text-slate-900">Mídia indisponível</div>
-          <div className="mt-1 max-w-[16rem] text-xs leading-5 text-slate-600">As mídias públicas deste ponto ainda não foram disponibilizadas para visualização.</div>
+          <div className="mt-1 max-w-[16rem] text-xs leading-5 text-slate-600">
+            As mídias públicas deste ponto ainda não foram disponibilizadas para visualização.
+          </div>
         </div>
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{pointName}</div>
       </div>
@@ -195,29 +175,22 @@ function CardMapFace({ point, isActive }: { point: PublicMediaKitPoint; isActive
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return (
-      <div className="flex h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full items-center justify-center bg-[radial-gradient(circle_at_top,#e0f2fe_0%,#dbeafe_40%,#bfdbfe_100%)] px-6 text-center">
+      <div className="menu-card-map-surface flex items-center justify-center px-6 text-center">
         <div>
           <div className="text-sm font-semibold text-slate-900">Mapa indisponível</div>
-          <div className="mt-2 text-xs leading-5 text-slate-600">As coordenadas públicas deste ponto ainda não estão disponíveis para exibição no card.</div>
+          <div className="mt-2 text-xs leading-5 text-slate-600">
+            As coordenadas públicas deste ponto ainda não estão disponíveis para exibição no card.
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full" onClick={(event) => event.stopPropagation()}>
-      <MapContainer
-        center={[lat, lng]}
-        zoom={16}
-        scrollWheelZoom
-        className="h-full w-full"
-        attributionControl={false}
-      >
+    <div className="menu-card-map-surface" onClick={(event) => event.stopPropagation()}>
+      <MapContainer center={[lat, lng]} zoom={16} scrollWheelZoom className="h-full w-full" attributionControl={false}>
         <CatalogCardMapAutoFit isActive={isActive} />
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="&copy; OpenStreetMap contributors"
-        />
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
         <CircleMarker
           center={[lat, lng]}
           radius={9}
@@ -235,12 +208,23 @@ function CardMapFace({ point, isActive }: { point: PublicMediaKitPoint; isActive
   );
 }
 
-function CardMediaGallery({ point, availability, categoryLabel, typeLabel, environmentLabel, onOpenDetail, isSelectionMode = false, isSelected = false, isSelectable = false, onToggleSelection }: {
+function statusCssClass(value: Availability): string {
+  if (value === 'Disponível') return 'menu-card-status--disponivel';
+  if (value === 'Parcial') return 'menu-card-status--parcial';
+  return 'menu-card-status--ocupado';
+}
+
+function CardMediaGallery({
+  point,
+  availability,
+  onOpenDetail,
+  isSelectionMode = false,
+  isSelected = false,
+  isSelectable = false,
+  onToggleSelection,
+}: {
   point: PublicMediaKitPoint;
   availability: Availability;
-  categoryLabel: string;
-  typeLabel: string;
-  environmentLabel: string | null;
   onOpenDetail: (pointId: string) => void;
   isSelectionMode?: boolean;
   isSelected?: boolean;
@@ -321,7 +305,7 @@ function CardMediaGallery({ point, availability, categoryLabel, typeLabel, envir
     setIsMapFlipped((current) => !current);
   };
 
-  const handlePrimaryMediaAction = () => {
+  const handleCardAreaClick = () => {
     if (isSelectionMode) {
       if (isSelectable && typeof onToggleSelection === 'function') {
         onToggleSelection(point.id);
@@ -329,160 +313,72 @@ function CardMediaGallery({ point, availability, categoryLabel, typeLabel, envir
       return;
     }
 
-    onOpenDetail(point.id);
+    if (!isMapFlipped) {
+      onOpenDetail(point.id);
+    }
   };
 
   return (
     <>
-      <div className="relative h-full min-h-[220px] w-full [perspective:1800px] sm:min-h-[240px] lg:min-h-[260px]">
-        <div
-          className="relative h-full min-h-[220px] w-full transition-transform duration-700 [transform-style:preserve-3d] sm:min-h-[240px] lg:min-h-[260px]"
-          style={{ transform: isMapFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
-        >
-          <div className="absolute inset-0 overflow-hidden rounded-none [backface-visibility:hidden]">
-            <div className="relative block h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full overflow-hidden bg-slate-100 text-left">
-              <button
-                type="button"
-                aria-label={`Abrir detalhes de ${point.name}`}
-                className="absolute inset-0 z-0"
-                onClick={handlePrimaryMediaAction}
-              />
-              {activeMedia && activeMediaUrl ? (
-                activeMedia.kind === 'video' ? (
-                  <div className="relative h-full w-full bg-slate-950">
-                    <button
-                      type="button"
-                      aria-label={`Expandir vídeo de ${point.name}`}
-                      className="absolute inset-0 z-10 cursor-zoom-in"
-                      onClick={handleVideoPreviewClick}
-                    />
-                    <video
-                      key={activeMedia.id}
-                      src={activeMediaUrl}
-                      className="h-full w-full object-cover"
-                      muted
-                      playsInline
-                      loop
-                      autoPlay
-                      preload="metadata"
-                      onError={handleMediaFailure}
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08)_0%,rgba(2,6,23,0.12)_34%,rgba(2,6,23,0.6)_100%)]" />
-                    <div className="absolute right-4 top-4 rounded-full border border-white/25 bg-black/35 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
-                      Vídeo
-                    </div>
-                    <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/20 bg-black/35 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
-                      <Play className="h-3.5 w-3.5 fill-current" />
-                      Clique para expandir
-                    </div>
-                    <div className="absolute inset-x-5 bottom-6 z-10 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-center text-sm font-medium text-white backdrop-blur-sm">
-                      Clique para expandir e visualizar o vídeo completo.
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <ImageWithFallback
-                      src={activeMediaUrl}
-                      alt={point.name}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.12)_36%,rgba(15,23,42,0.52)_100%)]" />
-                  </>
-                )
+      <div className="menu-card-flip-stage" onClick={handleCardAreaClick}>
+        <div className="menu-card-flip" style={{ transform: isMapFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
+          <div className="menu-card-face">
+            {activeMediaUrl ? (
+              activeMedia?.kind === 'video' ? (
+                <>
+                  <video key={`${point.id}:${activeMedia.id ?? activeIndex}`} className="menu-card-media-asset" muted playsInline preload="metadata" onError={handleMediaFailure}>
+                    <source src={activeMediaUrl} />
+                  </video>
+                  <button type="button" className="menu-card-video-overlay" onClick={handleVideoPreviewClick}>
+                    <Play className="h-4 w-4" />
+                    Clique para expandir
+                  </button>
+                </>
               ) : (
-                <MediaFallback pointName={point.name} />
-              )}
+                <ImageWithFallback src={activeMediaUrl} alt={point.name} className="menu-card-media-asset" onError={handleMediaFailure} />
+              )
+            ) : (
+              <MediaFallback pointName={point.name} />
+            )}
 
-              <div className="pointer-events-none absolute left-4 right-4 top-4 z-10 flex items-start justify-between gap-3">
-                <Badge className={`rounded-full px-3 py-1.5 text-xs font-semibold hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>
-                  {availability}
-                </Badge>
-              </div>
+            <div className="menu-card-media-overlay">
+              <span className="menu-card-media-status">{availability}</span>
 
               {canNavigate ? (
                 <>
-                  <button
-                    type="button"
-                    aria-label="Ver mídia anterior"
-                    className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full sm:left-4 sm:h-10 sm:w-10 border border-[#ffd8a8] bg-[#f97316] text-white shadow-[0_12px_24px_rgba(249,115,22,0.34)] transition hover:scale-[1.03] hover:bg-[#ea580c]"
-                    onClick={(event) => handleNavigationClick(event, -1)}
-                  >
-                    <ArrowLeft className="h-4.5 w-4.5" />
+                  <button type="button" aria-label="Mídia anterior" className="menu-card-carousel-btn menu-card-carousel-btn--prev" onClick={(event) => handleNavigationClick(event, -1)}>
+                    <ArrowLeft className="h-4 w-4" />
                   </button>
-                  <button
-                    type="button"
-                    aria-label="Ver próxima mídia"
-                    className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full sm:right-4 sm:h-10 sm:w-10 border border-[#ffd8a8] bg-[#f97316] text-white shadow-[0_12px_24px_rgba(249,115,22,0.34)] transition hover:scale-[1.03] hover:bg-[#ea580c]"
-                    onClick={(event) => handleNavigationClick(event, 1)}
-                  >
-                    <ArrowRight className="h-4.5 w-4.5" />
+                  <button type="button" aria-label="Próxima mídia" className="menu-card-carousel-btn menu-card-carousel-btn--next" onClick={(event) => handleNavigationClick(event, 1)}>
+                    <ArrowRight className="h-4 w-4" />
                   </button>
                 </>
-              ) : null}
-
-              {mediaGallery.length > 0 ? (
-                <div className="absolute left-3 top-14 z-10 rounded-full sm:left-4 sm:top-1/2 sm:-translate-y-1/2 sm:translate-x-12 border border-white/25 bg-black/30 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-                  {activeIndex + 1}/{mediaGallery.length}
-                </div>
-              ) : null}
-
-              {mediaGallery.length > 1 ? (
-                <div className="absolute bottom-3 left-[3.6rem] z-10 flex max-w-[calc(100%-4.4rem)] sm:bottom-4 sm:left-[4.55rem] sm:max-w-[calc(100%-5.5rem)] items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-3 py-1.5 backdrop-blur-sm">
-                  {mediaGallery.slice(0, 8).map((item, index) => (
-                    <span
-                      key={item.id}
-                      className={`block h-1.5 rounded-full transition-all ${index === activeIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/45'}`}
-                    />
-                  ))}
-                  {mediaGallery.length > 8 ? <span className="ml-1 text-[10px] font-semibold text-white/80">+{mediaGallery.length - 8}</span> : null}
-                </div>
               ) : null}
 
               <button
                 type="button"
                 aria-label={isMapFlipped ? `Voltar para a mídia de ${point.name}` : `Ver mapa de ${point.name}`}
-                disabled={!hasMapCoordinates}
-                className={`absolute bottom-3 left-3 z-20 flex h-10 w-10 items-center justify-center rounded-full sm:bottom-4 sm:left-4 sm:h-11 sm:w-11 border border-white/35 backdrop-blur-sm transition ${hasMapCoordinates ? 'bg-white/90 text-slate-900 shadow-[0_12px_24px_rgba(15,23,42,0.18)] hover:scale-[1.03]' : 'cursor-not-allowed bg-white/55 text-slate-400'}`}
+                className="menu-card-map-toggle"
                 onClick={handleFlipToggle}
+                disabled={!hasMapCoordinates}
+                style={!hasMapCoordinates ? { opacity: 0.45, cursor: 'not-allowed' } : undefined}
               >
-                <MapPinned className="h-4.5 w-4.5" />
+                <MapPinned className="h-5 w-5" />
               </button>
 
-              <div className="pointer-events-none absolute inset-x-3 bottom-3 z-10 flex items-center justify-end sm:inset-x-4 sm:bottom-4">
-                <div className="rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur-sm">
-                  {isSelectionMode ? (isSelectable ? (isSelected ? 'Selecionado' : 'Selecionar') : 'Indisponível') : 'Ver detalhes'}
-                </div>
-              </div>
+              {mediaGallery.length > 0 ? <div className="menu-card-media-counter">{activeIndex + 1} / {mediaGallery.length}</div> : null}
             </div>
           </div>
 
-          <div
-            className="absolute inset-0 overflow-hidden rounded-none bg-slate-100 [backface-visibility:hidden]"
-            style={{ transform: 'rotateY(180deg)' }}
-          >
-            <div className="relative h-full min-h-[220px] sm:min-h-[240px] lg:min-h-[260px] w-full">
-              <CardMapFace point={point} isActive={isMapFlipped} />
-              <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] flex flex-col items-start gap-2 sm:inset-x-4 sm:top-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                <Badge className="rounded-full border border-sky-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-sky-900 shadow-[0_10px_30px_rgba(15,23,42,0.12)] hover:bg-white">
-                  Localização do ponto
-                </Badge>
-                <div className="rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-700 shadow-[0_10px_30px_rgba(15,23,42,0.12)]">
-                  Arraste para explorar
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label={`Voltar para a mídia de ${point.name}`}
-                className="absolute bottom-3 left-3 z-[500] flex h-10 w-10 items-center justify-center rounded-full sm:bottom-4 sm:left-4 sm:h-11 sm:w-11 border border-white/70 bg-white/95 text-slate-900 shadow-[0_12px_24px_rgba(15,23,42,0.18)] transition hover:scale-[1.03]"
-                onClick={handleFlipToggle}
-              >
-                <MapPinned className="h-4.5 w-4.5" />
-              </button>
-              <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[500] rounded-2xl sm:inset-x-4 sm:bottom-4 border border-white/65 bg-white/88 px-4 py-3 text-slate-900 shadow-[0_14px_36px_rgba(15,23,42,0.16)] backdrop-blur-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Prévia do mapa</div>
-                <div className="mt-1 text-sm font-semibold">{point.name}</div>
-                <div className="mt-1 text-xs leading-5 text-slate-600">Clique novamente no ícone para voltar à mídia do card.</div>
-              </div>
+          <div className="menu-card-map-face">
+            <CardMapFace point={point} isActive={isMapFlipped} />
+            <button type="button" className="menu-card-map-toggle" onClick={handleFlipToggle}>
+              <MapPinned className="h-5 w-5" />
+            </button>
+            <div className="menu-card-map-caption">
+              <small>Prévia do mapa</small>
+              <strong>{point.name}</strong>
+              <span>Clique novamente no ícone para voltar à mídia do card.</span>
             </div>
           </div>
         </div>
@@ -544,9 +440,8 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
   const socialClasses = formatSocialClasses(point.socialClasses);
   const nextAvailabilityLabel = getNextAvailabilityLabel(point);
   const operationalSummary = buildOperationalSummary(availability, availableUnitsCount, occupiedUnitsCount, nextAvailabilityLabel);
-  const categoryLabel = String(point.subcategory ?? '').trim() || 'Sem categoria';
-  const typeLabel = String(point.type ?? '').trim() || 'Mídia';
-  const environmentLabel = String(point.environment ?? '').trim() || null;
+  const categoryLabel = String(point.subcategory ?? '').trim() || 'OUTDOOR';
+  const typeLabel = String(point.type ?? '').trim() || 'DOOH';
   const isSelectable = availability === 'Disponível';
 
   const handleToggleSelection = () => {
@@ -555,15 +450,12 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
   };
 
   return (
-    <Card className={`menu-card group ${isSelectionMode ? (isSelected ? 'border-emerald-300 ring-2 ring-emerald-200' : isSelectable ? 'border-sky-200' : 'border-slate-200 opacity-90') : ''}`}>
+    <article className={`menu-card ${isSelectionMode ? (isSelected ? 'border-emerald-300 ring-2 ring-emerald-200' : isSelectable ? 'border-sky-200' : 'opacity-90') : ''}`}>
       <div className="menu-card-inner">
         <div className="menu-card-media">
           <CardMediaGallery
             point={point}
             availability={availability}
-            categoryLabel={categoryLabel}
-            typeLabel={typeLabel}
-            environmentLabel={environmentLabel}
             onOpenDetail={onOpenDetail}
             isSelectionMode={isSelectionMode}
             isSelected={isSelected}
@@ -574,78 +466,62 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
 
         <div className="menu-card-content">
           <div className="menu-card-titlebar">
-            <div className="min-w-0">
-              <div className="menu-card-title">{point.name}</div>
-            </div>
-
+            <h3 className="menu-card-title">{point.name}</h3>
             {!isSelectionMode ? (
-              <Button
-                className="menu-card-detail-btn bg-slate-950 text-white hover:bg-slate-900 sm:shrink-0"
-                onClick={() => onOpenDetail(point.id)}
-              >
+              <button className="menu-card-detail-btn" onClick={() => onOpenDetail(point.id)}>
                 Ver detalhes
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             ) : null}
           </div>
 
-          <div className="menu-card-info">
-            <div className="menu-card-info-grid">
-              <InfoLine label="Categoria" value={categoryLabel} />
-              <InfoLine label="Tipo" value={typeLabel} />
-            </div>
-            <InfoLine label="Endereço" value={address} />
-            <div className="menu-card-info-grid">
-              <InfoLine label="Impacto Diário" value={point.dailyImpressions ? formatInteger(point.dailyImpressions) : null} />
-              <InfoLine label="Classes sociais" value={socialClasses} />
-            </div>
-            <div className="menu-card-info-grid">
-              <InfoLine label="Dimensões do ponto" value={dimensions} />
-              <InfoLine label="Orientação" value={orientation} />
-            </div>
+          <div className="menu-card-copy">
+            <div className="menu-card-line"><strong>Categoria:</strong> {categoryLabel}</div>
+            <div className="menu-card-line"><strong>Tipo:</strong> {typeLabel}</div>
+            <div className="menu-card-line"><strong>Endereço:</strong> {address || 'Não informado'}</div>
+            <div className="menu-card-line"><strong>Impacto Diário:</strong> {point.dailyImpressions ? formatInteger(point.dailyImpressions) : 'Não informado'}</div>
+            <div className="menu-card-line"><strong>Classes sociais:</strong> {socialClasses || 'Não informado'}</div>
+            <div className="menu-card-line"><strong>Dimensões do ponto:</strong> {dimensions || 'Não informado'}</div>
+            <div className="menu-card-line"><strong>Orientação:</strong> {orientation || 'Não informado'}</div>
           </div>
 
-          <div className="menu-card-price">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="font-semibold">Valor mensal:</span>
-              <span className="font-medium">{visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</span>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="font-semibold">Valor Bi-semana:</span>
-              <span className="font-medium">{visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</span>
-            </div>
+          <div className="menu-card-pricing">
+            <div className="menu-card-price-row"><strong>Valor mensal:</strong> {visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</div>
+            <div className="menu-card-price-row"><strong>Valor Bi-semana:</strong> {visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</div>
           </div>
 
-          <div className="menu-card-footer">
-            <Badge className={`rounded-md px-3 py-1.5 text-[12px] font-medium hover:bg-inherit ${resolveAvailabilityTone(availability)}`}>
-              Status: {availability}
-            </Badge>
-
+          <div className="menu-card-bottom">
+            <span className={`menu-card-status ${statusCssClass(availability)}`}>Status: {availability}</span>
             {mapUrl ? (
               <a href={mapUrl} target="_blank" rel="noreferrer noopener" className="menu-card-maplink">
                 <MapPin className="h-3.5 w-3.5" />
                 Ver no Google Maps
+                <ExternalLink className="h-3.5 w-3.5" />
               </a>
             ) : null}
           </div>
 
-          <div className="mt-3 text-[12px] leading-5 text-slate-600">
+          <div className="menu-card-meta">
             {unitsCount > 0 ? `${formatInteger(unitsCount)} telas/faces • ` : ''}
             {operationalSummary} • {formatInteger(occupiedUnitsCount)} ocupadas • {formatInteger(availableUnitsCount)} disponíveis
           </div>
 
           {isSelectionMode ? (
-            <Button
-              className={`menu-card-select-btn ${isSelected ? 'bg-emerald-600 text-white hover:bg-emerald-700' : isSelectable ? 'bg-slate-950 text-white hover:bg-slate-900' : 'bg-slate-200 text-slate-500 hover:bg-slate-200'}`}
+            <button
+              className="menu-card-select-btn"
+              style={isSelected
+                ? { background: '#16a34a', color: '#fff' }
+                : isSelectable
+                  ? { background: '#030712', color: '#fff' }
+                  : { background: '#e5e7eb', color: '#64748b', cursor: 'not-allowed' }}
               onClick={handleToggleSelection}
               disabled={!isSelectable}
             >
               {isSelected ? 'Remover seleção' : isSelectable ? 'Selecionar ponto' : 'Indisponível para seleção'}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            </button>
           ) : null}
         </div>
       </div>
-    </Card>
+    </article>
   );
 }

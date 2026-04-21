@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import './menuCatalogTheme.css';
 import { AlertCircle, KeyRound } from 'lucide-react';
 import { Card, CardContent } from '../../ui/card';
 import { useNavigation } from '../../../contexts/NavigationContext';

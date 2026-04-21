@@ -36,52 +36,36 @@ export function MenuCatalogHero({
 }: MenuCatalogHeroProps) {
   const displayUpdatedAt = lastInventoryChangeAt ?? generatedAt;
   const year = resolveYear(displayUpdatedAt ?? generatedAt);
+  const heroBackgroundImage = heroImageUrl
+    ? `linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.14) 100%), url('${heroImageUrl}')`
+    : `url('/fundo_capa_cardapio_global.png'), url('/figma-assets/midiakit.png'), linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%)`;
 
   return (
-    <section className="space-y-4 sm:space-y-5">
+    <section>
       <header className="menu-catalog-topbar">
         <div className="menu-catalog-brand">
-          <img src={oneMediaLogo} alt="OneMedia" className="h-6 w-auto sm:h-7" />
-          <span className="text-[15px] font-semibold text-slate-800">OneMedia</span>
+          <img src={oneMediaLogo} alt="OneMedia" />
+          <span className="menu-catalog-brand-name">OneMedia</span>
         </div>
         <div className="menu-catalog-breadcrumb">
           <strong>Mídia Kit</strong>
-          <span className="text-slate-300">|</span>
+          <span>|</span>
           <span>{companyName}</span>
         </div>
       </header>
 
-      <div className="menu-catalog-hero-card p-2 sm:p-3">
-        <div className="menu-catalog-hero-surface">
-          <div className="absolute inset-0">
-            {heroImageUrl ? (
-              <ImageWithFallback
-                src={heroImageUrl}
-                alt={companyName}
-                className="h-full w-full object-cover object-center opacity-25"
-              />
-            ) : (
-              <div
-                className="h-full w-full bg-cover bg-center opacity-25"
-                style={{
-                  backgroundImage: "url('/fundo_capa_cardapio_global.png'), linear-gradient(135deg,#edf2f7 0%,#f8fafc 50%,#eef2f7 100%)",
-                }}
-              />
-            )}
-          </div>
-
+      <div className="menu-catalog-hero-card">
+        <div className="menu-catalog-hero-surface" style={{ backgroundImage: heroBackgroundImage }}>
           <div className="menu-catalog-hero-content">
-            <div className="flex flex-1 items-center justify-center py-8 sm:py-10">
-              <div className="menu-catalog-logo-box">
-                {logoUrl ? (
-                  <ImageWithFallback src={logoUrl} alt={companyName} className="h-16 w-auto object-contain sm:h-20 lg:h-24" />
-                ) : (
-                  <div className="text-4xl font-semibold tracking-tight text-[#2b1a4d] sm:text-5xl lg:text-6xl">{companyName}</div>
-                )}
-              </div>
+            <div className="menu-catalog-logo-box">
+              {logoUrl ? (
+                <ImageWithFallback src={logoUrl} alt={companyName} className="menu-catalog-logo-image" />
+              ) : (
+                <div className="menu-catalog-logo-fallback">{companyName}</div>
+              )}
             </div>
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="menu-catalog-hero-footer">
               <div className="menu-catalog-kit-lockup">
                 <div className="line-media">MÍDIA</div>
                 <div className="line-kit">
