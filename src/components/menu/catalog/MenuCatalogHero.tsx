@@ -62,7 +62,7 @@ export function MenuCatalogHero({
       <div className="menu-catalog-hero-card">
         <div className="menu-catalog-hero-surface" style={{ backgroundImage: HERO_BACKGROUND_IMAGE }}>
           <div className="menu-catalog-hero-content">
-            <div className="menu-catalog-logo-box">
+            <div className="menu-catalog-logo-box" aria-label={`Logo de ${companyName}`}>
               {logoUrl ? (
                 <ImageWithFallback src={logoUrl} alt={companyName} className="menu-catalog-logo-image" />
               ) : (

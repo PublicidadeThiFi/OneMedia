@@ -123,8 +123,8 @@ function getUnitLabel(unit: PublicMediaKitUnit): string {
 
 function UnitPreview({ src, alt, compact = false }: { src?: string | null; alt: string; compact?: boolean }) {
   const className = compact
-    ? 'relative aspect-[4/3] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100'
-    : 'relative aspect-[16/9] overflow-hidden rounded-3xl border border-slate-200 bg-slate-100';
+    ? 'menu-face-preview menu-face-preview--compact'
+    : 'menu-face-preview menu-face-preview--point';
 
   if (!src) {
     return (
@@ -145,9 +145,9 @@ function UnitPreview({ src, alt, compact = false }: { src?: string | null; alt: 
 
 function SummaryMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold leading-none text-slate-950">{value}</div>
+    <div className="menu-face-dialog-metric">
+      <div className="menu-face-dialog-metric-label">{label}</div>
+      <div className="menu-face-dialog-metric-value">{value}</div>
     </div>
   );
 }
@@ -225,59 +225,60 @@ export function MenuCatalogFacePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-[980px] gap-0 overflow-hidden rounded-[28px] border border-slate-200 bg-white p-0 shadow-[0_24px_60px_rgba(15,23,42,0.18)] sm:w-[calc(100vw-2rem)]">
-        <DialogHeader className="border-b border-slate-200 px-4 py-4 sm:px-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-indigo-700 hover:bg-indigo-50">
+      <DialogContent
+        className="menu-face-dialog max-w-none gap-0 overflow-hidden border border-[rgba(17,24,39,0.10)] p-0"
+        style={{ width: 'min(1120px, calc(100vw - 1rem))', maxHeight: 'calc(100dvh - 1rem)' }}
+      >
+        <DialogHeader className="menu-face-dialog-header">
+          <div className="menu-face-dialog-badges">
+            <Badge className="menu-face-dialog-badge menu-face-dialog-badge--primary">
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Seleção de faces/telas
             </Badge>
-            <Badge variant="secondary" className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-600">
+            <Badge variant="secondary" className="menu-face-dialog-badge menu-face-dialog-badge--secondary">
               {selectedCount}/{selectableUnits.length || 0} selecionadas
             </Badge>
           </div>
-          <DialogTitle className="mt-3 text-xl font-semibold tracking-tight text-slate-950">
-            {point?.name ?? 'Selecionar faces/telas'}
-          </DialogTitle>
-          <DialogDescription className="mt-1 text-sm leading-6 text-slate-600">
+          <DialogTitle className="menu-face-dialog-title">{point?.name ?? 'Selecionar faces/telas'}</DialogTitle>
+          <DialogDescription className="menu-face-dialog-description">
             Escolha uma ou mais faces para adicionar ao carrinho sem sair do catálogo.
           </DialogDescription>
         </DialogHeader>
 
         {point ? (
-          <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto px-4 py-4 sm:px-5">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-              <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-                <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)] md:items-start">
+          <div className="menu-face-dialog-scroll">
+            <div className="menu-face-dialog-top">
+              <section className="menu-face-dialog-panel menu-face-dialog-panel--point">
+                <div className="menu-face-dialog-point-grid">
                   <UnitPreview src={point.mainImageUrl || point.images?.[0] || ''} alt={point.name} />
 
                   <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Ponto selecionado</div>
-                    <div className="mt-2 text-lg font-semibold text-slate-950">{point.name}</div>
-                    <div className="mt-2 inline-flex items-start gap-2 text-sm leading-5 text-slate-600">
+                    <div className="menu-face-dialog-kicker">Ponto selecionado</div>
+                    <div className="menu-face-dialog-point-title">{point.name}</div>
+                    <div className="menu-face-dialog-point-address">
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                       <span className="menu-copy-wrap">{formatAddress(point) || 'Endereço não informado'}</span>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="menu-face-dialog-metrics-grid">
                       <SummaryMetric label="Faces/telas" value={units.length} />
                       <SummaryMetric label="Disponíveis" value={selectableUnits.length} />
                       <SummaryMetric label="Selecionadas" value={selectedCount} />
                     </div>
                   </div>
                 </div>
-              </div>
+              </section>
 
-              <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.05)] lg:sticky lg:top-0 lg:self-start">
+              <aside className="menu-face-dialog-panel menu-face-dialog-panel--aside">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Resumo</div>
-                    <div className="mt-1 text-base font-semibold text-slate-950">Escolha final</div>
+                    <div className="menu-face-dialog-kicker">Resumo</div>
+                    <div className="menu-face-dialog-aside-title">Escolha final</div>
                   </div>
                   <CheckCircle2 className={`h-5 w-5 ${selectedCount > 0 ? 'text-emerald-500' : 'text-slate-300'}`} />
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="menu-face-dialog-note">
                   <div className="text-sm font-semibold text-slate-900">Seleção atual</div>
                   <div className="mt-1 text-sm text-slate-600">
                     {selectedCount > 0
@@ -286,8 +287,8 @@ export function MenuCatalogFacePickerDialog({
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="menu-face-dialog-side-grid">
+                  <div className="menu-face-dialog-note">
                     <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <CalendarRange className="h-3.5 w-3.5" />
                       Período
@@ -295,7 +296,7 @@ export function MenuCatalogFacePickerDialog({
                     <div className="mt-2 text-sm font-medium text-slate-900">Mensal e bi-semana</div>
                     <div className="mt-1 text-xs text-slate-500">As duas referências aparecem em cada face.</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                  <div className="menu-face-dialog-note">
                     <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                       <Clock3 className="h-3.5 w-3.5" />
                       Disponibilidade
@@ -305,15 +306,15 @@ export function MenuCatalogFacePickerDialog({
                   </div>
                 </div>
 
-                <Button className="mt-4 h-11 w-full gap-2 rounded-2xl" onClick={handleAddSelected} disabled={selectedCount === 0}>
+                <Button className="menu-face-dialog-submit" onClick={handleAddSelected} disabled={selectedCount === 0}>
                   <ShoppingCart className="h-4 w-4" />
                   Adicionar ao carrinho
                 </Button>
-              </div>
+              </aside>
             </div>
 
             {units.length > 0 ? (
-              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div className="menu-face-dialog-units">
                 {sortedUnits.map((unit) => {
                   const checked = !!selected[unit.id];
                   const isUnavailable = !isUnitSelectable(unit);
@@ -330,16 +331,16 @@ export function MenuCatalogFacePickerDialog({
                       key={unit.id}
                       type="button"
                       onClick={() => handleToggleUnit(unit)}
-                      className={`w-full rounded-[24px] border text-left transition-all duration-200 ${
+                      className={`menu-face-unit-card ${
                         checked
-                          ? 'border-slate-900 bg-slate-900 text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]'
+                          ? 'menu-face-unit-card--selected'
                           : isUnavailable
-                            ? 'cursor-not-allowed border-slate-200 bg-slate-50/70 text-slate-500'
-                            : 'border-slate-200 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:border-indigo-200'
+                            ? 'menu-face-unit-card--disabled'
+                            : 'menu-face-unit-card--default'
                       }`}
                       disabled={isUnavailable}
                     >
-                      <div className="grid gap-4 p-4 sm:grid-cols-[150px_minmax(0,1fr)]">
+                      <div className="menu-face-unit-card-grid">
                         <UnitPreview src={unit.imageUrl || point.mainImageUrl || ''} alt={getUnitLabel(unit)} compact />
 
                         <div className="min-w-0">
@@ -402,7 +403,7 @@ export function MenuCatalogFacePickerDialog({
                 })}
               </div>
             ) : (
-              <div className="mt-4 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <div className="menu-face-dialog-empty">
                 <div className="text-sm font-semibold text-slate-900">Nenhuma face/tela encontrada</div>
                 <div className="mt-1 text-sm text-slate-600">Este ponto não possui faces ativas para seleção dentro do catálogo neste momento.</div>
               </div>

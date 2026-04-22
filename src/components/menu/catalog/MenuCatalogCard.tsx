@@ -352,14 +352,9 @@ function CardMediaGallery({
 
           <div className="menu-card-map-face">
             <CardMapFace point={point} isActive={isMapFlipped} />
-            <button type="button" className="menu-card-map-toggle" onClick={handleFlipToggle}>
+            <button type="button" className="menu-card-map-toggle" onClick={handleFlipToggle} aria-label={`Voltar para a mídia de ${point.name}`}>
               <MapPinned className="h-5 w-5" />
             </button>
-            <div className="menu-card-map-caption">
-              <small>Prévia do mapa</small>
-              <strong>{point.name}</strong>
-              <span>Clique novamente no ícone para voltar à mídia do card.</span>
-            </div>
           </div>
         </div>
       </div>
