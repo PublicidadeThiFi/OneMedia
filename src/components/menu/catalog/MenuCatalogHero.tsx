@@ -1,5 +1,4 @@
 import { ImageWithFallback } from '../../figma/ImageWithFallback';
-import oneMediaLogo from '../../../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 function formatInSaoPaulo(value: string | null, options: Intl.DateTimeFormatOptions): string | null {
   if (!value) return null;
@@ -29,11 +28,6 @@ function formatGeneratedAt(value: string | null): string {
   return `Última atualização em ${formatted} (horário de Brasília)`;
 }
 
-function resolveYear(value: string | null): string {
-  const formatted = formatInSaoPaulo(value, { year: 'numeric' });
-  return formatted ?? formatInSaoPaulo(new Date().toISOString(), { year: 'numeric' }) ?? String(new Date().getFullYear());
-}
-
 type MenuCatalogHeroProps = {
   companyName: string;
   logoUrl: string | null;
@@ -42,8 +36,7 @@ type MenuCatalogHeroProps = {
   lastInventoryChangeAt: string | null;
 };
 
-const HERO_BACKGROUND_IMAGE =
-  "linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.16) 100%), url('/fundo_capa_cardapio_global.png')";
+const HERO_BACKGROUND_IMAGE = "url('/fundo_capa_cardapio_global.png')";
 
 export function MenuCatalogHero({
   companyName,
@@ -52,14 +45,11 @@ export function MenuCatalogHero({
   lastInventoryChangeAt,
 }: MenuCatalogHeroProps) {
   const displayUpdatedAt = lastInventoryChangeAt ?? generatedAt;
-  const year = resolveYear(displayUpdatedAt ?? generatedAt);
-  const heroBackgroundImage = HERO_BACKGROUND_IMAGE;
 
   return (
     <section>
       <header className="menu-catalog-topbar">
         <div className="menu-catalog-brand">
-          <img src={oneMediaLogo} alt="OneMedia" />
           <span className="menu-catalog-brand-name">OneMedia</span>
         </div>
         <div className="menu-catalog-breadcrumb">
@@ -70,7 +60,7 @@ export function MenuCatalogHero({
       </header>
 
       <div className="menu-catalog-hero-card">
-        <div className="menu-catalog-hero-surface" style={{ backgroundImage: heroBackgroundImage }}>
+        <div className="menu-catalog-hero-surface" style={{ backgroundImage: HERO_BACKGROUND_IMAGE }}>
           <div className="menu-catalog-hero-content">
             <div className="menu-catalog-logo-box">
               {logoUrl ? (
@@ -81,13 +71,6 @@ export function MenuCatalogHero({
             </div>
 
             <div className="menu-catalog-hero-footer">
-              <div className="menu-catalog-kit-lockup">
-                <div className="line-media">MÍDIA</div>
-                <div className="line-kit">
-                  <strong>KIT</strong>
-                  <span>{year}</span>
-                </div>
-              </div>
               <div className="menu-catalog-updated">{formatGeneratedAt(displayUpdatedAt)}</div>
             </div>
           </div>
