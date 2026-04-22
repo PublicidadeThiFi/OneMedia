@@ -1,6 +1,7 @@
 import { MouseEvent, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  ArrowRight,
   ExternalLink,
   ImageIcon,
   MapPinned,
