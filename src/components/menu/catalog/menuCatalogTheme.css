@@ -1498,6 +1498,9 @@
 }
 
 .menu-face-dialog {
+  width: min(1120px, calc(100vw - 24px)) !important;
+  max-width: min(1120px, calc(100vw - 24px)) !important;
+  max-height: min(860px, calc(100dvh - 24px)) !important;
   border-radius: 26px !important;
   background: #f5f8fc !important;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18) !important;
@@ -1507,13 +1510,13 @@
   top: 18px;
   right: 18px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.92);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .menu-face-dialog-header {
   gap: 0.5rem;
   border-bottom: 1px solid rgba(17, 24, 39, 0.08);
-  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(244,247,252,0.98) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 247, 252, 0.98) 100%);
   padding: 18px 22px 16px;
   text-align: left;
 }
@@ -1565,17 +1568,19 @@
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px 22px 22px;
 }
 
 .menu-face-dialog-top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 310px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 16px;
-  align-items: start;
 }
 
 .menu-face-dialog-panel {
+  min-width: 0;
   border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: 22px;
   background: #ffffff;
@@ -1583,19 +1588,27 @@
 }
 
 .menu-face-dialog-panel--point {
+  flex: 999 1 560px;
   padding: 16px;
 }
 
 .menu-face-dialog-panel--aside {
+  flex: 1 1 300px;
+  max-width: 320px;
   padding: 16px;
   background: linear-gradient(180deg, #ffffff 0%, #f4f7fc 100%);
 }
 
 .menu-face-dialog-point-grid {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 16px;
-  align-items: start;
+}
+
+.menu-face-dialog-point-copy {
+  min-width: 0;
+  flex: 1 1 280px;
 }
 
 .menu-face-preview {
@@ -1606,11 +1619,14 @@
 }
 
 .menu-face-preview--point {
+  width: min(100%, 220px);
+  flex: 0 0 220px;
   aspect-ratio: 16 / 11;
   border-radius: 20px;
 }
 
 .menu-face-preview--compact {
+  width: 100%;
   aspect-ratio: 4 / 3;
   border-radius: 18px;
 }
@@ -1642,9 +1658,14 @@
   color: #5b6474;
 }
 
+.menu-face-dialog-address-copy {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
 .menu-face-dialog-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
@@ -1692,12 +1713,13 @@
 
 .menu-face-dialog-units {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
 }
 
 .menu-face-unit-card {
   width: 100%;
+  min-width: 0;
   border-radius: 22px;
   border: 1px solid rgba(17, 24, 39, 0.10);
   text-align: left;
@@ -1705,11 +1727,21 @@
 }
 
 .menu-face-unit-card-grid {
-  display: grid;
-  grid-template-columns: 148px minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 14px;
   padding: 14px;
-  align-items: start;
+}
+
+.menu-face-unit-card-grid > .menu-face-preview--compact {
+  flex: 0 0 118px;
+  max-width: 118px;
+}
+
+.menu-face-unit-card-grid > .min-w-0 {
+  min-width: 0;
+  flex: 1 1 220px;
 }
 
 .menu-face-unit-card--default {
@@ -1744,12 +1776,8 @@
 }
 
 @media (max-width: 1080px) {
-  .menu-face-dialog-top {
-    grid-template-columns: 1fr;
-  }
-
   .menu-face-dialog-panel--aside {
-    position: static;
+    max-width: none;
   }
 
   .menu-face-dialog-units {
@@ -1768,22 +1796,24 @@
     font-size: 21px;
   }
 
-  .menu-face-dialog-point-grid,
-  .menu-face-unit-card-grid {
-    grid-template-columns: 1fr;
-  }
-
   .menu-face-preview--point {
+    flex-basis: 100%;
+    width: 100%;
+    max-width: none;
     aspect-ratio: 16 / 9;
   }
 
-  .menu-face-dialog-metrics-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .menu-face-unit-card-grid > .menu-face-preview--compact {
+    flex-basis: 100%;
+    max-width: none;
   }
 }
 
 @media (max-width: 560px) {
   .menu-face-dialog {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: calc(100dvh - 16px) !important;
     border-radius: 20px !important;
   }
 
@@ -1806,6 +1836,10 @@
 
   .menu-face-dialog-metric-value {
     font-size: 18px;
+  }
+
+  .menu-face-dialog-units {
+    grid-template-columns: 1fr;
   }
 }
 

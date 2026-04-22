@@ -252,12 +252,12 @@ export function MenuCatalogFacePickerDialog({
                 <div className="menu-face-dialog-point-grid">
                   <UnitPreview src={point.mainImageUrl || point.images?.[0] || ''} alt={point.name} />
 
-                  <div className="min-w-0">
+                  <div className="menu-face-dialog-point-copy">
                     <div className="menu-face-dialog-kicker">Ponto selecionado</div>
                     <div className="menu-face-dialog-point-title">{point.name}</div>
                     <div className="menu-face-dialog-point-address">
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                      <span className="menu-copy-wrap">{formatAddress(point) || 'Endereço não informado'}</span>
+                      <span className="menu-face-dialog-address-copy">{formatAddress(point) || 'Endereço não informado'}</span>
                     </div>
 
                     <div className="menu-face-dialog-metrics-grid">
