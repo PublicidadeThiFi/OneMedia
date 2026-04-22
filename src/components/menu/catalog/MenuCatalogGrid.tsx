@@ -9,10 +9,10 @@ type MenuCatalogGridProps = {
   loading: boolean;
   isAgency: boolean;
   markupPercent: number;
-  onOpenDetail: (pointId: string) => void;
   isSelectionMode?: boolean;
   selectedPointIds?: string[];
   onToggleSelection?: (pointId: string) => void;
+  onOpenFacePicker?: (pointId: string) => void;
   onClearFilters?: () => void;
   onChangeRegion?: () => void;
 };
@@ -22,10 +22,10 @@ export function MenuCatalogGrid({
   loading,
   isAgency,
   markupPercent,
-  onOpenDetail,
   isSelectionMode = false,
   selectedPointIds = [],
   onToggleSelection,
+  onOpenFacePicker,
   onClearFilters,
   onChangeRegion,
 }: MenuCatalogGridProps) {
@@ -93,10 +93,10 @@ export function MenuCatalogGrid({
           point={point}
           isAgency={isAgency}
           markupPercent={markupPercent}
-          onOpenDetail={onOpenDetail}
           isSelectionMode={isSelectionMode}
           isSelected={selectedSet.has(point.id)}
           onToggleSelection={onToggleSelection}
+          onOpenFacePicker={onOpenFacePicker}
         />
       ))}
     </div>

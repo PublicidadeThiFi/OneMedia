@@ -1,7 +1,6 @@
 import { MouseEvent, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
-  ArrowRight,
   ExternalLink,
   ImageIcon,
   MapPinned,
@@ -16,10 +15,12 @@ import {
   PublicMediaKitMediaItem,
   PublicMediaKitPoint,
   PublicMediaKitUnit,
-  computePointPriceSummary,
+  computeCatalogCardPriceSummary,
   getPublicMediaKitPointAddress,
   getPublicMediaKitPointMapUrl,
   getPublicMediaKitPointMediaGallery,
+  hasPublicMediaKitSelectableUnits,
+  isPublicMediaKitPointSelectable,
   normalizeAvailability,
 } from '../../../lib/publicMediaKit';
 import { formatBRL, resolveUploadsUrl } from '../../../lib/format';
@@ -28,10 +29,10 @@ type MenuCatalogCardProps = {
   point: PublicMediaKitPoint;
   isAgency: boolean;
   markupPercent: number;
-  onOpenDetail: (pointId: string) => void;
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelection?: (pointId: string) => void;
+  onOpenFacePicker?: (pointId: string) => void;
 };
 
 function applyMarkup(price: number | null, markupPercent: number, isAgency: boolean): number | null {
@@ -217,19 +218,9 @@ function statusCssClass(value: Availability): string {
 function CardMediaGallery({
   point,
   availability,
-  onOpenDetail,
-  isSelectionMode = false,
-  isSelected = false,
-  isSelectable = false,
-  onToggleSelection,
 }: {
   point: PublicMediaKitPoint;
   availability: Availability;
-  onOpenDetail: (pointId: string) => void;
-  isSelectionMode?: boolean;
-  isSelected?: boolean;
-  isSelectable?: boolean;
-  onToggleSelection?: (pointId: string) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [failedKeys, setFailedKeys] = useState<string[]>([]);
@@ -305,22 +296,10 @@ function CardMediaGallery({
     setIsMapFlipped((current) => !current);
   };
 
-  const handleCardAreaClick = () => {
-    if (isSelectionMode) {
-      if (isSelectable && typeof onToggleSelection === 'function') {
-        onToggleSelection(point.id);
-      }
-      return;
-    }
-
-    if (!isMapFlipped) {
-      onOpenDetail(point.id);
-    }
-  };
 
   return (
     <>
-      <div className="menu-card-flip-stage" onClick={handleCardAreaClick}>
+      <div className="menu-card-flip-stage">
         <div className="menu-card-flip" style={{ transform: isMapFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
           <div className="menu-card-face">
             {activeMediaUrl ? (
@@ -423,14 +402,24 @@ function CardMediaGallery({
   );
 }
 
-export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, isSelectionMode = false, isSelected = false, onToggleSelection }: MenuCatalogCardProps) {
+export function MenuCatalogCard({
+  point,
+  isAgency,
+  markupPercent,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelection,
+  onOpenFacePicker,
+}: MenuCatalogCardProps) {
   const availability = normalizeAvailability(point);
   const address = getPublicMediaKitPointAddress(point);
   const mapUrl = getPublicMediaKitPointMapUrl(point);
-  const monthPrice = computePointPriceSummary(point, 'month');
-  const weekPrice = computePointPriceSummary(point, 'week');
+  const monthPrice = computeCatalogCardPriceSummary(point, 'month');
+  const weekPrice = computeCatalogCardPriceSummary(point, 'week');
   const visibleMonthPrice = applyMarkup(monthPrice.startingFrom, markupPercent, isAgency);
   const visibleWeekPrice = applyMarkup(weekPrice.startingFrom, markupPercent, isAgency);
+  const monthPriceLabel = monthPrice.isStartingFrom ? 'Mensal • A partir de:' : 'Valor mensal:';
+  const weekPriceLabel = weekPrice.isStartingFrom ? 'Bi-semana • A partir de:' : 'Valor Bi-semana:';
   const unitsCount = Number(point.unitsCount ?? point.units?.length ?? 0);
   const occupiedUnitsCount = Number(point.occupiedUnitsCount ?? 0);
   const availableUnitsCount = Number(point.availableUnitsCount ?? Math.max(unitsCount - occupiedUnitsCount, 0));
@@ -442,10 +431,19 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
   const operationalSummary = buildOperationalSummary(availability, availableUnitsCount, occupiedUnitsCount, nextAvailabilityLabel);
   const categoryLabel = String(point.subcategory ?? '').trim() || 'OUTDOOR';
   const typeLabel = String(point.type ?? '').trim() || 'DOOH';
-  const isSelectable = availability === 'Disponível';
+  const hasUnits = Array.isArray(point.units) && point.units.some((unit) => unit?.isActive !== false);
+  const hasSelectableUnits = hasPublicMediaKitSelectableUnits(point);
+  const isSelectable = isPublicMediaKitPointSelectable(point);
 
   const handleToggleSelection = () => {
-    if (!isSelectable || typeof onToggleSelection !== 'function') return;
+    if (!isSelectable) return;
+
+    if (hasUnits && typeof onOpenFacePicker === 'function') {
+      onOpenFacePicker(point.id);
+      return;
+    }
+
+    if (typeof onToggleSelection !== 'function') return;
     onToggleSelection(point.id);
   };
 
@@ -456,23 +454,12 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
           <CardMediaGallery
             point={point}
             availability={availability}
-            onOpenDetail={onOpenDetail}
-            isSelectionMode={isSelectionMode}
-            isSelected={isSelected}
-            isSelectable={isSelectable}
-            onToggleSelection={onToggleSelection}
           />
         </div>
 
         <div className="menu-card-content">
           <div className="menu-card-titlebar">
             <h3 className="menu-card-title">{point.name}</h3>
-            {!isSelectionMode ? (
-              <button className="menu-card-detail-btn" onClick={() => onOpenDetail(point.id)}>
-                Ver detalhes
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            ) : null}
           </div>
 
           <div className="menu-card-copy">
@@ -486,8 +473,8 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
           </div>
 
           <div className="menu-card-pricing">
-            <div className="menu-card-price-row"><strong>Valor mensal:</strong> {visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</div>
-            <div className="menu-card-price-row"><strong>Valor Bi-semana:</strong> {visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</div>
+            <div className="menu-card-price-row"><strong>{monthPriceLabel}</strong> {visibleMonthPrice !== null ? formatBRL(visibleMonthPrice) : 'Sob consulta'}</div>
+            <div className="menu-card-price-row"><strong>{weekPriceLabel}</strong> {visibleWeekPrice !== null ? formatBRL(visibleWeekPrice) : 'Sob consulta'}</div>
           </div>
 
           <div className="menu-card-bottom">
@@ -517,7 +504,13 @@ export function MenuCatalogCard({ point, isAgency, markupPercent, onOpenDetail, 
               onClick={handleToggleSelection}
               disabled={!isSelectable}
             >
-              {isSelected ? 'Remover seleção' : isSelectable ? 'Selecionar ponto' : 'Indisponível para seleção'}
+              {isSelected
+                ? 'Remover seleção'
+                : isSelectable
+                  ? (hasUnits ? 'Selecionar faces' : 'Selecionar ponto')
+                  : hasUnits && availability === 'Parcial' && !hasSelectableUnits
+                    ? 'Faces indisponíveis no momento'
+                    : 'Indisponível para seleção'}
             </button>
           ) : null}
         </div>

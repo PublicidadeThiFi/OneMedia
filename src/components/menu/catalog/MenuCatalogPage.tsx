@@ -14,7 +14,7 @@ import {
 } from '../../../lib/menuCatalogFilters';
 import { resolveMenuCatalogHeroContract } from '../../../lib/menuCatalogDataContract';
 import { formatBRL } from '../../../lib/format';
-import { computePointPriceSummary, normalizeAvailability } from '../../../lib/publicMediaKit';
+import { computeCatalogCardPriceSummary, isPublicMediaKitPointSelectable } from '../../../lib/publicMediaKit';
 import { addToCart, getCartCount, MENU_CART_UPDATED_EVENT } from '../../../lib/menuCart';
 import { toast } from 'sonner';
 import {
@@ -28,6 +28,7 @@ import {
 import { MenuCatalogAbout } from './MenuCatalogAbout';
 import { MenuCatalogActions } from './MenuCatalogActions';
 import { MenuCatalogFilters } from './MenuCatalogFilters';
+import { MenuCatalogFacePickerDialog } from './MenuCatalogFacePickerDialog';
 import { MenuCatalogGrid } from './MenuCatalogGrid';
 import { MenuCatalogHero } from './MenuCatalogHero';
 import './menuCatalogTheme.css';
@@ -41,8 +42,11 @@ function formatCompactNumber(value: number): string {
   }).format(value);
 }
 
-function formatInteger(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(Math.max(0, value));
+function applyMarkup(price: number | null | undefined, markupPercent: number, isAgency: boolean): number | null {
+  const numeric = typeof price === 'number' ? price : Number(price);
+  if (!Number.isFinite(numeric)) return null;
+  if (!isAgency) return numeric;
+  return Number((numeric * (1 + markupPercent / 100)).toFixed(2));
 }
 
 export default function MenuCatalogPage() {
@@ -57,6 +61,7 @@ export default function MenuCatalogPage() {
   const [searchValue, setSearchValue] = useState(query.q ?? '');
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPointIds, setSelectedPointIds] = useState<string[]>([]);
+  const [facePickerPointId, setFacePickerPointId] = useState<string | null>(null);
   const [cartCount, setCartCount] = useState<number>(() => {
     try {
       return getCartCount();
@@ -116,13 +121,14 @@ export default function MenuCatalogPage() {
   useEffect(() => {
     if (allPoints.length === 0) {
       setSelectedPointIds((current) => (current.length > 0 ? [] : current));
+      setFacePickerPointId((current) => (current ? null : current));
       setIsSelectionMode((current) => (current ? false : current));
       return;
     }
 
     const availablePointIds = new Set(
       allPoints
-        .filter((point) => normalizeAvailability(point) === 'Disponível')
+        .filter((point) => isPublicMediaKitPointSelectable(point))
         .map((point) => point.id),
     );
 
@@ -139,11 +145,6 @@ export default function MenuCatalogPage() {
   const activeFilters = useMemo(() => getMenuCatalogActiveFilters(query), [query]);
   const activeFiltersCount = activeFilters.length;
 
-  const legacyUrl = useMemo(() => {
-    if (query.uf && query.city) return buildMenuCatalogUrl('/menu/pontos', query);
-    if (query.uf) return buildMenuCatalogUrl('/menu/cidades', query);
-    return buildMenuCatalogUrl('/menu/uf', query);
-  }, [query]);
 
   const typeOptions = useMemo(() => buildMenuCatalogOptions(cityScopedPoints, (point) => point.type), [cityScopedPoints]);
   const cityOptions = useMemo(() => buildMenuCatalogOptions(regionScopedPoints, (point) => point.addressCity), [regionScopedPoints]);
@@ -161,7 +162,7 @@ export default function MenuCatalogPage() {
 
     const visibleAvailableIds = new Set(
       filteredPoints
-        .filter((point) => normalizeAvailability(point) === 'Disponível')
+        .filter((point) => isPublicMediaKitPointSelectable(point))
         .map((point) => point.id),
     );
 
@@ -169,7 +170,13 @@ export default function MenuCatalogPage() {
   }, [filteredPoints, isSelectionMode]);
 
   const featuredPoint = filteredPoints[0] ?? null;
-  const featuredPrice = featuredPoint ? computePointPriceSummary(featuredPoint, 'month').startingFrom : null;
+  const featuredPriceSummary = featuredPoint ? computeCatalogCardPriceSummary(featuredPoint, 'month') : null;
+  const featuredPrice = applyMarkup(featuredPriceSummary?.startingFrom, agencyMarkupPercent, isAgency);
+  const featuredPriceText = featuredPrice !== null ? `${featuredPriceSummary?.isStartingFrom ? 'A partir de ' : ''}${formatBRL(featuredPrice)}` : null;
+  const activeFacePickerPoint = useMemo(
+    () => allPoints.find((point) => point.id === facePickerPointId) ?? null,
+    [allPoints, facePickerPointId],
+  );
   const selectedCount = selectedPointIds.length;
   const missingToken = !query.token;
 
@@ -185,6 +192,7 @@ export default function MenuCatalogPage() {
   const clearCatalogFilters = () => {
     setSearchValue('');
     setSelectedPointIds([]);
+    setFacePickerPointId(null);
     setIsSelectionMode(false);
 
     changeCatalogQuery({
@@ -211,9 +219,6 @@ export default function MenuCatalogPage() {
     navigate(buildMenuCatalogUrl('/menu/uf', query));
   };
 
-  const handleOpenRegionList = () => {
-    navigate(legacyUrl);
-  };
 
   const handleOpenCart = () => {
     navigate(
@@ -234,29 +239,6 @@ export default function MenuCatalogPage() {
     );
   };
 
-  const handleOpenDetail = (pointId: string) => {
-    const point = filteredPoints.find((item) => item.id === pointId);
-    navigate(
-      buildMenuUrl(
-        '/menu/detalhe',
-        {
-          token: query.token,
-          flow: query.flow,
-          ownerCompanyId: query.ownerCompanyId,
-          uf: query.uf ?? (point?.addressState ? String(point.addressState).toUpperCase() : null),
-          city: query.city ?? point?.addressCity ?? null,
-          source: 'catalog',
-          q: query.q,
-          type: query.type,
-          district: query.district,
-          environment: query.environment,
-          availability: query.availability,
-          sort: query.sort,
-        },
-        { pointId },
-      ),
-    );
-  };
 
   const handleRemoveFilter = (key: Parameters<typeof removeMenuCatalogFilter>[1]) => {
     navigate(buildMenuCatalogUrl('/menu', removeMenuCatalogFilter(query, key)));
@@ -266,6 +248,7 @@ export default function MenuCatalogPage() {
     if (isSelectionMode) {
       setIsSelectionMode(false);
       setSelectedPointIds([]);
+      setFacePickerPointId(null);
       return;
     }
 
@@ -274,25 +257,31 @@ export default function MenuCatalogPage() {
 
   const handleTogglePointSelection = (pointId: string) => {
     const point = allPoints.find((item) => item.id === pointId);
-    if (!point || normalizeAvailability(point) !== 'Disponível') return;
+    if (!point || !isPublicMediaKitPointSelectable(point)) return;
 
     setSelectedPointIds((current) =>
       current.includes(pointId) ? current.filter((id) => id !== pointId) : [...current, pointId],
     );
   };
 
+  const handleOpenFacePicker = (pointId: string) => {
+    const point = allPoints.find((item) => item.id === pointId);
+    if (!point || !isPublicMediaKitPointSelectable(point)) return;
+    setFacePickerPointId(point.id);
+  };
+
   const handleAddSelectedToCart = () => {
     if (selectedPointIds.length === 0) {
-      toast.info('Selecione pelo menos um ponto disponível para adicionar ao carrinho.');
+      toast.info('Selecione pelo menos um ponto elegível para adicionar ao carrinho.');
       return;
     }
 
     const selectedPoints = allPoints.filter((point) =>
-      selectedPointIds.includes(point.id) && normalizeAvailability(point) === 'Disponível',
+      selectedPointIds.includes(point.id) && isPublicMediaKitPointSelectable(point),
     );
 
     if (selectedPoints.length === 0) {
-      toast.error('Os itens selecionados não estão mais disponíveis para entrar no carrinho.');
+      toast.error('Os itens selecionados não estão mais elegíveis para entrar no carrinho.');
       setSelectedPointIds([]);
       return;
     }
@@ -404,14 +393,10 @@ export default function MenuCatalogPage() {
         </section>
 
         <MenuCatalogActions
-          onOpenRegionList={handleOpenRegionList}
-          onChangeRegion={handleChangeRegion}
           onToggleSelectionMode={handleToggleSelectionMode}
           onOpenCart={handleOpenCart}
           onAddSelectedToCart={handleAddSelectedToCart}
-          regionCtaLabel={query.city || query.uf ? 'Abrir lista da região' : 'Escolher região'}
-          disabled={loading}
-          featuredPrice={featuredPrice !== null ? formatBRL(featuredPrice) : null}
+          featuredPriceText={featuredPriceText}
           featuredPointName={featuredPoint?.name ?? null}
           cartCount={cartCount}
           selectedCount={selectedCount}
@@ -425,15 +410,24 @@ export default function MenuCatalogPage() {
             loading={loading}
             isAgency={isAgency}
             markupPercent={agencyMarkupPercent}
-            onOpenDetail={handleOpenDetail}
             isSelectionMode={isSelectionMode}
             selectedPointIds={selectedPointIds}
             onToggleSelection={handleTogglePointSelection}
+            onOpenFacePicker={handleOpenFacePicker}
             onClearFilters={clearCatalogFilters}
             onChangeRegion={handleChangeRegion}
           />
         </section>
 
+        <MenuCatalogFacePickerDialog
+          point={activeFacePickerPoint}
+          open={Boolean(activeFacePickerPoint)}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setFacePickerPointId(null);
+          }}
+          isAgency={isAgency}
+          markupPercent={agencyMarkupPercent}
+        />
       </div>
     </div>
   );

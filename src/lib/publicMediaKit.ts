@@ -206,6 +206,46 @@ export type PointPriceSummary = {
   unitsCount: number;
 };
 
+export function normalizeUnitAvailability(unit: Pick<PublicMediaKitUnit, 'availability' | 'isAvailable' | 'isOccupied'> | null | undefined): UnitAvailability | null {
+  if (!unit) return null;
+  const availability = String(unit.availability ?? '').trim();
+  if (availability === 'Disponível' || availability === 'Reservada' || availability === 'Ocupado') {
+    return availability;
+  }
+
+  if (unit.isOccupied === true) return 'Ocupado';
+  if (unit.isAvailable === false) return 'Reservada';
+  return null;
+}
+
+export function isPublicMediaKitUnitSelectable(unit: Pick<PublicMediaKitUnit, 'isActive' | 'availability' | 'isAvailable' | 'isOccupied'> | null | undefined): boolean {
+  if (!unit) return false;
+  if (unit.isActive === false) return false;
+
+  const availability = normalizeUnitAvailability(unit);
+  if (availability === 'Ocupado' || availability === 'Reservada') return false;
+  if (unit.isOccupied === true) return false;
+  if (unit.isAvailable === false) return false;
+  return true;
+}
+
+export function getPublicMediaKitSelectableUnits(point: Pick<PublicMediaKitPoint, 'units'> | null | undefined): PublicMediaKitUnit[] {
+  const units = Array.isArray(point?.units) ? point.units.filter((unit): unit is PublicMediaKitUnit => Boolean(unit) && unit.isActive !== false) : [];
+  return units.filter((unit) => isPublicMediaKitUnitSelectable(unit));
+}
+
+export function hasPublicMediaKitSelectableUnits(point: Pick<PublicMediaKitPoint, 'units'> | null | undefined): boolean {
+  return getPublicMediaKitSelectableUnits(point).length > 0;
+}
+
+export function isPublicMediaKitPointSelectable(point: PublicMediaKitPoint | null | undefined): boolean {
+  if (!point) return false;
+  const availability = normalizeAvailability(point);
+  const hasUnits = Array.isArray(point.units) && point.units.some((unit) => unit?.isActive !== false);
+  if (!hasUnits) return availability === 'Disponível';
+  return hasPublicMediaKitSelectableUnits(point);
+}
+
 function safeNumber(v: any): number | null {
   if (v === null || v === undefined) return null;
   const n = Number(v);
@@ -255,6 +295,51 @@ export function computePointPriceSummary(
     isStartingFrom,
     unitsCount: units.length,
   };
+}
+
+export function computeCatalogCardPriceSummary(
+  point: Pick<MediaPoint, 'basePriceMonth' | 'basePriceWeek' | 'basePriceDay'> & { units?: any[] },
+  kind: PriceKind,
+): PointPriceSummary {
+  const base = getPointBasePrice(point, kind);
+  const units = Array.isArray((point as any).units)
+    ? ((point as any).units as any[]).filter((u) => u && u.isActive !== false)
+    : [];
+
+  if (base !== null) {
+    return {
+      kind,
+      base,
+      startingFrom: base,
+      isStartingFrom: false,
+      unitsCount: units.length,
+    };
+  }
+
+  let minUnitPrice: number | null = null;
+  for (const unit of units) {
+    const unitRaw = getUnitPriceRaw(unit, kind);
+    if (unitRaw === null) continue;
+    if (minUnitPrice === null || unitRaw < minUnitPrice) minUnitPrice = unitRaw;
+  }
+
+  return {
+    kind,
+    base,
+    startingFrom: minUnitPrice,
+    isStartingFrom: minUnitPrice !== null && units.length > 0,
+    unitsCount: units.length,
+  };
+}
+
+export function getPublicMediaKitUnitEffectivePrice(
+  point: Pick<MediaPoint, 'basePriceMonth' | 'basePriceWeek' | 'basePriceDay'>,
+  unit: Pick<PublicMediaKitUnit, 'priceMonth' | 'priceWeek' | 'priceDay'> | null | undefined,
+  kind: PriceKind,
+): number | null {
+  const unitPrice = getUnitPriceRaw(unit, kind);
+  if (unitPrice !== null) return unitPrice;
+  return getPointBasePrice(point, kind);
 }
 
 function inferMediaKindFromUrl(url?: string | null): PublicMediaKitMediaKind | null {
