@@ -4,8 +4,9 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
-import { ArrowLeft, Loader2, Copy, ExternalLink, FileText, RefreshCw, RotateCw, Sparkles, Clock3, Link2, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Copy, ExternalLink, FileText, RefreshCw, RotateCw, Sparkles, Clock3, Link2, BadgeCheck, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import '../components/menu/catalog/menuCatalogTheme.css';
 import {
   classifyMenuRequestError,
   fetchMenuRequest,
@@ -174,33 +175,37 @@ export default function MenuDonoEnviada() {
   const statusMeta = getSentStatusMeta();
 
   return (
-    <div className="min-h-screen w-full bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef4ff_38%,_#f8fafc_100%)]">
-      <div className="mx-auto max-w-5xl px-4 py-8 lg:py-10">
-        <div className="rounded-[28px] border border-slate-200/80 bg-white/80 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <Badge variant="secondary" className="rounded-full border border-blue-200 bg-blue-50 text-blue-700">Área do responsável</Badge>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Proposta enviada ao cliente</h1>
-                <p className="mt-1 text-sm text-slate-600">Visual mais claro para acompanhar links, status e sincronização depois do envio.</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={() => navigate(workspaceUrl)}>
-                <ArrowLeft className="h-4 w-4" />
-                Voltar ao workspace
-              </Button>
-              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={refresh}>
-                <RefreshCw className="h-4 w-4" />
-                Atualizar
-              </Button>
-            </div>
+    <div className="menu-catalog-screen">
+      <div className="menu-catalog-frame menu-flow-frame menu-owner-state-frame">
+        <div className="menu-cart-topbar menu-flow-topbar">
+          <div className="menu-catalog-breadcrumb">
+            <span>Cardápio</span>
+            <ChevronRight className="h-4 w-4" />
+            <span>Workspace do dono</span>
+            <ChevronRight className="h-4 w-4" />
+            <strong>Proposta enviada</strong>
+            <Badge className="menu-cart-pill">Fluxo do responsável</Badge>
+          </div>
+          <div className="menu-owner-workspace-topbar-actions">
+            <Button variant="ghost" className="menu-cart-back-button" onClick={() => navigate(workspaceUrl)}>
+              <ArrowLeft className="h-4 w-4" />
+              Voltar ao workspace
+            </Button>
+            <Button variant="outline" className="menu-owner-workspace-state-button" onClick={refresh}>
+              <RefreshCw className="h-4 w-4" />
+              Atualizar
+            </Button>
           </div>
         </div>
 
-        <Card className="mt-6 overflow-hidden border-slate-200/80 bg-white/88 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
-          <CardContent className="p-6 lg:p-8">
+        <section className="menu-catalog-actions-card menu-flow-intro-card menu-owner-state-intro menu-owner-state-intro--sent">
+          <Badge className="menu-owner-state-kicker menu-owner-state-kicker--sent">Área do responsável</Badge>
+          <h1 className="menu-owner-state-title">Proposta enviada ao cliente</h1>
+          <p className="menu-owner-state-copy">Visual do cardápio aplicado ao painel de acompanhamento, com foco em links, abertura da proposta e sincronização do pedido.</p>
+        </section>
+
+        <Card className="menu-catalog-actions-card menu-flow-shell-card menu-owner-state-shell">
+          <CardContent className="menu-flow-shell-body menu-owner-state-shell-body">
             {isLoading ? (
               <div className="flex items-center gap-3 text-sm text-slate-600">
                 <Loader2 className="h-4 w-4 animate-spin" />

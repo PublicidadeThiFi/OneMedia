@@ -6,9 +6,10 @@ import { Card, CardContent } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
-import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy, Sparkles, Link2, UserRound, Package, Wallet } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, FileText, History, Lock, ExternalLink, RotateCw, Copy, Sparkles, Link2, UserRound, Package, Wallet, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { MenuRequestErrorCard } from '../components/menu/MenuRequestErrorCard';
+import '../components/menu/catalog/menuCatalogTheme.css';
 import {
   classifyMenuRequestError,
   fetchMenuRequest,
@@ -1055,40 +1056,52 @@ export default function MenuDonoWorkspace() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.14),_transparent_32%),linear-gradient(180deg,_#f8fafc_0%,_#eef4ff_38%,_#f8fafc_100%)]">
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:py-10">
-        <div className="rounded-[28px] border border-slate-200/80 bg-white/80 p-5 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-2">
-              <Badge variant="secondary" className="rounded-full border border-blue-200 bg-blue-50 text-blue-700">Workspace do responsável</Badge>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Composição e operação da proposta</h1>
-                <p className="mt-1 max-w-3xl text-sm text-slate-600">Gerencie versões, links assinados, integrações e o resumo comercial em um painel mais claro e mais maduro.</p>
-              </div>
-            </div>
+    <div className="menu-catalog-screen">
+      <div className="menu-catalog-frame menu-flow-frame menu-owner-workspace-frame">
+        <div className="menu-cart-topbar menu-flow-topbar">
+          <div className="menu-catalog-breadcrumb">
+            <span>Cardápio</span>
+            <ChevronRight className="h-4 w-4" />
+            <span>Fluxo do dono</span>
+            <ChevronRight className="h-4 w-4" />
+            <strong>Workspace</strong>
+            <Badge className="menu-cart-pill">Responsável</Badge>
+          </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={() => navigate(backUrl)}>
-                <ArrowLeft className="h-4 w-4" />
-                Acompanhar
-              </Button>
-              <Button variant="outline" className="gap-2 border-slate-200 bg-white/80" onClick={goByStatus}>
-                <FileText className="h-4 w-4" />
-                Estado atual
-              </Button>
-            </div>
+          <div className="menu-owner-workspace-topbar-actions">
+            <Button variant="ghost" className="menu-cart-back-button" onClick={() => navigate(backUrl)}>
+              <ArrowLeft className="h-4 w-4" />
+              Acompanhar
+            </Button>
+            <Button variant="outline" className="menu-owner-workspace-state-button" onClick={goByStatus}>
+              <FileText className="h-4 w-4" />
+              Estado atual
+            </Button>
           </div>
         </div>
 
-        <Card className="mt-6 overflow-hidden border-slate-200/80 bg-white/88 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
-          <CardContent className="p-6 lg:p-8">
+        <section className="menu-catalog-actions-card menu-flow-intro-card menu-owner-workspace-intro">
+          <div className="menu-owner-workspace-intro-copy">
+            <div className="menu-cart-kicker">
+              <Sparkles className="h-3.5 w-3.5" />
+              Workspace do responsável
+            </div>
+            <h1 className="menu-owner-workspace-intro-title">Composição e operação da proposta no mesmo padrão visual do cardápio.</h1>
+            <p className="menu-owner-workspace-intro-text">Gerencie versões, links assinados, integrações e o resumo comercial em um painel mais claro, consistente e preparado para o fluxo do dono.</p>
+          </div>
+        </section>
+
+        <Card className="menu-catalog-actions-card menu-flow-shell-card menu-owner-workspace-shell">
+          <CardContent className="menu-flow-shell-body menu-owner-workspace-shell-body">
             {isLoading ? (
-              <div className="flex items-center gap-3 text-sm text-gray-600">
+              <div className="menu-owner-workspace-loading">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando...
               </div>
             ) : !data ? (
-              <MenuRequestErrorCard
+              <Card className="menu-catalog-actions-card menu-owner-workspace-error-card">
+                <CardContent className="menu-owner-workspace-error-content">
+                  <MenuRequestErrorCard
                 error={loadError || {
                   kind: 'NOT_FOUND',
                   title: 'Solicitação não encontrada',
@@ -1100,9 +1113,11 @@ export default function MenuDonoWorkspace() {
                   onClick: () => navigate('/menu'),
                 }}
               />
+                </CardContent>
+              </Card>
             ) : (
               <>
-                <div className={`rounded-[28px] border p-6 shadow-sm ${workspaceStatusMeta.panelClass}`}>
+                <div className={`menu-owner-workspace-status ${workspaceStatusMeta.panelClass}`}>
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="space-y-3">
                       <Badge variant="secondary" className={`w-fit rounded-full border ${workspaceStatusMeta.chipClass}`}>{workspaceStatusMeta.label}</Badge>
@@ -1159,7 +1174,7 @@ export default function MenuDonoWorkspace() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex flex-col gap-3 rounded-[24px] border border-slate-200/80 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="menu-owner-workspace-request-bar">
                   <div className="flex-1">
                     <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Request ID</div>
                     <div className="mt-2 font-mono text-sm text-slate-800 break-all">{data.id}</div>
@@ -1171,7 +1186,7 @@ export default function MenuDonoWorkspace() {
 
                 {data.links && (
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
+                    <div className="menu-owner-workspace-link-card">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-xs text-gray-500">Link do cliente (assinado)</div>
                         <Button
@@ -1205,7 +1220,7 @@ export default function MenuDonoWorkspace() {
                       <div className="mt-2 text-xs text-gray-500 break-all">{full(propostaUrl)}</div>
                     </div>
 
-                    <div className="rounded-[24px] border border-slate-200/80 bg-white/95 px-4 py-4 shadow-sm">
+                    <div className="menu-owner-workspace-link-card">
                       <div className="text-xs text-gray-500">Link do dono (workspace)</div>
 
                       <div className="mt-2 text-xs text-gray-600">
@@ -1226,7 +1241,7 @@ export default function MenuDonoWorkspace() {
                 )}
 
                 {isLocked && (
-                  <div className="mt-4 rounded-xl border border-gray-900 bg-gray-900 px-4 py-3 text-sm text-white">
+                  <div className="menu-owner-workspace-alert menu-owner-workspace-alert--locked">
                     <div className="flex items-center gap-2 font-semibold">
                       <Lock className="h-4 w-4" />
                       Proposta aprovada (travada)
@@ -1236,7 +1251,7 @@ export default function MenuDonoWorkspace() {
                 )}
 
                 {status === 'REVISION_REQUESTED' && (
-                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <div className="menu-owner-workspace-alert menu-owner-workspace-alert--revision">
                     <div className="font-semibold">Revisão solicitada pelo cliente</div>
                     <div className="mt-1 text-xs text-amber-800">Abra a tela de revisão para ver o recado do cliente.</div>
                     <div className="mt-3">
@@ -1247,7 +1262,7 @@ export default function MenuDonoWorkspace() {
 
                 <Separator className="my-6" />
 
-                <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/80 px-5 py-5 shadow-sm">
+                <div className="menu-owner-workspace-ops-panel">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">Integração operacional</div>
@@ -1339,8 +1354,8 @@ export default function MenuDonoWorkspace() {
 
                 <Separator className="my-6" />
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
+                <div className="menu-owner-workspace-layout menu-flow-layout menu-flow-layout--split">
+                  <div className="menu-owner-workspace-main menu-flow-main-column">
                     <div className="text-sm font-semibold text-gray-900">Resumo do cliente</div>
                     <div className="mt-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
                       <div><span className="text-gray-500">Nome:</span> <span className="font-medium">{data.customerName}</span></div>
@@ -1378,7 +1393,7 @@ export default function MenuDonoWorkspace() {
                     </div>
                   </div>
 
-                  <div>
+                  <div className="menu-owner-workspace-sidebar menu-flow-sidebar">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-semibold text-gray-900">Documento (prévia)</div>
                       <Button variant="outline" className="gap-2" onClick={() => navigate(propostaUrl)}>
