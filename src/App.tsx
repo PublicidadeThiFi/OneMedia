@@ -199,7 +199,7 @@ export default function App() {
 
     const newsDetailMatch = cleanPath.match(/^\/noticias\/([^/]+)$/);
     if (newsDetailMatch) {
-      return wrap('none', <Suspended><NewsDetailPage slug={decodeURIComponent(newsDetailMatch[1])} /></Suspended>);
+      return wrap('auth', <Suspended><NewsDetailPage slug={decodeURIComponent(newsDetailMatch[1])} /></Suspended>);
     }
 
     if (cleanPath === '/admin') {
