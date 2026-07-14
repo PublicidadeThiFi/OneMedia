@@ -42,6 +42,11 @@ export interface AssistantActionSuggestion {
   payload?: Record<string, unknown> | null;
 }
 
+export interface AssistantQuickReply {
+  label: string;
+  value: string;
+}
+
 export interface AssistantMessage {
   id: string;
   role: AssistantMessageRole;
@@ -49,6 +54,7 @@ export interface AssistantMessage {
   createdAt: string;
   actions?: AssistantActionSuggestion[];
   dataPoints?: AssistantDataPoint[];
+  quickReplies?: AssistantQuickReply[];
 }
 
 export interface AssistantProviderInfo {
@@ -71,6 +77,43 @@ export interface AssistantHistoryEntry {
   moduleKey?: string | null;
   actionKey?: string | null;
   status?: string | null;
+}
+
+export interface AssistantMissingField {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'multiselect';
+  options?: string[];
+}
+
+export interface AssistantEnrichmentUnit {
+  actionId: string;
+  label: string;
+  action: AssistantActionSuggestion;
+}
+
+export interface AssistantPendingEnrichment {
+  entityId: string;
+  entityName: string;
+  mediaType: string;
+  queuePosition: number;
+  totalItems: number;
+  units: AssistantEnrichmentUnit[];
+  missingFields: AssistantMissingField[];
+}
+
+export interface AssistantPendingClientEnrichment {
+  entityId: string;
+  entityName: string;
+  queuePosition: number;
+  totalItems: number;
+  missingFields: AssistantMissingField[];
+}
+
+export interface AssistantPendingClientReview {
+  queuePosition: number;
+  totalItems: number;
+  extractedRecord: Record<string, unknown>;
 }
 
 export interface AssistantChatResponse {

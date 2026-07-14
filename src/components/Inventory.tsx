@@ -25,6 +25,60 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
 
 const OPEN_POINT_STORAGE_KEY = 'ONE_MEDIA_OPEN_INVENTORY_POINT_ID';
+const SEEN_NEW_MEDIA_POINTS_STORAGE_KEY = 'ONE_MEDIA_SEEN_NEW_MEDIA_POINTS_V1';
+const NEW_MEDIA_POINTS_STORAGE_KEY = 'ONE_MEDIA_NEW_MEDIA_POINTS_V1';
+const NEW_MEDIA_POINT_WINDOW_MS = 1000 * 60 * 60 * 72;
+
+function loadSeenNewMediaPointIds(): Set<string> {
+  if (typeof window === 'undefined') {
+    return new Set<string>();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SEEN_NEW_MEDIA_POINTS_STORAGE_KEY);
+    if (!raw) {
+      return new Set<string>();
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return new Set<string>();
+    }
+
+    return new Set(parsed.map((value) => String(value || '').trim()).filter(Boolean));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function loadNewMediaPointIds(): Set<string> {
+  if (typeof window === 'undefined') {
+    return new Set<string>();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(NEW_MEDIA_POINTS_STORAGE_KEY);
+    if (!raw) {
+      return new Set<string>();
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return new Set<string>();
+    }
+
+    return new Set(parsed.map((value) => String(value || '').trim()).filter(Boolean));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function isRecentlyCreated(createdAt?: string | Date | null): boolean {
+  if (!createdAt) return false;
+  const createdTime = new Date(createdAt).getTime();
+  if (!Number.isFinite(createdTime)) return false;
+  return Date.now() - createdTime <= NEW_MEDIA_POINT_WINDOW_MS;
+}
 
 export function Inventory() {
   const company = useCompany() as any;
@@ -88,9 +142,123 @@ export function Inventory() {
     point: null 
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [seenNewMediaPointIds, setSeenNewMediaPointIds] = useState<Set<string>>(() => loadSeenNewMediaPointIds());
+  const [newMediaPointIds, setNewMediaPointIds] = useState<Set<string>>(() => loadNewMediaPointIds());
   // Computed values
   const { cities: citiesFromMeta } = useMediaPointsMeta();
   const cities = citiesFromMeta;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        SEEN_NEW_MEDIA_POINTS_STORAGE_KEY,
+        JSON.stringify(Array.from(seenNewMediaPointIds)),
+      );
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }, [seenNewMediaPointIds]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        NEW_MEDIA_POINTS_STORAGE_KEY,
+        JSON.stringify(Array.from(newMediaPointIds)),
+      );
+    } catch {
+      // Ignore localStorage write failures.
+    }
+  }, [newMediaPointIds]);
+
+  const markMediaPointAsNew = (pointId: string) => {
+    if (!pointId) return;
+
+    setNewMediaPointIds((prev) => {
+      if (prev.has(pointId)) {
+        return prev;
+      }
+
+      const next = new Set(prev);
+      next.add(pointId);
+      return next;
+    });
+  };
+
+  const markMediaPointAsSeen = (pointId: string) => {
+    if (!pointId) return;
+
+    setSeenNewMediaPointIds((prev) => {
+      if (prev.has(pointId)) {
+        return prev;
+      }
+
+      const next = new Set(prev);
+      next.add(pointId);
+      return next;
+    });
+
+    setNewMediaPointIds((prev) => {
+      if (!prev.has(pointId)) {
+        return prev;
+      }
+
+      const next = new Set(prev);
+      next.delete(pointId);
+      return next;
+    });
+  };
+
+  const isMediaPointNew = (point: MediaPoint) => {
+    if (newMediaPointIds.has(point.id)) {
+      return true;
+    }
+
+    return isRecentlyCreated(point.createdAt) && !seenNewMediaPointIds.has(point.id);
+  };
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+
+      timer = setTimeout(() => {
+        setPage(1);
+        void refetch();
+      }, 120);
+    };
+
+    const handleAssistantPointCreated = (event: Event) => {
+      const detail = (event as CustomEvent<{ id?: string | null }>).detail;
+      const pointId = String(detail?.id || '').trim();
+      if (pointId) {
+        markMediaPointAsNew(pointId);
+      }
+
+      scheduleRefresh();
+    };
+
+    const handleAssistantRefresh = () => {
+      scheduleRefresh();
+    };
+
+    window.addEventListener('assistant:media-point-created', handleAssistantPointCreated as EventListener);
+    window.addEventListener('inventory:refresh', handleAssistantRefresh as EventListener);
+
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+
+      window.removeEventListener('assistant:media-point-created', handleAssistantPointCreated as EventListener);
+      window.removeEventListener('inventory:refresh', handleAssistantRefresh as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refetch]);
 
   const totalUnits = useMemo(() => {
     return mediaPoints.reduce((sum: number, p: MediaPoint) => sum + (p.units ? p.units.length : 0), 0);
@@ -135,6 +303,7 @@ export function Inventory() {
   const handleEditPoint = async (point: MediaPoint) => {
     setEditingPoint(point);
     setIsFormDialogOpen(true);
+    markMediaPointAsSeen(point.id);
 
     try {
       const res = await apiClient.get<MediaPoint>(`/media-points/${point.id}`);
@@ -413,6 +582,7 @@ export function Inventory() {
         {filteredPoints.map((point: MediaPoint) => {
           const unitStats = getUnitStats(point);
           const unitLabel = point.type === MediaType.OOH ? 'Faces' : 'Telas';
+          const showNewBadge = isMediaPointNew(point);
 
           return (
             <Card key={point.id} className="hover:shadow-lg transition-shadow" data-tour="inventory-details">
@@ -422,7 +592,8 @@ export function Inventory() {
                   normalizeUploadsUrl={resolveUploadsUrl}
                   fallbackSrc="https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=800"
                 />
-                <Badge className="absolute top-3 left-3 bg-indigo-500">
+                {showNewBadge && <Badge className="absolute top-3 left-3 bg-emerald-600">Novo</Badge>}
+                <Badge className={`absolute top-3 ${showNewBadge ? 'left-20' : 'left-3'} bg-indigo-500`}>
                   {point.type}
                 </Badge>
                 {point.subcategory && (
@@ -433,7 +604,13 @@ export function Inventory() {
               </div>
               
               <CardContent className="pt-4">
-                <h3 className="text-gray-900 mb-3">{point.name}</h3>
+                <button
+                  type="button"
+                  className="text-left text-gray-900 mb-3 hover:underline"
+                  onClick={() => handleEditPoint(point)}
+                >
+                  {point.name}
+                </button>
                 
                 <div className="space-y-2 mb-4">
                   {point.addressCity && (
@@ -481,7 +658,7 @@ export function Inventory() {
                 </div>
                 
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <Switch 
                       checked={point.showInMediaKit}
                       onCheckedChange={(checked: boolean) => handleToggleMediaKit(point.id, checked)}
@@ -503,15 +680,30 @@ export function Inventory() {
                         <Edit className="w-4 h-4 mr-2" />
                         Editar ponto
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setUnitsDialog({ open: true, point })}>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          markMediaPointAsSeen(point.id);
+                          setUnitsDialog({ open: true, point });
+                        }}
+                      >
                         <Layers className="w-4 h-4 mr-2" />
                         Gerenciar unidades ({unitLabel.toLowerCase()})
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setOwnersDialog({ open: true, point })}>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          markMediaPointAsSeen(point.id);
+                          setOwnersDialog({ open: true, point });
+                        }}
+                      >
                         <Building2 className="w-4 h-4 mr-2" />
                         Proprietários / Empresas vinculadas
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setContractsDialog({ open: true, point })}>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          markMediaPointAsSeen(point.id);
+                          setContractsDialog({ open: true, point });
+                        }}
+                      >
                         <FileText className="w-4 h-4 mr-2" />
                         Contratos do ponto
                       </DropdownMenuItem>

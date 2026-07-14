@@ -14,7 +14,8 @@ import {
   Tag, 
   Activity, 
   Settings as SettingsIcon,
-  Shield
+  Shield,
+  Bot
 } from 'lucide-react';
 import type { Page } from '../types/app-page';
 import { useCompany } from '../contexts/CompanyContext';
@@ -42,6 +43,7 @@ const menuItems = [
   { id: 'mediakit', label: 'Mídia Kit', icon: Globe },
   { id: 'promotions', label: 'Promoções', icon: Tag },
   { id: 'activities', label: 'Atividades', icon: Activity },
+  { id: 'ai', label: 'Assistente IA', icon: Bot },
   { id: 'settings', label: 'Configurações', icon: SettingsIcon },
 ] as const;
 

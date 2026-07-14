@@ -5,6 +5,7 @@
  */
 
 import { lazy, Suspense, useEffect, useState, useMemo, Component, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Bot, Menu, Sparkles, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,6 +17,7 @@ import { TutorialOverlay } from './tutorial/TutorialOverlay';
 import { useAssistant } from '../contexts/AssistantContext';
 import { AssistantLauncher } from './assistant/AssistantLauncher';
 import { getAssistantModuleLabel } from '../lib/assistant';
+import { AssistantSpeechBubble } from './AssistantSpeechBubble';
 
 
 const HomePage = lazy(() => import('./HomePage').then((m) => ({ default: m.HomePage })));
@@ -48,7 +50,6 @@ function PageFallback() {
 interface MainAppProps {
   initialPage?: Page;
 }
-
 
 class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => void }, { hasError: boolean; error?: unknown }> {
   state = { hasError: false, error: undefined };
@@ -100,13 +101,8 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   const { user, logout, authReady } = useAuth();
   const { hasTutorialForModule, openModuleTutorial, setCurrentModule } = useTutorial();
   const { setScreenContext, setIsOpen: setIsAssistantOpen } = useAssistant();
-  const navigate = useNavigation();
-
   const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
-
-  useEffect(() => {
-    setCurrentModule(currentPage);
-  }, [currentPage, setCurrentModule]);
+  const navigate = useNavigation();
 
   useEffect(() => {
     const currentPath = typeof window !== 'undefined'
@@ -118,7 +114,8 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
       currentPath,
       currentTitle: getAssistantModuleLabel(currentPage),
     });
-  }, [currentPage, setScreenContext]);
+    setCurrentModule(currentPage);
+  }, [currentPage, setScreenContext, setCurrentModule]);
 
 
   const pastDueGraceDaysLeft = useMemo(() => {
@@ -137,6 +134,7 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     if (leftMs <= 0) return 0;
     return Math.ceil(leftMs / dayMs);
   }, [isBlocked, subscription?.status, subscription?.currentPeriodEnd]);
+
 
 
   // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
@@ -267,6 +265,10 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
 
       case 'superadmin':
         return <SuperAdmin />;
+
+      case 'ai':
+        setIsAssistantOpen(true);
+        return <HomePage />;
 
       default:
         return <HomePage />;
@@ -431,6 +433,10 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
           </AppErrorBoundary>
         </main>
       </div>
+
+      {typeof document !== 'undefined'
+        ? createPortal(<AssistantSpeechBubble />, document.body)
+        : null}
     </div>
       <TutorialOverlay />
       <AssistantLauncher />

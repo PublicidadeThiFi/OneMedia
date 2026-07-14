@@ -40,13 +40,11 @@ function CarouselImage({
   alt,
   fallbackSrc,
   loading,
-  fetchPriority,
 }: {
   src: string;
   alt: string;
   fallbackSrc: string;
   loading: 'eager' | 'lazy';
-  fetchPriority?: 'high' | 'low' | 'auto';
 }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -66,7 +64,6 @@ function CarouselImage({
         alt={alt}
         draggable={false}
         loading={loading}
-        fetchPriority={fetchPriority}
         decoding="async"
         className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
         onLoad={() => setLoaded(true)}
@@ -215,7 +212,6 @@ export function MediaPointImageCarousel({
                   alt={s.alt}
                   fallbackSrc={fallbackSrc}
                   loading={'lazy'}
-                  fetchPriority={'auto'}
                 />
               )}
             </div>
