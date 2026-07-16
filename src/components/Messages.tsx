@@ -14,10 +14,12 @@ import {
 import { useMessages } from '../hooks/useMessages';
 import { useAuth } from '../contexts/AuthContext';
 import { useTutorial } from '../contexts/TutorialContext';
+import { MessageSquare, Store } from 'lucide-react';
+import { MarketplaceOperatorConversations } from './marketplace/MarketplaceOperatorConversations';
 
 type UrlTarget = { type: 'proposal' | 'campaign'; id: string } | null;
 
-export function Messages() {
+function LegacyMessagesContent() {
   const { user } = useAuth();
   const { activeTutorial } = useTutorial();
   const { messages, loading, error, refetch, sendMessage } = useMessages({});
@@ -347,7 +349,7 @@ export function Messages() {
   };
 
   return (
-    <div className="p-8 flex flex-col h-screen">
+    <div className="p-8 flex flex-col h-full min-h-0">
       <div className="mb-8" data-tour="messages-context">
         <h1 className="text-gray-900 mb-2">Mensagens</h1>
         <p className="text-gray-600">Central de conversas (Message) por Proposta/Campanha</p>
@@ -417,6 +419,81 @@ export function Messages() {
           senderType (USER/CLIENTE), senderName, senderContact, contentText. Integrações
           futuras: WhatsApp API, chatbot, upload de anexos.
         </p>
+      </div>
+    </div>
+  );
+}
+
+
+type MessagesArea = 'operations' | 'marketplace';
+
+function readMessagesArea(): MessagesArea {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('tab') === 'marketplace' || params.has('marketplaceConversation')
+    ? 'marketplace'
+    : 'operations';
+}
+
+export function Messages() {
+  const [area, setArea] = useState<MessagesArea>(() => readMessagesArea());
+
+  useEffect(() => {
+    const update = () => setArea(readMessagesArea());
+    window.addEventListener('app:navigation', update);
+    window.addEventListener('popstate', update);
+    return () => {
+      window.removeEventListener('app:navigation', update);
+      window.removeEventListener('popstate', update);
+    };
+  }, []);
+
+  const changeArea = (next: MessagesArea) => {
+    const params = new URLSearchParams(window.location.search);
+    if (next === 'marketplace') {
+      params.set('tab', 'marketplace');
+    } else {
+      params.delete('tab');
+      params.delete('marketplaceConversation');
+    }
+    const serialized = params.toString();
+    const path = `${window.location.pathname}${serialized ? `?${serialized}` : ''}`;
+    window.history.pushState({}, '', path);
+    window.dispatchEvent(new Event('app:navigation'));
+    setArea(next);
+  };
+
+  return (
+    <div className="flex h-screen min-h-0 flex-col bg-gray-50">
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 bg-white px-4 py-3 md:px-8">
+        <button
+          type="button"
+          onClick={() => changeArea('operations')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+            area === 'operations'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <MessageSquare className="h-4 w-4" /> Propostas e campanhas
+        </button>
+        <button
+          type="button"
+          onClick={() => changeArea('marketplace')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+            area === 'marketplace'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Store className="h-4 w-4" /> Marketplace
+        </button>
+      </div>
+      <div className="min-h-0 flex-1">
+        {area === 'marketplace' ? (
+          <MarketplaceOperatorConversations />
+        ) : (
+          <LegacyMessagesContent />
+        )}
       </div>
     </div>
   );

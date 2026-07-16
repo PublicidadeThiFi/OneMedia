@@ -4,36 +4,85 @@
  * This is the authenticated user's main interface after login
  */
 
-import { lazy, Suspense, useEffect, useState, useMemo, Component, type ReactNode } from 'react';
-import { Bot, Menu, Sparkles, X } from 'lucide-react';
-import { Sidebar } from './Sidebar';
-import { useAuth } from '../contexts/AuthContext';
-import { useCompany } from '../contexts/CompanyContext';
-import { useNavigation } from '../contexts/NavigationContext';
-import type { Page } from '../types/app-page';
-import { useTutorial } from '../contexts/TutorialContext';
-import { TutorialOverlay } from './tutorial/TutorialOverlay';
-import { useAssistant } from '../contexts/AssistantContext';
-import { AssistantLauncher } from './assistant/AssistantLauncher';
-import { getAssistantModuleLabel } from '../lib/assistant';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useMemo,
+  Component,
+  type ReactNode,
+} from "react";
+import { Bot, Menu, Sparkles, X } from "lucide-react";
+import { Sidebar } from "./Sidebar";
+import { useAuth } from "../contexts/AuthContext";
+import { useCompany } from "../contexts/CompanyContext";
+import { useNavigation } from "../contexts/NavigationContext";
+import type { Page } from "../types/app-page";
+import { useTutorial } from "../contexts/TutorialContext";
+import { TutorialOverlay } from "./tutorial/TutorialOverlay";
+import { useAssistant } from "../contexts/AssistantContext";
+import { AssistantLauncher } from "./assistant/AssistantLauncher";
+import { getAssistantModuleLabel } from "../lib/assistant";
 
-
-const HomePage = lazy(() => import('./HomePage').then((m) => ({ default: m.HomePage })));
-const Dashboard = lazy(() => import('./Dashboard').then((m) => ({ default: m.Dashboard })));
-const Inventory = lazy(() => import('./Inventory').then((m) => ({ default: m.Inventory })));
-const MediaMap = lazy(() => import('./MediaMap').then((m) => ({ default: m.MediaMap })));
-const Clients = lazy(() => import('./Clients').then((m) => ({ default: m.Clients })));
-const Products = lazy(() => import('./Products').then((m) => ({ default: m.Products })));
-const Proposals = lazy(() => import('./Proposals').then((m) => ({ default: m.Proposals })));
-const Campaigns = lazy(() => import('./Campaigns').then((m) => ({ default: m.Campaigns })));
-const Reservations = lazy(() => import('./Reservations').then((m) => ({ default: m.Reservations })));
-const Financial = lazy(() => import('./Financial').then((m) => ({ default: m.Financial })));
-const Messages = lazy(() => import('./Messages').then((m) => ({ default: m.Messages })));
-const MediaKit = lazy(() => import('./MediaKit').then((m) => ({ default: m.MediaKit })));
-const Promotions = lazy(() => import('./Promotions').then((m) => ({ default: m.Promotions })));
-const Activities = lazy(() => import('./Activities').then((m) => ({ default: m.Activities })));
-const Settings = lazy(() => import('./Settings').then((m) => ({ default: m.Settings })));
-const SuperAdmin = lazy(() => import('./SuperAdmin').then((m) => ({ default: m.SuperAdmin })));
+const HomePage = lazy(() =>
+  import("./HomePage").then((m) => ({ default: m.HomePage })),
+);
+const Dashboard = lazy(() =>
+  import("./Dashboard").then((m) => ({ default: m.Dashboard })),
+);
+const Inventory = lazy(() =>
+  import("./Inventory").then((m) => ({ default: m.Inventory })),
+);
+const MediaMap = lazy(() =>
+  import("./MediaMap").then((m) => ({ default: m.MediaMap })),
+);
+const Clients = lazy(() =>
+  import("./Clients").then((m) => ({ default: m.Clients })),
+);
+const Products = lazy(() =>
+  import("./Products").then((m) => ({ default: m.Products })),
+);
+const Proposals = lazy(() =>
+  import("./Proposals").then((m) => ({ default: m.Proposals })),
+);
+const Campaigns = lazy(() =>
+  import("./Campaigns").then((m) => ({ default: m.Campaigns })),
+);
+const Reservations = lazy(() =>
+  import("./Reservations").then((m) => ({ default: m.Reservations })),
+);
+const Financial = lazy(() =>
+  import("./Financial").then((m) => ({ default: m.Financial })),
+);
+const Messages = lazy(() =>
+  import("./Messages").then((m) => ({ default: m.Messages })),
+);
+const MarketplaceInquiries = lazy(() =>
+  import("./MarketplaceInquiries").then((m) => ({
+    default: m.MarketplaceInquiries,
+  })),
+);
+const MarketplaceManagement = lazy(() =>
+  import("./MarketplaceManagement").then((m) => ({
+    default: m.MarketplaceManagement,
+  })),
+);
+const MediaKit = lazy(() =>
+  import("./MediaKit").then((m) => ({ default: m.MediaKit })),
+);
+const Promotions = lazy(() =>
+  import("./Promotions").then((m) => ({ default: m.Promotions })),
+);
+const Activities = lazy(() =>
+  import("./Activities").then((m) => ({ default: m.Activities })),
+);
+const Settings = lazy(() =>
+  import("./Settings").then((m) => ({ default: m.Settings })),
+);
+const SuperAdmin = lazy(() =>
+  import("./SuperAdmin").then((m) => ({ default: m.SuperAdmin })),
+);
 
 function PageFallback() {
   return (
@@ -49,8 +98,10 @@ interface MainAppProps {
   initialPage?: Page;
 }
 
-
-class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => void }, { hasError: boolean; error?: unknown }> {
+class AppErrorBoundary extends Component<
+  { children: ReactNode; onReset?: () => void },
+  { hasError: boolean; error?: unknown }
+> {
   state = { hasError: false, error: undefined };
 
   static getDerivedStateFromError(error: unknown) {
@@ -60,7 +111,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => 
   componentDidCatch(error: unknown) {
     // Log to console for diagnostics
     // eslint-disable-next-line no-console
-    console.error('Error in page render:', error);
+    console.error("Error in page render:", error);
   }
 
   render() {
@@ -68,8 +119,12 @@ class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => 
       return (
         <div className="p-6">
           <div className="border border-red-200 rounded-lg bg-red-50 p-6">
-            <p className="text-red-700 font-medium mb-2">Ocorreu um erro ao abrir esta página.</p>
-            <p className="text-sm text-red-700 mb-4">Abra o console (F12) para ver detalhes.</p>
+            <p className="text-red-700 font-medium mb-2">
+              Ocorreu um erro ao abrir esta página.
+            </p>
+            <p className="text-sm text-red-700 mb-4">
+              Abra o console (F12) para ver detalhes.
+            </p>
             <button
               type="button"
               onClick={() => {
@@ -89,7 +144,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode; onReset?: () => 
   }
 }
 
-export function MainApp({ initialPage = 'home' }: MainAppProps) {
+export function MainApp({ initialPage = "home" }: MainAppProps) {
   const [currentPage, setCurrentPage] = useState<Page>(initialPage);
 
   // Sync with URL-based navigation (e.g. /app/settings?tab=subscription)
@@ -98,20 +153,29 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   }, [initialPage]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, logout, authReady } = useAuth();
-  const { hasTutorialForModule, openModuleTutorial, setCurrentModule } = useTutorial();
+  const { hasTutorialForModule, openModuleTutorial, setCurrentModule } =
+    useTutorial();
   const { setScreenContext, setIsOpen: setIsAssistantOpen } = useAssistant();
   const navigate = useNavigation();
 
-  const { isBlocked, blockReason, blockMessage, isTrialEndingSoon, daysRemainingInTrial, subscription } = useCompany();
+  const {
+    isBlocked,
+    blockReason,
+    blockMessage,
+    isTrialEndingSoon,
+    daysRemainingInTrial,
+    subscription,
+  } = useCompany();
 
   useEffect(() => {
     setCurrentModule(currentPage);
   }, [currentPage, setCurrentModule]);
 
   useEffect(() => {
-    const currentPath = typeof window !== 'undefined'
-      ? `${window.location.pathname}${window.location.search}`
-      : `/app/${currentPage}`;
+    const currentPath =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : `/app/${currentPage}`;
 
     setScreenContext({
       currentModule: currentPage,
@@ -120,11 +184,10 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     });
   }, [currentPage, setScreenContext]);
 
-
   const pastDueGraceDaysLeft = useMemo(() => {
     if (isBlocked) return null;
     if (!subscription) return null;
-    if (String(subscription.status) !== 'EM_ATRASO') return null;
+    if (String(subscription.status) !== "EM_ATRASO") return null;
     if (!subscription.currentPeriodEnd) return null;
 
     const due = new Date(subscription.currentPeriodEnd as any);
@@ -138,20 +201,19 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     return Math.ceil(leftMs / dayMs);
   }, [isBlocked, subscription?.status, subscription?.currentPeriodEnd]);
 
-
   // IMPORTANT: On a full page reload (F5), the AuthProvider needs a moment
   // to bootstrap /auth/me using the persisted auth session (sessionStorage / refresh token).
   // While authReady=false we must NOT redirect yet.
   useEffect(() => {
     if (!authReady) return;
     if (!user) {
-      navigate('/login');
+      navigate("/login");
       return;
     }
 
     // New SSO users may have no company yet. Force onboarding flow.
     if (user.onboardingCompleted === false) {
-      navigate('/cadastro');
+      navigate("/cadastro");
     }
   }, [authReady, user, navigate]);
 
@@ -169,10 +231,12 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
       <div className="h-screen w-full flex items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-6 text-center">
           <p className="text-gray-900 mb-2">Sua sessão expirou.</p>
-          <p className="text-sm text-gray-600 mb-4">Você precisa entrar novamente para continuar.</p>
+          <p className="text-sm text-gray-600 mb-4">
+            Você precisa entrar novamente para continuar.
+          </p>
           <button
             type="button"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate("/login")}
             className="w-full px-4 py-2 rounded-lg bg-[#4F46E5] text-white hover:opacity-95"
           >
             Ir para o login
@@ -187,20 +251,25 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   if (user.onboardingCompleted === false) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-gray-50">
-        <div className="text-sm text-gray-500">Redirecionando para concluir o cadastro…</div>
+        <div className="text-sm text-gray-500">
+          Redirecionando para concluir o cadastro…
+        </div>
       </div>
     );
   }
 
   const goToSubscriptionSettings = () => {
-    setCurrentPage('settings');
+    setCurrentPage("settings");
     setIsMobileMenuOpen(false);
-    navigate('/app/settings?tab=subscription');
+    navigate("/app/settings?tab=subscription");
   };
 
   const handleOpenCurrentTutorial = () => {
     if (!hasTutorialForModule(currentPage)) return;
-    openModuleTutorial(currentPage, { initialStepIndex: 0, trackProgress: false });
+    openModuleTutorial(currentPage, {
+      initialStepIndex: 0,
+      trackProgress: false,
+    });
   };
 
   const currentPageHasTutorial = hasTutorialForModule(currentPage);
@@ -217,55 +286,61 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
   };
 
   // Render the current page content
-    // Render the current page content
+  // Render the current page content
   const renderContent = () => {
     switch (currentPage) {
-      case 'home':
+      case "home":
         return <HomePage />;
 
-      case 'dashboard':
+      case "dashboard":
         return <Dashboard onNavigate={handleNavigate} />;
 
-      case 'inventory':
+      case "inventory":
         return <Inventory />;
 
-      case 'mediamap':
+      case "mediamap":
         return <MediaMap />;
 
-      case 'clients':
+      case "clients":
         return <Clients />;
 
-      case 'products':
+      case "products":
         return <Products />;
 
-      case 'proposals':
+      case "proposals":
         return <Proposals onNavigate={handleNavigate} />;
 
-      case 'campaigns':
+      case "campaigns":
         return <Campaigns />;
 
-      case 'reservations':
+      case "reservations":
         return <Reservations />;
 
-      case 'financial':
+      case "financial":
         return <Financial />;
 
-      case 'messages':
+      case "messages":
         return <Messages />;
 
-      case 'mediakit':
+      case "marketplace-inquiries":
+        return <MarketplaceInquiries />;
+
+      case "marketplace-management":
+        return <MarketplaceManagement />;
+
+      case "mediakit":
         return <MediaKit />;
 
-      case 'promotions':
+      case "promotions":
         return <Promotions />;
 
-      case 'activities':
+      case "activities":
         return <Activities />;
 
-      case 'settings':
+      case "settings":
         return <Settings />;
 
-      case 'superadmin':
+      case "superadmin":
         return <SuperAdmin />;
 
       default:
@@ -273,165 +348,178 @@ export function MainApp({ initialPage = 'home' }: MainAppProps) {
     }
   };
 
-
   return (
     <>
       <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Desktop Sidebar - hidden on mobile */}
-      <div className="hidden md:block">
-        <Sidebar
-          currentPage={currentPage}
-          onNavigate={handleNavigate}
-          isSuperAdmin={Boolean(user?.isSuperAdmin)}
-        />
-      </div>
-
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Mobile Sidebar Drawer */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-80 transform transition-transform duration-300 ease-in-out md:hidden ${
-          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="relative h-full">
-          {/* Close Button */}
-          <button
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="absolute top-4 right-4 p-2 text-gray-600 hover:bg-gray-100 rounded-lg z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-
+        {/* Desktop Sidebar - hidden on mobile */}
+        <div className="hidden md:block">
           <Sidebar
             currentPage={currentPage}
             onNavigate={handleNavigate}
             isSuperAdmin={Boolean(user?.isSuperAdmin)}
-            isMobile={true}
           />
         </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
-        {/* Top Bar */}
-        <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4">
-          <div className="flex items-center justify-between">
-            {/* Mobile Menu Button & Logo */}
-            <div className="flex items-center gap-3 md:hidden">
-              <button
-                onClick={() => setIsMobileMenuOpen(true)}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-              >
-                <Menu className="w-6 h-6" />
-              </button>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">OOH</span>
-                </div>
-                <span className="text-lg text-gray-900">OneMedia</span>
-              </div>
-            </div>
-
-            {/* Desktop - Empty space */}
-            <div className="hidden md:block flex-1" />
-
-            {/* User Info, tutorial e logout */}
-            <div className="flex items-center gap-2 md:gap-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500 hidden md:block">
-                  {user.email}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAssistantOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50"
-                aria-label="Abrir chat da plataforma"
-              >
-                <Bot className="h-4 w-4" />
-                <span>Chat</span>
-              </button>
-              {currentPageHasTutorial ? (
-                <button
-                  type="button"
-                  onClick={handleOpenCurrentTutorial}
-                  className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span className="hidden sm:inline">Ver tutorial</span>
-                  <span className="sm:hidden">Tutorial</span>
-                </button>
-              ) : null}
-              <button
-                onClick={logout}
-                className="px-3 md:px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                Sair
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {(isBlocked || isTrialEndingSoon || (pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0)) && (
+        {/* Mobile Menu Overlay */}
+        {isMobileMenuOpen && (
           <div
-            className={
-              'px-4 md:px-8 py-3 border-b ' +
-              (isBlocked
-                ? 'bg-red-50 border-red-200'
-                : 'bg-amber-50 border-amber-200')
-            }
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-              <div className="text-sm">
-                {isBlocked ? (
-                  <span className="text-red-700">{blockMessage ?? 'Sua conta está com acesso restrito.'}</span>
-                ) : pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0 ? (
-                  <span className="text-amber-800">
-                    Não identificamos o pagamento da renovação. Você tem {pastDueGraceDaysLeft} dia(s) para regularizar antes do bloqueio total.
-                  </span>
-                ) : (
-                  <span className="text-amber-800">
-                    Seu período de teste termina em {daysRemainingInTrial ?? 0} dia(s). Assine um plano para não ser bloqueado.
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={goToSubscriptionSettings}
-                  className={
-                    'px-3 py-2 rounded-lg text-sm font-medium transition-colors ' +
-                    (isBlocked
-                      ? 'bg-red-600 text-white hover:opacity-95'
-                      : 'bg-amber-600 text-white hover:opacity-95')
-                  }
-                >
-                  {isBlocked ? (blockReason === 'STORAGE_EXCEEDED' || blockReason === 'TRAFFIC_EXCEEDED' ? 'Comprar mídia extra' : 'Regularizar assinatura') : 'Ver planos'}
-                </button>
-              </div>
-            </div>
-          </div>
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
         )}
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto">
-          <AppErrorBoundary onReset={() => window.dispatchEvent(new Event('app:navigation'))}>
-            <Suspense fallback={<PageFallback />}>
-              {renderContent()}
-            </Suspense>
-          </AppErrorBoundary>
-        </main>
+        {/* Mobile Sidebar Drawer */}
+        <div
+          className={`fixed inset-y-0 left-0 z-50 w-80 transform transition-transform duration-300 ease-in-out md:hidden ${
+            isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="relative h-full">
+            {/* Close Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="absolute top-4 right-4 p-2 text-gray-600 hover:bg-gray-100 rounded-lg z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <Sidebar
+              currentPage={currentPage}
+              onNavigate={handleNavigate}
+              isSuperAdmin={Boolean(user?.isSuperAdmin)}
+              isMobile={true}
+            />
+          </div>
+        </div>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col overflow-hidden w-full">
+          {/* Top Bar */}
+          <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4">
+            <div className="flex items-center justify-between">
+              {/* Mobile Menu Button & Logo */}
+              <div className="flex items-center gap-3 md:hidden">
+                <button
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                >
+                  <Menu className="w-6 h-6" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">OOH</span>
+                  </div>
+                  <span className="text-lg text-gray-900">OneMedia</span>
+                </div>
+              </div>
+
+              {/* Desktop - Empty space */}
+              <div className="hidden md:block flex-1" />
+
+              {/* User Info, tutorial e logout */}
+              <div className="flex items-center gap-2 md:gap-4">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm text-gray-900">{user.name}</p>
+                  <p className="text-xs text-gray-500 hidden md:block">
+                    {user.email}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAssistantOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50"
+                  aria-label="Abrir chat da plataforma"
+                >
+                  <Bot className="h-4 w-4" />
+                  <span>Chat</span>
+                </button>
+                {currentPageHasTutorial ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenCurrentTutorial}
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    <span className="hidden sm:inline">Ver tutorial</span>
+                    <span className="sm:hidden">Tutorial</span>
+                  </button>
+                ) : null}
+                <button
+                  onClick={logout}
+                  className="px-3 md:px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Sair
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {(isBlocked ||
+            isTrialEndingSoon ||
+            (pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0)) && (
+            <div
+              className={
+                "px-4 md:px-8 py-3 border-b " +
+                (isBlocked
+                  ? "bg-red-50 border-red-200"
+                  : "bg-amber-50 border-amber-200")
+              }
+            >
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div className="text-sm">
+                  {isBlocked ? (
+                    <span className="text-red-700">
+                      {blockMessage ?? "Sua conta está com acesso restrito."}
+                    </span>
+                  ) : pastDueGraceDaysLeft !== null &&
+                    pastDueGraceDaysLeft > 0 ? (
+                    <span className="text-amber-800">
+                      Não identificamos o pagamento da renovação. Você tem{" "}
+                      {pastDueGraceDaysLeft} dia(s) para regularizar antes do
+                      bloqueio total.
+                    </span>
+                  ) : (
+                    <span className="text-amber-800">
+                      Seu período de teste termina em{" "}
+                      {daysRemainingInTrial ?? 0} dia(s). Assine um plano para
+                      não ser bloqueado.
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={goToSubscriptionSettings}
+                    className={
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-colors " +
+                      (isBlocked
+                        ? "bg-red-600 text-white hover:opacity-95"
+                        : "bg-amber-600 text-white hover:opacity-95")
+                    }
+                  >
+                    {isBlocked
+                      ? blockReason === "STORAGE_EXCEEDED" ||
+                        blockReason === "TRAFFIC_EXCEEDED"
+                        ? "Comprar mídia extra"
+                        : "Regularizar assinatura"
+                      : "Ver planos"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto">
+            <AppErrorBoundary
+              onReset={() => window.dispatchEvent(new Event("app:navigation"))}
+            >
+              <Suspense fallback={<PageFallback />}>{renderContent()}</Suspense>
+            </AppErrorBoundary>
+          </main>
+        </div>
       </div>
-    </div>
       <TutorialOverlay />
       <AssistantLauncher />
     </>
