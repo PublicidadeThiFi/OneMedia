@@ -74,6 +74,9 @@
     "predev": "npm run validate:public-env && npm run generate:version",
     "security:scan": "node ./scripts/security-scan.mjs",
     "security:audit": "npm audit --audit-level=high --omit=dev",
-    "ci:security": "npm run security:scan && npm run validate:public-env && npm run security:audit && npm run build"
+    "ci:security": "npm run security:scan && npm run validate:public-env && npm run security:audit && npm run build",
+    "qa:marketplace:bundle": "node ./scripts/check-marketplace-bundle-budget.mjs",
+    "qa:marketplace:routes": "node ./scripts/marketplace-route-smoke.mjs",
+    "qa:marketplace": "npm run build && npm run qa:marketplace:bundle"
   }
 }

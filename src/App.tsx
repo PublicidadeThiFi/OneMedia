@@ -1,15 +1,25 @@
-import { lazy, Suspense, useState, useEffect, Component, ReactNode } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, Component, ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
 import { WaitlistProvider } from './contexts/WaitlistContext';
-import { NavigationContext, NavigateFunction } from './contexts/NavigationContext';
+import { NavigationContext, NavigateFunction, useNavigation } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
 import { TutorialProvider } from './contexts/TutorialContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { AssistantProvider } from './contexts/AssistantContext';
+import { MarketplaceAuthProvider } from './contexts/MarketplaceAuthContext';
 
-const Home = lazy(() => import('./pages/index'));
+const InstitutionalHome = lazy(() => import('./pages/index'));
+const MarketplaceIndex = lazy(() => import('./pages/marketplace-index'));
+const MarketplaceSearch = lazy(() => import('./pages/marketplace-search'));
+const MarketplacePoint = lazy(() => import('./pages/marketplace-point'));
+const MarketplaceLogin = lazy(() => import('./pages/marketplace-login'));
+const MarketplaceSignup = lazy(() => import('./pages/marketplace-signup'));
+const MarketplaceAccount = lazy(() => import('./pages/marketplace-account'));
+const MarketplaceResetPassword = lazy(() => import('./pages/marketplace-reset-password'));
+const MarketplaceForgotPassword = lazy(() => import('./pages/marketplace-forgot-password'));
+const MarketplaceVerifyEmail = lazy(() => import('./pages/marketplace-verify-email'));
 const Cadastro = lazy(() => import('./pages/cadastro'));
 const Login = lazy(() => import('./pages/login'));
 const VerifyEmail = lazy(() => import('./pages/verify-email'));
@@ -96,6 +106,24 @@ function Suspended({ children }: { children: ReactNode }) {
   return <Suspense fallback={<AppRouteFallback />}>{children}</Suspense>;
 }
 
+function RedirectTo({ path }: { path: string }) {
+  const navigate = useNavigation();
+
+  useEffect(() => {
+    navigate(path);
+  }, [navigate, path]);
+
+  return <AppRouteFallback />;
+}
+
+function safeDecodePathSegment(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function MarketingShell({ children }: { children: ReactNode }) {
   return <WaitlistProvider>{children}</WaitlistProvider>;
 }
@@ -106,6 +134,10 @@ function AuthShell({ children }: { children: ReactNode }) {
       <WaitlistProvider>{children}</WaitlistProvider>
     </AuthProvider>
   );
+}
+
+function MarketplaceAccountShell({ children }: { children: ReactNode }) {
+  return <MarketplaceAuthProvider>{children}</MarketplaceAuthProvider>;
 }
 
 function AdminShell({ children }: { children: ReactNode }) {
@@ -126,7 +158,7 @@ function InternalAppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function wrap(shell: 'marketing' | 'auth' | 'admin' | 'internal' | 'none', children: ReactNode) {
+function wrap(shell: 'marketing' | 'auth' | 'admin' | 'internal' | 'marketplace' | 'none', children: ReactNode) {
   switch (shell) {
     case 'marketing':
       return <MarketingShell>{children}</MarketingShell>;
@@ -136,6 +168,8 @@ function wrap(shell: 'marketing' | 'auth' | 'admin' | 'internal' | 'none', child
       return <AdminShell>{children}</AdminShell>;
     case 'internal':
       return <InternalAppShell>{children}</InternalAppShell>;
+    case 'marketplace':
+      return <MarketplaceAccountShell>{children}</MarketplaceAccountShell>;
     default:
       return children;
   }
@@ -157,19 +191,26 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  const navigate: NavigateFunction = (path: string) => {
+  const navigate = useCallback<NavigateFunction>((path: string) => {
     if (getCurrentPath() === path) return;
     window.history.pushState({}, '', path);
     setCurrentPath(path);
     window.scrollTo(0, 0);
-  };
+  }, []);
+
+  const replaceRoute = useCallback((path: string) => {
+    if (getCurrentPath() === path) return;
+    window.history.replaceState({}, '', path);
+    setCurrentPath(path);
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     const cleanPath = getCurrentPath().split('?')[0].replace(/\/$/, '') || '/';
-    if (cleanPath === '/' && isMobileDevice()) {
-      navigate('/landing-mobile');
+    if (cleanPath === '/home' && isMobileDevice()) {
+      replaceRoute('/landing-mobile');
     }
-  }, [currentPath]);
+  }, [currentPath, replaceRoute]);
 
   const renderRoute = () => {
     const cleanPath = currentPath.split('?')[0].replace(/\/$/, '') || '/';
@@ -196,6 +237,15 @@ export default function App() {
     if (cleanPath === '/menu/dono/enviada') return wrap('none', <Suspended><MenuDonoEnviada /></Suspended>);
     if (cleanPath === '/menu/dono/revisao') return wrap('none', <Suspended><MenuDonoRevisao /></Suspended>);
     if (cleanPath === '/menu/dono/aprovada') return wrap('none', <Suspended><MenuDonoAprovada /></Suspended>);
+
+    const marketplacePointMatch = cleanPath.match(/^\/pontos\/([^/]+)$/);
+    if (marketplacePointMatch) {
+      return wrap('marketplace', (
+        <Suspended>
+          <MarketplacePoint slug={safeDecodePathSegment(marketplacePointMatch[1])} />
+        </Suspended>
+      ));
+    }
 
     const newsDetailMatch = cleanPath.match(/^\/noticias\/([^/]+)$/);
     if (newsDetailMatch) {
@@ -224,7 +274,27 @@ export default function App() {
 
     switch (cleanPath) {
       case '/':
-        return wrap('marketing', <Suspended><Home /></Suspended>);
+        return wrap('marketplace', <Suspended><MarketplaceIndex /></Suspended>);
+      case '/buscar':
+        return wrap('marketplace', <Suspended><MarketplaceSearch /></Suspended>);
+      case '/marketplace/entrar':
+        return wrap('marketplace', <Suspended><MarketplaceLogin /></Suspended>);
+      case '/marketplace/cadastro':
+        return wrap('marketplace', <Suspended><MarketplaceSignup /></Suspended>);
+      case '/marketplace/solicitacoes':
+        return wrap('marketplace', <Suspended><MarketplaceAccount section="solicitacoes" /></Suspended>);
+      case '/marketplace/mensagens':
+        return wrap('marketplace', <Suspended><MarketplaceAccount section="mensagens" /></Suspended>);
+      case '/marketplace/perfil':
+        return wrap('marketplace', <Suspended><MarketplaceAccount section="perfil" /></Suspended>);
+      case '/marketplace/verificar-email':
+        return wrap('marketplace', <Suspended><MarketplaceVerifyEmail /></Suspended>);
+      case '/marketplace/esqueci-senha':
+        return wrap('marketplace', <Suspended><MarketplaceForgotPassword /></Suspended>);
+      case '/marketplace/redefinir-senha':
+        return wrap('marketplace', <Suspended><MarketplaceResetPassword /></Suspended>);
+      case '/home':
+        return wrap('marketing', <Suspended><InstitutionalHome /></Suspended>);
       case '/signup':
       case '/cadastro':
         return wrap('marketing', <Suspended><Cadastro /></Suspended>);
@@ -251,8 +321,7 @@ export default function App() {
       case '/privacidade':
         return wrap('marketing', <Suspended><Privacidade /></Suspended>);
       default:
-        navigate('/');
-        return wrap('marketing', <Suspended><Home /></Suspended>);
+        return wrap('none', <RedirectTo path="/" />);
     }
   };
 
