@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'coverage']);
@@ -45,6 +46,30 @@ function walk(dir, files = []) {
   return files;
 }
 
+function listCandidateFiles() {
+  try {
+    const output = execFileSync(
+      'git',
+      ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+      {
+        cwd: ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    );
+
+    return output
+      .split('\0')
+      .filter(Boolean)
+      .map((relativePath) => path.resolve(ROOT, relativePath))
+      .filter((filePath) => fs.existsSync(filePath) && fs.statSync(filePath).isFile());
+  } catch {
+    // Fora de um checkout Git (por exemplo, ZIP de origem), mantém a varredura
+    // completa para não permitir que arquivos sensíveis sejam empacotados.
+    return walk(ROOT);
+  }
+}
+
 function looksSafeValue(value, key = '') {
   const normalized = String(value || '').trim();
   const normalizedKey = String(key || '').trim().toUpperCase();
@@ -56,7 +81,7 @@ function looksSafeValue(value, key = '') {
 
 const findings = [];
 
-for (const filePath of walk(ROOT)) {
+for (const filePath of listCandidateFiles()) {
   const rel = path.relative(ROOT, filePath).replace(/\\/g, '/');
 
   if (FORBIDDEN_FILE_PATTERNS.some((pattern) => pattern.test(rel))) {
