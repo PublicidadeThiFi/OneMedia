@@ -25,7 +25,7 @@ interface ProductSelectionDialogProps {
 type ItemDraft = {
   expanded: boolean;
   description: string;
-  quantity: number;
+  quantity: number | '';
   unitPrice: number;
   discountPercent: number;
   discountAmount: number;
@@ -340,8 +340,26 @@ export function ProductSelectionDialog({
                           <Input
                             type="number"
                             min="1"
+                            step="1"
+                            inputMode="numeric"
                             value={draft.quantity}
-                            onChange={(e) => updateDraft(product.id, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                            onChange={(e) => {
+                              const rawValue = e.target.value;
+                              if (rawValue === '') {
+                                updateDraft(product.id, { quantity: '' });
+                                return;
+                              }
+
+                              const nextQuantity = Number.parseInt(rawValue, 10);
+                              if (Number.isFinite(nextQuantity)) {
+                                updateDraft(product.id, { quantity: Math.max(1, nextQuantity) });
+                              }
+                            }}
+                            onBlur={() => {
+                              if (draft.quantity === '' || Number(draft.quantity) < 1) {
+                                updateDraft(product.id, { quantity: 1 });
+                              }
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
