@@ -9,6 +9,57 @@ import { Checkbox } from '../ui/checkbox';
 import { Product, ProductType, PriceType, ProductWritePayload } from '../../types';
 import { useTutorial } from '../../contexts/TutorialContext';
 
+function parseCurrencyInput(value: string): number | null {
+  const cleaned = value.trim().replace(/\s/g, '').replace(/[^0-9.,]/g, '');
+  if (!cleaned) return null;
+
+  const lastComma = cleaned.lastIndexOf(',');
+  const lastDot = cleaned.lastIndexOf('.');
+  let decimalSeparatorIndex = -1;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Quando os dois separadores existem, o último é o decimal.
+    // Ex.: 1.000,00 ou 1,000.00.
+    decimalSeparatorIndex = Math.max(lastComma, lastDot);
+  } else if (lastComma >= 0) {
+    // No locale pt-BR, vírgula é sempre tratada como separador decimal.
+    decimalSeparatorIndex = lastComma;
+  } else if (lastDot >= 0) {
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    const decimalDigits = cleaned.length - lastDot - 1;
+
+    // Mantém compatibilidade com valores digitados com ponto decimal (234.56),
+    // mas interpreta 1.000 como mil, não como um real.
+    if (dotCount === 1 && decimalDigits > 0 && decimalDigits <= 2) {
+      decimalSeparatorIndex = lastDot;
+    }
+  }
+
+  const integerPart = (
+    decimalSeparatorIndex >= 0 ? cleaned.slice(0, decimalSeparatorIndex) : cleaned
+  ).replace(/[.,]/g, '');
+  const fractionPart =
+    decimalSeparatorIndex >= 0
+      ? cleaned.slice(decimalSeparatorIndex + 1).replace(/[.,]/g, '')
+      : '';
+
+  if (!integerPart || !/^\d+$/.test(integerPart) || (fractionPart && !/^\d+$/.test(fractionPart))) {
+    return null;
+  }
+
+  const parsed = Number(`${integerPart}${fractionPart ? `.${fractionPart}` : ''}`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatCurrencyInput(value: number): string {
+  return Number.isFinite(value)
+    ? value.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : '';
+}
+
 interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,7 +95,7 @@ export function ProductFormDialog({
         category: product.category || '',
         type: product.type,
         priceType: product.priceType,
-        basePrice: product.basePrice.toString(),
+        basePrice: formatCurrencyInput(product.basePrice),
         isAdditional: product.isAdditional,
       });
     } else {
@@ -69,8 +120,9 @@ export function ProductFormDialog({
       newErrors.name = 'Nome é obrigatório';
     }
 
-    if (!formData.basePrice || parseFloat(formData.basePrice) <= 0) {
-      newErrors.basePrice = 'Preço deve ser maior que zero';
+    const parsedBasePrice = parseCurrencyInput(formData.basePrice);
+    if (parsedBasePrice === null || parsedBasePrice <= 0) {
+      newErrors.basePrice = 'Informe um preço válido maior que zero';
     }
 
     setErrors(newErrors);
@@ -84,13 +136,22 @@ export function ProductFormDialog({
       return;
     }
 
+    const parsedBasePrice = parseCurrencyInput(formData.basePrice);
+    if (parsedBasePrice === null) {
+      setErrors((current) => ({
+        ...current,
+        basePrice: 'Informe um preço válido maior que zero',
+      }));
+      return;
+    }
+
     const productData: ProductWritePayload = {
       name: formData.name.trim(),
       description: formData.description.trim() || undefined,
       category: formData.category.trim() || undefined,
       type: formData.type,
       priceType: formData.priceType,
-      basePrice: parseFloat(formData.basePrice),
+      basePrice: parsedBasePrice,
       isAdditional: formData.isAdditional,
     };
 
@@ -225,12 +286,17 @@ export function ProductFormDialog({
               </Label>
               <Input
                 id="basePrice"
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 placeholder="0,00"
                 value={formData.basePrice}
-                onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    basePrice: e.target.value.replace(/[^0-9.,]/g, ''),
+                  })
+                }
               />
               {errors.basePrice && (
                 <p className="text-red-500 text-sm">{errors.basePrice}</p>
