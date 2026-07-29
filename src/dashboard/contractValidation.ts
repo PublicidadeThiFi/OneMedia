@@ -14,8 +14,14 @@ function normalizeContractPath(path: string) {
   return withSlash.replace(/^\/api(?=\/|$)/i, '') || '/';
 }
 
+const DASHBOARD_QUERY_CONTRACT_ALIASES: Record<string, string> = {
+  dashboardbackendquery: 'dashboardquerydto',
+  dashboarddrilldownquery: 'dashboarddrilldownquerydto',
+};
+
 function normalizeQueryName(value: string) {
-  return value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase();
+  return DASHBOARD_QUERY_CONTRACT_ALIASES[normalized] ?? normalized;
 }
 
 function getFrontendQueryName(key: DashboardEndpointKey) {
