@@ -91,7 +91,7 @@ export function ProductSelectionDialog({
 
   const ensureDraft = (product: Product): ItemDraft => ({
     expanded: false,
-    description: product.name,
+    description: product.description?.trim() || product.name,
     quantity: 1,
     unitPrice: Number(product.basePrice) || 0,
     discountPercent: 0,
