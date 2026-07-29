@@ -10,6 +10,83 @@ import { ProductSelectionDialog } from './ProductSelectionDialog';
 import { ProposalItemEditDialog } from './ProposalItemEditDialog';
 import { useTutorial } from '../../contexts/TutorialContext';
 
+function parsePercentageInput(value: string): number | null {
+  const cleaned = value.trim().replace(/\s/g, '').replace(/[^0-9.,]/g, '');
+  if (!cleaned) return null;
+
+  const lastComma = cleaned.lastIndexOf(',');
+  const lastDot = cleaned.lastIndexOf('.');
+  const decimalSeparatorIndex = Math.max(lastComma, lastDot);
+
+  const integerPart = (
+    decimalSeparatorIndex >= 0 ? cleaned.slice(0, decimalSeparatorIndex) : cleaned
+  ).replace(/[.,]/g, '');
+  const fractionPart =
+    decimalSeparatorIndex >= 0
+      ? cleaned.slice(decimalSeparatorIndex + 1).replace(/[.,]/g, '')
+      : '';
+
+  if (!integerPart || !/^\d+$/.test(integerPart) || (fractionPart && !/^\d+$/.test(fractionPart))) {
+    return null;
+  }
+
+  const parsed = Number(`${integerPart}${fractionPart ? `.${fractionPart}` : ''}`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseCurrencyInput(value: string): number | null {
+  const cleaned = value.trim().replace(/\s/g, '').replace(/[^0-9.,]/g, '');
+  if (!cleaned) return null;
+
+  const lastComma = cleaned.lastIndexOf(',');
+  const lastDot = cleaned.lastIndexOf('.');
+  let decimalSeparatorIndex = -1;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    decimalSeparatorIndex = Math.max(lastComma, lastDot);
+  } else if (lastComma >= 0) {
+    decimalSeparatorIndex = lastComma;
+  } else if (lastDot >= 0) {
+    const dotCount = (cleaned.match(/\./g) || []).length;
+    const decimalDigits = cleaned.length - lastDot - 1;
+
+    if (dotCount === 1 && decimalDigits > 0 && decimalDigits <= 2) {
+      decimalSeparatorIndex = lastDot;
+    }
+  }
+
+  const integerPart = (
+    decimalSeparatorIndex >= 0 ? cleaned.slice(0, decimalSeparatorIndex) : cleaned
+  ).replace(/[.,]/g, '');
+  const fractionPart =
+    decimalSeparatorIndex >= 0
+      ? cleaned.slice(decimalSeparatorIndex + 1).replace(/[.,]/g, '')
+      : '';
+
+  if (!integerPart || !/^\d+$/.test(integerPart) || (fractionPart && !/^\d+$/.test(fractionPart))) {
+    return null;
+  }
+
+  const parsed = Number(`${integerPart}${fractionPart ? `.${fractionPart}` : ''}`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatPercentageInput(value?: number): string {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return '0';
+  return String(parsed).replace('.', ',');
+}
+
+function formatCurrencyInput(value?: number): string {
+  const parsed = Number(value ?? 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return '0';
+
+  return parsed.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 interface ProposalStep2ItemsProps {
   formData: ProposalFormData;
   onItemsChange: (items: ProposalItem[]) => void;
@@ -31,6 +108,12 @@ export function ProposalStep2Items({
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [editingItem, setEditingItem] = useState<ProposalItem | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [discountPercentInput, setDiscountPercentInput] = useState(() =>
+    formatPercentageInput(formData.discountPercent),
+  );
+  const [discountAmountInput, setDiscountAmountInput] = useState(() =>
+    formatCurrencyInput(formData.discountAmount),
+  );
 
   const firstId = initialMediaPointId ?? (initialMediaPointIds?.[0] ?? null);
 
@@ -130,12 +213,38 @@ export function ProposalStep2Items({
   };
 
   const handleDiscountPercentChange = (value: string) => {
-    const percent = parseFloat(value) || 0;
+    const sanitized = value.replace(/[^0-9.,]/g, '');
+    const parsed = parsePercentageInput(sanitized);
+    const percent = parsed === null ? 0 : Math.max(0, parsed);
+
+    setDiscountPercentInput(sanitized);
+    setDiscountAmountInput('0');
+    onMetaChange({ discountPercent: percent, discountAmount: 0 });
+  };
+
+  const handleDiscountPercentBlur = () => {
+    const parsed = parsePercentageInput(discountPercentInput);
+    const percent = parsed === null ? 0 : Math.max(0, parsed);
+
+    setDiscountPercentInput(formatPercentageInput(percent));
     onMetaChange({ discountPercent: percent, discountAmount: 0 });
   };
 
   const handleDiscountAmountChange = (value: string) => {
-    const amount = parseFloat(value) || 0;
+    const sanitized = value.replace(/[^0-9.,]/g, '');
+    const parsed = parseCurrencyInput(sanitized);
+    const amount = parsed === null ? 0 : Math.max(0, parsed);
+
+    setDiscountAmountInput(sanitized);
+    setDiscountPercentInput('0');
+    onMetaChange({ discountAmount: amount, discountPercent: 0 });
+  };
+
+  const handleDiscountAmountBlur = () => {
+    const parsed = parseCurrencyInput(discountAmountInput);
+    const amount = parsed === null ? 0 : Math.max(0, parsed);
+
+    setDiscountAmountInput(formatCurrencyInput(amount));
     onMetaChange({ discountAmount: amount, discountPercent: 0 });
   };
 
@@ -346,11 +455,13 @@ export function ProposalStep2Items({
               <Label htmlFor="discountPercent">Desconto em %</Label>
               <Input
                 id="discountPercent"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.discountPercent || 0}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0"
+                value={discountPercentInput}
                 onChange={(e) => handleDiscountPercentChange(e.target.value)}
+                onBlur={handleDiscountPercentBlur}
                 disabled={!!formData.discountAmount}
               />
             </div>
@@ -358,11 +469,13 @@ export function ProposalStep2Items({
               <Label htmlFor="discountAmount">Desconto em R$</Label>
               <Input
                 id="discountAmount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.discountAmount || 0}
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="0,00"
+                value={discountAmountInput}
                 onChange={(e) => handleDiscountAmountChange(e.target.value)}
+                onBlur={handleDiscountAmountBlur}
                 disabled={!!formData.discountPercent}
               />
             </div>
