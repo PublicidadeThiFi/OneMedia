@@ -12,7 +12,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { Product, ProductType } from '../types';
+import { Product, ProductType, ProductWritePayload } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import { ProductFiltersBar } from './products/ProductFiltersBar';
 import { ProductsGrid } from './products/ProductsGrid';
@@ -66,7 +66,7 @@ export function Products() {
   const endIdx = total === 0 ? 0 : Math.min(page * PAGE_SIZE, total);
 
   // Handlers
-  const handleSaveProduct = async (productData: Partial<Product>) => {
+  const handleSaveProduct = async (productData: ProductWritePayload) => {
     try {
       if (editingProduct?.id) {
         await updateProduct(editingProduct.id, productData);

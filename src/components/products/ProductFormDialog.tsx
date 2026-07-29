@@ -6,14 +6,14 @@ import { Textarea } from '../ui/textarea';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { Product, ProductType, PriceType } from '../../types';
+import { Product, ProductType, PriceType, ProductWritePayload } from '../../types';
 import { useTutorial } from '../../contexts/TutorialContext';
 
 interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: Product | null;
-  onSave: (productData: Partial<Product>) => void;
+  onSave: (productData: ProductWritePayload) => void;
 }
 
 export function ProductFormDialog({
@@ -84,7 +84,7 @@ export function ProductFormDialog({
       return;
     }
 
-    const productData: Partial<Product> = {
+    const productData: ProductWritePayload = {
       name: formData.name.trim(),
       description: formData.description.trim() || undefined,
       category: formData.category.trim() || undefined,
@@ -93,12 +93,6 @@ export function ProductFormDialog({
       basePrice: parseFloat(formData.basePrice),
       isAdditional: formData.isAdditional,
     };
-
-    if (product) {
-      // Edição
-      productData.id = product.id;
-      productData.updatedAt = new Date();
-    }
 
     onSave(productData);
   };

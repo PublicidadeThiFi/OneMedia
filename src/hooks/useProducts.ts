@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
-import { Product, ProductType } from '../types';
+import { Product, ProductType, ProductWritePayload } from '../types';
 import { emitDataChanged, subscribeDataChanged } from '../lib/appEvents';
 
 export interface UseProductsParams {
@@ -33,6 +33,31 @@ type ProductsResponseObject = {
 };
 
 type ProductsResponseLoose = Product[] | ProductsResponseObject;
+
+const PRODUCT_WRITE_FIELDS: ReadonlyArray<keyof ProductWritePayload> = [
+  'name',
+  'description',
+  'category',
+  'type',
+  'priceType',
+  'basePrice',
+  'isAdditional',
+];
+
+function sanitizeProductPayload(
+  payload: Partial<ProductWritePayload>
+): Partial<ProductWritePayload> {
+  const sanitized: Partial<ProductWritePayload> = {};
+
+  for (const field of PRODUCT_WRITE_FIELDS) {
+    const value = payload[field];
+    if (value !== undefined) {
+      (sanitized as Record<string, unknown>)[field] = value;
+    }
+  }
+
+  return sanitized;
+}
 
 function normalizeProduct(p: any): Product {
   return {
@@ -158,8 +183,8 @@ export function useProducts(params: UseProductsParams = EMPTY_PARAMS) {
   }, [apiParams]);
 
   const createProduct = useCallback(
-    async (payload: Partial<Product>) => {
-      const response = await apiClient.post<Product>('/products', payload);
+    async (payload: ProductWritePayload) => {
+      const response = await apiClient.post<Product>('/products', sanitizeProductPayload(payload));
       const created = normalizeProduct(response.data);
 
       // Mantém lista e paginação consistentes
@@ -172,8 +197,11 @@ export function useProducts(params: UseProductsParams = EMPTY_PARAMS) {
   );
 
   const updateProduct = useCallback(
-    async (id: string, payload: Partial<Product>) => {
-      const response = await apiClient.put<Product>(`/products/${id}`, payload);
+    async (id: string, payload: Partial<ProductWritePayload>) => {
+      const response = await apiClient.put<Product>(
+        `/products/${id}`,
+        sanitizeProductPayload(payload)
+      );
       const updated = normalizeProduct(response.data);
 
       emitDataChanged('products');

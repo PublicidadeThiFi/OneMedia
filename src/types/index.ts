@@ -591,6 +591,11 @@ export interface Product {
   updatedAt: Date;
 }
 
+export type ProductWritePayload = Pick<
+  Product,
+  'name' | 'description' | 'category' | 'type' | 'priceType' | 'basePrice' | 'isAdditional'
+>;
+
 export interface Proposal {
   id: string;
   companyId: string;
