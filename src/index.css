@@ -6187,3 +6187,106 @@ html {
   .xl\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .xl\:grid-cols-\[1\.15fr_0\.85fr\] { grid-template-columns: 1.15fr 0.85fr; }
 }
+
+/* ==========================
+   Institutional home — responsive unification
+   ========================== */
+@media (max-width: 639px) {
+  .landing-hero-section {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    padding-top: 104px;
+  }
+
+  .hero-shell {
+    border-radius: 28px !important;
+    padding: 48px 16px 72px;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+    line-height: 1.08;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+    line-height: 1.45;
+  }
+
+  .hero-stage {
+    min-height: 260px;
+  }
+
+  .hero-img {
+    height: 210px;
+    border-radius: 1rem;
+  }
+
+  .hero-img--front {
+    height: 230px;
+  }
+
+  .solutions-left-card {
+    padding: 22px;
+  }
+}
+
+.institutional-trial-short {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .institutional-header-inner {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .institutional-header-logo {
+    height: 36px;
+  }
+
+  .institutional-header-actions {
+    gap: 8px;
+  }
+
+  .institutional-login-link {
+    display: none;
+  }
+
+  .institutional-trial-button {
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+
+  .institutional-trial-short {
+    display: inline;
+  }
+
+  .institutional-trial-full {
+    display: none;
+  }
+}
+
+/* Fase 2: mantém um acesso explícito ao marketplace também em telas pequenas. */
+.institutional-marketplace-link {
+  white-space: nowrap;
+}
+
+.institutional-marketplace-short {
+  display: none;
+}
+
+@media (max-width: 639px) {
+  .institutional-marketplace-link {
+    font-size: 13px;
+  }
+
+  .institutional-marketplace-full {
+    display: none;
+  }
+
+  .institutional-marketplace-short {
+    display: inline;
+  }
+}

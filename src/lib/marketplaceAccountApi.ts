@@ -44,8 +44,12 @@ async function refreshAccessToken(): Promise<string | null> {
       '/marketplace/auth/refresh',
       { refreshToken },
     );
-    updateMarketplaceTokens(response.data.tokens);
-    return response.data.tokens.accessToken;
+    const tokens = response.data?.tokens;
+    if (!tokens?.accessToken || !tokens?.refreshToken) {
+      throw new Error('Resposta de renovação da sessão do marketplace incompleta.');
+    }
+    updateMarketplaceTokens(tokens);
+    return tokens.accessToken;
   } catch {
     clearMarketplaceTokens();
     return null;
@@ -141,6 +145,14 @@ export async function forgotMarketplacePassword(payload: {
   const response = await publicApiClient.post<{ message: string }>(
     '/marketplace/auth/forgot-password',
     payload,
+  );
+  return response.data;
+}
+
+export async function validateMarketplacePasswordResetToken(token: string) {
+  const response = await publicApiClient.post<{ valid: true }>(
+    '/marketplace/auth/reset-password/validate',
+    { token },
   );
   return response.data;
 }

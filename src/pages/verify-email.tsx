@@ -65,11 +65,16 @@ export default function VerifyEmail() {
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
-          </div>
           <button
-            onClick={() => navigate('/')}
+            type="button"
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-3"
+            aria-label="Ir para a página inicial institucional da OneMedia"
+          >
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
+          </button>
+          <button
+            onClick={() => navigate('/home')}
             className="text-sm sm:text-base text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
@@ -144,7 +149,7 @@ export default function VerifyEmail() {
               </button>
 
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/home')}
                 className="w-full sm:w-auto px-6 py-3 rounded-xl border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
               >
                 Voltar ao site

@@ -10,17 +10,30 @@ export default function Planos() {
   const { openWaitlist } = useWaitlist();
   const [showContactModal, setShowContactModal] = useState(false);
 
+  const goToHomeSection = (section: string) => {
+    navigate('/home');
+    window.setTimeout(() => {
+      window.location.hash = section;
+      document.getElementById(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm z-50 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-3"
+            aria-label="Ir para a página inicial institucional da OneMedia"
+          >
             <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
-          </div>
+          </button>
           
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
             className="flex items-center gap-2 text-gray-700 hover:text-blue-600 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -121,7 +134,7 @@ export default function Planos() {
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             {/* Logo and Info */}
             <div>
-              <img src={imgOnemediaLogo} alt="OneMedia" className="h-10 mb-6" />
+              <button type="button" onClick={() => navigate('/home')} aria-label="Ir para a página inicial institucional"><img src={imgOnemediaLogo} alt="OneMedia" className="h-10 mb-6" /></button>
               <div className="space-y-2 text-gray-600">
                 <p onClick={() => navigate('/planos')} className="cursor-pointer hover:text-blue-600 transition-colors">Preços</p>
                 <p onClick={() => setShowContactModal(true)} className="cursor-pointer hover:text-blue-600 transition-colors">Entre em contato conosco</p>
@@ -132,12 +145,12 @@ export default function Planos() {
             <div>
               <h4 className="font-semibold text-gray-900 mb-4">Produtos</h4>
               <div className="space-y-2 text-gray-600">
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Inventário</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Propostas</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Campanhas</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Financeiro</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Mídia Kit</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Dashboard</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Inventário</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Propostas</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Campanhas</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Financeiro</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Mídia Kit</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Dashboard</p>
               </div>
             </div>
 
@@ -145,9 +158,9 @@ export default function Planos() {
             <div>
               <h4 className="font-semibold text-gray-900 mb-4">Soluções</h4>
               <div className="space-y-2 text-gray-600">
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Para Agências</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Para Veículos</p>
-                <p onClick={() => { navigate('/'); setTimeout(() => { window.location.hash = 'solucoes'; }, 100); }} className="cursor-pointer hover:text-blue-600 transition-colors">Para Proprietários</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Para Agências</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Para Veículos</p>
+                <p onClick={() => goToHomeSection('solucoes')} className="cursor-pointer hover:text-blue-600 transition-colors">Para Proprietários</p>
               </div>
             </div>
 
@@ -155,9 +168,9 @@ export default function Planos() {
             <div>
               <h4 className="font-semibold text-gray-900 mb-4">Recursos</h4>
               <div className="space-y-2 text-gray-600">
-                <p onClick={() => navigate('/')} className="cursor-pointer hover:text-blue-600 transition-colors">Blog</p>
-                <p onClick={() => navigate('/')} className="cursor-pointer hover:text-blue-600 transition-colors">Documentação</p>
-                <p onClick={() => navigate('/')} className="cursor-pointer hover:text-blue-600 transition-colors">Suporte</p>
+                <p onClick={() => navigate('/home')} className="cursor-pointer hover:text-blue-600 transition-colors">Blog</p>
+                <p onClick={() => navigate('/home')} className="cursor-pointer hover:text-blue-600 transition-colors">Documentação</p>
+                <p onClick={() => navigate('/home')} className="cursor-pointer hover:text-blue-600 transition-colors">Suporte</p>
                 <p onClick={() => navigate('/contato')} className="cursor-pointer hover:text-blue-600 transition-colors">Contato</p>
               </div>
             </div>
@@ -166,8 +179,8 @@ export default function Planos() {
           <div className="pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-600">© 2026 OneMedia. Todos os direitos reservados.</p>
             <div className="flex gap-6 text-gray-600">
-              <button type="button" onClick={() => navigate('/privacidade')} className="hover:text-blue-600 transition-colors">Privacidade</button>
-              <button type="button" onClick={() => navigate('/termos')} className="hover:text-blue-600 transition-colors">Termos</button>
+              <button type="button" onClick={() => navigate('/privacidade?returnUrl=%2Fplanos')} className="hover:text-blue-600 transition-colors">Privacidade</button>
+              <button type="button" onClick={() => navigate('/termos?returnUrl=%2Fplanos')} className="hover:text-blue-600 transition-colors">Termos</button>
             </div>
           </div>
         </div>

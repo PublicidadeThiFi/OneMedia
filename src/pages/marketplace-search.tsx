@@ -14,6 +14,12 @@ import {
   parseMarketplaceSearchParams,
 } from '../lib/marketplaceFilters';
 import type { MarketplaceSearchResponse } from '../types/marketplace';
+import {
+  buildMarketplaceSearchReturnUrl,
+  consumeMarketplaceSearchReturnState,
+  readMarketplaceSearchUiState,
+  saveMarketplaceSearchReturnState,
+} from '../lib/marketplaceSearchReturn';
 
 function resultLabel(total: number) {
   return `${total.toLocaleString('pt-BR')} ${total === 1 ? 'ponto de mídia encontrado' : 'pontos de mídia encontrados'}`;
@@ -43,9 +49,11 @@ export default function MarketplaceSearchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryVersion, setRetryVersion] = useState(0);
+  const initialUiState = useMemo(() => readMarketplaceSearchUiState(), []);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [activeSlug, setActiveSlug] = useState<string | null>(null);
-  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
+  const [activeSlug, setActiveSlug] = useState<string | null>(initialUiState.activeSlug);
+  const [mobileView, setMobileView] = useState<'list' | 'map'>(initialUiState.mobileView);
+  const restoredRef = useRef(false);
   const [mapHeight, setMapHeight] = useState(620);
   const listBlockRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLDivElement | null>(null);
@@ -92,8 +100,37 @@ export default function MarketplaceSearchPage() {
 
   const activeFilterCount = countMarketplaceAdvancedFilters(params);
   const updateSearch = useCallback((patch: Record<string, string | number | null | undefined>, resetPage = true) => {
-    navigate(buildMarketplacePatchedSearchPath(window.location.search, patch, resetPage));
+    setActiveSlug(null);
+    navigate(buildMarketplacePatchedSearchPath(
+      window.location.search,
+      { ...patch, active: null },
+      resetPage,
+    ));
   }, [navigate]);
+
+  useEffect(() => {
+    if (loading || !data || restoredRef.current) return;
+    restoredRef.current = true;
+
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    const stored = consumeMarketplaceSearchReturnState(currentUrl);
+    const queryState = readMarketplaceSearchUiState();
+    const restoredSlug = stored?.activeSlug || queryState.activeSlug;
+    const restoredView = stored?.mobileView || queryState.mobileView;
+
+    setMobileView(restoredView);
+    if (restoredSlug && data.mapPoints.some((point) => point.slug === restoredSlug)) {
+      setActiveSlug(restoredSlug);
+    }
+
+    if (!stored) return;
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (stored.scrollY > 0) window.scrollTo({ top: stored.scrollY, behavior: 'auto' });
+        else if (restoredSlug) cardRefs.current[restoredSlug]?.scrollIntoView({ block: 'center' });
+      });
+    });
+  }, [data, loading]);
 
   const changePage = (page: number) => {
     updateSearch({ page: page <= 1 ? null : page }, false);
@@ -116,13 +153,57 @@ export default function MarketplaceSearchPage() {
     setFiltersOpen(false);
   };
 
-  const openPoint = (slug: string) => navigate(`/pontos/${encodeURIComponent(slug)}`);
-  const activateFromMap = (slug: string) => {
+  const openPoint = useCallback((slug: string) => {
+    const returnUrl = buildMarketplaceSearchReturnUrl({
+      activeSlug: slug,
+      mobileView,
+    });
+    saveMarketplaceSearchReturnState({
+      returnUrl,
+      scrollY: window.scrollY,
+      activeSlug: slug,
+      mobileView,
+    });
+    // Atualiza a entrada atual do histórico antes de abrir o detalhe. Assim,
+    // o botão Voltar do navegador restaura exatamente a mesma busca.
+    window.history.replaceState(window.history.state, '', returnUrl);
+
+    const detailQuery = new URLSearchParams();
+    detailQuery.set('returnUrl', returnUrl);
+    if (params.startDate) detailQuery.set('startDate', params.startDate);
+    if (params.endDate) detailQuery.set('endDate', params.endDate);
+    navigate(`/pontos/${encodeURIComponent(slug)}?${detailQuery.toString()}`);
+  }, [mobileView, navigate, params.endDate, params.startDate]);
+
+  const replaceUiState = (nextActiveSlug: string | null, nextView: 'list' | 'map') => {
+    const nextUrl = buildMarketplaceSearchReturnUrl({
+      activeSlug: nextActiveSlug,
+      mobileView: nextView,
+    });
+    window.history.replaceState(window.history.state, '', nextUrl);
+  };
+
+  const changeMobileView = (view: 'list' | 'map') => {
+    setMobileView(view);
+    replaceUiState(activeSlug, view);
+  };
+
+  const activatePoint = (slug: string) => {
     setActiveSlug(slug);
+    replaceUiState(slug, mobileView);
+  };
+
+  const activateFromMap = (slug: string) => {
+    activatePoint(slug);
     cardRefs.current[slug]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
+
   const deactivate = (slug: string) => {
-    setActiveSlug((current) => current === slug ? null : current);
+    setActiveSlug((current) => {
+      if (current !== slug) return current;
+      replaceUiState(null, mobileView);
+      return null;
+    });
   };
 
   const total = data?.pagination.total ?? 0;
@@ -163,10 +244,10 @@ export default function MarketplaceSearchPage() {
               <p>Compare formatos, localização, período e o menor valor bisemanal de cada ponto.</p>
             </div>
             <div className="marketplace-results-heading__mobile-toggle" role="group" aria-label="Visualização dos resultados">
-              <button type="button" aria-pressed={mobileView === 'list'} className={mobileView === 'list' ? 'is-active' : ''} onClick={() => setMobileView('list')}>
+              <button type="button" aria-pressed={mobileView === 'list'} className={mobileView === 'list' ? 'is-active' : ''} onClick={() => changeMobileView('list')}>
                 <List aria-hidden="true" /> Lista
               </button>
-              <button type="button" aria-pressed={mobileView === 'map'} className={mobileView === 'map' ? 'is-active' : ''} onClick={() => setMobileView('map')}>
+              <button type="button" aria-pressed={mobileView === 'map'} className={mobileView === 'map' ? 'is-active' : ''} onClick={() => changeMobileView('map')}>
                 <MapIcon aria-hidden="true" /> Mapa
               </button>
             </div>
@@ -200,8 +281,9 @@ export default function MarketplaceSearchPage() {
                           <MarketplacePointCard
                             point={point}
                             active={activeSlug === point.slug}
-                            onActivate={setActiveSlug}
+                            onActivate={activatePoint}
                             onDeactivate={deactivate}
+                            onOpen={openPoint}
                           />
                         </div>
                       ))}

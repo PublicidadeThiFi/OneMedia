@@ -64,7 +64,7 @@ export async function updateMarketplaceModerationReport(
   reportId: string,
   payload: {
     status: MarketplaceReportStatus;
-    resolutionNote?: string;
+    note?: string;
     suspendPoint?: boolean;
   },
 ): Promise<MarketplaceModerationReportItem> {

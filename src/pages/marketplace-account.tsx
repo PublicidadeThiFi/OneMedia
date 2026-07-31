@@ -3,6 +3,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ImageOff,
   Inbox,
   LoaderCircle,
   LogOut,
@@ -24,6 +25,7 @@ import {
   fetchMarketplaceCustomerInquiries,
 } from '../lib/marketplaceAccountApi';
 import { getApiError } from '../lib/getApiError';
+import { resolveUploadsUrl } from '../lib/format';
 import type { MarketplaceCustomerInquiry } from '../types/marketplace';
 
 type MarketplaceAccountPageProps = {
@@ -31,6 +33,42 @@ type MarketplaceAccountPageProps = {
 };
 
 const formatDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(new Date(value));
+
+function InquiryCover({
+  url,
+  pointName,
+}: {
+  url?: string | null;
+  pointName: string;
+}) {
+  const resolvedUrl = resolveUploadsUrl(url) || url || null;
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [resolvedUrl]);
+
+  if (!resolvedUrl || failed) {
+    return (
+      <div
+        className="marketplace-inquiry-card__cover-fallback"
+        role="img"
+        aria-label={`Imagem indisponível para ${pointName}`}
+      >
+        <ImageOff aria-hidden="true" />
+        <span>Imagem indisponível</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={resolvedUrl}
+      alt={`Imagem de ${pointName}`}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 function AccountNavigation({ section }: MarketplaceAccountPageProps) {
   const navigate = useNavigation();
@@ -50,7 +88,10 @@ function InquiryCard({ item, onCancel }: { item: MarketplaceCustomerInquiry; onC
   return (
     <article className="marketplace-inquiry-card">
       <div className="marketplace-inquiry-card__cover">
-        {item.point.coverUrl ? <img src={item.point.coverUrl} alt="" loading="lazy" /> : <MapPin aria-hidden="true" />}
+        <InquiryCover
+          url={item.point.coverUrl}
+          pointName={item.point.name}
+        />
       </div>
       <div className="marketplace-inquiry-card__body">
         <div className="marketplace-inquiry-card__topline">

@@ -126,7 +126,7 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
         </button>
         
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/home')}
           className="inline-flex items-center gap-2 bg-white border-2 border-gray-300 text-gray-700 px-10 py-3.5 rounded-xl hover:bg-gray-50 transition-all font-medium"
         >
           <Home className="w-5 h-5" />

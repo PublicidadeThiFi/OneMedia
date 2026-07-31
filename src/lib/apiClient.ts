@@ -295,6 +295,16 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    const isRefreshRequest = /^\/auth\/refresh\b/i.test(
+      String(originalRequest.url ?? ''),
+    );
+
+    // The refresh request itself must never enter the refresh interceptor.
+    // Otherwise a rejected refresh can wait on its own queue indefinitely.
+    if (error.response?.status === 401 && isRefreshRequest) {
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -340,6 +350,10 @@ apiClient.interceptors.response.use(
           data.access_token ?? data.accessToken;
         const newRefreshToken: string | undefined =
           data.refresh_token ?? data.refreshToken;
+
+        if (!newAccessToken || !newRefreshToken) {
+          throw new Error('Resposta de renovação de sessão incompleta.');
+        }
 
         persistRotatedTokens({
           accessToken: newAccessToken,

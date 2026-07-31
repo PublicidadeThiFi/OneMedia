@@ -20,6 +20,7 @@ const allowedPublicKeys = new Set([
   'VITE_APP_URL',
   'VITE_TURNSTILE_SITE_KEY',
   'VITE_MERCADO_PAGO_PUBLIC_KEY',
+  'VITE_ENTERPRISE_SIGNUP_ENABLED',
 ]);
 
 for (const key of Object.keys(process.env)) {

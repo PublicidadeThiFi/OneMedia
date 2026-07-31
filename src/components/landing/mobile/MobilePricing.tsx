@@ -66,9 +66,9 @@ export function MobilePricing() {
   return (
     <section id="planos" className="py-12 bg-white overflow-hidden">
       <div className="text-center px-4 mb-6">
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-1">Teste gratis</p>
-        <h2 className="text-2xl font-bold text-gray-900 mb-1">Planos com 1 mes gratuito</h2>
-        <p className="text-sm text-gray-500">Sem cartao de credito. Cancele quando quiser.</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-1">Teste grátis</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">Planos com 1 mês gratuito</h2>
+        <p className="text-sm text-gray-500">Sem cartão de crédito. Cancele quando quiser.</p>
       </div>
 
       <div
@@ -93,7 +93,7 @@ export function MobilePricing() {
               <div>
                 {plan.strikePrice && <p><StrikeX text={plan.strikePrice} /></p>}
                 <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                <p className="text-sm text-gray-600">no primeiro mes</p>
+                <p className="text-sm text-gray-600">no primeiro mês</p>
                 <p className="text-xs text-gray-400">Depois {plan.monthlyPrice}</p>
               </div>
               <hr className="border-gray-100" />
@@ -103,7 +103,7 @@ export function MobilePricing() {
               <hr className="border-gray-100" />
               {featureList()}
               <button onClick={() => openWaitlist('mobile-pricing:comecar-gratis')} className="w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
-                Comecar gratis
+                Começar grátis
               </button>
             </>,
             false
@@ -125,8 +125,8 @@ export function MobilePricing() {
             </div>
             <div>
               <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-              <p className="text-sm text-gray-600">no primeiro mes</p>
-              <p className="text-xs text-gray-400">Depois {formatBRL(sliderPrice)}/mes</p>
+              <p className="text-sm text-gray-600">no primeiro mês</p>
+              <p className="text-xs text-gray-400">Depois {formatBRL(sliderPrice)}/mês</p>
             </div>
             <hr className="border-gray-100" />
             <div className="bg-blue-50 rounded-xl p-3 space-y-2">

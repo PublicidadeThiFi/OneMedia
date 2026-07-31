@@ -319,10 +319,15 @@ export default function Home() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-sm z-50 border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12" />
-          </div>
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between institutional-header-inner">
+          <button
+            type="button"
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-3"
+            aria-label="Ir para a página inicial institucional da OneMedia"
+          >
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-12 institutional-header-logo" />
+          </button>
           
           <nav className="hidden md:flex items-center gap-8">
             <a href="#produtos" className="text-gray-700 hover:text-blue-600 transition-colors">Produtos</a>
@@ -331,10 +336,18 @@ export default function Home() {
             <button onClick={() => navigate('/planos')} className="text-gray-700 hover:text-blue-600 transition-colors">Preços</button>
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 institutional-header-actions">
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="text-blue-700 hover:text-blue-800 transition-colors font-medium institutional-marketplace-link"
+            >
+              <span className="institutional-marketplace-full">Encontrar pontos</span>
+              <span className="institutional-marketplace-short">Pontos</span>
+            </button>
             <button
               onClick={() => navigate('/login')}
-              className="text-gray-700 hover:text-blue-600 transition-colors"
+              className="text-gray-700 hover:text-blue-600 transition-colors institutional-login-link"
             >
               Iniciar sessão
             </button>
@@ -352,9 +365,10 @@ export default function Home() {
                 openWaitlist('index:header:teste-gratis-30-dias');
                 // navigate('/cadastro');
               }}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:shadow-lg transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:shadow-lg transition-all institutional-trial-button"
             >
-              Teste Grátis 30 dias
+              <span className="institutional-trial-short">Teste grátis</span>
+              <span className="institutional-trial-full">Teste Grátis 30 dias</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -940,8 +954,11 @@ export default function Home() {
           <div className="grid md:grid-cols-4 gap-12 mb-12">
             {/* Logo and Info */}
             <div>
-              <img src={imgOnemediaLogo} alt="OneMedia" className="h-10 mb-6" />
+              <button type="button" onClick={() => navigate('/home')} aria-label="Ir para a página inicial institucional">
+                <img src={imgOnemediaLogo} alt="OneMedia" className="h-10 mb-6" />
+              </button>
               <div className="space-y-2 text-gray-600">
+                <p onClick={() => navigate('/')} className="cursor-pointer hover:text-blue-600 transition-colors">Encontrar pontos de mídia</p>
                 <p onClick={() => navigate('/planos')} className="cursor-pointer hover:text-blue-600 transition-colors">Preços</p>
                 <p onClick={() => setShowContactModal(true)} className="cursor-pointer hover:text-blue-600 transition-colors">Entre em contato conosco</p>
               </div>
@@ -993,7 +1010,7 @@ export default function Home() {
                 href="/privacidade"
                 onClick={(e) => {
                   e.preventDefault();
-                  navigate('/privacidade');
+                  navigate('/privacidade?returnUrl=%2Fhome');
                 }}
                 className="hover:text-blue-600 transition-colors"
               >
@@ -1003,7 +1020,7 @@ export default function Home() {
                 href="/termos"
                 onClick={(e) => {
                   e.preventDefault();
-                  navigate('/termos');
+                  navigate('/termos?returnUrl=%2Fhome');
                 }}
                 className="hover:text-blue-600 transition-colors"
               >

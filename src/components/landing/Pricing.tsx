@@ -1,6 +1,7 @@
 ﻿﻿import { CheckCircle2, HelpCircle, MapPin, ChevronLeft, ChevronRight, Star } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useNavigation } from '../../contexts/NavigationContext';
+import { useWaitlist } from '../../contexts/WaitlistContext';
 import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from './pricingData';
 
 const CARD_W = 340;
@@ -30,6 +31,7 @@ function PlanCard({ children, featured = false }: { children: React.ReactNode; f
 
 export function Pricing() {
   const navigate = useNavigation();
+  const { openWaitlist } = useWaitlist();
   const [showAddonTooltip, setShowAddonTooltip] = useState(false);
   const [sliderPoints, setSliderPoints] = useState(proSliderConfig.minPoints);
   const sliderPrice = useProSliderPrice(sliderPoints);
@@ -76,9 +78,9 @@ export function Pricing() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
-          <p className="text-sm font-semibold uppercase tracking-widest text-blue-600 mb-2">Teste gratis</p>
-          <h2 className="text-4xl font-semibold text-gray-900 mb-3">Planos com 1 mes gratuito</h2>
-          <p className="text-base text-gray-500 max-w-xl mx-auto">Sem cartao de credito. Cancele quando quiser.</p>
+          <p className="text-sm font-semibold uppercase tracking-widest text-blue-600 mb-2">Teste grátis</p>
+          <h2 className="text-4xl font-semibold text-gray-900 mb-3">Planos com 1 mês gratuito</h2>
+          <p className="text-base text-gray-500 max-w-xl mx-auto">Sem cartão de crédito. Cancele quando quiser.</p>
         </div>
 
         {/* Nav */}
@@ -88,7 +90,7 @@ export function Pricing() {
             <button aria-label="Anterior" onClick={() => scroll('left')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <button aria-label="Proximo" onClick={() => scroll('right')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+            <button aria-label="Próximo" onClick={() => scroll('right')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
@@ -119,7 +121,7 @@ export function Pricing() {
                   <div>
                     {plan.strikePrice && <p><StrikeX text={plan.strikePrice} /></p>}
                     <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                    <p className="text-sm text-gray-600">no primeiro mes</p>
+                    <p className="text-sm text-gray-600">no primeiro mês</p>
                     <p className="text-xs text-gray-400">Depois {plan.monthlyPrice}</p>
                   </div>
 
@@ -136,8 +138,8 @@ export function Pricing() {
 
                   {featureList()}
 
-                  <button onClick={() => navigate('/cadastro')} className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
-                    Comecar gratis
+                  <button onClick={() => openWaitlist(`planos:card:${plan.id}:comecar-gratis`)} className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
+                    Começar grátis
                   </button>
                 </>
               )}
@@ -162,8 +164,8 @@ export function Pricing() {
                 {/* Price */}
                 <div>
                   <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                  <p className="text-sm text-gray-600">no primeiro mes</p>
-                  <p className="text-xs text-gray-400">Depois {sliderAfter}/mes</p>
+                  <p className="text-sm text-gray-600">no primeiro mês</p>
+                  <p className="text-xs text-gray-400">Depois {sliderAfter}/mês</p>
                 </div>
 
                 <hr className="border-gray-100" />
@@ -196,18 +198,18 @@ export function Pricing() {
           </PlanCard>
         </div>
 
-        {/* Multi-Proprietarios */}
+        {/* Multi-Proprietários */}
         <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm mt-2">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
-              <h3 className="text-base font-bold text-gray-900 mb-1">Multi-Proprietarios</h3>
-              <p className="text-xs text-gray-500 mb-4">Permite cadastrar ate 4 proprietarios por ponto de midia. Por padrao, todos os planos incluem 1 proprietario por ponto.</p>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Multi-Proprietários</h3>
+              <p className="text-xs text-gray-500 mb-4">Permite cadastrar até 4 proprietários por ponto de mídia. Por padrão, todos os planos incluem 1 proprietário por ponto.</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: '1 proprietario', value: 'Incluso', color: 'text-green-600', bg: 'bg-gray-50 border-gray-200' },
-                  { label: '2 proprietarios', value: 'R$ 99/mes', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                  { label: '3 proprietarios', value: 'R$ 113,85/mes', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                  { label: '4 proprietarios', value: 'R$ 128,70/mes', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                  { label: '1 proprietário', value: 'Incluso', color: 'text-green-600', bg: 'bg-gray-50 border-gray-200' },
+                  { label: '2 proprietários', value: 'R$ 99/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                  { label: '3 proprietários', value: 'R$ 113,85/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                  { label: '4 proprietários', value: 'R$ 128,70/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
                 ].map(({ label, value, color, bg }) => (
                   <div key={label} className={`rounded-xl ${bg} border px-3 py-2.5 text-center`}>
                     <div className="text-[11px] text-gray-500 mb-0.5">{label}</div>
@@ -223,8 +225,8 @@ export function Pricing() {
               </button>
               {showAddonTooltip && (
                 <div className="absolute right-0 top-10 w-72 bg-white rounded-xl shadow-xl p-4 border border-gray-200 z-10 text-xs text-gray-600">
-                  <p className="font-semibold text-gray-900 mb-1">Quando preciso de multiplos proprietarios?</p>
-                  Se voce gerencia pontos que pertencem a varios proprietarios diferentes, ou precisa dividir repasses entre multiplas empresas por ponto.
+                  <p className="font-semibold text-gray-900 mb-1">Quando preciso de múltiplos proprietários?</p>
+                  Se você gerencia pontos que pertencem a vários proprietários diferentes, ou precisa dividir repasses entre múltiplas empresas por ponto.
                 </div>
               )}
             </div>

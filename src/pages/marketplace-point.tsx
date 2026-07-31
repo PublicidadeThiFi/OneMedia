@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   AlertCircle,
   ArrowLeft,
@@ -19,10 +20,7 @@ import {
   Users,
 } from "lucide-react";
 import { MarketplaceAvailabilityCalendar } from "../components/marketplace/MarketplaceAvailabilityCalendar";
-import {
-  MarketplaceBookingCard,
-  type MarketplaceCampaignType,
-} from "../components/marketplace/MarketplaceBookingCard";
+import { MarketplaceBookingCard } from "../components/marketplace/MarketplaceBookingCard";
 import { MarketplaceGallery } from "../components/marketplace/MarketplaceGallery";
 import { MarketplaceKnowMore } from "../components/marketplace/MarketplaceKnowMore";
 import { MarketplaceLocationMap } from "../components/marketplace/MarketplaceLocationMap";
@@ -33,6 +31,10 @@ import { MarketplaceShell } from "../components/marketplace/MarketplaceShell";
 import { useMarketplaceAuth } from "../contexts/MarketplaceAuthContext";
 import { useNavigation } from "../contexts/NavigationContext";
 import { createMarketplaceCustomerInquiry } from "../lib/marketplaceAccountApi";
+import {
+  normalizeMarketplaceCampaignRange,
+  type MarketplaceCampaignType,
+} from "../lib/marketplaceCampaigns";
 import {
   fetchMarketplaceAvailability,
   fetchMarketplaceNearby,
@@ -51,6 +53,7 @@ import { useMarketplaceFavorites } from "../lib/marketplaceFavorites";
 import { getApiError } from "../lib/getApiError";
 import { savePendingMarketplaceInquiry } from "../lib/marketplacePendingInquiry";
 import { trackMarketplaceEventOnce } from "../lib/marketplaceEventTracking";
+import { readMarketplaceReturnUrl } from "../lib/marketplaceReturnUrl";
 import type {
   MarketplaceAvailabilityResponse,
   MarketplaceAvailabilitySummary,
@@ -212,6 +215,7 @@ export default function MarketplacePointPage({
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
+  const searchReturnUrl = useMemo(() => readMarketplaceReturnUrl('/buscar'), [slug]);
 
   const calendarWindow = useMemo(() => {
     const startDate = startOfMarketplaceToday();
@@ -367,7 +371,7 @@ export default function MarketplacePointPage({
     if (detail?.slug) trackMarketplaceEventOnce(detail.slug, "DETAIL_VIEW");
   }, [detail?.slug]);
 
-  const updateRange = useCallback((range: MarketplaceDateRangeValue) => {
+  const commitRange = useCallback((range: MarketplaceDateRangeValue) => {
     setCalendarError(null);
     setActionMessage(null);
     setSelectedRange(range);
@@ -385,15 +389,17 @@ export default function MarketplacePointPage({
     );
   }, []);
 
+  const updateRange = useCallback(
+    (range: MarketplaceDateRangeValue) => {
+      commitRange(normalizeMarketplaceCampaignRange(range, campaignType));
+    },
+    [campaignType, commitRange],
+  );
+
   const handleCampaignType = (value: MarketplaceCampaignType) => {
     setCampaignType(value);
     setActionMessage(null);
-    if (!selectedRange.from || value === "ON_REQUEST" || !value) return;
-    const days = value === "BIWEEKLY" ? 14 : 29;
-    updateRange({
-      from: selectedRange.from,
-      to: addMarketplaceDays(selectedRange.from, days),
-    });
+    commitRange(normalizeMarketplaceCampaignRange(selectedRange, value));
   };
 
   const handleShare = async () => {
@@ -421,6 +427,9 @@ export default function MarketplacePointPage({
   const handleFavorite = () => {
     const wasFavorite = isFavorite(detail.slug);
     toggleFavorite(detail.slug);
+    toast.success(
+      wasFavorite ? "Removido dos favoritos." : "Adicionado aos favoritos.",
+    );
     if (!wasFavorite) trackMarketplaceEventOnce(detail.slug, "FAVORITE");
   };
 
@@ -529,7 +538,7 @@ export default function MarketplacePointPage({
             <button
               type="button"
               className="marketplace-button"
-              onClick={() => navigate("/buscar")}
+              onClick={() => navigate(searchReturnUrl)}
             >
               <ArrowLeft aria-hidden="true" /> Voltar para a busca
             </button>
@@ -575,7 +584,7 @@ export default function MarketplacePointPage({
           <div className="marketplace-point-detail__topline">
             <button
               type="button"
-              onClick={() => navigate("/buscar")}
+              onClick={() => navigate(searchReturnUrl)}
               className="marketplace-point-detail__back"
             >
               <ArrowLeft aria-hidden="true" /> Voltar
@@ -707,6 +716,7 @@ export default function MarketplacePointPage({
               <MarketplaceAvailabilityCalendar
                 days={calendarAvailability?.days || []}
                 selectedRange={selectedRange}
+                campaignType={campaignType}
                 loading={calendarLoading}
                 error={calendarError}
                 onRangeChange={updateRange}

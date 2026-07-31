@@ -77,6 +77,7 @@
     "ci:security": "npm run security:scan && npm run validate:public-env && npm run security:audit && npm run build",
     "qa:marketplace:bundle": "node ./scripts/check-marketplace-bundle-budget.mjs",
     "qa:marketplace:routes": "node ./scripts/marketplace-route-smoke.mjs",
-    "qa:marketplace": "npm run build && npm run qa:marketplace:bundle"
+    "qa:marketplace": "npm run build && npm run qa:marketplace:bundle",
+    "qa:phase5": "node ./scripts/phase5-static-check.mjs"
   }
 }

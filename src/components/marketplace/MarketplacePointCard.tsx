@@ -1,4 +1,5 @@
 import { FocusEvent, MouseEvent } from "react";
+import { toast } from "sonner";
 import { Heart, ImageOff } from "lucide-react";
 import { useNavigation } from "../../contexts/NavigationContext";
 import { resolveUploadsUrl } from "../../lib/format";
@@ -11,6 +12,7 @@ type MarketplacePointCardProps = {
   active?: boolean;
   onActivate?: (slug: string) => void;
   onDeactivate?: (slug: string) => void;
+  onOpen?: (slug: string) => void;
 };
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -46,6 +48,7 @@ export function MarketplacePointCard({
   active = false,
   onActivate,
   onDeactivate,
+  onOpen,
 }: MarketplacePointCardProps) {
   const navigate = useNavigation();
   const { isFavorite, toggleFavorite } = useMarketplaceFavorites();
@@ -57,12 +60,18 @@ export function MarketplacePointCard({
   );
   const accessibleName = point.name || cardTitle(point);
 
-  const openPoint = () => navigate(`/pontos/${encodeURIComponent(point.slug)}`);
+  const openPoint = () => {
+    if (onOpen) onOpen(point.slug);
+    else navigate(`/pontos/${encodeURIComponent(point.slug)}`);
+  };
 
   const handleFavorite = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const wasFavorite = isFavorite(point.slug);
     toggleFavorite(point.slug);
+    toast.success(
+      wasFavorite ? "Removido dos favoritos." : "Adicionado aos favoritos.",
+    );
     if (!wasFavorite) trackMarketplaceEventOnce(point.slug, "FAVORITE");
   };
 

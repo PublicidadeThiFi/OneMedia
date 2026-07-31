@@ -335,13 +335,16 @@ export function MarketplaceOperatorConversations() {
                 <div ref={threadEndRef} />
               </div>
 
-              <form onSubmit={send} className="border-t border-gray-200 p-4">
+              <form
+                onSubmit={send}
+                className="border-t border-gray-200 p-4 pr-[5.75rem] pb-[calc(1rem+env(safe-area-inset-bottom))]"
+              >
                 {selected.closedAt ? (
                   <p className="rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-600">
                     Esta conversa foi encerrada e está disponível somente para consulta.
                   </p>
                 ) : (
-                  <div className="flex items-end gap-3">
+                  <div className="flex min-w-0 items-end gap-2">
                     <textarea
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
@@ -349,15 +352,20 @@ export function MarketplaceOperatorConversations() {
                       rows={2}
                       maxLength={4000}
                       disabled={sending}
-                      className="min-h-[54px] flex-1 resize-none rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                      className="min-h-[52px] min-w-0 flex-1 resize-none rounded-2xl border border-gray-300 px-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                     />
                     <button
                       type="submit"
                       disabled={sending || !draft.trim()}
-                      className="inline-flex h-[54px] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={sending ? "Enviando mensagem" : "Enviar mensagem"}
+                      title="Enviar mensagem"
                     >
-                      {sending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Enviar
+                      {sending ? (
+                        <LoaderCircle className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Send className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
                 )}

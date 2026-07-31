@@ -10,6 +10,7 @@ import { clearPendingMarketplaceInquiry, readPendingMarketplaceInquiry } from '.
 import { readMarketplaceReturnUrl } from '../lib/marketplaceReturnUrl';
 import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
+import { appendInternalReturnUrl, currentInternalUrl } from '../lib/internalReturnUrl';
 
 export default function MarketplaceLoginPage() {
   const navigate = useNavigation();
@@ -157,7 +158,7 @@ export default function MarketplaceLoginPage() {
             Ainda não tem conta?{' '}
             <button type="button" onClick={() => navigate(`/marketplace/cadastro?returnUrl=${encodeURIComponent(returnUrl)}`)}>Criar conta gratuita</button>
           </p>
-          <button className="marketplace-auth-card__business-link" type="button" onClick={() => navigate('/login')}>
+          <button className="marketplace-auth-card__business-link" type="button" onClick={() => navigate(appendInternalReturnUrl('/login', currentInternalUrl('/marketplace/entrar')))}>
             Precisa acessar a conta empresarial?
           </button>
         </div>

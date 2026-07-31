@@ -9,11 +9,17 @@ import {
   startOfMarketplaceToday,
   type MarketplaceDateRangeValue,
 } from "../../lib/marketplaceDates";
+import {
+  getMarketplaceCampaignDurationDays,
+  normalizeMarketplaceCampaignRange,
+  type MarketplaceCampaignType,
+} from "../../lib/marketplaceCampaigns";
 import type { MarketplaceAvailabilityDay } from "../../types/marketplace";
 
 type MarketplaceAvailabilityCalendarProps = {
   days: MarketplaceAvailabilityDay[];
   selectedRange: MarketplaceDateRangeValue;
+  campaignType: MarketplaceCampaignType;
   loading?: boolean;
   error?: string | null;
   onRangeChange: (range: MarketplaceDateRangeValue) => void;
@@ -23,6 +29,7 @@ type MarketplaceAvailabilityCalendarProps = {
 export function MarketplaceAvailabilityCalendar({
   days,
   selectedRange,
+  campaignType,
   loading = false,
   error,
   onRangeChange,
@@ -30,6 +37,8 @@ export function MarketplaceAvailabilityCalendar({
 }: MarketplaceAvailabilityCalendarProps) {
   const [monthsToShow, setMonthsToShow] = useState(2);
   const today = useMemo(() => startOfMarketplaceToday(), []);
+  const fixedDurationDays =
+    getMarketplaceCampaignDurationDays(campaignType);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 720px)");
@@ -70,20 +79,27 @@ export function MarketplaceAvailabilityCalendar({
       return;
     }
 
-    if (range.to) {
-      const blocked = enumerateMarketplaceDates(range.from, range.to).find(
-        (date) => occupiedSet.has(formatMarketplaceDate(date)),
-      );
+    const nextRange = normalizeMarketplaceCampaignRange(
+      { from: range.from, to: range.to || null },
+      campaignType,
+    );
+
+    if (nextRange.to) {
+      const blocked = enumerateMarketplaceDates(
+        nextRange.from,
+        nextRange.to,
+      ).find((date) => occupiedSet.has(formatMarketplaceDate(date)));
       if (blocked) {
-        onRangeChange({ from: range.from, to: null });
         onInvalidRange(
-          "O período escolhido inclui um dia totalmente ocupado. Selecione outra data.",
+          fixedDurationDays
+            ? `A campanha de ${fixedDurationDays} dias inclui uma data totalmente ocupada. Escolha outro início.`
+            : "O período escolhido inclui um dia totalmente ocupado. Selecione outra data.",
         );
         return;
       }
     }
 
-    onRangeChange({ from: range.from, to: range.to || null });
+    onRangeChange(nextRange);
   };
 
   return (
@@ -95,7 +111,11 @@ export function MarketplaceAvailabilityCalendar({
           </span>
           <div>
             <h2>Disponibilidade para campanha</h2>
-            <p>{formatMarketplaceDateRange(selectedRange)}</p>
+            <p>
+              {fixedDurationDays
+                ? `${formatMarketplaceDateRange(selectedRange)} · escolha somente a data de início`
+                : formatMarketplaceDateRange(selectedRange)}
+            </p>
           </div>
         </div>
         <div

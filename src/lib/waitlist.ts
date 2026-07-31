@@ -5,7 +5,7 @@ export type WaitlistLeadPayload = {
   empresa: string;
   email: string;
   whatsapp: string;
-  qtdPontosMidia: string;
+  qtdPontosMidia?: number;
   origem: string;
 };
 

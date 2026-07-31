@@ -1,22 +1,24 @@
 import { ArrowLeft, Shield, Lock, Eye, FileText, Users, Mail } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useWaitlist } from '../contexts/WaitlistContext';
+import { appendInternalReturnUrl, readInternalReturnUrl } from '../lib/internalReturnUrl';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Privacidade() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
+  const returnUrl = readInternalReturnUrl('/home');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-20 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="flex items-center gap-3 group">
+          <button type="button" onClick={() => navigate('/home')} className="flex items-center gap-3 group" aria-label="Ir para a página inicial institucional da OneMedia">
             <img src={imgOnemediaLogo} alt="OneMedia" className="h-7 sm:h-10 transition-transform group-hover:scale-105" />
           </button>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(returnUrl)}
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-[#4F46E5] transition-colors px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-50"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -187,6 +189,23 @@ export default function Privacidade() {
             </p>
           </div>
         </div>
+
+        <nav className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm" aria-label="Documentos legais">
+          <button
+            type="button"
+            onClick={() => navigate(appendInternalReturnUrl('/termos', returnUrl))}
+            className="rounded-full border border-gray-200 bg-white px-5 py-2.5 font-medium text-gray-700 transition-colors hover:border-indigo-300 hover:text-indigo-700"
+          >
+            Termos de Uso
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(returnUrl)}
+            className="rounded-full border border-gray-200 bg-white px-5 py-2.5 font-medium text-gray-700 transition-colors hover:border-indigo-300 hover:text-indigo-700"
+          >
+            Voltar para a página anterior
+          </button>
+        </nav>
 
         {/* CTA Button */}
         <div className="mt-12 text-center">

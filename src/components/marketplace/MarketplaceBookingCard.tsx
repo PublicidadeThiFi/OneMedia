@@ -10,16 +10,15 @@ import {
   parseMarketplaceDate,
   type MarketplaceDateRangeValue,
 } from "../../lib/marketplaceDates";
+import {
+  getMarketplaceCampaignDurationDays,
+  normalizeMarketplaceCampaignRange,
+  type MarketplaceCampaignType,
+} from "../../lib/marketplaceCampaigns";
 import type {
   MarketplaceAvailabilitySummary,
   MarketplaceAvailabilityStatus,
 } from "../../types/marketplace";
-
-export type MarketplaceCampaignType =
-  | "BIWEEKLY"
-  | "MONTHLY"
-  | "ON_REQUEST"
-  | "";
 
 type MarketplaceBookingCardProps = {
   priceBiweekly: number;
@@ -59,14 +58,20 @@ export function MarketplaceBookingCard({
   onCampaignTypeChange,
   onRequest,
 }: MarketplaceBookingCardProps) {
+  const fixedDurationDays =
+    getMarketplaceCampaignDurationDays(campaignType);
+  const fixedCampaign = fixedDurationDays !== null;
+
   const setDate = (field: "from" | "to", value: string) => {
+    if (field === "to" && fixedCampaign) return;
+
     const date = parseMarketplaceDate(value);
     const next = { ...selectedRange, [field]: date };
     if (next.from && next.to && next.from.getTime() > next.to.getTime()) {
       if (field === "from") next.to = date;
       else next.from = date;
     }
-    onRangeChange(next);
+    onRangeChange(normalizeMarketplaceCampaignRange(next, campaignType));
   };
 
   const ready = Boolean(selectedRange.from && selectedRange.to && campaignType);
@@ -127,10 +132,23 @@ export function MarketplaceBookingCard({
               type="date"
               value={formatMarketplaceDate(selectedRange.to)}
               min={formatMarketplaceDate(selectedRange.from || new Date())}
+              disabled={fixedCampaign}
+              aria-readonly={fixedCampaign}
+              title={
+                fixedCampaign
+                  ? "A data final é calculada automaticamente."
+                  : undefined
+              }
               onChange={(event) => setDate("to", event.target.value)}
             />
           </label>
         </div>
+        {fixedCampaign && (
+          <small className="marketplace-booking-card__duration-note">
+            A data final é calculada automaticamente para uma campanha de{" "}
+            {fixedDurationDays} dias.
+          </small>
+        )}
       </fieldset>
 
       <label className="marketplace-booking-card__field">

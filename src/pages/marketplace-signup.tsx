@@ -9,6 +9,7 @@ import { publicApiClient } from '../lib/apiClient';
 import { getApiError } from '../lib/getApiError';
 import { getPasswordErrorMessage } from '../lib/validators';
 import { readMarketplaceReturnUrl } from '../lib/marketplaceReturnUrl';
+import { appendInternalReturnUrl, currentInternalUrl } from '../lib/internalReturnUrl';
 
 export default function MarketplaceSignupPage() {
   const navigate = useNavigation();
@@ -126,7 +127,7 @@ export default function MarketplaceSignupPage() {
 
             <label className="marketplace-auth-check marketplace-auth-check--terms">
               <input type="checkbox" checked={form.acceptTerms} onChange={(event) => update('acceptTerms', event.target.checked)} />
-              <span>Li e aceito os <button type="button" onClick={() => navigate('/termos')}>Termos de uso</button> e a <button type="button" onClick={() => navigate('/privacidade')}>Política de privacidade</button>.</span>
+              <span>Li e aceito os <button type="button" onClick={() => navigate(appendInternalReturnUrl('/termos', currentInternalUrl('/marketplace/cadastro')))}>Termos de uso</button> e a <button type="button" onClick={() => navigate(appendInternalReturnUrl('/privacidade', currentInternalUrl('/marketplace/cadastro')))}>Política de privacidade</button>.</span>
             </label>
 
             {captchaSiteKey ? <TurnstileWidget siteKey={captchaSiteKey} onToken={setCaptchaToken} /> : null}

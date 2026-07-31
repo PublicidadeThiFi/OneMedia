@@ -11,6 +11,7 @@ import { clearAccessState } from '../lib/accessControl';
 import { clearStoredTokens } from '../lib/authStorage';
 import { stripOAuthErrorParams } from '../lib/urlSecurity';
 import { appendRetryAfter } from '../lib/retryAfter';
+import { appendInternalReturnUrl, readInternalReturnUrl } from '../lib/internalReturnUrl';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 type ResendVerificationResponse = {
@@ -206,6 +207,8 @@ export default function Login() {
 
   // Optional: allow /login?next=/somewhere to drive post-login routing for SSO.
   // Email/senha login still navigates to /app/ inside AuthContext for compatibility.
+  const siteReturnUrl = useMemo(() => readInternalReturnUrl('/home'), []);
+
   const next = useMemo(() => {
     try {
       const p = new URLSearchParams(window.location.search);
@@ -223,11 +226,16 @@ export default function Login() {
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
-          </div>
           <button
-            onClick={() => navigate('/')}
+            type="button"
+            onClick={() => navigate('/home')}
+            className="flex items-center gap-3"
+            aria-label="Ir para a página inicial institucional da OneMedia"
+          >
+            <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
+          </button>
+          <button
+            onClick={() => navigate(siteReturnUrl)}
             className="text-sm sm:text-base text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
@@ -296,7 +304,7 @@ export default function Login() {
           <p className="text-sm text-gray-600">
             Problemas para acessar?{' '}
             <button
-              onClick={() => navigate('/contato')}
+              onClick={() => navigate(appendInternalReturnUrl('/contato', siteReturnUrl))}
               className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
             >
               Entre em contato com o suporte

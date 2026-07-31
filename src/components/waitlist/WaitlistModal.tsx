@@ -25,14 +25,19 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
     const emailOk = /.+@.+\..+/.test(email.trim());
     const phoneDigits = normalizePhone(whatsapp);
     const phoneOk = phoneDigits.length >= 10;
+    const pointsValue = Number(qtdPontosMidia);
+    const pointsOk =
+      !qtdPontosMidia ||
+      (/^[1-9]\d*$/.test(qtdPontosMidia) && pointsValue <= 1_000_000);
     return (
       nomeCompleto.trim().length >= 3 &&
       empresa.trim().length >= 2 &&
       emailOk &&
       phoneOk &&
+      pointsOk &&
       !isSubmitting
     );
-  }, [nomeCompleto, empresa, email, whatsapp, isSubmitting]);
+  }, [nomeCompleto, empresa, email, whatsapp, qtdPontosMidia, isSubmitting]);
 
   useEffect(() => {
     if (!open) return;
@@ -69,7 +74,7 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
       empresa: empresa.trim(),
       email: email.trim(),
       whatsapp: normalizePhone(whatsapp),
-      qtdPontosMidia: (qtdPontosMidia || '').trim(),
+      qtdPontosMidia: qtdPontosMidia ? Number(qtdPontosMidia) : undefined,
       origem: origin || 'unknown',
     });
 
@@ -163,10 +168,23 @@ export function WaitlistModal({ open, origin, onClose }: Props) {
             <input
               className="waitlist-input"
               value={qtdPontosMidia}
-              onChange={(e) => setQtdPontosMidia(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value.trim();
+                if (
+                  !nextValue ||
+                  (/^[1-9]\d*$/.test(nextValue) && Number(nextValue) <= 1_000_000)
+                ) {
+                  setQtdPontosMidia(nextValue);
+                }
+              }}
               placeholder="Ex: 50"
               inputMode="numeric"
+              pattern="[1-9][0-9]*"
+              aria-describedby="waitlist-points-help"
             />
+            <small id="waitlist-points-help" className="text-xs text-gray-500">
+              Opcional. Informe um número inteiro entre 1 e 1.000.000.
+            </small>
           </label>
 
           <button

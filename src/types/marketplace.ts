@@ -557,12 +557,41 @@ export type MarketplaceModerationProfilesResponse = {
   };
 };
 
+export type MarketplaceReportModerationAction =
+  | "ANALYSIS_STARTED"
+  | "ANALYSIS_REOPENED"
+  | "RETURNED_TO_OPEN"
+  | "RESOLVED"
+  | "DISMISSED"
+  | "POINT_SUSPENDED";
+
+export type MarketplaceReportModerationEvent = {
+  id: string;
+  action: MarketplaceReportModerationAction;
+  fromStatus: MarketplaceReportStatus;
+  toStatus: MarketplaceReportStatus;
+  note: string | null;
+  pointSuspended: boolean;
+  createdAt: string;
+  performedBy: { id: string; name: string } | null;
+};
+
 export type MarketplaceModerationReportItem = {
   id: string;
   reason: MarketplaceReportReason;
   status: MarketplaceReportStatus;
   details: string | null;
+  /** Compatibilidade temporária com a API anterior à Fase 4. */
   resolutionNote: string | null;
+  notes: {
+    analysis: string | null;
+    resolution: string | null;
+    dismissal: string | null;
+    suspension: string | null;
+  };
+  moderationHistory: MarketplaceReportModerationEvent[];
+  allowedTransitions: MarketplaceReportStatus[];
+  canSuspendPoint: boolean;
   email: string | null;
   reporterName: string | null;
   createdAt: string;

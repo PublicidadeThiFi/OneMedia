@@ -2,13 +2,14 @@ import { lazy, Suspense, useState, useEffect, useCallback, Component, ReactNode 
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
-import { WaitlistProvider } from './contexts/WaitlistContext';
+import { WaitlistProvider, useWaitlist } from './contexts/WaitlistContext';
 import { NavigationContext, NavigateFunction, useNavigation } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
 import { TutorialProvider } from './contexts/TutorialContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { AssistantProvider } from './contexts/AssistantContext';
 import { MarketplaceAuthProvider } from './contexts/MarketplaceAuthContext';
+import { ENTERPRISE_SIGNUP_WAITLIST_ORIGIN, isEnterpriseSignupEnabled } from './lib/enterpriseSignup';
 
 const InstitutionalHome = lazy(() => import('./pages/index'));
 const MarketplaceIndex = lazy(() => import('./pages/marketplace-index'));
@@ -29,7 +30,6 @@ const Dashboard = lazy(() => import('./pages/dashboard'));
 const Contato = lazy(() => import('./pages/contato'));
 const Termos = lazy(() => import('./pages/termos'));
 const Privacidade = lazy(() => import('./pages/privacidade'));
-const MobileLandingPage = lazy(() => import('./pages/landing-mobile'));
 const Planos = lazy(() => import('./pages/planos'));
 const PropostaPublica = lazy(() => import('./pages/proposta-publica'));
 const MidiaKitPublico = lazy(() => import('./pages/midia-kit-publico'));
@@ -82,7 +82,7 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
             <button className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" onClick={() => window.location.reload()}>
               Recarregar
             </button>
-            <button className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50" onClick={() => (window.location.href = '/?clearcache=1')}>
+            <button className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50" onClick={() => (window.location.href = '/home?clearcache=1')}>
               Limpar cache e abrir o site
             </button>
           </div>
@@ -116,6 +116,14 @@ function RedirectTo({ path }: { path: string }) {
   return <AppRouteFallback />;
 }
 
+function ReplaceLocationTo({ path }: { path: string }) {
+  useEffect(() => {
+    window.location.replace(path);
+  }, [path]);
+
+  return <AppRouteFallback />;
+}
+
 function safeDecodePathSegment(value: string) {
   try {
     return decodeURIComponent(value);
@@ -124,8 +132,31 @@ function safeDecodePathSegment(value: string) {
   }
 }
 
+function WaitlistUrlBridge() {
+  const { openWaitlist } = useWaitlist();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const origin = String(params.get('waitlist') || '').trim().slice(0, 120);
+    if (!origin) return;
+
+    openWaitlist(origin);
+    params.delete('waitlist');
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+    window.history.replaceState(window.history.state, '', nextUrl);
+  });
+
+  return null;
+}
+
 function MarketingShell({ children }: { children: ReactNode }) {
-  return <WaitlistProvider>{children}</WaitlistProvider>;
+  return (
+    <WaitlistProvider>
+      <WaitlistUrlBridge />
+      {children}
+    </WaitlistProvider>
+  );
 }
 
 function AuthShell({ children }: { children: ReactNode }) {
@@ -179,12 +210,6 @@ export default function App() {
   const getCurrentPath = () => window.location.pathname + window.location.search;
   const [currentPath, setCurrentPath] = useState(getCurrentPath());
 
-  const isMobileDevice = () => {
-    const width = window.innerWidth || document.documentElement.clientWidth;
-    const ua = navigator.userAgent || (navigator as any).vendor;
-    return width <= 768 || /Android|iPhone|iPad|iPod|Windows Phone|webOS|BlackBerry/i.test(ua);
-  };
-
   useEffect(() => {
     const handlePopState = () => setCurrentPath(getCurrentPath());
     window.addEventListener('popstate', handlePopState);
@@ -197,20 +222,6 @@ export default function App() {
     setCurrentPath(path);
     window.scrollTo(0, 0);
   }, []);
-
-  const replaceRoute = useCallback((path: string) => {
-    if (getCurrentPath() === path) return;
-    window.history.replaceState({}, '', path);
-    setCurrentPath(path);
-    window.scrollTo(0, 0);
-  }, []);
-
-  useEffect(() => {
-    const cleanPath = getCurrentPath().split('?')[0].replace(/\/$/, '') || '/';
-    if (cleanPath === '/home' && isMobileDevice()) {
-      replaceRoute('/landing-mobile');
-    }
-  }, [currentPath, replaceRoute]);
 
   const renderRoute = () => {
     const cleanPath = currentPath.split('?')[0].replace(/\/$/, '') || '/';
@@ -297,11 +308,17 @@ export default function App() {
         return wrap('marketing', <Suspended><InstitutionalHome /></Suspended>);
       case '/signup':
       case '/cadastro':
-        return wrap('marketing', <Suspended><Cadastro /></Suspended>);
+        if (isEnterpriseSignupEnabled()) {
+          return wrap('auth', <Suspended><Cadastro /></Suspended>);
+        }
+        return wrap(
+          'marketing',
+          <ReplaceLocationTo path={`/home?waitlist=${encodeURIComponent(ENTERPRISE_SIGNUP_WAITLIST_ORIGIN)}`} />,
+        );
       case '/planos':
         return wrap('marketing', <Suspended><Planos /></Suspended>);
       case '/landing-mobile':
-        return wrap('marketing', <Suspended><MobileLandingPage /></Suspended>);
+        return wrap('marketing', <ReplaceLocationTo path="/home" />);
       case '/login':
         return wrap('auth', <Suspended><Login /></Suspended>);
       case '/forgot-password':

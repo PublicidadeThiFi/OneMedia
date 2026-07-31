@@ -1,7 +1,8 @@
-import { CircleUserRound, Menu, X } from 'lucide-react';
+import { ChevronDown, CircleUserRound, Menu, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useMarketplaceAuth } from '../../contexts/MarketplaceAuthContext';
 import { useNavigation } from '../../contexts/NavigationContext';
+import { buildMarketplaceLoginPath, buildMarketplaceSignupPath } from '../../lib/marketplaceReturnUrl';
 
 const logoSrc = '/figma-assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
@@ -9,18 +10,29 @@ export function MarketplaceHeader() {
   const navigate = useNavigation();
   const { account, isLoading } = useMarketplaceAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
+  const accountButtonRef = useRef<HTMLButtonElement | null>(null);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const closeMenu = (restoreFocus = false) => {
+  const closeMobileMenu = (restoreFocus = false) => {
     setMobileMenuOpen(false);
     if (restoreFocus) {
       window.requestAnimationFrame(() => menuButtonRef.current?.focus());
     }
   };
 
+  const closeAccountMenu = (restoreFocus = false) => {
+    setAccountMenuOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => accountButtonRef.current?.focus());
+    }
+  };
+
   const goTo = (path: string) => {
-    closeMenu();
+    closeMobileMenu();
+    closeAccountMenu();
     navigate(path);
   };
 
@@ -35,7 +47,7 @@ export function MarketplaceHeader() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        closeMenu(true);
+        closeMobileMenu(true);
         return;
       }
       if (event.key !== 'Tab' || controls.length < 2) return;
@@ -52,6 +64,34 @@ export function MarketplaceHeader() {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        target &&
+        !accountMenuRef.current?.contains(target) &&
+        !accountButtonRef.current?.contains(target)
+      ) {
+        closeAccountMenu();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeAccountMenu(true);
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [accountMenuOpen]);
 
   return (
     <header className="marketplace-header">
@@ -79,17 +119,49 @@ export function MarketplaceHeader() {
           >
             Anuncie seu ponto na OneMedia
           </button>
+
           {!isLoading ? (
             <button
+              ref={accountButtonRef}
               type="button"
               className="marketplace-header__account-button"
-              onClick={() => goTo(account ? '/marketplace/solicitacoes' : '/marketplace/entrar')}
-              aria-label={account ? 'Abrir minha conta de anunciante' : 'Entrar no marketplace'}
+              onClick={() => {
+                if (!account) {
+                  goTo(buildMarketplaceLoginPath());
+                  return;
+                }
+                closeMobileMenu();
+                setAccountMenuOpen((open) => !open);
+              }}
+              aria-label={account ? 'Abrir menu da minha conta de anunciante' : 'Entrar no marketplace'}
+              aria-expanded={account ? accountMenuOpen : undefined}
+              aria-haspopup={account ? 'menu' : undefined}
+              aria-controls={account ? 'marketplace-account-menu' : undefined}
             >
               <CircleUserRound aria-hidden="true" />
               <span>{account ? account.name.split(' ')[0] : 'Entrar'}</span>
+              {account ? <ChevronDown className="marketplace-header__account-chevron" aria-hidden="true" /> : null}
             </button>
           ) : null}
+
+          {account && accountMenuOpen ? (
+            <div
+              ref={accountMenuRef}
+              id="marketplace-account-menu"
+              className="marketplace-header__account-menu"
+              role="menu"
+              aria-label="Menu da conta"
+            >
+              <button type="button" role="menuitem" onClick={() => goTo('/buscar')}>Todos os pontos</button>
+              <button type="button" role="menuitem" onClick={() => goTo('/buscar?type=OOH')}>OOH Estático</button>
+              <button type="button" role="menuitem" onClick={() => goTo('/buscar?type=DOOH')}>DOOH Digital</button>
+              <span className="marketplace-header__account-menu-separator" role="separator" />
+              <button type="button" role="menuitem" onClick={() => goTo('/marketplace/solicitacoes')}>Minha conta</button>
+              <button type="button" role="menuitem" onClick={() => goTo('/marketplace/perfil')}>Meu perfil</button>
+              <button type="button" role="menuitem" onClick={() => goTo('/home')}>Anuncie seu ponto</button>
+            </div>
+          ) : null}
+
           <button
             ref={menuButtonRef}
             type="button"
@@ -97,7 +169,10 @@ export function MarketplaceHeader() {
             aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
             aria-expanded={mobileMenuOpen}
             aria-controls="marketplace-mobile-menu"
-            onClick={() => setMobileMenuOpen((open) => !open)}
+            onClick={() => {
+              closeAccountMenu();
+              setMobileMenuOpen((open) => !open);
+            }}
           >
             {mobileMenuOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
           </button>
@@ -117,10 +192,10 @@ export function MarketplaceHeader() {
             <button type="button" onClick={() => goTo('/buscar')}>Todos os pontos</button>
             <button type="button" onClick={() => goTo('/buscar?type=OOH')}>OOH Estático</button>
             <button type="button" onClick={() => goTo('/buscar?type=DOOH')}>DOOH Digital</button>
-            <button type="button" onClick={() => goTo(account ? '/marketplace/solicitacoes' : '/marketplace/entrar')}>
+            <button type="button" onClick={() => goTo(account ? '/marketplace/solicitacoes' : buildMarketplaceLoginPath())}>
               {account ? 'Minha conta' : 'Entrar no marketplace'}
             </button>
-            {account ? <button type="button" onClick={() => goTo('/marketplace/perfil')}>Meu perfil</button> : <button type="button" onClick={() => goTo('/marketplace/cadastro')}>Criar conta</button>}
+            {account ? <button type="button" onClick={() => goTo('/marketplace/perfil')}>Meu perfil</button> : <button type="button" onClick={() => goTo(buildMarketplaceSignupPath())}>Criar conta</button>}
             <button type="button" className="marketplace-button marketplace-button--primary" onClick={() => goTo('/home')}>
               Anuncie seu ponto
             </button>

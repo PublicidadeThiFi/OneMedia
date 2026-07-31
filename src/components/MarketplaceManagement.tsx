@@ -8,14 +8,24 @@ import {
   ChevronRight,
   Eye,
   FileWarning,
+  History,
   LoaderCircle,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   ShieldAlert,
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
 import { resolveUploadsUrl } from "../lib/format";
 import {
   fetchMarketplaceModerationProfiles,
@@ -52,6 +62,111 @@ const reasonLabels: Record<string, string> = {
   FRAUD_OR_SCAM: "Suspeita de fraude ou golpe",
   OTHER: "Outro motivo",
 };
+
+type ModerationDialogAction =
+  | "START_REVIEW"
+  | "REOPEN_REVIEW"
+  | "RESOLVE"
+  | "DISMISS"
+  | "SUSPEND";
+
+type PendingModerationAction = {
+  report: MarketplaceModerationReportItem;
+  action: ModerationDialogAction;
+};
+
+const moderationHistoryLabels: Record<string, string> = {
+  ANALYSIS_STARTED: "Análise iniciada",
+  ANALYSIS_REOPENED: "Análise reaberta",
+  RETURNED_TO_OPEN: "Denúncia devolvida para aberta",
+  RESOLVED: "Denúncia resolvida",
+  DISMISSED: "Denúncia descartada",
+  POINT_SUSPENDED: "Anúncio suspenso e denúncia resolvida",
+};
+
+function moderationActionConfig(action: ModerationDialogAction) {
+  switch (action) {
+    case "START_REVIEW":
+      return {
+        title: "Iniciar análise",
+        description: "A denúncia passará para o status Em análise.",
+        noteLabel: "Nota da análise (opcional)",
+        placeholder: "Registre o que será verificado pela equipe.",
+        required: false,
+        status: "REVIEWING" as MarketplaceReportStatus,
+        suspendPoint: false,
+        submitLabel: "Iniciar análise",
+      };
+    case "REOPEN_REVIEW":
+      return {
+        title: "Reabrir análise",
+        description:
+          "A denúncia encerrada voltará para Em análise. O histórico anterior será preservado.",
+        noteLabel: "Motivo da reabertura (opcional)",
+        placeholder:
+          "Explique por que a denúncia precisa ser analisada novamente.",
+        required: false,
+        status: "REVIEWING" as MarketplaceReportStatus,
+        suspendPoint: false,
+        submitLabel: "Reabrir análise",
+      };
+    case "RESOLVE":
+      return {
+        title: "Resolver denúncia",
+        description: "Registre a conclusão antes de encerrar a denúncia.",
+        noteLabel: "Conclusão da resolução",
+        placeholder:
+          "Descreva o que foi verificado e como a denúncia foi resolvida.",
+        required: true,
+        status: "RESOLVED" as MarketplaceReportStatus,
+        suspendPoint: false,
+        submitLabel: "Resolver denúncia",
+      };
+    case "DISMISS":
+      return {
+        title: "Descartar denúncia",
+        description: "Informe por que a denúncia não será acolhida.",
+        noteLabel: "Motivo do descarte",
+        placeholder: "Explique objetivamente o motivo do descarte.",
+        required: true,
+        status: "DISMISSED" as MarketplaceReportStatus,
+        suspendPoint: false,
+        submitLabel: "Descartar denúncia",
+      };
+    case "SUSPEND":
+      return {
+        title: "Suspender anúncio",
+        description:
+          "Esta ação suspenderá o anúncio público e marcará a denúncia como resolvida.",
+        noteLabel: "Motivo da suspensão",
+        placeholder:
+          "Informe o motivo que justifica retirar o anúncio do marketplace.",
+        required: true,
+        status: "RESOLVED" as MarketplaceReportStatus,
+        suspendPoint: true,
+        submitLabel: "Suspender e resolver",
+      };
+  }
+}
+
+function legacyNoteLabel(status: MarketplaceReportStatus) {
+  if (status === "RESOLVED") return "Conclusão da resolução";
+  if (status === "DISMISSED") return "Motivo do descarte";
+  return "Nota da análise";
+}
+
+function moderationNoteEntries(report: MarketplaceModerationReportItem) {
+  const entries = [
+    { label: "Nota da análise", value: report.notes?.analysis },
+    { label: "Conclusão da resolução", value: report.notes?.resolution },
+    { label: "Motivo do descarte", value: report.notes?.dismissal },
+    { label: "Motivo da suspensão", value: report.notes?.suspension },
+  ];
+  return entries.filter(
+    (entry): entry is { label: string; value: string } =>
+      Boolean(entry.value),
+  );
+}
 
 function errorMessage(error: unknown) {
   const data = (error as any)?.response?.data;
@@ -352,6 +467,9 @@ export function MarketplaceManagement() {
   const [companyEnabled, setCompanyEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] =
+    useState<PendingModerationAction | null>(null);
+  const [moderationNote, setModerationNote] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
@@ -432,37 +550,49 @@ export function MarketplaceManagement() {
     );
   };
 
-  const reviewReport = async (
+  const openReportAction = (
     report: MarketplaceModerationReportItem,
-    status: MarketplaceReportStatus,
-    suspendPoint = false,
+    action: ModerationDialogAction,
   ) => {
-    const note = window.prompt(
-      suspendPoint
-        ? "Informe o motivo da suspensão do anúncio:"
-        : "Observação da análise (opcional):",
-      report.resolutionNote || "",
-    );
-    if (note === null) return;
-    if (suspendPoint && !note.trim()) {
-      toast.error("Informe o motivo da suspensão.");
+    setModerationNote("");
+    setPendingAction({ report, action });
+  };
+
+  const closeReportAction = () => {
+    if (actionId) return;
+    setPendingAction(null);
+    setModerationNote("");
+  };
+
+  const submitReportAction = async () => {
+    if (!pendingAction) return;
+    const config = moderationActionConfig(pendingAction.action);
+    const note = moderationNote.trim();
+    if (config.required && !note) {
+      toast.error(`Informe ${config.noteLabel.toLowerCase()}.`);
       return;
     }
+
     try {
-      setActionId(report.id);
-      const updated = await updateMarketplaceModerationReport(report.id, {
-        status,
-        resolutionNote: note.trim() || undefined,
-        suspendPoint,
-      });
+      setActionId(pendingAction.report.id);
+      const updated = await updateMarketplaceModerationReport(
+        pendingAction.report.id,
+        {
+          status: config.status,
+          note: note || undefined,
+          suspendPoint: config.suspendPoint,
+        },
+      );
       setReports((items) =>
         items.map((item) => (item.id === updated.id ? updated : item)),
       );
       toast.success(
-        suspendPoint
-          ? "Anúncio suspenso e denúncia atualizada."
+        config.suspendPoint
+          ? "Anúncio suspenso e denúncia resolvida."
           : "Denúncia atualizada.",
       );
+      setPendingAction(null);
+      setModerationNote("");
     } catch (error) {
       toast.error(errorMessage(error));
     } finally {
@@ -706,11 +836,65 @@ export function MarketplaceManagement() {
                         {report.details ||
                           "Nenhum detalhe adicional informado."}
                       </p>
-                      {report.resolutionNote ? (
+                      {moderationNoteEntries(report).length ? (
+                        <div className="mt-3 grid gap-2">
+                          {moderationNoteEntries(report).map((entry) => (
+                            <div
+                              key={entry.label}
+                              className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700"
+                            >
+                              <strong>{entry.label}:</strong>{" "}
+                              <span className="whitespace-pre-wrap">
+                                {entry.value}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : report.resolutionNote ? (
                         <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-700">
-                          <strong>Nota da análise:</strong>{" "}
+                          <strong>{legacyNoteLabel(report.status)}:</strong>{" "}
                           {report.resolutionNote}
                         </div>
+                      ) : null}
+
+                      {report.moderationHistory?.length ? (
+                        <details className="mt-3 rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-700">
+                          <summary className="flex cursor-pointer list-none items-center gap-2 font-medium text-gray-800">
+                            <History className="h-4 w-4" />
+                            Histórico da moderação (
+                            {report.moderationHistory.length})
+                          </summary>
+                          <div className="mt-3 space-y-3 border-t border-gray-200 pt-3">
+                            {report.moderationHistory.map((event) => (
+                              <div
+                                key={event.id}
+                                className="border-l-2 border-indigo-200 pl-3"
+                              >
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <strong className="text-gray-900">
+                                    {moderationHistoryLabels[event.action] ||
+                                      event.action}
+                                  </strong>
+                                  <span className="text-xs text-gray-500">
+                                    {formatDate(event.createdAt)}
+                                    {event.performedBy?.name
+                                      ? ` · ${event.performedBy.name}`
+                                      : ""}
+                                  </span>
+                                </div>
+                                {event.note ? (
+                                  <p className="mt-1 whitespace-pre-wrap text-gray-700">
+                                    {event.note}
+                                  </p>
+                                ) : (
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    Sem observação registrada.
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
                       ) : null}
                     </div>
                   </div>
@@ -725,37 +909,54 @@ export function MarketplaceManagement() {
                         <Eye className="h-4 w-4" /> Ver anúncio
                       </a>
                     ) : null}
-                    {report.status !== "REVIEWING" ? (
+                    {report.status === "OPEN" &&
+                    report.allowedTransitions?.includes("REVIEWING") ? (
                       <button
                         type="button"
                         disabled={actionId === report.id}
-                        onClick={() => reviewReport(report, "REVIEWING")}
+                        onClick={() => openReportAction(report, "START_REVIEW")}
                         className="rounded-xl border border-amber-300 px-3 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-50"
                       >
                         Iniciar análise
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      disabled={actionId === report.id}
-                      onClick={() => reviewReport(report, "RESOLVED")}
-                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
-                    >
-                      <CheckCircle2 className="h-4 w-4" /> Resolver
-                    </button>
-                    <button
-                      type="button"
-                      disabled={actionId === report.id}
-                      onClick={() => reviewReport(report, "DISMISSED")}
-                      className="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Descartar
-                    </button>
-                    {report.point.status === "PUBLISHED" ? (
+                    {(report.status === "RESOLVED" ||
+                      report.status === "DISMISSED") &&
+                    report.allowedTransitions?.includes("REVIEWING") ? (
                       <button
                         type="button"
                         disabled={actionId === report.id}
-                        onClick={() => reviewReport(report, "RESOLVED", true)}
+                        onClick={() => openReportAction(report, "REOPEN_REVIEW")}
+                        className="inline-flex items-center gap-2 rounded-xl border border-amber-300 px-3 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                      >
+                        <RotateCcw className="h-4 w-4" /> Reabrir análise
+                      </button>
+                    ) : null}
+                    {report.allowedTransitions?.includes("RESOLVED") ? (
+                      <button
+                        type="button"
+                        disabled={actionId === report.id}
+                        onClick={() => openReportAction(report, "RESOLVE")}
+                        className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 px-3 py-2 text-sm text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-4 w-4" /> Resolver
+                      </button>
+                    ) : null}
+                    {report.allowedTransitions?.includes("DISMISSED") ? (
+                      <button
+                        type="button"
+                        disabled={actionId === report.id}
+                        onClick={() => openReportAction(report, "DISMISS")}
+                        className="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Descartar
+                      </button>
+                    ) : null}
+                    {report.canSuspendPoint ? (
+                      <button
+                        type="button"
+                        disabled={actionId === report.id}
+                        onClick={() => openReportAction(report, "SUSPEND")}
                         className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                       >
                         <ShieldAlert className="h-4 w-4" /> Suspender anúncio
@@ -800,6 +1001,83 @@ export function MarketplaceManagement() {
           </footer>
         ) : null}
       </div>
+
+      <Dialog
+        open={Boolean(pendingAction)}
+        onOpenChange={(open) => {
+          if (!open) closeReportAction();
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          {pendingAction ? (() => {
+            const config = moderationActionConfig(pendingAction.action);
+            const submitting = actionId === pendingAction.report.id;
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{config.title}</DialogTitle>
+                  <DialogDescription>{config.description}</DialogDescription>
+                </DialogHeader>
+
+                {config.suspendPoint ? (
+                  <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                    <p>
+                      O ponto deixará de aparecer no marketplace imediatamente.
+                      A denúncia será encerrada como resolvida e a ação ficará no
+                      histórico.
+                    </p>
+                  </div>
+                ) : null}
+
+                <label className="block space-y-2 text-sm font-medium text-gray-800">
+                  {config.noteLabel}
+                  <textarea
+                    value={moderationNote}
+                    onChange={(event) => setModerationNote(event.target.value)}
+                    placeholder={config.placeholder}
+                    maxLength={3000}
+                    rows={5}
+                    disabled={submitting}
+                    className="w-full resize-y rounded-xl border border-gray-300 px-3 py-2.5 font-normal outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                  />
+                  <span className="block text-right text-xs font-normal text-gray-500">
+                    {moderationNote.length}/3000
+                  </span>
+                </label>
+
+                <DialogFooter>
+                  <button
+                    type="button"
+                    onClick={closeReportAction}
+                    disabled={submitting}
+                    className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitReportAction()}
+                    disabled={
+                      submitting || (config.required && !moderationNote.trim())
+                    }
+                    className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50 ${
+                      config.suspendPoint
+                        ? "bg-red-600 hover:bg-red-700"
+                        : "bg-indigo-600 hover:bg-indigo-700"
+                    }`}
+                  >
+                    {submitting ? (
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    {config.submitLabel}
+                  </button>
+                </DialogFooter>
+              </>
+            );
+          })() : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

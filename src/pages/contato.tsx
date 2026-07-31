@@ -1,20 +1,22 @@
 import { ArrowLeft, Mail, MessageCircle } from 'lucide-react';
 import { useNavigation } from '../contexts/NavigationContext';
+import { readInternalReturnUrl } from '../lib/internalReturnUrl';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Contato() {
   const navigate = useNavigation();
+  const returnUrl = readInternalReturnUrl('/home');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between">
-          <button onClick={() => navigate('/')} className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate('/home')} className="flex items-center gap-3" aria-label="Ir para a página inicial institucional da OneMedia">
             <img src={imgOnemediaLogo} alt="OneMedia" className="h-9 sm:h-12" />
           </button>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(returnUrl)}
             className="text-sm sm:text-base text-gray-700 hover:text-blue-600 transition-colors"
           >
             Voltar ao site
@@ -62,7 +64,7 @@ export default function Contato() {
 
         <div className="text-center">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(returnUrl)}
             className="inline-flex items-center gap-2 text-gray-600 hover:text-blue-600 transition-colors font-medium"
           >
             <ArrowLeft className="w-4 h-4" />

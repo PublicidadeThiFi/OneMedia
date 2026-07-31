@@ -201,10 +201,7 @@ export function LoginForm({ onSubmit, isLoading, error, errorAction, captchaSite
         Ainda não tem conta?{' '}
         <button
           type="button"
-          onClick={() => {
-            //openWaitlist('privacidade:cta:comecar-teste-gratis');
-            navigate('/cadastro');
-          }}
+          onClick={() => openWaitlist('login:cta:comecar-teste-gratis')}
           className="text-blue-600 hover:text-blue-700 hover:underline font-medium"
           disabled={isLoading}
         >
