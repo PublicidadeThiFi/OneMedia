@@ -10,17 +10,37 @@ import { getApiError } from '../lib/getApiError';
 import { getPasswordErrorMessage } from '../lib/validators';
 import { readMarketplaceReturnUrl } from '../lib/marketplaceReturnUrl';
 import { appendInternalReturnUrl, currentInternalUrl } from '../lib/internalReturnUrl';
+import {
+  clearMarketplaceSignupDraft,
+  readMarketplaceSignupDraft,
+  saveMarketplaceSignupDraft,
+} from '../lib/marketplaceSignupDraft';
 
 export default function MarketplaceSignupPage() {
   const navigate = useNavigation();
   const returnUrl = readMarketplaceReturnUrl('/marketplace/solicitacoes');
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirmation: '', acceptTerms: false });
+  const [form, setForm] = useState(() => {
+    const draft = readMarketplaceSignupDraft();
+    return {
+      name: draft?.name || '',
+      email: draft?.email || '',
+      phone: draft?.phone || '',
+      password: '',
+      confirmation: '',
+      acceptTerms: draft?.acceptTerms || false,
+    };
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaSiteKey, setCaptchaSiteKey] = useState(String((import.meta as any).env?.VITE_TURNSTILE_SITE_KEY || ''));
   const [submitting, setSubmitting] = useState(false);
   const [createdEmail, setCreatedEmail] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    // O rascunho é de uso único: restaura ao voltar das páginas legais e sai do storage.
+    clearMarketplaceSignupDraft();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -35,6 +55,21 @@ export default function MarketplaceSignupPage() {
   }, []);
 
   const update = (field: keyof typeof form, value: string | boolean) => setForm((current) => ({ ...current, [field]: value }));
+
+  const openLegalPage = (path: '/termos' | '/privacidade') => {
+    saveMarketplaceSignupDraft({
+      name: form.name,
+      email: form.email,
+      phone: form.phone,
+      acceptTerms: form.acceptTerms,
+    });
+    navigate(appendInternalReturnUrl(path, currentInternalUrl('/marketplace/cadastro')));
+  };
+
+  const goToLogin = () => {
+    clearMarketplaceSignupDraft();
+    navigate(`/marketplace/entrar?returnUrl=${encodeURIComponent(returnUrl)}`);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -57,6 +92,7 @@ export default function MarketplaceSignupPage() {
         captchaToken: captchaSiteKey ? captchaToken : undefined,
         returnUrl,
       });
+      clearMarketplaceSignupDraft();
       setCreatedEmail(result.account.email);
       setCaptchaToken('');
       toast.success(result.message);
@@ -99,7 +135,7 @@ export default function MarketplaceSignupPage() {
             <span>Cadastro realizado</span>
             <h1>Confira sua caixa de entrada</h1>
             <p>Enviamos um link de confirmação para <strong>{createdEmail}</strong>. Depois de confirmar, você poderá entrar e concluir sua solicitação.</p>
-            <button className="marketplace-button marketplace-button--primary" type="button" onClick={() => navigate(`/marketplace/entrar?returnUrl=${encodeURIComponent(returnUrl)}`)}>Ir para o login</button>
+            <button className="marketplace-button marketplace-button--primary" type="button" onClick={goToLogin}>Ir para o login</button>
             {captchaSiteKey ? <TurnstileWidget siteKey={captchaSiteKey} onToken={setCaptchaToken} /> : null}
             <button className="marketplace-auth-link" type="button" onClick={resend} disabled={resending || (captchaSiteKey ? !captchaToken : false)}>{resending ? 'Reenviando…' : 'Reenviar e-mail de confirmação'}</button>
           </div>
@@ -127,14 +163,14 @@ export default function MarketplaceSignupPage() {
 
             <label className="marketplace-auth-check marketplace-auth-check--terms">
               <input type="checkbox" checked={form.acceptTerms} onChange={(event) => update('acceptTerms', event.target.checked)} />
-              <span>Li e aceito os <button type="button" onClick={() => navigate(appendInternalReturnUrl('/termos', currentInternalUrl('/marketplace/cadastro')))}>Termos de uso</button> e a <button type="button" onClick={() => navigate(appendInternalReturnUrl('/privacidade', currentInternalUrl('/marketplace/cadastro')))}>Política de privacidade</button>.</span>
+              <span>Li e aceito os <button type="button" onClick={() => openLegalPage('/termos')}>Termos de uso</button> e a <button type="button" onClick={() => openLegalPage('/privacidade')}>Política de privacidade</button>.</span>
             </label>
 
             {captchaSiteKey ? <TurnstileWidget siteKey={captchaSiteKey} onToken={setCaptchaToken} /> : null}
             <button className="marketplace-button marketplace-button--primary marketplace-auth-form__submit" type="submit" disabled={submitting || (captchaSiteKey ? !captchaToken : false)}>{submitting ? 'Criando conta…' : 'Criar conta'}</button>
           </form>
 
-          <p className="marketplace-auth-card__switch">Já possui uma conta? <button type="button" onClick={() => navigate(`/marketplace/entrar?returnUrl=${encodeURIComponent(returnUrl)}`)}>Entrar</button></p>
+          <p className="marketplace-auth-card__switch">Já possui uma conta? <button type="button" onClick={goToLogin}>Entrar</button></p>
         </div>
       </section>
     </MarketplaceShell>

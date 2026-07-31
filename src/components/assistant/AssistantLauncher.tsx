@@ -67,6 +67,9 @@ export function AssistantLauncher() {
   const visibleHistory = history.slice(0, 4);
   const userMessagesCount = messages.filter((message) => message.role === 'user').length;
   const quickPrompts = (proactivePrompts.length ? proactivePrompts : suggestedPrompts).slice(0, 3);
+  const launcherBottom = screenContext.currentModule === 'messages'
+    ? 'calc(6.5rem + env(safe-area-inset-bottom))'
+    : 'max(1rem, env(safe-area-inset-bottom))';
 
   useEffect(() => {
     const element = messagesViewportRef.current;
@@ -106,7 +109,7 @@ export function AssistantLauncher() {
         className="fixed z-[120] inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#4F46E5] text-white shadow-[0_18px_40px_rgba(79,70,229,0.30)] transition-transform hover:-translate-y-0.5 hover:bg-[#4338CA] focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2"
         style={{
           right: 'max(1rem, env(safe-area-inset-right))',
-          bottom: 'max(1rem, env(safe-area-inset-bottom))',
+          bottom: launcherBottom,
         }}
         aria-label="Abrir assistente OneMedia"
         data-tour="assistant-launcher"
