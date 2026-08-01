@@ -1,0 +1,2 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+export function CampaignTimelineCard({point}:{point:AssistantDataPoint}){return <article className="border-l-2 border-indigo-200 pl-3"><div className="text-[10px] font-semibold uppercase text-indigo-600">{point.label}</div><div className="text-xs font-medium text-slate-800">{point.value}</div><div className="text-[11px] text-slate-500">{point.description}</div></article>}

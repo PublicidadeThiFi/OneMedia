@@ -1,0 +1,8 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+
+export function ProposalTrackingCard({ point }: { point: AssistantDataPoint }) {
+  return <section className="rounded-xl border border-blue-200 bg-blue-50 p-3" aria-label="Acompanhamento da proposta">
+    <div className="text-xs font-semibold text-blue-800">{point.label}</div><div className="mt-1 text-sm font-semibold text-slate-900">{point.value}</div>
+    <p className="mt-1 text-xs leading-5 text-slate-600">{point.description}</p>
+  </section>;
+}

@@ -1,0 +1,2 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+export function CampaignProgressCard({point}:{point:AssistantDataPoint}){return <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><div className="text-xs font-semibold text-emerald-800">{point.label}</div><div className="mt-1 text-lg font-semibold text-slate-900">{point.value}</div><p className="text-xs text-slate-600">{point.description}</p></section>}
