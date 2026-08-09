@@ -33,6 +33,7 @@ const Privacidade = lazy(() => import('./pages/privacidade'));
 const Planos = lazy(() => import('./pages/planos'));
 const PropostaPublica = lazy(() => import('./pages/proposta-publica'));
 const MidiaKitPublico = lazy(() => import('./pages/midia-kit-publico'));
+const MediaMapSharePage = lazy(() => import('./pages/media-map-share'));
 const MenuHome = lazy(() => import('./pages/menu'));
 const MenuSelectUF = lazy(() => import('./pages/menu-uf'));
 const MenuSelectCity = lazy(() => import('./pages/menu-cidades'));
@@ -231,6 +232,9 @@ export default function App() {
     }
     if (cleanPath === '/mk') {
       return wrap('none', <Suspended><MidiaKitPublico /></Suspended>);
+    }
+    if (/^\/mapa\/[^/]+$/.test(cleanPath)) {
+      return wrap('none', <Suspended><MediaMapSharePage /></Suspended>);
     }
 
     if (cleanPath === '/menu') return wrap('none', <Suspended><MenuHome /></Suspended>);

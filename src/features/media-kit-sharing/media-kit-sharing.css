@@ -1,0 +1,61 @@
+.share-configurator > div:first-child {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  background: #f8fafc;
+  padding: 1rem;
+}
+
+.share-configurator > div:nth-child(2) > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.share-configurator > div:nth-child(2) > div > * {
+  margin-top: 0;
+}
+
+.share-configurator fieldset {
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 0.7rem 0.75rem 0.75rem;
+  background: #fff;
+}
+
+.share-configurator fieldset:last-child {
+  grid-column: 1 / -1;
+}
+
+.share-configurator fieldset legend {
+  padding: 0 0.3rem;
+}
+
+.share-configurator fieldset label {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.55rem;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.share-configurator fieldset label:has(input:checked) {
+  color: #312e81;
+  background: #eef2ff;
+}
+
+.share-configurator input[type="checkbox"],
+.share-configurator input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #4f46e5;
+}
+
+@media (max-width: 639px) {
+  .share-configurator > div:nth-child(2) > div {
+    grid-template-columns: 1fr;
+  }
+
+  .share-configurator fieldset:last-child {
+    grid-column: auto;
+  }
+}
