@@ -1,0 +1,2 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+export function CampaignOperationalLimitationsCard({point}:{point:AssistantDataPoint}){return <details className="rounded-xl border border-slate-200 bg-slate-50 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-700">{point.label}</summary><p className="mt-2 text-xs leading-5 text-slate-500">{point.value}. {point.description}</p></details>}

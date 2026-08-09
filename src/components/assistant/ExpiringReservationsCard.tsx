@@ -1,0 +1,2 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+export function ExpiringReservationsCard({point}:{point:AssistantDataPoint}){return <article className="rounded-xl border border-orange-200 bg-orange-50 p-3"><div className="text-xs font-semibold text-orange-900">{point.label}</div><div className="mt-1 text-sm font-semibold text-slate-900">{point.value}</div><p className="mt-1 text-xs text-slate-600">{point.description}</p></article>}

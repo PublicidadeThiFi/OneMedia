@@ -30,6 +30,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { toast } from 'sonner';
 import apiClient, { publicApiClient } from '../lib/apiClient';
 import { MediaPoint, MediaType, PromotionDiscountType, PromotionPayload } from '../types';
+import { MediaKitShareManager } from '../features/media-kit-sharing/MediaKitShareManager';
 
 // Map (Leaflet)
 import 'leaflet/dist/leaflet.css';
@@ -745,7 +746,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
             <div className="flex items-center gap-2">
               {mode === 'internal' && (
-                <Button variant="secondary" className="gap-2" onClick={handleShare} data-tour="mediakit-sharing">
+                <Button variant="secondary" className="gap-2" onClick={() => document.getElementById('media-kit-share-manager')?.scrollIntoView({ behavior: 'smooth' })} data-tour="mediakit-sharing">
                   <Share2 className="w-4 h-4" />
                   Compartilhar
                 </Button>
@@ -768,6 +769,8 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
           </div>
         </div>
       </div>
+
+      {mode === 'internal' ? <MediaKitShareManager /> : null}
 
       {/* FILTERS */}
       <div className="bg-white border-b border-gray-200" data-tour="mediakit-filters">

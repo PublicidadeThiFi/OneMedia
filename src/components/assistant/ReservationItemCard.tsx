@@ -1,0 +1,2 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+export function ReservationItemCard({point}:{point:AssistantDataPoint}){return <article className="rounded-xl border border-slate-200 bg-white p-3"><div className="text-xs font-semibold text-slate-800">{point.label}</div><div className="mt-1 text-xs uppercase tracking-wide text-slate-500">{point.value.replaceAll('_',' ')}</div>{point.description?<p className="mt-1 text-xs text-slate-600">{point.description}</p>:null}</article>}

@@ -1,0 +1,2 @@
+import type { AssistantDataPoint } from '../../types/assistant';
+export function CampaignPendingActionsCard({point}:{point:AssistantDataPoint}){return <section className="rounded-xl border border-amber-200 bg-amber-50 p-3"><div className="text-[10px] font-semibold uppercase text-amber-800">Prioridade {point.label}</div><div className="mt-1 text-sm font-medium text-slate-900">{point.value}</div><p className="mt-1 text-xs text-amber-800">{point.description}</p></section>}
