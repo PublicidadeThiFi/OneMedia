@@ -11,8 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
-import { Checkbox } from './ui/checkbox';
-import { ScrollArea } from './ui/scroll-area';
 import {
   MapPin,
   Search,
@@ -20,7 +18,6 @@ import {
   Eye,
   Building,
   Copy,
-  MessageCircle,
   Linkedin,
   Instagram,
   Facebook,
@@ -118,14 +115,6 @@ function normalizeHttpUrl(url: string): string {
 }
 
 
-function normalizeWhatsAppPhone(phone?: string | null): string | null {
-  const digits = String(phone ?? '').replace(/\D/g, '');
-  if (!digits) return null;
-  // Expect E.164 digits only (55...)
-  // If user stored phone without country code, we still allow it.
-  return digits;
-}
-
 function formatCurrencyBRL(value?: number | null): string {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
   return new Intl.NumberFormat('pt-BR', {
@@ -150,53 +139,6 @@ function applyPromotion(price: number, promo?: PromotionPayload | null): number 
     return Math.max(0, price * (1 - value / 100));
   }
   return Math.max(0, price - value);
-}
-
-function buildPointText(point: MediaKitPoint): string {
-  const addr = [
-    [point.addressStreet, point.addressNumber].filter(Boolean).join(', '),
-    point.addressDistrict,
-    [point.addressCity, point.addressState].filter(Boolean).join(' - '),
-  ]
-    .filter(Boolean)
-    .join(' | ');
-
-  const prices = [
-    point.basePriceWeek != null ? `Bi-semana: ${formatCurrencyBRL(point.basePriceWeek)}` : null,
-    point.basePriceMonth != null ? `Mensal: ${formatCurrencyBRL(point.basePriceMonth)}` : null,
-    point.basePriceDay != null ? `Diária: ${formatCurrencyBRL(point.basePriceDay)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' | ');
-
-  const availability = point.availability ?? 'Disponível';
-  const units =
-    point.unitsCount != null
-      ? `Faces/Telas: ${point.unitsCount} (Livres: ${point.availableUnitsCount ?? 0})`
-      : null;
-
-  const impacts = point.dailyImpressions ? `Impacto/dia: ${point.dailyImpressions}` : null;
-
-  const map = point.latitude && point.longitude ? `Mapa: https://www.google.com/maps?q=${point.latitude},${point.longitude}` : null;
-
-  return [
-    `• ${point.name} (${point.type})`,
-    addr ? `  - Endereço: ${addr}` : null,
-    point.subcategory ? `  - Categoria: ${point.subcategory}` : null,
-    point.environment ? `  - Ambiente: ${point.environment}` : null,
-    `  - Status: ${availability}`,
-    units ? `  - ${units}` : null,
-    impacts ? `  - ${impacts}` : null,
-    prices ? `  - ${prices}` : null,
-    map ? `  - ${map}` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
-
-function openWhatsApp(phoneDigits: string, message: string) {
-  const url = `https://wa.me/${encodeURIComponent(phoneDigits)}?text=${encodeURIComponent(message)}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function FlyTo({ lat, lng }: { lat: number; lng: number }) {
@@ -242,10 +184,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
   const [publicTokenUrl, setPublicTokenUrl] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [menuShareUrl, setMenuShareUrl] = useState('');
-
-  // Solicitar proposta (bulk)
-  const [requestDialogOpen, setRequestDialogOpen] = useState(false);
-  const [selectedPointIds, setSelectedPointIds] = useState<string[]>([]);
 
   // Detalhes do ponto
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -656,39 +594,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
     setDetailsOpen(true);
   };
 
-  const handleRequestForPoints = (points: MediaKitPoint[]) => {
-    const phoneDigits = normalizeWhatsAppPhone(displayCompany?.phone);
-    if (!phoneDigits) {
-      toast.error('Número de WhatsApp da empresa não cadastrado.');
-      return;
-    }
-    if (!points.length) {
-      toast.info('Selecione pelo menos um ponto.');
-      return;
-    }
-
-    const companyName = displayCompany?.name ? ` (${displayCompany.name})` : '';
-    const msg = [
-      `Olá! Gostaria de solicitar uma proposta${companyName}.`,
-      '',
-      'Pontos selecionados:',
-      ...points.map((p) => buildPointText(p)),
-    ].join('\n');
-
-    openWhatsApp(phoneDigits, msg);
-  };
-
-  const openBulkRequestDialog = () => {
-    setSelectedPointIds([]);
-    setRequestDialogOpen(true);
-  };
-
-  const selectedPoints = useMemo(() => {
-    if (!selectedPointIds.length) return [] as MediaKitPoint[];
-    const map = new Map(allMediaKitPoints.map((p) => [p.id, p]));
-    return selectedPointIds.map((id) => map.get(id)).filter(Boolean) as MediaKitPoint[];
-  }, [selectedPointIds, allMediaKitPoints]);
-
   const mapPointsWithCoords = useMemo(() => {
     return filteredPoints.filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)));
   }, [filteredPoints]);
@@ -746,7 +651,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
 
             <div className="flex items-center gap-2">
               {mode === 'internal' && (
-                <Button variant="secondary" className="gap-2" onClick={() => document.getElementById('media-kit-share-manager')?.scrollIntoView({ behavior: 'smooth' })} data-tour="mediakit-sharing">
+                <Button variant="secondary" className="gap-2" onClick={() => void handleShare()} data-tour="mediakit-sharing">
                   <Share2 className="w-4 h-4" />
                   Compartilhar
                 </Button>
@@ -762,16 +667,13 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
               </p>
             )}
 
-            <Button className="mt-6 gap-2" onClick={openBulkRequestDialog} data-tour="mediakit-sales-usage">
-              <MessageCircle className="w-4 h-4" />
-              Solicitar Proposta
-            </Button>
           </div>
         </div>
       </div>
 
       {mode === 'internal' ? <MediaKitShareManager /> : null}
 
+      {mode === 'public' ? (<>
       {/* FILTERS */}
       <div className="bg-white border-b border-gray-200" data-tour="mediakit-filters">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -1214,85 +1116,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
         </div>
       </footer>
 
-      {/* Dialog: Solicitar Proposta (Seleção múltipla) */}
-      <Dialog open={requestDialogOpen} onOpenChange={setRequestDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Solicitar Proposta</DialogTitle>
-            <DialogDescription>
-              Selecione um ou mais pontos e clique em <b>Solicitar</b> para enviar uma mensagem no WhatsApp da empresa.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-sm text-gray-600">
-                {selectedPointIds.length} selecionado(s) • {filteredPoints.length} ponto(s) na lista
-              </div>
-
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (selectedPointIds.length === filteredPoints.length) {
-                    setSelectedPointIds([]);
-                  } else {
-                    setSelectedPointIds(filteredPoints.map((p) => p.id));
-                  }
-                }}
-              >
-                {selectedPointIds.length === filteredPoints.length ? 'Desmarcar todos' : 'Selecionar todos'}
-              </Button>
-            </div>
-
-            <div className="rounded-md border border-gray-200">
-              <ScrollArea className="h-[360px]">
-                <div className="p-3 space-y-2">
-                  {filteredPoints.map((p) => {
-                    const checked = selectedPointIds.includes(p.id);
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedPointIds((prev) =>
-                            prev.includes(p.id) ? prev.filter((x) => x !== p.id) : [...prev, p.id],
-                          );
-                        }}
-                        className="w-full text-left rounded-md hover:bg-gray-50 px-2 py-2 flex items-start gap-3"
-                      >
-                        <Checkbox checked={checked} className="mt-1" />
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{p.name}</div>
-                          <div className="text-xs text-gray-600 truncate">
-                            {[p.addressCity, p.addressState].filter(Boolean).join(' / ') || '—'}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" onClick={() => setRequestDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="gap-2"
-                onClick={() => {
-                  handleRequestForPoints(selectedPoints);
-                  setRequestDialogOpen(false);
-                }}
-                disabled={selectedPointIds.length === 0}
-              >
-                <MessageCircle className="w-4 h-4" />
-                Solicitar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      </>) : null}
 
       {/* Dialog: Detalhes do ponto */}
 <Dialog
@@ -1408,16 +1232,6 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-2 pt-4">
-            <Button
-              className="gap-2"
-              onClick={() => {
-                handleRequestForPoints([detailsPoint]);
-              }}
-            >
-              <MessageCircle className="w-4 h-4" />
-              Solicitar proposta
-            </Button>
-
             <Button
               variant="outline"
               className="gap-2"

@@ -20,7 +20,7 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./media-map-share.css";
-import { fetchPublicMediaMap } from "../features/media-kit-sharing/api";
+import { fetchPublicMediaMap, resolvePublicMediaAssetUrl } from "../features/media-kit-sharing/api";
 import { getApiError } from "../lib/getApiError";
 import type {
   PublicMediaMap,
@@ -37,14 +37,82 @@ const markerIcon = new L.Icon({
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
+
+function SafeImage({
+  src,
+  alt,
+  className,
+  fallbackClassName = "grid h-full w-full place-items-center bg-slate-100",
+}: {
+  src: string | null | undefined;
+  alt: string;
+  className: string;
+  fallbackClassName?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const resolved = resolvePublicMediaAssetUrl(src);
+
+  if (!resolved || failed) {
+    return (
+      <div className={fallbackClassName} aria-label={alt}>
+        <ImageIcon className="h-5 w-5 text-slate-400" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={resolved}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function DetailPointMap({ point }: { point: PublicMapPoint }) {
+  const lat = Number(point.location?.latitude);
+  const lng = Number(point.location?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-2xl border bg-slate-100">
+      <div className="border-b bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+        Localização no mapa
+      </div>
+      <div className="h-56 w-full">
+        <MapContainer
+          key={`detail-map-${point.reference}`}
+          center={[lat, lng]}
+          zoom={16}
+          scrollWheelZoom={false}
+          style={{ height: "100%", width: "100%", background: "#e2e8f0" }}
+        >
+          <TileLayer
+            attribution="&copy; OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <ResizeMap />
+          <Marker position={[lat, lng]} icon={markerIcon}>
+            <Popup>{point.name}</Popup>
+          </Marker>
+        </MapContainer>
+      </div>
+    </div>
+  );
+}
 function Fit({ points }: { points: PublicMapPoint[] }) {
   const map = useMap();
   useEffect(() => {
-    const coords = points.flatMap((p) =>
-      p.location?.latitude != null && p.location?.longitude != null
-        ? [[p.location.latitude, p.location.longitude] as [number, number]]
-        : [],
-    );
+    const coords = points.flatMap((p) => {
+      const lat = Number(p.location?.latitude);
+      const lng = Number(p.location?.longitude);
+      return Number.isFinite(lat) && Number.isFinite(lng)
+        ? [[lat, lng] as [number, number]]
+        : [];
+    });
     if (coords.length)
       map.fitBounds(coords, { padding: [40, 40], maxZoom: 14 });
   }, [map, points]);
@@ -84,9 +152,10 @@ function Markers({
     const precision = zoom >= 13 ? 1000 : zoom >= 10 ? 100 : zoom >= 7 ? 20 : 5;
     const map = new Map<string, PublicMapPoint[]>();
     for (const point of points) {
-      if (point.location?.latitude == null || point.location?.longitude == null)
-        continue;
-      const key = `${Math.round(point.location.latitude * precision)}:${Math.round(point.location.longitude * precision)}`;
+      const lat = Number(point.location?.latitude);
+      const lng = Number(point.location?.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const key = `${Math.round(lat * precision)}:${Math.round(lng * precision)}`;
       map.set(key, [...(map.get(key) || []), point]);
     }
     return [...map.values()];
@@ -94,11 +163,11 @@ function Markers({
   return (
     <>
       {groups.map((group) => {
-        const first = group[0],
-          position: [number, number] = [
-            first.location!.latitude!,
-            first.location!.longitude!,
-          ];
+        const first = group[0];
+        const position: [number, number] = [
+          Number(first.location!.latitude),
+          Number(first.location!.longitude),
+        ];
         if (group.length === 1)
           return (
             <Marker
@@ -228,11 +297,13 @@ export default function MediaMapSharePage() {
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-4 lg:px-6">
           {data.company.logoUrl ? (
-            <img
-              src={data.company.logoUrl}
-              alt=""
-              className="h-10 w-10 rounded-lg object-contain"
-            />
+            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+              <SafeImage
+                src={data.company.logoUrl}
+                alt={`Logo de ${data.company.name}`}
+                className="h-full w-full object-contain"
+              />
+            </div>
           ) : null}
           <div>
             <h1 className="font-semibold text-slate-900">
@@ -312,10 +383,10 @@ export default function MediaMapSharePage() {
                 className="media-map-result-card flex w-full gap-3 rounded-xl border p-3 text-left hover:border-indigo-300 hover:bg-indigo-50"
               >
                 <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                  {point.media?.[0]?.type === "image" ? (
-                    <img
-                      src={point.media[0].url}
-                      alt=""
+                  {point.media?.find((item) => item.type === "image") ? (
+                    <SafeImage
+                      src={point.media.find((item) => item.type === "image")?.url}
+                      alt={point.name}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -347,7 +418,11 @@ export default function MediaMapSharePage() {
           </div>
         </aside>
         <section className="media-map-share-canvas">
-          {filtered.some((point) => point.location?.latitude != null && point.location?.longitude != null) ? <MapContainer
+          {filtered.some((point) => {
+            const lat = Number(point.location?.latitude);
+            const lng = Number(point.location?.longitude);
+            return Number.isFinite(lat) && Number.isFinite(lng);
+          }) ? <MapContainer
             center={[-14.2, -51.9]}
             zoom={4}
             style={{ height: "100%", width: "100%", background: "#e2e8f0" }}
@@ -389,12 +464,14 @@ export default function MediaMapSharePage() {
             >
               <X className="h-5 w-5" />
             </button>
-            {selected.media?.[0]?.type === "image" ? (
-              <img
-                src={selected.media[0].url}
-                alt={selected.name}
-                className="h-60 w-full rounded-2xl object-cover"
-              />
+            {selected.media?.find((item) => item.type === "image") ? (
+              <div className="h-60 w-full overflow-hidden rounded-2xl bg-slate-100">
+                <SafeImage
+                  src={selected.media.find((item) => item.type === "image")?.url}
+                  alt={selected.name}
+                  className="h-full w-full object-cover"
+                />
+              </div>
             ) : null}
             <h2 className="mt-5 text-2xl font-semibold">{selected.name}</h2>
             <p className="mt-1 text-sm text-slate-500">
@@ -413,6 +490,7 @@ export default function MediaMapSharePage() {
                 {selected.description}
               </p>
             ) : null}
+            <DetailPointMap point={selected} />
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-xl bg-slate-50 p-3">
                 <span className="text-xs text-slate-500">Tipo</span>

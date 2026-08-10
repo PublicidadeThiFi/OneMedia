@@ -5,6 +5,25 @@ export type CreateMediaKitShareInput =
   | { scopeType: 'ALL'; regions: []; visibility: ShareVisibility }
   | { scopeType: 'REGIONS'; regions: ShareRegion[]; visibility: ShareVisibility };
 
+
+export function resolvePublicMediaAssetUrl(url: string | null | undefined): string {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
+
+  const base = String(publicApiClient.defaults.baseURL || '').trim();
+  if (/^https?:\/\//i.test(base)) {
+    try {
+      const origin = new URL(base).origin;
+      return new URL(raw.startsWith('/') ? raw : `/${raw}`, `${origin}/`).toString();
+    } catch {
+      return raw;
+    }
+  }
+
+  return raw;
+}
+
 export async function listMediaKitShares(): Promise<MediaKitShare[]> {
   const response = await apiClient.get<MediaKitShare[]>('/media-kit-shares');
   return response.data;
