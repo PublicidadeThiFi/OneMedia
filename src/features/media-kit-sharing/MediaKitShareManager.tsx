@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Link2, LoaderCircle, RefreshCw, ShieldX, Trash2 } from 'lucide-react';
+import { Check, Copy, Eye, Link2, LoaderCircle, MapPin, RefreshCw, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import L from 'leaflet';
+import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { getApiError } from '../../lib/getApiError';
 import {
   createMediaKitShare,
@@ -20,6 +24,39 @@ import './media-kit-sharing.css';
 
 const regionKey = (region: ShareRegion) => `${region.state}:${region.city || ''}`;
 const date = (value: string | null) => (value ? new Date(value).toLocaleString('pt-BR') : '—');
+
+
+
+type PreviewPoint = {
+  id: string;
+  name: string;
+  addressCity?: string | null;
+  addressState?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+};
+
+const previewMarkerIcon = new L.Icon({
+  iconRetinaUrl: new URL('leaflet/dist/images/marker-icon-2x.png', import.meta.url).href,
+  iconUrl: new URL('leaflet/dist/images/marker-icon.png', import.meta.url).href,
+  shadowUrl: new URL('leaflet/dist/images/marker-shadow.png', import.meta.url).href,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+function PreviewFit({ points }: { points: PreviewPoint[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const coords = points.flatMap((point) => {
+      const lat = Number(point.latitude);
+      const lng = Number(point.longitude);
+      return Number.isFinite(lat) && Number.isFinite(lng) ? [[lat, lng] as [number, number]] : [];
+    });
+    window.setTimeout(() => map.invalidateSize(), 0);
+    if (coords.length) map.fitBounds(coords, { padding: [28, 28], maxZoom: 14 });
+  }, [map, points]);
+  return null;
+}
 
 const visibilityGroups: Array<{
   title: string;
@@ -87,7 +124,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function MediaKitShareManager() {
+export function MediaKitShareManager({ points = [] }: { points?: PreviewPoint[] }) {
   const [items, setItems] = useState<MediaKitShare[]>([]);
   const [regions, setRegions] = useState<ShareRegion[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -95,6 +132,7 @@ export function MediaKitShareManager() {
   const [visibility, setVisibility] = useState<ShareVisibility>({ ...DEFAULT_SHARE_VISIBILITY });
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [policyItem, setPolicyItem] = useState<MediaKitShare | null>(null);
 
   const load = useCallback(async () => {
     const [shares, available] = await Promise.all([
@@ -112,6 +150,21 @@ export function MediaKitShareManager() {
   const chosen = useMemo(
     () => regions.filter((region) => selected.includes(regionKey(region))),
     [regions, selected],
+  );
+
+  const previewPoints = useMemo(() => {
+    if (scope === 'ALL') return points;
+    if (!chosen.length) return [];
+    return points.filter((point) => chosen.some((region) => {
+      const stateMatches = String(point.addressState || '').trim().toUpperCase() === region.state;
+      if (!stateMatches) return false;
+      return !region.city || String(point.addressCity || '').trim().toLocaleLowerCase('pt-BR') === region.city.toLocaleLowerCase('pt-BR');
+    }));
+  }, [chosen, points, scope]);
+
+  const previewPointsWithCoords = useMemo(
+    () => previewPoints.filter((point) => Number.isFinite(Number(point.latitude)) && Number.isFinite(Number(point.longitude))),
+    [previewPoints],
   );
 
   const regionsByState = useMemo(() => {
@@ -326,6 +379,33 @@ export function MediaKitShareManager() {
                 </div>
               </div>
             ) : null}
+
+            <div className="mt-4 overflow-hidden rounded-xl border bg-slate-100">
+              <div className="flex items-center justify-between border-b bg-white px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-slate-700">Prévia dos pontos compartilhados</p>
+                  <p className="text-[11px] text-slate-500">{previewPoints.length} ponto(s) no recorte atual</p>
+                </div>
+              </div>
+              <div className="h-72 w-full">
+                {previewPointsWithCoords.length ? (
+                  <MapContainer center={[-14.2, -51.9]} zoom={4} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
+                    <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <PreviewFit points={previewPointsWithCoords} />
+                    {previewPointsWithCoords.map((point) => (
+                      <Marker key={point.id} position={[Number(point.latitude), Number(point.longitude)]} icon={previewMarkerIcon} />
+                    ))}
+                  </MapContainer>
+                ) : (
+                  <div className="grid h-full place-items-center p-6 text-center">
+                    <div>
+                      <MapPin className="mx-auto h-7 w-7 text-slate-400" />
+                      <p className="mt-2 text-sm font-medium text-slate-600">Nenhum ponto com coordenadas neste recorte</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div>
@@ -468,7 +548,11 @@ export function MediaKitShareManager() {
                   </div>
                   <div>
                     <dt className="font-medium text-slate-700">Política</dt>
-                    <dd>{Object.values(item.visibility).filter(Boolean).length} campos liberados</dd>
+                    <dd className="mt-1">
+                      <button type="button" onClick={() => setPolicyItem(item)} className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-semibold text-indigo-700 hover:bg-indigo-50">
+                        <Eye className="h-3.5 w-3.5" /> Ver política
+                      </button>
+                    </dd>
                   </div>
                 </dl>
               </article>
@@ -476,6 +560,42 @@ export function MediaKitShareManager() {
           })}
         </div>
       </div>
+
+      <Dialog open={Boolean(policyItem)} onOpenChange={(open) => !open && setPolicyItem(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Política do link compartilhado</DialogTitle>
+            <DialogDescription>Confira o recorte de pontos e as informações que este link permite consultar.</DialogDescription>
+          </DialogHeader>
+          {policyItem ? (
+            <div className="space-y-5">
+              <div className="rounded-xl border bg-slate-50 p-4">
+                <h4 className="text-sm font-semibold text-slate-900">Filtro selecionado</h4>
+                <p className="mt-2 text-sm text-slate-700">
+                  {policyItem.scopeType === 'ALL' ? 'Todos os pontos publicados' : policyItem.regions.map((region) => region.city ? `${region.city}/${region.state}` : `Toda ${region.state}`).join(', ')}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{policyItem.pointCount} ponto(s) compartilhado(s)</p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900">Informações liberadas</h4>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {visibilityGroups.map((group) => (
+                    <div key={group.title} className="rounded-xl border p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.title}</p>
+                      <div className="mt-2 space-y-1.5">
+                        {group.items.filter(([key]) => policyItem.visibility[key]).map(([key, label]) => (
+                          <div key={key} className="flex items-center gap-2 text-sm text-slate-700"><Check className="h-4 w-4 text-emerald-600" /> {label}</div>
+                        ))}
+                        {!group.items.some(([key]) => policyItem.visibility[key]) ? <p className="text-xs text-slate-400">Nenhuma informação liberada.</p> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

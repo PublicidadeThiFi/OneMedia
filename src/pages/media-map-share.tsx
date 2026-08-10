@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Building2,
   Image as ImageIcon,
   List,
   Map as MapIcon,
@@ -296,15 +297,18 @@ export default function MediaMapSharePage() {
     <main className="min-h-screen bg-slate-100">
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-4 lg:px-6">
-          {data.company.logoUrl ? (
-            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+          <div className="flex h-12 w-36 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-white p-1.5">
+            {data.company.logoUrl ? (
               <SafeImage
                 src={data.company.logoUrl}
                 alt={`Logo de ${data.company.name}`}
                 className="h-full w-full object-contain"
+                fallbackClassName="grid h-full w-full place-items-center bg-white"
               />
-            </div>
-          ) : null}
+            ) : (
+              <Building2 className="h-6 w-6 text-slate-400" />
+            )}
+          </div>
           <div>
             <h1 className="font-semibold text-slate-900">
               {data.company.name}

@@ -671,7 +671,7 @@ export function MediaKit({ mode = 'internal', token }: MediaKitProps) {
         </div>
       </div>
 
-      {mode === 'internal' ? <MediaKitShareManager /> : null}
+      {mode === 'internal' ? <MediaKitShareManager points={data?.points || []} /> : null}
 
       {mode === 'public' ? (<>
       {/* FILTERS */}
