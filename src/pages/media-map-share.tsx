@@ -39,21 +39,44 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
+function pointImageSources(point: PublicMapPoint): string[] {
+  const candidates = [
+    ...(point.media || []).filter((item) => item.type === "image").map((item) => item.url),
+    ...point.units.flatMap((unit) =>
+      (unit.media || []).filter((item) => item.type === "image").map((item) => item.url),
+    ),
+  ]
+    .map((url) => String(url || "").trim())
+    .filter(Boolean);
+
+  return [...new Set(candidates)];
+}
+
 function SafeImage({
   src,
   alt,
   className,
   fallbackClassName = "grid h-full w-full place-items-center bg-slate-100",
 }: {
-  src: string | null | undefined;
+  src: string | string[] | null | undefined;
   alt: string;
   className: string;
   fallbackClassName?: string;
 }) {
-  const [failed, setFailed] = useState(false);
-  const resolved = resolvePublicMediaAssetUrl(src);
+  const candidates = Array.isArray(src)
+    ? src.map((value) => String(value || "").trim()).filter(Boolean)
+    : [String(src || "").trim()].filter(Boolean);
+  const candidatesKey = candidates.join("|");
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
-  if (!resolved || failed) {
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [candidatesKey]);
+
+  const current = candidates[candidateIndex];
+  const resolved = resolvePublicMediaAssetUrl(current);
+
+  if (!resolved) {
     return (
       <div className={fallbackClassName} aria-label={alt}>
         <ImageIcon className="h-5 w-5 text-slate-400" />
@@ -68,7 +91,7 @@ function SafeImage({
       className={className}
       loading="lazy"
       referrerPolicy="no-referrer"
-      onError={() => setFailed(true)}
+      onError={() => setCandidateIndex((index) => index + 1)}
     />
   );
 }
@@ -387,17 +410,11 @@ export default function MediaMapSharePage() {
                 className="media-map-result-card flex w-full gap-3 rounded-xl border p-3 text-left hover:border-indigo-300 hover:bg-indigo-50"
               >
                 <div className="h-16 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                  {point.media?.find((item) => item.type === "image") ? (
-                    <SafeImage
-                      src={point.media.find((item) => item.type === "image")?.url}
-                      alt={point.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="grid h-full place-items-center">
-                      <ImageIcon className="h-5 w-5 text-slate-400" />
-                    </div>
-                  )}
+                  <SafeImage
+                    src={pointImageSources(point)}
+                    alt={point.name}
+                    className="h-full w-full object-cover"
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold">
@@ -468,10 +485,10 @@ export default function MediaMapSharePage() {
             >
               <X className="h-5 w-5" />
             </button>
-            {selected.media?.find((item) => item.type === "image") ? (
+            {pointImageSources(selected).length ? (
               <div className="h-60 w-full overflow-hidden rounded-2xl bg-slate-100">
                 <SafeImage
-                  src={selected.media.find((item) => item.type === "image")?.url}
+                  src={pointImageSources(selected)}
                   alt={selected.name}
                   className="h-full w-full object-cover"
                 />

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Eye, Link2, LoaderCircle, MapPin, RefreshCw, ShieldX, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import L from 'leaflet';
-import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { getApiError } from '../../lib/getApiError';
@@ -32,8 +31,8 @@ type PreviewPoint = {
   name: string;
   addressCity?: string | null;
   addressState?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
 };
 
 const previewMarkerIcon = new L.Icon({
@@ -44,18 +43,77 @@ const previewMarkerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-function PreviewFit({ points }: { points: PreviewPoint[] }) {
-  const map = useMap();
+function SharePreviewMap({ points }: { points: PreviewPoint[] }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerLayerRef = useRef<L.LayerGroup | null>(null);
+
   useEffect(() => {
-    const coords = points.flatMap((point) => {
-      const lat = Number(point.latitude);
-      const lng = Number(point.longitude);
-      return Number.isFinite(lat) && Number.isFinite(lng) ? [[lat, lng] as [number, number]] : [];
+    const container = containerRef.current;
+    if (!container || mapRef.current) return;
+
+    const map = L.map(container, {
+      center: [-14.2, -51.9],
+      zoom: 4,
+      scrollWheelZoom: false,
+      zoomControl: true,
     });
-    window.setTimeout(() => map.invalidateSize(), 0);
-    if (coords.length) map.fitBounds(coords, { padding: [28, 28], maxZoom: 14 });
-  }, [map, points]);
-  return null;
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+
+    const markerLayer = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    markerLayerRef.current = markerLayer;
+
+    const refreshSize = () => map.invalidateSize({ pan: false });
+    const timer = window.setTimeout(refreshSize, 0);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(refreshSize) : null;
+    observer?.observe(container);
+
+    return () => {
+      window.clearTimeout(timer);
+      observer?.disconnect();
+      markerLayer.clearLayers();
+      map.remove();
+      markerLayerRef.current = null;
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const markerLayer = markerLayerRef.current;
+    if (!map || !markerLayer) return;
+
+    markerLayer.clearLayers();
+    const coordinates: L.LatLngTuple[] = [];
+
+    for (const point of points) {
+      const latitude = Number(point.latitude);
+      const longitude = Number(point.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) continue;
+
+      const coordinate: L.LatLngTuple = [latitude, longitude];
+      coordinates.push(coordinate);
+      L.marker(coordinate, { icon: previewMarkerIcon })
+        .bindTooltip(point.name, { direction: 'top', offset: [0, -28] })
+        .addTo(markerLayer);
+    }
+
+    window.requestAnimationFrame(() => {
+      map.invalidateSize({ pan: false });
+      if (coordinates.length === 1) {
+        map.setView(coordinates[0], 14, { animate: false });
+      } else if (coordinates.length > 1) {
+        map.fitBounds(L.latLngBounds(coordinates), { padding: [28, 28], maxZoom: 14, animate: false });
+      } else {
+        map.setView([-14.2, -51.9], 4, { animate: false });
+      }
+    });
+  }, [points]);
+
+  return <div ref={containerRef} className="media-kit-share-preview-leaflet" aria-label="Mapa de prévia dos pontos compartilhados" />;
 }
 
 const visibilityGroups: Array<{
@@ -387,23 +445,14 @@ export function MediaKitShareManager({ points = [] }: { points?: PreviewPoint[] 
                   <p className="text-[11px] text-slate-500">{previewPoints.length} ponto(s) no recorte atual</p>
                 </div>
               </div>
-              <div className="h-72 w-full">
-                {previewPointsWithCoords.length ? (
-                  <MapContainer center={[-14.2, -51.9]} zoom={4} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
-                    <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <PreviewFit points={previewPointsWithCoords} />
-                    {previewPointsWithCoords.map((point) => (
-                      <Marker key={point.id} position={[Number(point.latitude), Number(point.longitude)]} icon={previewMarkerIcon} />
-                    ))}
-                  </MapContainer>
-                ) : (
-                  <div className="grid h-full place-items-center p-6 text-center">
-                    <div>
-                      <MapPin className="mx-auto h-7 w-7 text-slate-400" />
-                      <p className="mt-2 text-sm font-medium text-slate-600">Nenhum ponto com coordenadas neste recorte</p>
-                    </div>
+              <div className="media-kit-share-preview-map">
+                <SharePreviewMap points={previewPointsWithCoords} />
+                {!previewPointsWithCoords.length ? (
+                  <div className="media-kit-share-preview-empty">
+                    <MapPin className="h-7 w-7 text-slate-400" />
+                    <p className="mt-2 text-sm font-medium text-slate-600">Nenhum ponto com coordenadas neste recorte</p>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
