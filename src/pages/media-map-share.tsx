@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   Image as ImageIcon,
   List,
   Map as MapIcon,
@@ -52,6 +54,140 @@ function pointImageSources(point: PublicMapPoint): string[] {
   return [...new Set(candidates)];
 }
 
+type PointMediaItem = { type: "image" | "video"; url: string };
+
+function pointMediaItems(point: PublicMapPoint): PointMediaItem[] {
+  const candidates: PointMediaItem[] = [
+    ...(point.media || []),
+    ...point.units.flatMap((unit) => unit.media || []),
+  ]
+    .map((item) => ({
+      type: item.type,
+      url: String(item.url || "").trim(),
+    }))
+    .filter((item) => item.url);
+
+  const seen = new Set<string>();
+  return candidates.filter((item) => {
+    const key = `${item.type}:${item.url}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function PointMediaGallery({ point }: { point: PublicMapPoint }) {
+  const media = useMemo(() => pointMediaItems(point), [point]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [failedKeys, setFailedKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setCurrentIndex(0);
+    setFailedKeys(new Set());
+  }, [point.reference]);
+
+  const available = useMemo(
+    () => media.filter((item) => !failedKeys.has(`${item.type}:${item.url}`)),
+    [failedKeys, media],
+  );
+
+  useEffect(() => {
+    if (available.length === 0) {
+      setCurrentIndex(0);
+      return;
+    }
+    if (currentIndex >= available.length) setCurrentIndex(available.length - 1);
+  }, [available.length, currentIndex]);
+
+  const current = available[currentIndex];
+  if (!current) return null;
+
+  const markFailed = () => {
+    const key = `${current.type}:${current.url}`;
+    setFailedKeys((previous) => {
+      const next = new Set(previous);
+      next.add(key);
+      return next;
+    });
+  };
+  const previous = () =>
+    setCurrentIndex((index) =>
+      available.length ? (index - 1 + available.length) % available.length : 0,
+    );
+  const next = () =>
+    setCurrentIndex((index) =>
+      available.length ? (index + 1) % available.length : 0,
+    );
+
+  return (
+    <section className="media-map-gallery" aria-label={`Mídias de ${point.name}`}>
+      <div className="media-map-gallery-stage">
+        {current.type === "video" ? (
+          <video
+            key={current.url}
+            src={resolvePublicMediaAssetUrl(current.url)}
+            className="h-full w-full object-contain bg-black"
+            controls
+            playsInline
+            preload="metadata"
+            onError={markFailed}
+          />
+        ) : (
+          <img
+            key={current.url}
+            src={resolvePublicMediaAssetUrl(current.url)}
+            alt={`${point.name} — mídia ${currentIndex + 1}`}
+            className="h-full w-full object-cover"
+            loading="eager"
+            referrerPolicy="no-referrer"
+            onError={markFailed}
+          />
+        )}
+
+        {available.length > 1 ? (
+          <>
+            <button
+              type="button"
+              className="media-map-gallery-arrow media-map-gallery-arrow-left"
+              onClick={previous}
+              aria-label="Mídia anterior"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="media-map-gallery-arrow media-map-gallery-arrow-right"
+              onClick={next}
+              aria-label="Próxima mídia"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      {available.length > 1 ? (
+        <div className="media-map-gallery-segments" aria-label="Selecionar mídia">
+          {available.map((item, index) => (
+            <button
+              key={`${item.type}:${item.url}`}
+              type="button"
+              className="media-map-gallery-segment"
+              data-active={index === currentIndex}
+              onClick={() => setCurrentIndex(index)}
+              aria-label={`Abrir mídia ${index + 1} de ${available.length}`}
+              aria-current={index === currentIndex ? "true" : undefined}
+            />
+          ))}
+        </div>
+      ) : null}
+      <p className="media-map-gallery-counter">
+        {currentIndex + 1} de {available.length}
+        {current.type === "video" ? " · Vídeo" : " · Foto"}
+      </p>
+    </section>
+  );
+}
 function SafeImage({
   src,
   alt,
@@ -366,13 +502,13 @@ export default function MediaMapSharePage() {
       <div className="media-map-share-layout" data-mobile-view={mobileView}>
         <aside className="media-map-share-list overflow-y-auto border-r bg-white">
           <div className="media-map-share-filters sticky top-0 z-10 space-y-3 border-b bg-white p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <div className="media-map-search-field">
+              <Search className="media-map-search-icon h-4 w-4" aria-hidden="true" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Nome, endereço, cidade ou região"
-                className="w-full rounded-xl border py-2 pl-9 pr-3 text-sm"
+                className="w-full rounded-xl border pr-3 text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -485,15 +621,7 @@ export default function MediaMapSharePage() {
             >
               <X className="h-5 w-5" />
             </button>
-            {pointImageSources(selected).length ? (
-              <div className="h-60 w-full overflow-hidden rounded-2xl bg-slate-100">
-                <SafeImage
-                  src={pointImageSources(selected)}
-                  alt={selected.name}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ) : null}
+            <PointMediaGallery point={selected} />
             <h2 className="mt-5 text-2xl font-semibold">{selected.name}</h2>
             <p className="mt-1 text-sm text-slate-500">
               <MapPin className="mr-1 inline h-4 w-4" />

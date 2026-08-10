@@ -143,3 +143,111 @@
     min-height: 0;
   }
 }
+
+.media-map-search-field {
+  position: relative;
+}
+
+.media-map-search-field input {
+  min-height: 2.5rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 2.35rem;
+}
+
+.media-map-search-icon {
+  position: absolute;
+  left: 0.8rem;
+  top: 50%;
+  z-index: 1;
+  color: #94a3b8;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.media-map-gallery {
+  width: 100%;
+}
+
+.media-map-gallery-stage {
+  position: relative;
+  height: 15rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: #f1f5f9;
+}
+
+.media-map-gallery-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  height: 2.4rem;
+  width: 2.4rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  transform: translateY(-50%);
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.media-map-gallery-arrow:hover {
+  background: #fff;
+}
+
+.media-map-gallery-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.media-map-gallery-arrow-left {
+  left: 0.65rem;
+}
+
+.media-map-gallery-arrow-right {
+  right: 0.65rem;
+}
+
+.media-map-gallery-segments {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.media-map-gallery-segments::-webkit-scrollbar {
+  display: none;
+}
+
+.media-map-gallery-segment {
+  height: 0.28rem;
+  min-width: 1.4rem;
+  flex: 1 0 1.4rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background-color 120ms ease, flex-basis 120ms ease;
+}
+
+.media-map-gallery-segment[data-active="true"] {
+  flex-basis: 2.25rem;
+  background: #4f46e5;
+}
+
+.media-map-gallery-counter {
+  margin-top: 0.45rem;
+  color: #64748b;
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+@media (max-width: 639px) {
+  .media-map-gallery-stage {
+    height: 13rem;
+  }
+}
