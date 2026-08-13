@@ -60,6 +60,39 @@ export async function fetchTimed(url, options = {}, timeoutMs = Number(process.e
   } finally { clearTimeout(timer); }
 }
 
+export function inspectSpaDocumentResponse(status, contentType, text) {
+  const source = String(text || '');
+  const html = /text\/html/i.test(String(contentType || '')) || /<!doctype\s+html/i.test(source) || /<html[\s>]/i.test(source);
+  const root = /id=["']root["']/.test(source);
+  const routeRedirect = /<script[^>]+src=["']\/route-redirect\.js["'][^>]*>/i.test(source);
+  const redirectPage = /<title>\s*Redirecting\.\.\.\s*<\/title>/i.test(source);
+  const directShell = status >= 200 && status < 400 && html && root;
+  // GitHub Pages intentionally answers unknown SPA paths with public/404.html (HTTP 404).
+  // That document immediately transfers the route to /?p=... and route-restore.js restores it
+  // before React mounts. A browser test must still validate the final route.
+  const githubPagesFallback = status === 404 && html && routeRedirect && redirectPage;
+  return {
+    ok: directShell || githubPagesFallback,
+    mode: directShell ? 'direct-shell' : githubPagesFallback ? 'github-pages-spa-fallback' : 'invalid',
+    html,
+    root,
+    routeRedirect,
+    redirectPage,
+  };
+}
+
+export function isExpectedSpaDocumentFallback(event, requestedUrl, baseOrigin) {
+  if (!event || Number(event.status) !== 404 || event.type !== 'Document' || !event.url) return false;
+  try {
+    const requested = new URL(requestedUrl);
+    const received = new URL(event.url);
+    if (received.origin !== baseOrigin || requested.origin !== baseOrigin) return false;
+    return received.pathname === requested.pathname && received.search === requested.search;
+  } catch {
+    return false;
+  }
+}
+
 export function redactUrl(value) {
   try {
     const url = new URL(value);

@@ -42,8 +42,24 @@ jobs:
         shell: bash
         run: |
           command -v google-chrome || command -v chromium || command -v chromium-browser
-      - name: Remote safe browser/HTTP smoke
-        run: npm run qa:final:remote
+      - name: Remote safe HTTP smoke
+        id: remote_http
+        continue-on-error: true
+        run: npm run qa:final:http
+      - name: Remote safe browser smoke
+        id: remote_browser
+        continue-on-error: true
+        run: npm run qa:final:browser
+      - name: Remote final QA gate
+        if: always()
+        env:
+          HTTP_OUTCOME: ${{ steps.remote_http.outcome }}
+          BROWSER_OUTCOME: ${{ steps.remote_browser.outcome }}
+        run: |
+          echo "HTTP smoke: ${HTTP_OUTCOME}"
+          echo "Browser smoke: ${BROWSER_OUTCOME}"
+          test "${HTTP_OUTCOME}" = "success"
+          test "${BROWSER_OUTCOME}" = "success"
       - name: Upload Final QA evidence
         if: always()
         uses: actions/upload-artifact@v4

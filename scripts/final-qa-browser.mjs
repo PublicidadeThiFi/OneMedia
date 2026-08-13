@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { QaReport, assertRemoteAllowed, redactUrl } from './final-qa-lib.mjs';
+import { QaReport, assertRemoteAllowed, isExpectedSpaDocumentFallback, redactUrl } from './final-qa-lib.mjs';
 
 const report = new QaReport('OneMedia Frontend — Final QA Browser SAFE');
 const baseUrl = String(process.env.QA_WEB_BASE_URL || '').trim().replace(/\/$/, '');
@@ -144,8 +144,10 @@ try {
       errorBoundary: (document.body?.innerText || '').includes('Algo deu errado ao carregar o app'),
       loadingStuck: (document.body?.innerText || '').trim() === 'Carregando aplicativo…'
     }))()`);
+    const expectedSpaFallbacks = networkEvents.filter((event) => isExpectedSpaDocumentFallback(event, url, baseOrigin));
     const badNetwork = networkEvents.filter((event) => {
       if (!event.url) return false;
+      if (isExpectedSpaDocumentFallback(event, url, baseOrigin)) return false;
       let sameOrigin = false;
       try { sameOrigin = new URL(event.url).origin === baseOrigin || new URL(event.url).hostname === 'api.onemediaap.com.br'; } catch {}
       return sameOrigin && ((event.status >= 400) || event.status === 0);
@@ -169,7 +171,7 @@ try {
       report.fail(`${name} (${viewport.width}px)`, { url: url.includes('/mapa/') ? redactUrl(url) : url, errors, state }, 'browser');
       return { ok: false, state };
     }
-    report.pass(`${name} (${viewport.width}px)`, { pathname: state.pathname, maps: state.maps.length, mediaCount: state.mediaCount }, 'browser');
+    report.pass(`${name} (${viewport.width}px)`, { pathname: state.pathname, maps: state.maps.length, mediaCount: state.mediaCount, spaFallback404s: expectedSpaFallbacks.length }, 'browser');
     return { ok: true, state };
   }
 
