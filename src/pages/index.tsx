@@ -812,7 +812,7 @@ export default function Home() {
       const IconCard = (
         <div className="diff-card diff-surface diff-iconCard">
           <GifOrFallback
-            name={row.key === 'integracao' ? 'integração' : row.key} // plug-and-play conforme seu padrão
+            name={row.key} // os GIFs públicos usam nomes normalizados/sem acento
             fallback={row.front.fallback}
             className="w-24 h-24 object-contain"
             alt={row.key}

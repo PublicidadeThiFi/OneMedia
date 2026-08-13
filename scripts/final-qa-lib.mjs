@@ -93,6 +93,17 @@ export function isExpectedSpaDocumentFallback(event, requestedUrl, baseOrigin) {
   }
 }
 
+export function isExpectedMountedSpaDocumentFallback(event, baseOrigin, state, expectedPathname = '') {
+  if (!event || Number(event.status) !== 404 || event.type !== 'Document' || !event.url) return false;
+  if (!state?.root || state?.errorBoundary || state?.loadingStuck) return false;
+  if (expectedPathname && state?.pathname !== expectedPathname) return false;
+  try {
+    return new URL(event.url).origin === baseOrigin;
+  } catch {
+    return false;
+  }
+}
+
 export function redactUrl(value) {
   try {
     const url = new URL(value);

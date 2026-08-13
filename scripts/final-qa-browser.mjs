@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { QaReport, assertRemoteAllowed, isExpectedSpaDocumentFallback, redactUrl } from './final-qa-lib.mjs';
+import { QaReport, assertRemoteAllowed, isExpectedMountedSpaDocumentFallback, isExpectedSpaDocumentFallback, redactUrl } from './final-qa-lib.mjs';
 
 const report = new QaReport('OneMedia Frontend — Final QA Browser SAFE');
 const baseUrl = String(process.env.QA_WEB_BASE_URL || '').trim().replace(/\/$/, '');
@@ -114,7 +114,13 @@ try {
     if (msg.method === 'Network.loadingFailed') networkEvents.push({ url: msg.params?.url, status: 0, error: msg.params?.errorText, type: msg.params?.type });
     if (msg.method === 'Runtime.exceptionThrown') consoleErrors.push(`exception: ${msg.params?.exceptionDetails?.text || 'unknown'}`);
     if (msg.method === 'Runtime.consoleAPICalled' && msg.params?.type === 'error') consoleErrors.push('console.error');
-    if (msg.method === 'Log.entryAdded' && msg.params?.entry?.level === 'error') consoleErrors.push(msg.params.entry.text || 'log error');
+    if (msg.method === 'Log.entryAdded' && msg.params?.entry?.level === 'error') {
+      const text = msg.params.entry.text || 'log error';
+      // Falhas de carregamento são avaliadas pela camada Network, onde temos URL,
+      // status e tipo do recurso. O Log do Chromium repete apenas uma mensagem
+      // genérica sem URL e gerava falso positivo em fallback de SPA.
+      if (!/Failed to load resource:/i.test(text)) consoleErrors.push(text);
+    }
   };
 
   async function evaluate(expression) {
@@ -144,10 +150,17 @@ try {
       errorBoundary: (document.body?.innerText || '').includes('Algo deu errado ao carregar o app'),
       loadingStuck: (document.body?.innerText || '').trim() === 'Carregando aplicativo…'
     }))()`);
-    const expectedSpaFallbacks = networkEvents.filter((event) => isExpectedSpaDocumentFallback(event, url, baseOrigin));
+    const isExpectedDocumentFallback = (event) =>
+      isExpectedSpaDocumentFallback(event, url, baseOrigin) ||
+      isExpectedMountedSpaDocumentFallback(event, baseOrigin, state, expectations.pathname || '');
+    const expectedSpaFallbacks = networkEvents.filter(isExpectedDocumentFallback);
     const badNetwork = networkEvents.filter((event) => {
       if (!event.url) return false;
-      if (isExpectedSpaDocumentFallback(event, url, baseOrigin)) return false;
+      // GitHub Pages pode devolver o 404.html em mais de uma navegação Document
+      // da mesma rota (por exemplo, /landing-mobile -> /home). Se o React montou
+      // e terminou exatamente no pathname esperado, esse 404 Document é parte
+      // do transporte da SPA, não uma falha funcional. Assets/API continuam FAIL.
+      if (isExpectedDocumentFallback(event)) return false;
       let sameOrigin = false;
       try { sameOrigin = new URL(event.url).origin === baseOrigin || new URL(event.url).hostname === 'api.onemediaap.com.br'; } catch {}
       return sameOrigin && ((event.status >= 400) || event.status === 0);
