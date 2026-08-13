@@ -36,6 +36,9 @@ jobs:
       - name: Scan repository for committed secrets
         run: npm run security:scan
 
+      - name: Run Final QA static gate
+        run: npm run qa:final:static
+
       - name: Validate public build environment
         run: npm run validate:public-env
 

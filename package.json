@@ -78,6 +78,12 @@
     "qa:marketplace:bundle": "node ./scripts/check-marketplace-bundle-budget.mjs",
     "qa:marketplace:routes": "node ./scripts/marketplace-route-smoke.mjs",
     "qa:marketplace": "npm run build && npm run qa:marketplace:bundle",
-    "qa:phase5": "node ./scripts/phase5-static-check.mjs"
+    "qa:phase5": "node ./scripts/phase5-static-check.mjs",
+    "qa:final:static": "node ./scripts/final-qa-static.mjs",
+    "qa:final:http": "node ./scripts/final-qa-public.mjs",
+    "qa:final:browser": "node ./scripts/final-qa-browser.mjs",
+    "qa:final:safe": "npm run qa:final:static && npm run security:scan && npm run qa:phase5 && npm run build && npm run qa:marketplace:bundle",
+    "qa:final:remote": "npm run qa:final:http && npm run qa:final:browser",
+    "qa:final": "npm run qa:final:safe"
   }
 }

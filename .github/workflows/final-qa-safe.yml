@@ -1,0 +1,54 @@
+name: Final QA Safe
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_base_url:
+        description: Frontend base URL
+        required: true
+        default: https://onemediaap.com.br
+      allow_production:
+        description: Autorizar smoke somente leitura em URL remota HTTPS
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  final-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VITE_API_URL: https://api.example.com/api
+      VITE_APP_URL: https://app.example.com
+      URL_ONE_MEDIA: https://www.example.com
+      VITE_MERCADO_PAGO_PUBLIC_KEY: TEST-PLACEHOLDER
+      VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      QA_WEB_BASE_URL: ${{ inputs.web_base_url }}
+      QA_ALLOW_PRODUCTION: ${{ inputs.allow_production }}
+      QA_MEDIA_MAP_URL: ${{ secrets.QA_MEDIA_MAP_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Local final QA gate
+        run: npm run qa:final:safe
+      - name: Resolve browser binary
+        shell: bash
+        run: |
+          command -v google-chrome || command -v chromium || command -v chromium-browser
+      - name: Remote safe browser/HTTP smoke
+        run: npm run qa:final:remote
+      - name: Upload Final QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-final-qa-${{ github.run_id }}
+          path: .qa-results/
+          if-no-files-found: warn
+          retention-days: 30
