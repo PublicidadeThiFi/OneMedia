@@ -732,7 +732,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
         if (usePersistentImport) {
           const sessionResponse = await apiClient.post<AssistantImportSession>('/assistant/imports/sessions', {
-            importType: isClientsUpload ? 'clients' : 'media_points',
+            importType: isClientsUpload
+              ? 'clients'
+              : data?.inventoryImportType === 'media_units'
+                ? 'media_units'
+                : 'media_points',
             sourceFile: { name: file.name, size: file.size, sourceType: String(data?.sourceType || 'unknown') },
             rows: pendingOutdoorsRef.current,
           });
