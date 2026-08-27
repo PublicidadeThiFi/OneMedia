@@ -35,6 +35,8 @@ import { getAssistantStorageKey, readAssistantLocalState, removeAssistantLocalSt
 import { useAssistantImport } from '../components/assistant/useAssistantImport';
 import {
   ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED,
+  ASSISTANT_PERSISTENT_INVENTORY_IMPORTS_ENABLED,
+  reportLegacyInventoryImportUsage,
   reportLegacyClientImportUsage,
 } from '../components/assistant/assistant-import-flags';
 
@@ -724,7 +726,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
         const usePersistentImport =
           recordsFound > 0 &&
-          (!isClientsUpload || ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED);
+          (isClientsUpload
+            ? ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED
+            : ASSISTANT_PERSISTENT_INVENTORY_IMPORTS_ENABLED);
 
         if (usePersistentImport) {
           const sessionResponse = await apiClient.post<AssistantImportSession>('/assistant/imports/sessions', {
@@ -742,6 +746,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         if (!usePersistentImport && hasClientRecords) {
           // LEGACY: mantido apenas para rollback controlado pela feature flag.
           reportLegacyClientImportUsage();
+        }
+        if (!usePersistentImport && !isClientsUpload && recordsFound > 0) {
+          reportLegacyInventoryImportUsage();
         }
 
         const assistantMessage: AssistantMessage = {

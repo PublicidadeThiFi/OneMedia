@@ -7,7 +7,7 @@ import {
 } from 'react';
 import apiClient from '../../lib/apiClient';
 import type { AssistantImportSession } from '../../types/assistant';
-import { ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED } from './assistant-import-flags';
+import { ASSISTANT_ANY_PERSISTENT_IMPORTS_ENABLED } from './assistant-import-flags';
 
 const ACTIVE_SESSION_KEY = 'assistant:persistent-client-import-session';
 
@@ -29,7 +29,7 @@ export function useAssistantImport(
   );
 
   useEffect(() => {
-    if (!ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED || session) return;
+    if (!ASSISTANT_ANY_PERSISTENT_IMPORTS_ENABLED || session) return;
     const sessionId = window.localStorage.getItem(ACTIVE_SESSION_KEY);
     if (!sessionId) return;
     void refresh(sessionId).catch(() => {
@@ -38,7 +38,7 @@ export function useAssistantImport(
   }, [refresh, session]);
 
   useEffect(() => {
-    if (!ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED || !session?.sessionId) return;
+    if (!ASSISTANT_ANY_PERSISTENT_IMPORTS_ENABLED || !session?.sessionId) return;
     window.localStorage.setItem(ACTIVE_SESSION_KEY, session.sessionId);
   }, [session?.sessionId]);
 
