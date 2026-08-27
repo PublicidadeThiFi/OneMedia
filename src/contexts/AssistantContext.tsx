@@ -33,6 +33,10 @@ import type {
 } from '../types/assistant';
 import { getAssistantStorageKey, readAssistantLocalState, removeAssistantLocalState, writeAssistantLocalState } from '../components/assistant/assistant-storage.service';
 import { useAssistantImport } from '../components/assistant/useAssistantImport';
+import {
+  ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED,
+  reportLegacyClientImportUsage,
+} from '../components/assistant/assistant-import-flags';
 
 export interface AssistantLoginBriefing {
   alertKey?: string;
@@ -718,7 +722,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         const hasClientRecords = isClientsUpload && pendingOutdoorsRef.current.length > 0;
         const recordsFound = pendingOutdoorsRef.current.length;
 
-        if (recordsFound > 0) {
+        const usePersistentImport =
+          recordsFound > 0 &&
+          (!isClientsUpload || ASSISTANT_PERSISTENT_CLIENT_IMPORTS_ENABLED);
+
+        if (usePersistentImport) {
           const sessionResponse = await apiClient.post<AssistantImportSession>('/assistant/imports/sessions', {
             importType: isClientsUpload ? 'clients' : 'media_points',
             sourceFile: { name: file.name, size: file.size, sourceType: String(data?.sourceType || 'unknown') },
@@ -729,6 +737,11 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
           pendingSourceTypeRef.current = null;
           pendingTotalCountRef.current = 0;
           replyContent += '\n\nA revisão segura foi preparada. Nenhum registro foi criado ainda.';
+        }
+
+        if (!usePersistentImport && hasClientRecords) {
+          // LEGACY: mantido apenas para rollback controlado pela feature flag.
+          reportLegacyClientImportUsage();
         }
 
         const assistantMessage: AssistantMessage = {

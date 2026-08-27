@@ -57,6 +57,7 @@ export type MarketplacePointCardData = {
   availability: MarketplaceAvailabilitySummary;
   dailyImpressions: number | null;
   distanceKm: number | null;
+
 };
 
 export type MarketplaceMapPoint = {
