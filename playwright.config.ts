@@ -18,6 +18,7 @@ export default defineConfig({
       command: 'node ../backend/ooh-manager-api/scripts/assistant-browser-e2e-server.mjs',
       url: 'http://127.0.0.1:43331/health/runtime',
       reuseExistingServer: false,
+      env: { ASSISTANT_GEOCODING_PROVIDER: 'mock' },
       timeout: 120_000,
     },
     {
@@ -27,6 +28,7 @@ export default defineConfig({
       env: {
         VITE_API_URL: 'http://127.0.0.1:43331',
         VITE_ASSISTANT_PERSISTENT_CLIENT_IMPORTS: 'true',
+        VITE_ASSISTANT_PERSISTENT_INVENTORY_IMPORTS: 'true',
       },
       timeout: 120_000,
     },
