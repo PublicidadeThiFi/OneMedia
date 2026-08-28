@@ -76,6 +76,31 @@ test("campaign briefing persists versions and evaluates explainable candidates w
     ).toBeVisible();
     await page
       .getByTestId("campaign-planner-foundation")
+      .getByRole("button", { name: "Gerar cenários" })
+      .dblclick();
+    await expect(page.getByTestId("campaign-scenarios")).toContainText(
+      "geração 1",
+    );
+    await expect(page.getByTestId("campaign-scenarios")).toContainText(
+      "ECONOMIC",
+    );
+    await page
+      .getByTestId("campaign-scenarios")
+      .getByRole("button", { name: "Selecionar snapshot" })
+      .first()
+      .click();
+    await expect(
+      page
+        .getByTestId("campaign-scenarios")
+        .getByRole("button", { name: "Selecionado" }),
+    ).toBeVisible();
+    await page.reload();
+    await page.getByLabel("Abrir assistente OneMedia").click();
+    await expect(page.getByTestId("campaign-scenarios")).toContainText(
+      "geração 1",
+    );
+    await page
+      .getByTestId("campaign-planner-foundation")
       .getByLabel("Objetivo")
       .fill("Cobertura sintética versionada");
     await page

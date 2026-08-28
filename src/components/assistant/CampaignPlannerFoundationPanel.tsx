@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import apiClient from "../../lib/apiClient";
 
 type ClientOption = {
@@ -37,6 +37,41 @@ type Plan = {
   status: "DRAFT" | "READY" | "ARCHIVED";
   currentVersion: number;
   versions: Version[];
+  scenarioGenerations: ScenarioGeneration[];
+};
+type Scenario = {
+  type: "ECONOMIC" | "BALANCED" | "MAXIMUM_PRESENCE";
+  feasible: boolean;
+  reasons: string[];
+  units: Array<{
+    mediaUnitId: string;
+    priceAmountCents: number;
+    priceSource: string;
+    score: number;
+    factors: Record<
+      string,
+      {
+        value: number;
+        weight: number;
+        contribution: number;
+        justification: string;
+      }
+    >;
+  }>;
+  totalCents: number;
+  remainingBudgetCents: number;
+  quantity: number;
+  scoreTotal: number;
+  sameSelectionReason: string | null;
+};
+type ScenarioGeneration = {
+  id: string;
+  generation: number;
+  algorithmVersion: string;
+  weightsVersion: string;
+  scenarios: Scenario[];
+  selectedScenario: string | null;
+  createdAt: string;
 };
 const enabled =
   String(
@@ -52,6 +87,7 @@ const apiError = (error: unknown) =>
     : "Revise o briefing.";
 
 export function CampaignPlannerFoundationPanel() {
+  const scenarioIdempotencyKey = useRef<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]),
     [clients, setClients] = useState<ClientOption[]>([]),
     [selectedPlan, setSelectedPlan] = useState(""),
@@ -166,6 +202,32 @@ export function CampaignPlannerFoundationPanel() {
       setBusy(false);
     }
   };
+  const generateScenarios = async () => {
+    if (!plan) return;
+    setBusy(true);
+    setError("");
+    try {
+      scenarioIdempotencyKey.current ||= idem();
+      await apiClient.post(`/assistant/campaign-plans/${plan.id}/scenarios`, {
+        idempotencyKey: scenarioIdempotencyKey.current,
+      });
+      await load();
+      scenarioIdempotencyKey.current = null;
+    } catch (e) {
+      setError(apiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const selectScenario = async (generation: number, scenarioType: string) => {
+    if (!plan) return;
+    await apiClient.patch(
+      `/assistant/campaign-plans/${plan.id}/scenarios/${generation}/select`,
+      { scenarioType },
+    );
+    await load();
+  };
+  const generation = plan?.scenarioGenerations?.[0];
   return (
     <section
       data-testid="campaign-planner-foundation"
@@ -312,6 +374,15 @@ export function CampaignPlannerFoundationPanel() {
             Gerar candidatos
           </button>
         )}
+        {plan?.status === "READY" && (
+          <button
+            disabled={busy}
+            className="rounded bg-blue-600 px-3 py-2 text-white"
+            onClick={() => void generateScenarios()}
+          >
+            Gerar cenários
+          </button>
+        )}
       </div>
       {error && (
         <p role="alert" className="mt-2 text-red-600">
@@ -360,6 +431,68 @@ export function CampaignPlannerFoundationPanel() {
               </div>
             ))}
           </div>
+          {generation && (
+            <div className="mt-3" data-testid="campaign-scenarios">
+              <div className="mb-2 text-slate-500">
+                Snapshot · geração {generation.generation} ·{" "}
+                {generation.algorithmVersion} · {generation.weightsVersion}
+              </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                {generation.scenarios.map((scenario) => (
+                  <article key={scenario.type} className="rounded border p-2">
+                    <b>{scenario.type}</b>
+                    <div>
+                      {scenario.feasible
+                        ? "Viável"
+                        : `Inviável: ${scenario.reasons.join(", ")}`}
+                    </div>
+                    <div>
+                      Total: {(scenario.totalCents / 100).toFixed(2)} BRL
+                    </div>
+                    <div>
+                      Saldo: {(scenario.remainingBudgetCents / 100).toFixed(2)}{" "}
+                      BRL
+                    </div>
+                    <div>
+                      Unidades: {scenario.quantity} · score{" "}
+                      {scenario.scoreTotal}
+                    </div>
+                    {scenario.sameSelectionReason && (
+                      <div>{scenario.sameSelectionReason}</div>
+                    )}
+                    {scenario.units.map((unit) => (
+                      <details key={unit.mediaUnitId} className="mt-1">
+                        <summary>
+                          {unit.mediaUnitId} ·{" "}
+                          {(unit.priceAmountCents / 100).toFixed(2)} · score{" "}
+                          {unit.score}
+                        </summary>
+                        {Object.entries(unit.factors).map(([name, factor]) => (
+                          <div key={name}>
+                            {name}: {factor.value} × {factor.weight}% ={" "}
+                            {factor.contribution} ({factor.justification})
+                          </div>
+                        ))}
+                      </details>
+                    ))}
+                    <button
+                      className="mt-2 rounded border px-2 py-1"
+                      onClick={() =>
+                        void selectScenario(
+                          generation.generation,
+                          scenario.type,
+                        )
+                      }
+                    >
+                      {generation.selectedScenario === scenario.type
+                        ? "Selecionado"
+                        : "Selecionar snapshot"}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>
