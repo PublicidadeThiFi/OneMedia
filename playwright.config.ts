@@ -30,6 +30,7 @@ export default defineConfig({
         VITE_ASSISTANT_PERSISTENT_CLIENT_IMPORTS: 'true',
         VITE_ASSISTANT_PERSISTENT_INVENTORY_IMPORTS: 'true',
         VITE_ASSISTANT_RECURRING_BLOCKS: 'true',
+        VITE_ASSISTANT_CAMPAIGN_PLANNER: 'true',
       },
       timeout: 120_000,
     },

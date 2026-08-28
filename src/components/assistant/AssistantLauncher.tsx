@@ -59,6 +59,7 @@ import { AutomationPanel } from './AutomationPanel';
 import { AssistantStructuredBlocks } from './renderers/AssistantBlockRenderer';
 import { AssistantDataPointRenderer } from './renderers/AssistantDataPointRenderer';
 import { RecurringOperationalBlockPanel } from './RecurringOperationalBlockPanel';
+import { CampaignPlannerFoundationPanel } from './CampaignPlannerFoundationPanel';
 
 function formatTime(value: string) {
   try {
@@ -281,6 +282,7 @@ export function AssistantLauncher() {
 
             <div ref={messagesViewportRef} className="min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] px-4 py-4">
               <RecurringOperationalBlockPanel />
+              <CampaignPlannerFoundationPanel />
               <AutomationPanel />
               <div className="space-y-4">
                 {userMessagesCount === 0 ? (
