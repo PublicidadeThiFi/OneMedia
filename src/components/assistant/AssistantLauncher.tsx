@@ -58,6 +58,7 @@ import { CampaignTimelineCard } from './CampaignTimelineCard';
 import { AutomationPanel } from './AutomationPanel';
 import { AssistantStructuredBlocks } from './renderers/AssistantBlockRenderer';
 import { AssistantDataPointRenderer } from './renderers/AssistantDataPointRenderer';
+import { RecurringOperationalBlockPanel } from './RecurringOperationalBlockPanel';
 
 function formatTime(value: string) {
   try {
@@ -279,6 +280,7 @@ export function AssistantLauncher() {
             </div>
 
             <div ref={messagesViewportRef} className="min-h-0 flex-1 overflow-y-auto bg-[#F8FAFC] px-4 py-4">
+              <RecurringOperationalBlockPanel />
               <AutomationPanel />
               <div className="space-y-4">
                 {userMessagesCount === 0 ? (

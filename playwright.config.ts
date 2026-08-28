@@ -29,6 +29,7 @@ export default defineConfig({
         VITE_API_URL: 'http://127.0.0.1:43331',
         VITE_ASSISTANT_PERSISTENT_CLIENT_IMPORTS: 'true',
         VITE_ASSISTANT_PERSISTENT_INVENTORY_IMPORTS: 'true',
+        VITE_ASSISTANT_RECURRING_BLOCKS: 'true',
       },
       timeout: 120_000,
     },
