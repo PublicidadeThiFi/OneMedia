@@ -72,6 +72,12 @@ type ScenarioGeneration = {
   scenarios: Scenario[];
   selectedScenario: string | null;
   createdAt: string;
+  materializations: Array<{
+    id: string;
+    status: string;
+    proposalId: string | null;
+    scenarioType: string;
+  }>;
 };
 const enabled =
   String(
@@ -94,6 +100,10 @@ export function CampaignPlannerFoundationPanel() {
     [selectedVersion, setSelectedVersion] = useState<number | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [confirmation, setConfirmation] = useState<{
+    intentId: string;
+    token: string;
+  } | null>(null);
   const [form, setForm] = useState({
     clientId: "",
     startDate: "2028-02-01T00:00:00-03:00",
@@ -228,6 +238,44 @@ export function CampaignPlannerFoundationPanel() {
     await load();
   };
   const generation = plan?.scenarioGenerations?.[0];
+  const materialization = generation?.materializations?.[0];
+  const requestMaterialization = async () => {
+    if (!plan) return;
+    setBusy(true);
+    try {
+      const response = await apiClient.post<{
+        intent: { id: string };
+        confirmationToken: string;
+      }>(`/assistant/campaign-plans/${plan.id}/materializations`, {
+        idempotencyKey: idem(),
+      });
+      setConfirmation({
+        intentId: response.data.intent.id,
+        token: response.data.confirmationToken,
+      });
+      await load();
+    } catch (e) {
+      setError(apiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const confirmMaterialization = async () => {
+    if (!plan || !confirmation) return;
+    setBusy(true);
+    try {
+      await apiClient.post(
+        `/assistant/campaign-plans/${plan.id}/materializations/${confirmation.intentId}/confirm`,
+        { confirmationToken: confirmation.token },
+      );
+      setConfirmation(null);
+      await load();
+    } catch (e) {
+      setError(apiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <section
       data-testid="campaign-planner-foundation"
@@ -490,6 +538,49 @@ export function CampaignPlannerFoundationPanel() {
                     </button>
                   </article>
                 ))}
+              </div>
+              <div className="mt-3 rounded border border-amber-300 p-2">
+                <b>Materialização comercial</b>
+                <p>
+                  Preços e disponibilidade serão revalidados. A confirmação cria
+                  somente uma proposta RASCUNHO; campanha e reservas não serão
+                  criadas.
+                </p>
+                {materialization?.status !== "MATERIALIZED" &&
+                  !confirmation && (
+                    <button
+                      disabled={busy}
+                      className="mt-2 rounded bg-amber-600 px-2 py-1 text-white"
+                      onClick={() => void requestMaterialization()}
+                    >
+                      Solicitar confirmação
+                    </button>
+                  )}
+                {confirmation && (
+                  <button
+                    disabled={busy}
+                    className="mt-2 rounded bg-red-600 px-2 py-1 text-white"
+                    onClick={() => void confirmMaterialization()}
+                  >
+                    Confirmar criação da proposta
+                  </button>
+                )}
+                {materialization && (
+                  <div data-testid="materialization-status">
+                    {materialization.status}
+                    {materialization.proposalId
+                      ? ` · proposta ${materialization.proposalId}`
+                      : ""}
+                  </div>
+                )}
+                {materialization?.proposalId && (
+                  <a
+                    className="mt-2 inline-block text-violet-700 underline"
+                    href={`/proposals?proposalId=${encodeURIComponent(materialization.proposalId)}`}
+                  >
+                    Abrir proposta RASCUNHO
+                  </a>
+                )}
               </div>
             </div>
           )}

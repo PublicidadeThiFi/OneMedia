@@ -94,10 +94,24 @@ test("campaign briefing persists versions and evaluates explainable candidates w
         .getByTestId("campaign-scenarios")
         .getByRole("button", { name: "Selecionado" }),
     ).toBeVisible();
+    await page
+      .getByTestId("campaign-scenarios")
+      .getByRole("button", { name: "Solicitar confirmação" })
+      .click();
+    await page
+      .getByTestId("campaign-scenarios")
+      .getByRole("button", { name: "Confirmar criação da proposta" })
+      .dblclick();
+    await expect(page.getByTestId("materialization-status")).toContainText(
+      "MATERIALIZED",
+    );
     await page.reload();
     await page.getByLabel("Abrir assistente OneMedia").click();
     await expect(page.getByTestId("campaign-scenarios")).toContainText(
       "geração 1",
+    );
+    await expect(page.getByTestId("materialization-status")).toContainText(
+      "MATERIALIZED",
     );
     await page
       .getByTestId("campaign-planner-foundation")
