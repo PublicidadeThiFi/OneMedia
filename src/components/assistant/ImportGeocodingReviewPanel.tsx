@@ -1,0 +1,13 @@
+import { useMemo, useState } from 'react';
+import apiClient from '../../lib/apiClient';
+import type { AssistantImportSession } from '../../types/assistant';
+
+type Candidate = { candidateId:string; latitude:number; longitude:number; normalizedAddress:Record<string,string|undefined>; confidence:number };
+type Review = { provider:string; status:'REVIEW_REQUIRED'|'CONFIRMED'; candidates:Candidate[]; confirmedCandidateId?:string; requiresReview?:boolean };
+
+export function ImportGeocodingReviewPanel({session}:{session:AssistantImportSession}){
+ const [rowId,setRowId]=useState(session.rows[0]?.rowId||''),[review,setReview]=useState<Review|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const row=useMemo(()=>session.rows.find(item=>item.rowId===rowId),[rowId,session.rows]),persisted=row?.normalizedData.__geocodingReview as Review|undefined,current=review??persisted??null;
+ const run=async(operation:()=>Promise<Review>)=>{if(busy)return;setBusy(true);setError('');try{setReview(await operation())}catch{setError('Não foi possível concluir o geocoding. Revise o endereço ou informe coordenadas explicitamente.')}finally{setBusy(false)}};
+ return <div className="mt-3 rounded-lg border border-slate-200 p-2 text-xs"><b>Geocoding revisável</b><p className="mt-1 text-slate-500">Usa somente o endereço informado. Nenhuma coordenada é confirmada ou substituída automaticamente.</p><select value={rowId} onChange={event=>{setRowId(event.target.value);setReview(null)}} className="mt-2 rounded border p-1">{session.rows.map(item=><option key={item.rowId} value={item.rowId}>Linha {item.sourceIndex+1}</option>)}</select><button disabled={busy} onClick={()=>void run(async()=>{const {data}=await apiClient.post<Review>('/assistant/imports/geocoding/request',{sessionId:session.sessionId,rowId});return data})} className="ml-2 rounded bg-indigo-600 px-2 py-1 text-white disabled:opacity-50">Consultar endereço</button>{error&&<div className="mt-2 rounded bg-red-50 p-2 text-red-700">{error}</div>}<div className="mt-2 space-y-1">{current?.candidates.map(candidate=><div key={candidate.candidateId} className="rounded bg-slate-50 p-2"><div>{candidate.latitude}, {candidate.longitude} · confiança {Math.round(candidate.confidence*100)}% · {current.provider}</div><div className="text-slate-500">{Object.values(candidate.normalizedAddress).filter(Boolean).join(', ')}</div>{current.status!=='CONFIRMED'&&<button disabled={busy} onClick={()=>void run(async()=>{const {data}=await apiClient.post<Review>('/assistant/imports/geocoding/confirm',{sessionId:session.sessionId,rowId,candidateId:candidate.candidateId});return data})} className="mt-1 text-indigo-600">Confirmar estas coordenadas</button>}</div>)}</div></div>;
+}

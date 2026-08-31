@@ -1,38 +1,68 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Download, Upload, MapPin, Edit, Copy, MoreVertical, Layers, Building2, FileText, X } from 'lucide-react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Card, CardContent } from './ui/card';
-import { Badge } from './ui/badge';
-import { Label } from './ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { Switch } from './ui/switch';
-import { MediaPoint, MediaType } from '../types';
-import { useMediaPoints } from '../hooks/useMediaPoints';
-import { useMediaPointsMeta } from '../hooks/useMediaPointsMeta';
-import { useCompany } from '../contexts/CompanyContext';
-import { useUploadQueue } from '../contexts/UploadQueueContext';
-import apiClient from '../lib/apiClient';
-import { resolveUploadsUrl } from '../lib/format';
-import { sanitizeMediaPointPayload } from '../lib/inventoryPayload';
-import { toast } from 'sonner';
-import { MediaPointFormDialog } from './inventory/MediaPointFormDialog';
-import { MediaPointOwnersDialog } from './inventory/MediaPointOwnersDialog';
-import { MediaPointContractsDialog } from './inventory/MediaPointContractsDialog';
-import { MediaUnitsDialog } from './inventory/MediaUnitsDialog';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
-import { MediaPointImageCarousel } from './inventory/MediaPointImageCarousel';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Plus,
+  Search,
+  Download,
+  Upload,
+  MapPin,
+  Edit,
+  Copy,
+  MoreVertical,
+  Layers,
+  Building2,
+  FileText,
+  X,
+} from "lucide-react";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Card, CardContent } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Label } from "./ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { Switch } from "./ui/switch";
+import { MediaPoint, MediaType } from "../types";
+import { useMediaPoints } from "../hooks/useMediaPoints";
+import { useMediaPointsMeta } from "../hooks/useMediaPointsMeta";
+import { useCompany } from "../contexts/CompanyContext";
+import { useUploadQueue } from "../contexts/UploadQueueContext";
+import apiClient from "../lib/apiClient";
+import { resolveUploadsUrl } from "../lib/format";
+import { sanitizeMediaPointPayload } from "../lib/inventoryPayload";
+import { toast } from "sonner";
+import { MediaPointFormDialog } from "./inventory/MediaPointFormDialog";
+import { MediaPointOwnersDialog } from "./inventory/MediaPointOwnersDialog";
+import { MediaPointContractsDialog } from "./inventory/MediaPointContractsDialog";
+import { MediaUnitsDialog } from "./inventory/MediaUnitsDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { MediaPointImageCarousel } from "./inventory/MediaPointImageCarousel";
 
-const OPEN_POINT_STORAGE_KEY = 'ONE_MEDIA_OPEN_INVENTORY_POINT_ID';
+const OPEN_POINT_STORAGE_KEY = "ONE_MEDIA_OPEN_INVENTORY_POINT_ID";
 
 export function Inventory() {
   const company = useCompany() as any;
   const refreshPointsUsed = company?.refreshPointsUsed;
   const refreshEntitlements = company?.refreshEntitlements;
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [cityFilter, setCityFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [cityFilter, setCityFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const pageSize = 40;
 
@@ -40,22 +70,19 @@ export function Inventory() {
     setPage(1);
   }, [searchQuery, typeFilter, cityFilter]);
 
-  const {
-    mediaPoints,
-    total,
-    loading,
-    error,
-    refetch,
-    deleteMediaPointAsset,
-  } = useMediaPoints({
-    search: searchQuery || undefined,
-    type: typeFilter === 'all' ? undefined : typeFilter,
-    city: cityFilter === 'all' ? undefined : cityFilter,
-    page,
-    pageSize,
-  });
-  
-  const totalPages = useMemo(() => Math.max(1, Math.ceil((total || 0) / pageSize)), [total, pageSize]);
+  const { mediaPoints, total, loading, error, refetch, deleteMediaPointAsset } =
+    useMediaPoints({
+      search: searchQuery || undefined,
+      type: typeFilter === "all" ? undefined : typeFilter,
+      city: cityFilter === "all" ? undefined : cityFilter,
+      page,
+      pageSize,
+    });
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil((total || 0) / pageSize)),
+    [total, pageSize],
+  );
   const { enqueuePointUploads, enqueueUnitUploads } = useUploadQueue();
 
   useEffect(() => {
@@ -68,24 +95,40 @@ export function Inventory() {
       void refreshEntitlements?.();
     };
 
-    window.addEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
-    return () => window.removeEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+    window.addEventListener(
+      "inventory:uploads-updated",
+      handleUploadsUpdated as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "inventory:uploads-updated",
+        handleUploadsUpdated as EventListener,
+      );
   }, [refetch, refreshEntitlements]);
 
   // Dialogs state
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
   const [editingPoint, setEditingPoint] = useState<MediaPoint | null>(null);
-  const [ownersDialog, setOwnersDialog] = useState<{ open: boolean; point: MediaPoint | null }>({ 
-    open: false, 
-    point: null 
+  const [ownersDialog, setOwnersDialog] = useState<{
+    open: boolean;
+    point: MediaPoint | null;
+  }>({
+    open: false,
+    point: null,
   });
-  const [contractsDialog, setContractsDialog] = useState<{ open: boolean; point: MediaPoint | null }>({ 
-    open: false, 
-    point: null 
+  const [contractsDialog, setContractsDialog] = useState<{
+    open: boolean;
+    point: MediaPoint | null;
+  }>({
+    open: false,
+    point: null,
   });
-  const [unitsDialog, setUnitsDialog] = useState<{ open: boolean; point: MediaPoint | null }>({ 
-    open: false, 
-    point: null 
+  const [unitsDialog, setUnitsDialog] = useState<{
+    open: boolean;
+    point: MediaPoint | null;
+  }>({
+    open: false,
+    point: null,
   });
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   // Computed values
@@ -93,23 +136,36 @@ export function Inventory() {
   const cities = citiesFromMeta;
 
   const totalUnits = useMemo(() => {
-    return mediaPoints.reduce((sum: number, p: MediaPoint) => sum + (p.units ? p.units.length : 0), 0);
+    return mediaPoints.reduce(
+      (sum: number, p: MediaPoint) => sum + (p.units ? p.units.length : 0),
+      0,
+    );
   }, [mediaPoints]);
 
   // Server-side filters applied via hook; render current list
   const filteredPoints = mediaPoints;
 
   // Handlers
-  const handleSavePoint = async (data: Partial<MediaPoint>, _imageFile?: File | null, _videoFile?: File | null) => {
+  const handleSavePoint = async (
+    data: Partial<MediaPoint>,
+    _imageFile?: File | null,
+    _videoFile?: File | null,
+  ) => {
     try {
       const payload = sanitizeMediaPointPayload(data);
 
       let saved: MediaPoint;
       if (editingPoint?.id) {
-        const response = await apiClient.put<MediaPoint>(`/media-points/${editingPoint.id}`, payload);
+        const response = await apiClient.put<MediaPoint>(
+          `/media-points/${editingPoint.id}`,
+          payload,
+        );
         saved = response.data;
       } else {
-        const response = await apiClient.post<MediaPoint>('/media-points', payload);
+        const response = await apiClient.post<MediaPoint>(
+          "/media-points",
+          payload,
+        );
         saved = response.data;
       }
 
@@ -123,8 +179,8 @@ export function Inventory() {
     } catch (err: any) {
       const rawMessage = err?.response?.data?.message;
       const message = Array.isArray(rawMessage)
-        ? rawMessage.join(', ')
-        : rawMessage || 'Erro ao salvar ponto de mídia';
+        ? rawMessage.join(", ")
+        : rawMessage || "Erro ao salvar ponto de mídia";
       toast.error(message);
 
       // Importante: propaga o erro para o dialog não fechar silenciosamente.
@@ -138,7 +194,11 @@ export function Inventory() {
 
     try {
       const res = await apiClient.get<MediaPoint>(`/media-points/${point.id}`);
-      setEditingPoint((current) => (current?.id === point.id ? ({ ...current, ...res.data } as MediaPoint) : current));
+      setEditingPoint((current) =>
+        current?.id === point.id
+          ? ({ ...current, ...res.data } as MediaPoint)
+          : current,
+      );
     } catch {
       // mantém snapshot já aberto
     }
@@ -150,7 +210,7 @@ export function Inventory() {
 
     const readPendingPointId = () => {
       const params = new URLSearchParams(window.location.search);
-      const queryPointId = params.get('pointId');
+      const queryPointId = params.get("pointId");
       if (queryPointId) return queryPointId;
       try {
         return window.sessionStorage.getItem(OPEN_POINT_STORAGE_KEY);
@@ -161,11 +221,11 @@ export function Inventory() {
 
     const clearPendingPointId = () => {
       const params = new URLSearchParams(window.location.search);
-      if (params.has('pointId')) {
-        params.delete('pointId');
+      if (params.has("pointId")) {
+        params.delete("pointId");
         const next = params.toString();
-        const url = `${window.location.pathname}${next ? `?${next}` : ''}`;
-        window.history.replaceState({}, '', url);
+        const url = `${window.location.pathname}${next ? `?${next}` : ""}`;
+        window.history.replaceState({}, "", url);
       }
       try {
         window.sessionStorage.removeItem(OPEN_POINT_STORAGE_KEY);
@@ -183,7 +243,8 @@ export function Inventory() {
         if (cancelled) return;
         await handleEditPoint(res.data);
       } catch (_err: any) {
-        if (!cancelled) toast.error('Não foi possível abrir este ponto no inventário.');
+        if (!cancelled)
+          toast.error("Não foi possível abrir este ponto no inventário.");
       } finally {
         clearPendingPointId();
       }
@@ -195,13 +256,19 @@ export function Inventory() {
       void maybeOpenPointFromIntent();
     };
 
-    window.addEventListener('popstate', handleNavigation);
-    window.addEventListener('inventory:open-point', handleNavigation as EventListener);
+    window.addEventListener("popstate", handleNavigation);
+    window.addEventListener(
+      "inventory:open-point",
+      handleNavigation as EventListener,
+    );
 
     return () => {
       cancelled = true;
-      window.removeEventListener('popstate', handleNavigation);
-      window.removeEventListener('inventory:open-point', handleNavigation as EventListener);
+      window.removeEventListener("popstate", handleNavigation);
+      window.removeEventListener(
+        "inventory:open-point",
+        handleNavigation as EventListener,
+      );
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -210,36 +277,43 @@ export function Inventory() {
     const payload: Partial<MediaPoint> = sanitizeMediaPointPayload(point);
     payload.name = `${point.name} (cópia)`;
     try {
-      const response = await apiClient.post<MediaPoint>('/media-points', payload);
-      toast.success('Ponto duplicado!');
+      const response = await apiClient.post<MediaPoint>(
+        "/media-points",
+        payload,
+      );
+      toast.success("Ponto duplicado!");
       refetch();
       await refreshPointsUsed();
       return response.data;
     } catch (err: any) {
-      const message = err?.response?.data?.message || 'Erro ao duplicar ponto';
+      const message = err?.response?.data?.message || "Erro ao duplicar ponto";
       toast.error(message);
     }
   };
 
   const handleToggleMediaKit = async (pointId: string, newValue: boolean) => {
     try {
-      await apiClient.put<MediaPoint>(`/media-points/${pointId}`, { showInMediaKit: newValue });
+      await apiClient.put<MediaPoint>(`/media-points/${pointId}`, {
+        showInMediaKit: newValue,
+      });
       refetch();
     } catch (err: any) {
-      const message = err?.response?.data?.message || 'Erro ao atualizar mídia kit';
+      const message =
+        err?.response?.data?.message || "Erro ao atualizar mídia kit";
       toast.error(message);
     }
   };
 
   const handleDeleteMediaPoint = async (id: string) => {
-    if (!confirm('Deseja realmente excluir este ponto de mídia?')) return;
+    if (!confirm("Deseja realmente excluir este ponto de mídia?")) return;
     try {
       await apiClient.delete(`/media-points/${id}`);
-      toast.success('Ponto de mídia excluído!');
+      toast.success("Ponto de mídia excluído!");
       refetch();
       await refreshPointsUsed();
     } catch (error: any) {
-      const message = error?.response?.data?.message || 'Erro ao excluir ponto de mídia';
+      const message =
+        error?.response?.data?.message || "Erro ao excluir ponto de mídia";
       toast.error(message);
     }
   };
@@ -247,24 +321,36 @@ export function Inventory() {
   const handleExportInventory = () => {
     // TODO: Implementar exportação real para CSV/XLSX
     const csvContent = [
-      ['ID', 'Nome', 'Tipo', 'Subcategoria', 'Cidade', 'Estado', 'Impactos/Dia', 'Preço Mensal', 'Mídia Kit'].join(','),
-      ...mediaPoints.map(p => [
-        p.id,
-        p.name,
-        p.type,
-        p.subcategory || '',
-        p.addressCity || '',
-        p.addressState || '',
-        p.dailyImpressions || 0,
-        p.basePriceMonth || 0,
-        p.showInMediaKit ? 'Sim' : 'Não',
-      ].join(',')),
-    ].join('\n');
+      [
+        "ID",
+        "Nome",
+        "Tipo",
+        "Subcategoria",
+        "Cidade",
+        "Estado",
+        "Impactos/Dia",
+        "Preço Mensal",
+        "Mídia Kit",
+      ].join(","),
+      ...mediaPoints.map((p) =>
+        [
+          p.id,
+          p.name,
+          p.type,
+          p.subcategory || "",
+          p.addressCity || "",
+          p.addressState || "",
+          p.dailyImpressions || 0,
+          p.basePriceMonth || 0,
+          p.showInMediaKit ? "Sim" : "Não",
+        ].join(","),
+      ),
+    ].join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `inventario_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
   };
 
@@ -281,13 +367,18 @@ export function Inventory() {
     <div className="p-8">
       {loading && <div>Carregando inventário...</div>}
       {!loading && error && <div>Erro ao carregar inventário.</div>}
-      <div className="flex items-center justify-between mb-8" data-tour="inventory-overview">
+      <div
+        className="flex items-center justify-between mb-8"
+        data-tour="inventory-overview"
+      >
         <div>
           <h1 className="text-gray-900 mb-2">Inventário</h1>
-          <p className="text-gray-600">Gerencie pontos de mídia (MediaPoint) e unidades (MediaUnit)</p>
+          <p className="text-gray-600">
+            Gerencie pontos de mídia (MediaPoint) e unidades (MediaUnit)
+          </p>
         </div>
-        
-        <Button 
+
+        <Button
           className="gap-2"
           data-tour="inventory-create"
           onClick={() => {
@@ -301,7 +392,10 @@ export function Inventory() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6" data-tour="inventory-commercial-usage">
+      <div
+        className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6"
+        data-tour="inventory-commercial-usage"
+      >
         <Card className="cursor-pointer hover:shadow-lg transition-shadow">
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Total de Pontos</p>
@@ -309,29 +403,32 @@ export function Inventory() {
             <p className="text-gray-900">{total}</p>
           </CardContent>
         </Card>
-        <Card 
+        <Card
           className="cursor-pointer hover:shadow-lg transition-shadow"
           onClick={() => setTypeFilter(MediaType.OOH)}
         >
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Pontos OOH</p>
             <p className="text-gray-900">
-              {mediaPoints.filter(p => p.type === MediaType.OOH).length}
+              {mediaPoints.filter((p) => p.type === MediaType.OOH).length}
             </p>
           </CardContent>
         </Card>
-        <Card 
+        <Card
           className="cursor-pointer hover:shadow-lg transition-shadow"
           onClick={() => setTypeFilter(MediaType.DOOH)}
         >
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Pontos DOOH</p>
             <p className="text-gray-900">
-              {mediaPoints.filter(p => p.type === MediaType.DOOH).length}
+              {mediaPoints.filter((p) => p.type === MediaType.DOOH).length}
             </p>
           </CardContent>
         </Card>
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" data-tour="inventory-faces">
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          data-tour="inventory-faces"
+        >
           <CardContent className="pt-6">
             <p className="text-gray-600 text-sm mb-1">Unidades (Faces/Telas)</p>
             <p className="text-gray-900">{totalUnits}</p>
@@ -352,8 +449,11 @@ export function Inventory() {
                 className="pl-10"
               />
             </div>
-            
-            <Select value={typeFilter} onValueChange={(value: string) => setTypeFilter(value)}>
+
+            <Select
+              value={typeFilter}
+              onValueChange={(value: string) => setTypeFilter(value)}
+            >
               <SelectTrigger className="w-full lg:w-40">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
@@ -365,30 +465,35 @@ export function Inventory() {
             </Select>
 
             {cities.length > 0 && (
-              <Select value={cityFilter} onValueChange={(value: string) => setCityFilter(value)}>
+              <Select
+                value={cityFilter}
+                onValueChange={(value: string) => setCityFilter(value)}
+              >
                 <SelectTrigger className="w-full lg:w-48">
                   <SelectValue placeholder="Cidade" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as cidades</SelectItem>
                   {cities.map((city) => (
-                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                    <SelectItem key={city} value={city}>
+                      {city}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             )}
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               className="gap-2"
               onClick={() => setImportDialogOpen(true)}
             >
               <Upload className="w-4 h-4" />
               Importar
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               className="gap-2"
               onClick={handleExportInventory}
             >
@@ -400,22 +505,29 @@ export function Inventory() {
       </Card>
 
       {/* Results count */}
-      {searchQuery || typeFilter !== 'all' || cityFilter !== 'all' ? (
+      {searchQuery || typeFilter !== "all" || cityFilter !== "all" ? (
         <div className="mb-4">
           <p className="text-sm text-gray-600">
-            {total} {total === 1 ? 'ponto encontrado' : 'pontos encontrados'}
+            {total} {total === 1 ? "ponto encontrado" : "pontos encontrados"}
           </p>
         </div>
       ) : null}
 
       {/* Media Points Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6" data-tour="inventory-list">
+      <div
+        className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6"
+        data-tour="inventory-list"
+      >
         {filteredPoints.map((point: MediaPoint) => {
           const unitStats = getUnitStats(point);
-          const unitLabel = point.type === MediaType.OOH ? 'Faces' : 'Telas';
+          const unitLabel = point.type === MediaType.OOH ? "Faces" : "Telas";
 
           return (
-            <Card key={point.id} className="hover:shadow-lg transition-shadow" data-tour="inventory-details">
+            <Card
+              key={point.id}
+              className="hover:shadow-lg transition-shadow"
+              data-tour="inventory-details"
+            >
               <div className="aspect-video bg-gray-100 relative overflow-hidden rounded-t-xl">
                 <MediaPointImageCarousel
                   point={point}
@@ -426,26 +538,30 @@ export function Inventory() {
                   {point.type}
                 </Badge>
                 {point.subcategory && (
-                  <Badge variant="outline" className="absolute top-3 right-3 bg-white">
+                  <Badge
+                    variant="outline"
+                    className="absolute top-3 right-3 bg-white"
+                  >
                     {point.subcategory}
                   </Badge>
                 )}
               </div>
-              
+
               <CardContent className="pt-4">
                 <h3 className="text-gray-900 mb-3">{point.name}</h3>
-                
+
                 <div className="space-y-2 mb-4">
                   {point.addressCity && (
                     <div className="flex items-center gap-2 text-sm text-gray-600">
                       <MapPin className="w-4 h-4" />
                       <span>
                         {point.addressDistrict && `${point.addressDistrict}, `}
-                        {point.addressCity}{point.addressState && ` - ${point.addressState}`}
+                        {point.addressCity}
+                        {point.addressState && ` - ${point.addressState}`}
                       </span>
                     </div>
                   )}
-                  
+
                   {point.units && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">{unitLabel}</span>
@@ -454,7 +570,7 @@ export function Inventory() {
                       </span>
                     </div>
                   )}
-                  
+
                   {point.dailyImpressions && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">Impactos/dia</span>
@@ -463,12 +579,12 @@ export function Inventory() {
                       </span>
                     </div>
                   )}
-                  
+
                   {point.basePriceMonth && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">Preço base</span>
                       <span className="text-gray-900">
-                        R$ {point.basePriceMonth.toLocaleString('pt-BR')}
+                        R$ {point.basePriceMonth.toLocaleString("pt-BR")}
                       </span>
                     </div>
                   )}
@@ -479,19 +595,21 @@ export function Inventory() {
                     </Badge>
                   )}
                 </div>
-                
+
                 <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-2">
-                    <Switch 
+                    <Switch
                       checked={point.showInMediaKit}
-                      onCheckedChange={(checked: boolean) => handleToggleMediaKit(point.id, checked)}
+                      onCheckedChange={(checked: boolean) =>
+                        handleToggleMediaKit(point.id, checked)
+                      }
                     />
                     <span className="text-sm text-gray-600">Mídia Kit</span>
                   </div>
-                  
+
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button 
+                      <button
                         className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -503,23 +621,35 @@ export function Inventory() {
                         <Edit className="w-4 h-4 mr-2" />
                         Editar ponto
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setUnitsDialog({ open: true, point })}>
+                      <DropdownMenuItem
+                        onClick={() => setUnitsDialog({ open: true, point })}
+                      >
                         <Layers className="w-4 h-4 mr-2" />
                         Gerenciar unidades ({unitLabel.toLowerCase()})
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setOwnersDialog({ open: true, point })}>
+                      <DropdownMenuItem
+                        onClick={() => setOwnersDialog({ open: true, point })}
+                      >
                         <Building2 className="w-4 h-4 mr-2" />
                         Proprietários / Empresas vinculadas
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setContractsDialog({ open: true, point })}>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setContractsDialog({ open: true, point })
+                        }
+                      >
                         <FileText className="w-4 h-4 mr-2" />
                         Contratos do ponto
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDuplicatePoint(point)}>
+                      <DropdownMenuItem
+                        onClick={() => handleDuplicatePoint(point)}
+                      >
                         <Copy className="w-4 h-4 mr-2" />
                         Duplicar ponto
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleDeleteMediaPoint(point.id)}>
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteMediaPoint(point.id)}
+                      >
                         <X className="w-4 h-4 mr-2" />
                         Excluir ponto
                       </DropdownMenuItem>
@@ -532,68 +662,72 @@ export function Inventory() {
         })}
       </div>
 
-{totalPages > 1 && filteredPoints.length > 0 && (
-  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6">
-    <p className="text-sm text-gray-600">
-      Página {page} de {totalPages} • Mostrando {filteredPoints.length} de {total}
-    </p>
-    <div className="flex items-center gap-2 flex-wrap">
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={page <= 1}
-        onClick={() => setPage((p) => Math.max(1, p - 1))}
-      >
-        Anterior
-      </Button>
-
-      {(() => {
-        const items: Array<number | '...'> = [];
-        if (totalPages <= 7) {
-          for (let i = 1; i <= totalPages; i++) items.push(i);
-        } else {
-          items.push(1);
-          if (page > 3) items.push('...');
-          const start = Math.max(2, page - 1);
-          const end = Math.min(totalPages - 1, page + 1);
-          for (let i = start; i <= end; i++) items.push(i);
-          if (page < totalPages - 2) items.push('...');
-          items.push(totalPages);
-        }
-
-        return items.map((it, idx) => {
-          if (it === '...') {
-            return (
-              <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">
-                …
-              </span>
-            );
-          }
-          const n = it as number;
-          return (
+      {totalPages > 1 && filteredPoints.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-6">
+          <p className="text-sm text-gray-600">
+            Página {page} de {totalPages} • Mostrando {filteredPoints.length} de{" "}
+            {total}
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
-              key={n}
-              variant={n === page ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
-              onClick={() => setPage(n)}
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              {n}
+              Anterior
             </Button>
-          );
-        });
-      })()}
 
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={page >= totalPages}
-        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-      >
-        Próxima
-      </Button>
-    </div>
-  </div>
-)}
+            {(() => {
+              const items: Array<number | "..."> = [];
+              if (totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) items.push(i);
+              } else {
+                items.push(1);
+                if (page > 3) items.push("...");
+                const start = Math.max(2, page - 1);
+                const end = Math.min(totalPages - 1, page + 1);
+                for (let i = start; i <= end; i++) items.push(i);
+                if (page < totalPages - 2) items.push("...");
+                items.push(totalPages);
+              }
+
+              return items.map((it, idx) => {
+                if (it === "...") {
+                  return (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="px-2 text-gray-500"
+                    >
+                      …
+                    </span>
+                  );
+                }
+                const n = it as number;
+                return (
+                  <Button
+                    key={n}
+                    variant={n === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(n)}
+                  >
+                    {n}
+                  </Button>
+                );
+              });
+            })()}
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Próxima
+            </Button>
+          </div>
+        </div>
+      )}
 
       {filteredPoints.length === 0 && (
         <Card>
@@ -601,12 +735,12 @@ export function Inventory() {
             <p className="text-gray-500 mb-4">
               Nenhum ponto encontrado com os filtros selecionados
             </p>
-            <Button 
+            <Button
               variant="outline"
               onClick={() => {
-                setSearchQuery('');
-                setTypeFilter('all');
-                setCityFilter('all');
+                setSearchQuery("");
+                setTypeFilter("all");
+                setCityFilter("all");
               }}
             >
               Limpar Filtros
@@ -630,7 +764,9 @@ export function Inventory() {
       {ownersDialog.point && (
         <MediaPointOwnersDialog
           open={ownersDialog.open}
-          onOpenChange={(open) => setOwnersDialog({ open, point: open ? ownersDialog.point : null })}
+          onOpenChange={(open) =>
+            setOwnersDialog({ open, point: open ? ownersDialog.point : null })
+          }
           mediaPointId={ownersDialog.point.id}
           mediaPointName={ownersDialog.point.name}
         />
@@ -639,7 +775,12 @@ export function Inventory() {
       {contractsDialog.point && (
         <MediaPointContractsDialog
           open={contractsDialog.open}
-          onOpenChange={(open) => setContractsDialog({ open, point: open ? contractsDialog.point : null })}
+          onOpenChange={(open) =>
+            setContractsDialog({
+              open,
+              point: open ? contractsDialog.point : null,
+            })
+          }
           mediaPointId={contractsDialog.point.id}
           mediaPointName={contractsDialog.point.name}
         />
@@ -648,7 +789,9 @@ export function Inventory() {
       {unitsDialog.point && (
         <MediaUnitsDialog
           open={unitsDialog.open}
-          onOpenChange={(open) => setUnitsDialog({ open, point: open ? unitsDialog.point : null })}
+          onOpenChange={(open) =>
+            setUnitsDialog({ open, point: open ? unitsDialog.point : null })
+          }
           mediaPointId={unitsDialog.point.id}
           mediaPointName={unitsDialog.point.name}
           mediaPointType={unitsDialog.point.type}
@@ -681,7 +824,7 @@ interface ImportDialogProps {
 function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importType, setImportType] = useState<MediaType>(MediaType.OOH);
-  const [format, setFormat] = useState<'xlsx' | 'csv'>('xlsx');
+  const [format, setFormat] = useState<"xlsx" | "csv">("xlsx");
   const [isBusy, setIsBusy] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
 
@@ -690,7 +833,7 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
     setImportErrors([]);
     setIsBusy(false);
     setImportType(MediaType.OOH);
-    setFormat('xlsx');
+    setFormat("xlsx");
   };
 
   // Reseta o estado interno sempre que fechar
@@ -699,16 +842,16 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const downloadTemplate = async (type: MediaType, fmt: 'xlsx' | 'csv') => {
+  const downloadTemplate = async (type: MediaType, fmt: "xlsx" | "csv") => {
     try {
       setIsBusy(true);
-      const res = await apiClient.get<Blob>('/media-points/import-template', {
+      const res = await apiClient.get<Blob>("/media-points/import-template", {
         params: { type, format: fmt },
-        responseType: 'blob',
+        responseType: "blob",
       });
 
       const blobUrl = window.URL.createObjectURL(res.data);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = blobUrl;
       a.download = `template_inventario_${String(type).toLowerCase()}.${fmt}`;
       document.body.appendChild(a);
@@ -716,9 +859,10 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
       a.remove();
       window.URL.revokeObjectURL(blobUrl);
 
-      toast.success('Modelo baixado!');
+      toast.success("Modelo baixado!");
     } catch (e: any) {
-      const msg = e?.response?.data?.message || e?.message || 'Erro ao baixar modelo';
+      const msg =
+        e?.response?.data?.message || e?.message || "Erro ao baixar modelo";
       toast.error(msg);
     } finally {
       setIsBusy(false);
@@ -727,22 +871,22 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
 
   const handleImport = async () => {
     if (!selectedFile) {
-      toast.error('Selecione um arquivo .xlsx ou .csv');
+      toast.error("Selecione um arquivo .xlsx ou .csv");
       return;
     }
 
     const name = selectedFile.name.toLowerCase();
-    const isCsv = name.endsWith('.csv');
-    const isXlsx = name.endsWith('.xlsx');
+    const isCsv = name.endsWith(".csv");
+    const isXlsx = name.endsWith(".xlsx");
     if (!isCsv && !isXlsx) {
-      toast.error('Formato inválido. Envie um arquivo .xlsx ou .csv');
+      toast.error("Formato inválido. Envie um arquivo .xlsx ou .csv");
       return;
     }
 
     // Segurança básica de tamanho (failsafe no front; backend também valida)
     const maxBytes = 10 * 1024 * 1024;
     if (selectedFile.size > maxBytes) {
-      toast.error('Arquivo muito grande (máx. 10MB).');
+      toast.error("Arquivo muito grande (máx. 10MB).");
       return;
     }
 
@@ -751,18 +895,20 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
 
     try {
       const form = new FormData();
-      form.append('file', selectedFile);
+      form.append("file", selectedFile);
 
       const res = await apiClient.post<{ created: number; skipped?: number }>(
-        '/media-points/import',
+        "/media-points/import",
         form,
         {
           params: { defaultType: importType },
-          headers: { 'Content-Type': 'multipart/form-data' },
-        }
+          headers: { "Content-Type": "multipart/form-data" },
+        },
       );
 
-      toast.success(`Importação concluída! ${res.data?.created ?? 0} ponto(s) criado(s).`);
+      toast.success(
+        `Importação concluída! ${res.data?.created ?? 0} ponto(s) criado(s).`,
+      );
       await onImported?.();
       onOpenChange(false);
     } catch (e: any) {
@@ -770,7 +916,7 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
       const msg =
         data?.message ||
         e?.message ||
-        'Erro ao importar. Verifique o arquivo e tente novamente.';
+        "Erro ao importar. Verifique o arquivo e tente novamente.";
 
       // Se vier uma lista de erros estruturada do backend, exibimos no modal
       const errs: string[] = Array.isArray(data?.errors)
@@ -778,41 +924,41 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
         : [];
 
       setImportErrors(errs);
-      toast.error(typeof msg === 'string' ? msg : 'Erro ao importar');
+      toast.error(typeof msg === "string" ? msg : "Erro ao importar");
     } finally {
       setIsBusy(false);
     }
   };
 
   const REQUIRED_COMMON = [
-    'name',
-    'addressCity',
-    'addressState',
-    'latitude',
-    'longitude',
+    "name",
+    "addressCity",
+    "addressState",
+    "latitude",
+    "longitude",
   ];
 
   const OPTIONAL_COMMON = [
-    'addressStreet',
-    'addressNumber',
-    'addressDistrict',
-    'addressZipcode',
-    'addressCountry',
-    'subcategory',
-    'description',
-    'dailyImpressions',
-    'environment',
-    'socialClasses',
-    'showInMediaKit',
-    'basePriceMonth',
-    'basePriceWeek (Preço Bi-semana)',
+    "addressStreet",
+    "addressNumber",
+    "addressDistrict",
+    "addressZipcode",
+    "addressCountry",
+    "subcategory",
+    "description",
+    "dailyImpressions",
+    "environment",
+    "socialClasses",
+    "showInMediaKit",
+    "basePriceMonth",
+    "basePriceWeek (Preço Bi-semana)",
   ];
 
   const OPTIONAL_OOH = [
-    'productionCosts_lona',
-    'productionCosts_adesivo',
-    'productionCosts_vinil',
-    'productionCosts_montagem',
+    "productionCosts_lona",
+    "productionCosts_adesivo",
+    "productionCosts_vinil",
+    "productionCosts_montagem",
   ];
 
   return (
@@ -820,13 +966,19 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Importar Inventário</DialogTitle>
+          <DialogDescription>
+            Envie um arquivo estruturado e revise os registros antes de
+            confirmar a importação.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-900 mb-2">📋 Importação em Lote</p>
             <p className="text-sm text-blue-700">
-              Importe múltiplos pontos de mídia via Excel (.xlsx) ou CSV (.csv). Imagens não fazem parte do template (devem ser enviadas manualmente no sistema).
+              Importe múltiplos pontos de mídia via Excel (.xlsx) ou CSV (.csv).
+              Imagens não fazem parte do template (devem ser enviadas
+              manualmente no sistema).
             </p>
           </div>
 
@@ -851,7 +1003,7 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
               <Label>Formato</Label>
               <Select
                 value={format}
-                onValueChange={(v: string) => setFormat(v as 'xlsx' | 'csv')}
+                onValueChange={(v: string) => setFormat(v as "xlsx" | "csv")}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione" />
@@ -895,14 +1047,18 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
               <p className="mb-1">
                 <strong>Colunas obrigatórias (OOH e DOOH):</strong>
               </p>
-              <p className="font-mono break-words">{REQUIRED_COMMON.join(', ')}</p>
+              <p className="font-mono break-words">
+                {REQUIRED_COMMON.join(", ")}
+              </p>
             </div>
 
             <div>
               <p className="mb-1">
                 <strong>Colunas opcionais (OOH e DOOH):</strong>
               </p>
-              <p className="font-mono break-words">{OPTIONAL_COMMON.join(', ')}</p>
+              <p className="font-mono break-words">
+                {OPTIONAL_COMMON.join(", ")}
+              </p>
             </div>
 
             {importType === MediaType.OOH && (
@@ -910,7 +1066,9 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
                 <p className="mb-1">
                   <strong>Colunas opcionais adicionais (somente OOH):</strong>
                 </p>
-                <p className="font-mono break-words">{OPTIONAL_OOH.join(', ')}</p>
+                <p className="font-mono break-words">
+                  {OPTIONAL_OOH.join(", ")}
+                </p>
               </div>
             )}
           </div>
@@ -924,13 +1082,19 @@ function ImportDialog({ open, onOpenChange, onImported }: ImportDialogProps) {
                 ))}
               </ul>
               {importErrors.length > 50 && (
-                <p className="mt-2 text-red-600">Mostrando os primeiros 50 erros.</p>
+                <p className="mt-2 text-red-600">
+                  Mostrando os primeiros 50 erros.
+                </p>
               )}
             </div>
           )}
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBusy}>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isBusy}
+            >
               Cancelar
             </Button>
             <Button onClick={handleImport} disabled={!selectedFile || isBusy}>

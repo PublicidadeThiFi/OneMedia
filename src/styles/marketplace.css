@@ -1,11 +1,11 @@
 .marketplace-root {
-  --marketplace-primary: #3267f6;
-  --marketplace-primary-dark: #214fcf;
-  --marketplace-ink: #1f2533;
-  --marketplace-muted: #697386;
-  --marketplace-line: #e7e9ef;
+  --marketplace-primary: #527bb8;
+  --marketplace-primary-dark: #3f68a5;
+  --marketplace-ink: #222222;
+  --marketplace-muted: #6a6a6a;
+  --marketplace-line: #dddddd;
   --marketplace-surface: #ffffff;
-  --marketplace-soft: #f6f7fb;
+  --marketplace-soft: #edf2f8;
   --marketplace-radius-sm: 14px;
   --marketplace-radius-md: 22px;
   --marketplace-radius-lg: 32px;
@@ -15,6 +15,7 @@
   color: var(--marketplace-ink);
   color-scheme: light;
   font-family:
+    Poppins,
     Inter,
     ui-sans-serif,
     system-ui,
@@ -61,7 +62,7 @@
 }
 
 .marketplace-header__inner {
-  min-height: 76px;
+  min-height: 96px;
   display: grid;
   grid-template-columns: minmax(160px, 1fr) auto minmax(290px, 1fr);
   align-items: center;
@@ -539,9 +540,9 @@
 }
 
 .marketplace-footer {
-  padding: 56px 0 20px;
+  padding: 58px 0 24px;
   border-top: 1px solid var(--marketplace-line);
-  background: #f8f9fc;
+  background: #fff;
 }
 
 .marketplace-footer__grid {
@@ -857,13 +858,13 @@
 .marketplace-home-search {
   position: relative;
   z-index: 3;
-  padding: 24px 36px 30px;
+  padding: 6px 36px 30px;
   border-bottom: 1px solid #dde3eb;
   background: #fff;
 }
 
 .marketplace-home-search__inner {
-  width: min(100%, 900px);
+  width: min(100%, 850px);
   margin-inline: auto;
 }
 
@@ -1094,7 +1095,7 @@
 
 .marketplace-point-card__media {
   position: relative;
-  aspect-ratio: 1.03 / 1;
+  aspect-ratio: 1.32 / 1;
   overflow: hidden;
   border-radius: 18px;
   background: #dfe4eb;
@@ -1146,6 +1147,30 @@
   white-space: nowrap;
 }
 
+.marketplace-point-card__feature-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  max-width: calc(100% - 68px);
+  padding: 7px 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2f3741;
+  box-shadow: 0 4px 12px rgba(20, 28, 38, 0.08);
+  backdrop-filter: blur(9px);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marketplace-point-card__feature-tag + .marketplace-point-card__status {
+  top: 46px;
+}
 .marketplace-point-card__status--available {
   color: #17733b;
 }
@@ -1181,7 +1206,7 @@
 }
 
 .marketplace-point-card__favorite.is-active {
-  color: #ef4f5f !important;
+  color: #f5b82e !important;
   filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.8));
 }
 
@@ -1236,6 +1261,7 @@
 .marketplace-point-card__price small {
   font-size: 11px;
 }
+
 
 .marketplace-home-state {
   max-width: 680px;
@@ -1340,7 +1366,7 @@
 }
 
 .marketplace-home-skeleton__media {
-  aspect-ratio: 1.03 / 1;
+  aspect-ratio: 1.32 / 1;
   border-radius: 18px;
 }
 
@@ -1446,7 +1472,7 @@
   }
 
   .marketplace-point-card__media {
-    aspect-ratio: 1.08 / 1;
+    aspect-ratio: 1.32 / 1;
   }
 }
 
@@ -2441,8 +2467,8 @@
 }
 
 .marketplace-point-detail > .marketplace-container {
-  width: min(100% - 40px, 1180px);
-  padding-top: 32px;
+  width: min(100% - 40px, 1120px);
+  padding-top: 24px;
 }
 
 .marketplace-point-detail__topline {
@@ -2527,20 +2553,21 @@
 .marketplace-point-detail__header h1 {
   max-width: 900px;
   margin: 0;
-  font-size: clamp(28px, 3vw, 42px);
-  line-height: 1.08;
-  letter-spacing: -0.035em;
+  font-size: clamp(24px, 2vw, 26px);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
 }
 
 .marketplace-detail-gallery {
   position: relative;
-  min-height: 510px;
+  min-height: 560px;
   display: grid;
   grid-template-columns: 2.05fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 7px;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 12px;
   background: #eceef2;
 }
 
@@ -2754,7 +2781,7 @@
 
 .marketplace-point-detail__core-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   align-items: stretch;
   gap: 46px;
   padding: 34px 0 0;
@@ -3826,7 +3853,7 @@
     height: 22px;
   }
   .marketplace-point-detail__header h1 {
-    font-size: 29px;
+    font-size: 24px;
   }
   .marketplace-detail-gallery {
     min-height: 390px;

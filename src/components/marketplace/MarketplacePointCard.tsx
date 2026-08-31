@@ -1,6 +1,6 @@
 import { FocusEvent, MouseEvent } from "react";
 import { toast } from "sonner";
-import { Heart, ImageOff } from "lucide-react";
+import { ImageOff, Star } from "lucide-react";
 import { useNavigation } from "../../contexts/NavigationContext";
 import { resolveUploadsUrl } from "../../lib/format";
 import { useMarketplaceFavorites } from "../../lib/marketplaceFavorites";
@@ -43,6 +43,13 @@ function cardTitle(point: MarketplacePointCardData) {
   return [format, local].filter(Boolean).join(" · ");
 }
 
+function cardFeatureTag(point: MarketplacePointCardData) {
+  if (Number(point.dailyImpressions) >= 10_000) return "Alto fluxo diário";
+  if (point.environment?.trim()) return point.environment.trim();
+  if (point.type === "DOOH") return "Mídia digital";
+  return null;
+}
+
 export function MarketplacePointCard({
   point,
   active = false,
@@ -59,6 +66,8 @@ export function MarketplacePointCard({
     point.availability.nextAvailableAt,
   );
   const accessibleName = point.name || cardTitle(point);
+  const featureTag = cardFeatureTag(point);
+
 
   const openPoint = () => {
     if (onOpen) onOpen(point.slug);
@@ -107,6 +116,11 @@ export function MarketplacePointCard({
           </div>
         )}
 
+        {featureTag ? (
+          <span className="marketplace-point-card__feature-tag">
+            {featureTag}
+          </span>
+        ) : null}
         <span
           className={`marketplace-point-card__status marketplace-point-card__status--${point.availability.status.toLowerCase()}`}
         >
@@ -128,7 +142,7 @@ export function MarketplacePointCard({
           aria-pressed={favorite}
           onClick={handleFavorite}
         >
-          <Heart aria-hidden="true" fill={favorite ? "currentColor" : "none"} />
+          <Star aria-hidden="true" fill={favorite ? "currentColor" : "none"} />
         </button>
       </div>
 
@@ -146,6 +160,7 @@ export function MarketplacePointCard({
           <span>A partir de:</span>
           <strong>{currencyFormatter.format(point.price.amount)}</strong>
           <small> / 15 dias</small>
+
         </p>
       </div>
 

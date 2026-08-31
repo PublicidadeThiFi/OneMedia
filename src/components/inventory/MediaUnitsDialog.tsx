@@ -1,19 +1,37 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Card, CardContent } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Plus, Edit, Trash2, Image as ImageIcon } from 'lucide-react';
-import { MediaPoint, MediaType, MediaUnit, UnitType, Orientation } from '../../types';
-import { useMediaUnits } from '../../hooks/useMediaUnits';
-import { useCompany } from '../../contexts/CompanyContext';
-import { validateUploadBatchAgainstEntitlements } from '../../lib/mediaValidation';
-import { resolveUploadsUrl } from '../../lib/format';
-import { sanitizeMediaUnitPayload } from '../../lib/inventoryPayload';
-import { toast } from 'sonner';
+import { useEffect, useMemo, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { Card, CardContent } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { Plus, Edit, Trash2, Image as ImageIcon } from "lucide-react";
+import {
+  MediaPoint,
+  MediaType,
+  MediaUnit,
+  UnitType,
+  Orientation,
+} from "../../types";
+import { useMediaUnits } from "../../hooks/useMediaUnits";
+import { useCompany } from "../../contexts/CompanyContext";
+import { validateUploadBatchAgainstEntitlements } from "../../lib/mediaValidation";
+import { resolveUploadsUrl } from "../../lib/format";
+import { sanitizeMediaUnitPayload } from "../../lib/inventoryPayload";
+import { toast } from "sonner";
 
 interface MediaUnitsDialogProps {
   open: boolean;
@@ -23,21 +41,28 @@ interface MediaUnitsDialogProps {
   mediaPointType: MediaType;
   mediaPoint?: MediaPoint | null;
   onChanged?: () => Promise<any> | void;
-  onEnqueueUploads?: (args: { pointId: string; pointName: string; unitId: string; unitLabel: string; imageFiles: File[]; videoFiles: File[] }) => Promise<any> | void;
+  onEnqueueUploads?: (args: {
+    pointId: string;
+    pointName: string;
+    unitId: string;
+    unitLabel: string;
+    imageFiles: File[];
+    videoFiles: File[];
+  }) => Promise<any> | void;
 }
 
 type UnitFormPayload = Partial<
   Pick<
     MediaUnit,
-    | 'label'
-    | 'orientation'
-    | 'widthM'
-    | 'heightM'
-    | 'insertionsPerDay'
-    | 'resolutionWidthPx'
-    | 'resolutionHeightPx'
-    | 'priceMonth'
-    | 'priceWeek'
+    | "label"
+    | "orientation"
+    | "widthM"
+    | "heightM"
+    | "insertionsPerDay"
+    | "resolutionWidthPx"
+    | "resolutionHeightPx"
+    | "priceMonth"
+    | "priceWeek"
   >
 >;
 
@@ -45,7 +70,7 @@ function sanitizeUnitPayload(payload: UnitFormPayload) {
   const clean: Record<string, any> = {};
   for (const [k, v] of Object.entries(payload)) {
     if (v === undefined || v === null) continue;
-    if (typeof v === 'string' && v.trim() === '') continue;
+    if (typeof v === "string" && v.trim() === "") continue;
     clean[k] = v;
   }
   return clean;
@@ -64,19 +89,23 @@ function parseNonNegativeFloatInput(value: string) {
 }
 
 function extractDigitSequence(value: string) {
-  return String(value ?? '').replace(/\D/g, '');
+  return String(value ?? "").replace(/\D/g, "");
 }
 
-function normalizeIntegerDigits(value: string, maxValue: number, maxDigits?: number) {
+function normalizeIntegerDigits(
+  value: string,
+  maxValue: number,
+  maxDigits?: number,
+) {
   let digits = extractDigitSequence(value);
-  if (!digits) return '';
+  if (!digits) return "";
 
-  if (typeof maxDigits === 'number' && maxDigits > 0) {
+  if (typeof maxDigits === "number" && maxDigits > 0) {
     digits = digits.slice(0, maxDigits);
   }
 
   const numeric = Number(digits);
-  if (!Number.isFinite(numeric)) return '';
+  if (!Number.isFinite(numeric)) return "";
 
   const clamped = Math.min(Math.max(0, numeric), maxValue);
   return String(clamped);
@@ -92,7 +121,7 @@ function parseOptionalIntInput(value: string) {
 function formatMoneyMaskFromCents(cents: number) {
   const normalized = Math.min(Math.max(0, Math.trunc(cents)), MAX_MONEY_CENTS);
   const numeric = normalized / 100;
-  return `R$ ${new Intl.NumberFormat('pt-BR', {
+  return `R$ ${new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(numeric)}`;
@@ -100,18 +129,19 @@ function formatMoneyMaskFromCents(cents: number) {
 
 function sanitizeMoneyInput(value: string) {
   const digits = extractDigitSequence(value);
-  if (!digits) return '';
+  if (!digits) return "";
 
   const cents = Math.min(Number(digits), MAX_MONEY_CENTS);
-  if (!Number.isFinite(cents) || cents < 0) return '';
+  if (!Number.isFinite(cents) || cents < 0) return "";
 
   return formatMoneyMaskFromCents(cents);
 }
 
 function formatMoneyInputFromNumber(value?: string | number | null) {
-  if (value === null || value === undefined || value === '') return '';
-  const numeric = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
-  if (!Number.isFinite(numeric) || numeric < 0) return '';
+  if (value === null || value === undefined || value === "") return "";
+  const numeric =
+    typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  if (!Number.isFinite(numeric) || numeric < 0) return "";
   return formatMoneyMaskFromCents(Math.round(numeric * 100));
 }
 
@@ -131,35 +161,36 @@ function validateMoneyValue(value: string) {
 
   const numeric = parseMoneyInput(value);
   if (numeric === null || !Number.isFinite(numeric) || numeric < 0) {
-    return 'Informe um valor numérico válido e não negativo.';
+    return "Informe um valor numérico válido e não negativo.";
   }
 
   if (numeric > MAX_MONEY_VALUE) {
-    return 'O valor máximo permitido é R$ 99.999.999,99.';
+    return "O valor máximo permitido é R$ 99.999.999,99.";
   }
 
   return null;
 }
 
 function formatMoneyValue(value?: string | number | null) {
-  if (value === null || value === undefined || value === '') return '';
-  const numeric = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
-  if (!Number.isFinite(numeric)) return '';
-  return `R$ ${new Intl.NumberFormat('pt-BR', {
+  if (value === null || value === undefined || value === "") return "";
+  const numeric =
+    typeof value === "number" ? value : Number(String(value).replace(",", "."));
+  if (!Number.isFinite(numeric)) return "";
+  return `R$ ${new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(numeric)}`;
 }
 
 function parseBytes(value?: string | number | null) {
-  if (value === null || value === undefined || value === '') return 0;
-  const numeric = typeof value === 'number' ? value : Number(value);
+  if (value === null || value === undefined || value === "") return 0;
+  const numeric = typeof value === "number" ? value : Number(value);
   return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
 }
 
 function formatBytes(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
   let size = value;
   let unitIndex = 0;
   while (size >= 1024 && unitIndex < units.length - 1) {
@@ -180,8 +211,17 @@ export function MediaUnitsDialog({
   onChanged,
   onEnqueueUploads,
 }: MediaUnitsDialogProps) {
-  const { units, loading, error, refetch, createUnit, getUnitById, updateUnit, deleteUnit, deleteUnitAsset } =
-    useMediaUnits({ mediaPointId: open ? mediaPointId : null });
+  const {
+    units,
+    loading,
+    error,
+    refetch,
+    createUnit,
+    getUnitById,
+    updateUnit,
+    deleteUnit,
+    deleteUnitAsset,
+  } = useMediaUnits({ mediaPointId: open ? mediaPointId : null });
 
   const company = useCompany() as any;
   const entitlements = company?.entitlements;
@@ -206,43 +246,63 @@ export function MediaUnitsDialog({
       void refetch();
     };
 
-    window.addEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+    window.addEventListener(
+      "inventory:uploads-updated",
+      handleUploadsUpdated as EventListener,
+    );
     return () => {
-      window.removeEventListener('inventory:uploads-updated', handleUploadsUpdated as EventListener);
+      window.removeEventListener(
+        "inventory:uploads-updated",
+        handleUploadsUpdated as EventListener,
+      );
     };
   }, [mediaPointId, open, refetch]);
 
   const getOrientationLabel = (orientation?: Orientation) => {
-    if (!orientation) return '-';
-    return orientation === Orientation.FLUXO ? 'Fluxo' : 'Contra-Fluxo';
+    if (!orientation) return "-";
+    return orientation === Orientation.FLUXO ? "Fluxo" : "Contra-Fluxo";
   };
 
   const getOrientationColor = (orientation?: Orientation) => {
-    if (!orientation) return 'bg-gray-100 text-gray-800';
+    if (!orientation) return "bg-gray-100 text-gray-800";
     return orientation === Orientation.FLUXO
-      ? 'bg-blue-100 text-blue-800'
-      : 'bg-purple-100 text-purple-800';
+      ? "bg-blue-100 text-blue-800"
+      : "bg-purple-100 text-purple-800";
   };
 
-  const unitTypeForPoint = mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN;
-  const unitLabel = mediaPointType === MediaType.OOH ? 'Face' : 'Tela';
-  const storageLimitBytes = Math.max(0, Number(entitlements?.limits?.totalStorageGb ?? 0) * 1024 * 1024 * 1024);
+  const unitTypeForPoint =
+    mediaPointType === MediaType.OOH ? UnitType.FACE : UnitType.SCREEN;
+  const unitLabel = mediaPointType === MediaType.OOH ? "Face" : "Tela";
+  const storageLimitBytes = Math.max(
+    0,
+    Number(entitlements?.limits?.totalStorageGb ?? 0) * 1024 * 1024 * 1024,
+  );
   const pointBaseStorageBytes = parseBytes(mediaPoint?.storageUsedBytes);
-  const pointUnitsStorageBytes = units.reduce((total, unit) => total + parseBytes(unit.storageUsedBytes), 0);
+  const pointUnitsStorageBytes = units.reduce(
+    (total, unit) => total + parseBytes(unit.storageUsedBytes),
+    0,
+  );
   const pointTotalStorageBytes = pointBaseStorageBytes + pointUnitsStorageBytes;
-  const globalStorageUsedBytes = parseBytes(entitlements?.usage?.storageUsedBytes);
-  const globalStorageRemainingBytes = parseBytes(entitlements?.remaining?.storageRemainingBytes);
-  const pointStoragePercent = storageLimitBytes > 0 ? Math.min(100, (globalStorageUsedBytes / storageLimitBytes) * 100) : 0;
+  const globalStorageUsedBytes = parseBytes(
+    entitlements?.usage?.storageUsedBytes,
+  );
+  const globalStorageRemainingBytes = parseBytes(
+    entitlements?.remaining?.storageRemainingBytes,
+  );
+  const pointStoragePercent =
+    storageLimitBytes > 0
+      ? Math.min(100, (globalStorageUsedBytes / storageLimitBytes) * 100)
+      : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="overflow-hidden p-0 gap-0 flex flex-col"
         style={{
-          width: 'min(1120px, calc(100vw - 2rem))',
-          maxWidth: 'min(1120px, calc(100vw - 2rem))',
-          height: 'min(86vh, 920px)',
-          maxHeight: 'calc(100vh - 2rem)',
+          width: "min(1120px, calc(100vw - 2rem))",
+          maxWidth: "min(1120px, calc(100vw - 2rem))",
+          height: "min(86vh, 920px)",
+          maxHeight: "calc(100vh - 2rem)",
         }}
       >
         <div className="flex min-h-0 flex-1 flex-col">
@@ -250,10 +310,14 @@ export function MediaUnitsDialog({
             <DialogTitle>
               {unitLabel}s do Ponto - {mediaPointName}
             </DialogTitle>
+            <DialogDescription>
+              Revise e gerencie as faces ou telas vinculadas explicitamente a
+              este ponto.
+            </DialogDescription>
             <p className="text-sm text-gray-600">
               {mediaPointType === MediaType.OOH
-                ? 'Gerencie as faces (unidades de veiculação) deste ponto OOH'
-                : 'Gerencie as telas (unidades digitais) deste ponto DOOH'}
+                ? "Gerencie as faces (unidades de veiculação) deste ponto OOH"
+                : "Gerencie as telas (unidades digitais) deste ponto DOOH"}
             </p>
           </DialogHeader>
 
@@ -262,255 +326,328 @@ export function MediaUnitsDialog({
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-900">Armazenamento do plano</p>
-                    <p className="text-xs text-slate-600">Uso global da assinatura. Deste ponto: {formatBytes(pointTotalStorageBytes)}.</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      Armazenamento do plano
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      Uso global da assinatura. Deste ponto:{" "}
+                      {formatBytes(pointTotalStorageBytes)}.
+                    </p>
                   </div>
                   <div className="text-right text-sm text-slate-700">
-                    <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
-                    <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(globalStorageRemainingBytes)}</div>
+                    <div>
+                      {formatBytes(globalStorageUsedBytes)} /{" "}
+                      {formatBytes(storageLimitBytes)}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Disponível no plano:{" "}
+                      {formatBytes(globalStorageRemainingBytes)}
+                    </div>
                   </div>
                 </div>
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${pointStoragePercent}%` }} />
+                  <div
+                    className="h-full rounded-full bg-indigo-500 transition-all"
+                    style={{ width: `${pointStoragePercent}%` }}
+                  />
                 </div>
               </div>
             )}
 
             <div className="mt-5 space-y-4">
-          {/* Lista de unidades */}
-          <div className="space-y-3">
-            {loading ? (
-              <Card>
-                <CardContent className="py-8 text-center text-gray-600">Carregando...</CardContent>
-              </Card>
-            ) : error ? (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <p className="text-red-600 mb-3">Erro ao carregar unidades.</p>
-                  <p className="text-sm text-gray-600">{String(error.message || error)}</p>
-                </CardContent>
-              </Card>
-            ) : units.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <p className="text-gray-500 mb-4">Nenhuma {unitLabel.toLowerCase()} cadastrada</p>
-                  <Button onClick={() => setIsAdding(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Adicionar {unitLabel}
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {units.map((unit) => (
-                  <Card key={unit.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <h4 className="text-gray-900">{unit.label}</h4>
-                            {unit.orientation && (
-                              <Badge className={getOrientationColor(unit.orientation)}>
-                                {getOrientationLabel(unit.orientation)}
-                              </Badge>
-                            )}
-                            <Badge variant={unit.isActive ? 'default' : 'secondary'}>
-                              {unit.isActive ? 'Ativa' : 'Inativa'}
-                            </Badge>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                            {mediaPointType === MediaType.OOH && (
-                              <>
-                                {(unit.widthM || unit.heightM) && (
-                                  <div>
-                                    <span className="text-gray-600">Dimensões: </span>
-                                    <span className="text-gray-900">
-                                      {unit.widthM || '-'}m x {unit.heightM || '-'}m
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-
-                            {mediaPointType === MediaType.DOOH && (
-                              <>
-                                {unit.insertionsPerDay !== undefined &&
-                                  unit.insertionsPerDay !== null && (
-                                    <div>
-                                      <span className="text-gray-600">Inserções/dia: </span>
-                                      <span className="text-gray-900">{unit.insertionsPerDay}</span>
-                                    </div>
-                                  )}
-                                {unit.resolutionWidthPx && unit.resolutionHeightPx && (
-                                  <div>
-                                    <span className="text-gray-600">Resolução: </span>
-                                    <span className="text-gray-900">
-                                      {unit.resolutionWidthPx}x{unit.resolutionHeightPx}px
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-
-                            {(unit.priceMonth || unit.priceWeek) && (
-                              <div className="md:col-span-2">
-                                <span className="text-gray-600">Preços: </span>
-                                <span className="text-gray-900">
-                                  {unit.priceMonth ? `${formatMoneyValue(unit.priceMonth)}/mês` : ''}
-                                  {unit.priceWeek ? ` • ${formatMoneyValue(unit.priceWeek)}/bi-semana` : ''}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {unit.imageUrl && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                              <ImageIcon className="w-4 h-4" />
-                              <span>Imagem disponível</span>
-                            </div>
-                          )}
-
-                          {unit.videoUrl && (
-                            <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                              <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-gray-100 text-gray-700 text-[10px]">
-                                ▶
-                              </span>
-                              <span>Vídeo disponível</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={loadingEditId === unit.id}
-                            onClick={async () => {
-                              setLoadingEditId(unit.id);
-                              try {
-                                const detailed = await getUnitById(unit.id);
-                                setEditingUnit(detailed);
-                              } catch {
-                                setEditingUnit(unit);
-                              } finally {
-                                setLoadingEditId(null);
-                              }
-                            }}
-                            title="Editar"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={async () => {
-                              const ok = window.confirm('Excluir esta unidade?');
-                              if (!ok) return;
-                              try {
-                                await deleteUnit(unit.id);
-                                await refreshEntitlements?.();
-                                await onChanged?.();
-                              } catch (e) {
-                                console.error(e);
-                                alert('Erro ao excluir unidade.');
-                              }
-                            }}
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
+              {/* Lista de unidades */}
+              <div className="space-y-3">
+                {loading ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-gray-600">
+                      Carregando...
                     </CardContent>
                   </Card>
-                ))}
+                ) : error ? (
+                  <Card>
+                    <CardContent className="py-8 text-center">
+                      <p className="text-red-600 mb-3">
+                        Erro ao carregar unidades.
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {String(error.message || error)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : units.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center">
+                      <p className="text-gray-500 mb-4">
+                        Nenhuma {unitLabel.toLowerCase()} cadastrada
+                      </p>
+                      <Button onClick={() => setIsAdding(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Adicionar {unitLabel}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {units.map((unit) => (
+                      <Card key={unit.id}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-3">
+                                <h4 className="text-gray-900">{unit.label}</h4>
+                                {unit.orientation && (
+                                  <Badge
+                                    className={getOrientationColor(
+                                      unit.orientation,
+                                    )}
+                                  >
+                                    {getOrientationLabel(unit.orientation)}
+                                  </Badge>
+                                )}
+                                <Badge
+                                  variant={
+                                    unit.isActive ? "default" : "secondary"
+                                  }
+                                >
+                                  {unit.isActive ? "Ativa" : "Inativa"}
+                                </Badge>
+                              </div>
 
-                <Button variant="outline" className="w-full" onClick={() => setIsAdding(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar {unitLabel}
-                </Button>
-              </>
-            )}
-          </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                                {mediaPointType === MediaType.OOH && (
+                                  <>
+                                    {(unit.widthM || unit.heightM) && (
+                                      <div>
+                                        <span className="text-gray-600">
+                                          Dimensões:{" "}
+                                        </span>
+                                        <span className="text-gray-900">
+                                          {unit.widthM || "-"}m x{" "}
+                                          {unit.heightM || "-"}m
+                                        </span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
 
-          {/* Formulário de adição/edição */}
-          {(isAdding || editingUnit) && (
-            <UnitForm
-              unit={editingUnit}
-              mediaPointType={mediaPointType}
-              entitlements={entitlements}
-              onSave={async (data, imageFiles = [], videoFiles = []) => {
-                try {
-                  const clean = sanitizeMediaUnitPayload(sanitizeUnitPayload(data) as any);
+                                {mediaPointType === MediaType.DOOH && (
+                                  <>
+                                    {unit.insertionsPerDay !== undefined &&
+                                      unit.insertionsPerDay !== null && (
+                                        <div>
+                                          <span className="text-gray-600">
+                                            Inserções/dia:{" "}
+                                          </span>
+                                          <span className="text-gray-900">
+                                            {unit.insertionsPerDay}
+                                          </span>
+                                        </div>
+                                      )}
+                                    {unit.resolutionWidthPx &&
+                                      unit.resolutionHeightPx && (
+                                        <div>
+                                          <span className="text-gray-600">
+                                            Resolução:{" "}
+                                          </span>
+                                          <span className="text-gray-900">
+                                            {unit.resolutionWidthPx}x
+                                            {unit.resolutionHeightPx}px
+                                          </span>
+                                        </div>
+                                      )}
+                                  </>
+                                )}
 
-                  if (editingUnit) {
-                    const updated = await updateUnit(editingUnit.id, clean);
-                    if (imageFiles.length || videoFiles.length) {
-                      await onEnqueueUploads?.({
-                        pointId: mediaPointId,
-                        pointName: mediaPointName,
-                        unitId: editingUnit.id,
-                        unitLabel: String(clean.label ?? updated?.label ?? editingUnit.label ?? unitLabel),
-                        imageFiles: [...imageFiles],
-                        videoFiles: [...videoFiles],
-                      });
+                                {(unit.priceMonth || unit.priceWeek) && (
+                                  <div className="md:col-span-2">
+                                    <span className="text-gray-600">
+                                      Preços:{" "}
+                                    </span>
+                                    <span className="text-gray-900">
+                                      {unit.priceMonth
+                                        ? `${formatMoneyValue(unit.priceMonth)}/mês`
+                                        : ""}
+                                      {unit.priceWeek
+                                        ? ` • ${formatMoneyValue(unit.priceWeek)}/bi-semana`
+                                        : ""}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {unit.imageUrl && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <ImageIcon className="w-4 h-4" />
+                                  <span>Imagem disponível</span>
+                                </div>
+                              )}
+
+                              {unit.videoUrl && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                                  <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-gray-100 text-gray-700 text-[10px]">
+                                    ▶
+                                  </span>
+                                  <span>Vídeo disponível</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={loadingEditId === unit.id}
+                                onClick={async () => {
+                                  setLoadingEditId(unit.id);
+                                  try {
+                                    const detailed = await getUnitById(unit.id);
+                                    setEditingUnit(detailed);
+                                  } catch {
+                                    setEditingUnit(unit);
+                                  } finally {
+                                    setLoadingEditId(null);
+                                  }
+                                }}
+                                title="Editar"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  const ok = window.confirm(
+                                    "Excluir esta unidade?",
+                                  );
+                                  if (!ok) return;
+                                  try {
+                                    await deleteUnit(unit.id);
+                                    await refreshEntitlements?.();
+                                    await onChanged?.();
+                                  } catch (e) {
+                                    console.error(e);
+                                    alert("Erro ao excluir unidade.");
+                                  }
+                                }}
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => setIsAdding(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Adicionar {unitLabel}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {/* Formulário de adição/edição */}
+              {(isAdding || editingUnit) && (
+                <UnitForm
+                  unit={editingUnit}
+                  mediaPointType={mediaPointType}
+                  entitlements={entitlements}
+                  onSave={async (data, imageFiles = [], videoFiles = []) => {
+                    try {
+                      const clean = sanitizeMediaUnitPayload(
+                        sanitizeUnitPayload(data) as any,
+                      );
+
+                      if (editingUnit) {
+                        const updated = await updateUnit(editingUnit.id, clean);
+                        if (imageFiles.length || videoFiles.length) {
+                          await onEnqueueUploads?.({
+                            pointId: mediaPointId,
+                            pointName: mediaPointName,
+                            unitId: editingUnit.id,
+                            unitLabel: String(
+                              clean.label ??
+                                updated?.label ??
+                                editingUnit.label ??
+                                unitLabel,
+                            ),
+                            imageFiles: [...imageFiles],
+                            videoFiles: [...videoFiles],
+                          });
+                        }
+                        await onChanged?.();
+                        setEditingUnit(null);
+                        toast.success(
+                          imageFiles.length || videoFiles.length
+                            ? "Unidade salva. Os uploads continuarão em segundo plano."
+                            : "Unidade atualizada com sucesso.",
+                        );
+                      } else {
+                        const created = await createUnit({
+                          ...clean,
+                          unitType: unitTypeForPoint,
+                          label: (clean.label ?? "").toString(),
+                        } as any);
+                        if (imageFiles.length || videoFiles.length) {
+                          await onEnqueueUploads?.({
+                            pointId: mediaPointId,
+                            pointName: mediaPointName,
+                            unitId: created.id,
+                            unitLabel: String(
+                              clean.label ?? created.label ?? unitLabel,
+                            ),
+                            imageFiles: [...imageFiles],
+                            videoFiles: [...videoFiles],
+                          });
+                        }
+                        await onChanged?.();
+                        setIsAdding(false);
+                        toast.success(
+                          imageFiles.length || videoFiles.length
+                            ? "Unidade criada. Os uploads continuarão em segundo plano."
+                            : "Unidade criada com sucesso.",
+                        );
+                      }
+                    } catch (e: any) {
+                      console.error(e);
+                      const responseMessage = Array.isArray(
+                        e?.response?.data?.message,
+                      )
+                        ? e.response.data.message.join(" ")
+                        : e?.response?.data?.message;
+                      const msg =
+                        responseMessage ||
+                        e?.message ||
+                        "Erro ao salvar unidade.";
+                      toast.error(msg);
                     }
-                    await onChanged?.();
-                    setEditingUnit(null);
-                    toast.success(
-                      imageFiles.length || videoFiles.length
-                        ? 'Unidade salva. Os uploads continuarão em segundo plano.'
-                        : 'Unidade atualizada com sucesso.',
-                    );
-                  } else {
-                    const created = await createUnit({
-                      ...clean,
-                      unitType: unitTypeForPoint,
-                      label: (clean.label ?? '').toString(),
-                    } as any);
-                    if (imageFiles.length || videoFiles.length) {
-                      await onEnqueueUploads?.({
-                        pointId: mediaPointId,
-                        pointName: mediaPointName,
-                        unitId: created.id,
-                        unitLabel: String(clean.label ?? created.label ?? unitLabel),
-                        imageFiles: [...imageFiles],
-                        videoFiles: [...videoFiles],
-                      });
-                    }
-                    await onChanged?.();
+                  }}
+                  onCancel={() => {
                     setIsAdding(false);
-                    toast.success(
-                      imageFiles.length || videoFiles.length
-                        ? 'Unidade criada. Os uploads continuarão em segundo plano.'
-                        : 'Unidade criada com sucesso.',
-                    );
-                  }
-                } catch (e: any) {
-                  console.error(e);
-                  const responseMessage = Array.isArray(e?.response?.data?.message)
-                    ? e.response.data.message.join(' ')
-                    : e?.response?.data?.message;
-                  const msg = responseMessage || e?.message || 'Erro ao salvar unidade.';
-                  toast.error(msg);
-                }
-              }}
-              onCancel={() => {
-                setIsAdding(false);
-                setEditingUnit(null);
-              }}
-              onDeleteAsset={deleteUnitAsset}
-              refreshEntitlements={refreshEntitlements}
-              pointBaseStorageBytes={pointBaseStorageBytes}
-              otherUnitsStorageBytes={units.reduce((total, current) => total + (editingUnit && current.id === editingUnit.id ? 0 : parseBytes(current.storageUsedBytes)), 0)}
-              storageLimitBytes={storageLimitBytes}
-              unitLabel={unitLabel}
-              onChanged={onChanged}
-            />
-          )}
-        </div>
-
+                    setEditingUnit(null);
+                  }}
+                  onDeleteAsset={deleteUnitAsset}
+                  refreshEntitlements={refreshEntitlements}
+                  pointBaseStorageBytes={pointBaseStorageBytes}
+                  otherUnitsStorageBytes={units.reduce(
+                    (total, current) =>
+                      total +
+                      (editingUnit && current.id === editingUnit.id
+                        ? 0
+                        : parseBytes(current.storageUsedBytes)),
+                    0,
+                  )}
+                  storageLimitBytes={storageLimitBytes}
+                  unitLabel={unitLabel}
+                  onChanged={onChanged}
+                />
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 border-t px-6 py-4">
@@ -523,12 +660,25 @@ export function MediaUnitsDialog({
 }
 
 type ExistingAssetPreview = { id?: string; src: string };
-type UnitFormErrors = Partial<Record<'priceMonth' | 'priceWeek' | 'insertionsPerDay' | 'resolutionWidthPx' | 'resolutionHeightPx', string>>;
+type UnitFormErrors = Partial<
+  Record<
+    | "priceMonth"
+    | "priceWeek"
+    | "insertionsPerDay"
+    | "resolutionWidthPx"
+    | "resolutionHeightPx",
+    string
+  >
+>;
 
 interface UnitFormProps {
   unit: MediaUnit | null;
   mediaPointType: MediaType;
-  onSave: (data: UnitFormPayload, imageFiles?: File[], videoFiles?: File[]) => void;
+  onSave: (
+    data: UnitFormPayload,
+    imageFiles?: File[],
+    videoFiles?: File[],
+  ) => void;
   onCancel: () => void;
   entitlements: any;
   onDeleteAsset?: (unitId: string, assetId: string) => Promise<any> | void;
@@ -540,64 +690,117 @@ interface UnitFormProps {
   onChanged?: () => Promise<any> | void;
 }
 
-function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDeleteAsset, refreshEntitlements, pointBaseStorageBytes, otherUnitsStorageBytes, storageLimitBytes, unitLabel, onChanged }: UnitFormProps) {
+function UnitForm({
+  unit,
+  mediaPointType,
+  onSave,
+  onCancel,
+  entitlements,
+  onDeleteAsset,
+  refreshEntitlements,
+  pointBaseStorageBytes,
+  otherUnitsStorageBytes,
+  storageLimitBytes,
+  unitLabel,
+  onChanged,
+}: UnitFormProps) {
   const [formData, setFormData] = useState<UnitFormPayload>(
     unit
       ? {
-        label: unit.label,
-        orientation: unit.orientation,
-        widthM: unit.widthM,
-        heightM: unit.heightM,
-        insertionsPerDay: unit.insertionsPerDay,
-        resolutionWidthPx: unit.resolutionWidthPx,
-        resolutionHeightPx: unit.resolutionHeightPx,
-        priceMonth: unit.priceMonth,
-        priceWeek: unit.priceWeek,
-      }
+          label: unit.label,
+          orientation: unit.orientation,
+          widthM: unit.widthM,
+          heightM: unit.heightM,
+          insertionsPerDay: unit.insertionsPerDay,
+          resolutionWidthPx: unit.resolutionWidthPx,
+          resolutionHeightPx: unit.resolutionHeightPx,
+          priceMonth: unit.priceMonth,
+          priceWeek: unit.priceWeek,
+        }
       : {
-        label: '',
-      }
+          label: "",
+        },
   );
 
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [existingImageAssets, setExistingImageAssets] = useState<ExistingAssetPreview[]>([]);
+  const [existingImageAssets, setExistingImageAssets] = useState<
+    ExistingAssetPreview[]
+  >([]);
 
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
-  const [existingVideoAssets, setExistingVideoAssets] = useState<ExistingAssetPreview[]>([]);
+  const [existingVideoAssets, setExistingVideoAssets] = useState<
+    ExistingAssetPreview[]
+  >([]);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
   const [unitSnapshot, setUnitSnapshot] = useState<MediaUnit | null>(unit);
-  const [priceMonthInput, setPriceMonthInput] = useState(formatMoneyInputFromNumber(unit?.priceMonth));
-  const [priceWeekInput, setPriceWeekInput] = useState(formatMoneyInputFromNumber(unit?.priceWeek));
-  const [insertionsInput, setInsertionsInput] = useState(unit?.insertionsPerDay != null ? String(unit.insertionsPerDay) : '');
-  const [resolutionWidthInput, setResolutionWidthInput] = useState(unit?.resolutionWidthPx != null ? String(unit.resolutionWidthPx) : '');
-  const [resolutionHeightInput, setResolutionHeightInput] = useState(unit?.resolutionHeightPx != null ? String(unit.resolutionHeightPx) : '');
+  const [priceMonthInput, setPriceMonthInput] = useState(
+    formatMoneyInputFromNumber(unit?.priceMonth),
+  );
+  const [priceWeekInput, setPriceWeekInput] = useState(
+    formatMoneyInputFromNumber(unit?.priceWeek),
+  );
+  const [insertionsInput, setInsertionsInput] = useState(
+    unit?.insertionsPerDay != null ? String(unit.insertionsPerDay) : "",
+  );
+  const [resolutionWidthInput, setResolutionWidthInput] = useState(
+    unit?.resolutionWidthPx != null ? String(unit.resolutionWidthPx) : "",
+  );
+  const [resolutionHeightInput, setResolutionHeightInput] = useState(
+    unit?.resolutionHeightPx != null ? String(unit.resolutionHeightPx) : "",
+  );
   const [formErrors, setFormErrors] = useState<UnitFormErrors>({});
 
   const fileLimits = entitlements?.limits?.file;
 
   const syncExistingAssets = (target?: MediaUnit | null) => {
-    const mediaAssets = Array.isArray((target as any)?.mediaAssets) ? (target as any).mediaAssets : [];
+    const mediaAssets = Array.isArray((target as any)?.mediaAssets)
+      ? (target as any).mediaAssets
+      : [];
     const imageAssets = mediaAssets
-      .filter((asset: any) => asset?.kind === 'IMAGE' && asset?.url)
-      .map((asset: any) => ({ id: asset.id, src: resolveUploadsUrl(asset.url) || asset.url }))
+      .filter((asset: any) => asset?.kind === "IMAGE" && asset?.url)
+      .map((asset: any) => ({
+        id: asset.id,
+        src: resolveUploadsUrl(asset.url) || asset.url,
+      }))
       .filter((asset: ExistingAssetPreview) => !!asset.src);
     const videoAssets = mediaAssets
-      .filter((asset: any) => asset?.kind === 'VIDEO' && asset?.url)
-      .map((asset: any) => ({ id: asset.id, src: resolveUploadsUrl(asset.url) || asset.url }))
+      .filter((asset: any) => asset?.kind === "VIDEO" && asset?.url)
+      .map((asset: any) => ({
+        id: asset.id,
+        src: resolveUploadsUrl(asset.url) || asset.url,
+      }))
       .filter((asset: ExistingAssetPreview) => !!asset.src);
 
-    setExistingImageAssets(imageAssets.length ? imageAssets : (resolveUploadsUrl(target?.imageUrl) ? [{ src: resolveUploadsUrl(target?.imageUrl)! }] : []));
-    setExistingVideoAssets(videoAssets.length ? videoAssets : (resolveUploadsUrl(target?.videoUrl) ? [{ src: resolveUploadsUrl(target?.videoUrl)! }] : []));
+    setExistingImageAssets(
+      imageAssets.length
+        ? imageAssets
+        : resolveUploadsUrl(target?.imageUrl)
+          ? [{ src: resolveUploadsUrl(target?.imageUrl)! }]
+          : [],
+    );
+    setExistingVideoAssets(
+      videoAssets.length
+        ? videoAssets
+        : resolveUploadsUrl(target?.videoUrl)
+          ? [{ src: resolveUploadsUrl(target?.videoUrl)! }]
+          : [],
+    );
   };
 
-  const resolveExistingAssetId = (kind: 'image' | 'video', src: string, preferredId?: string) => {
+  const resolveExistingAssetId = (
+    kind: "image" | "video",
+    src: string,
+    preferredId?: string,
+  ) => {
     if (preferredId) return preferredId;
 
     const snapshot = unitSnapshot ?? unit ?? null;
-    const mediaAssets = Array.isArray((snapshot as any)?.mediaAssets) ? (snapshot as any).mediaAssets : [];
-    const targetKind = kind === 'image' ? 'IMAGE' : 'VIDEO';
+    const mediaAssets = Array.isArray((snapshot as any)?.mediaAssets)
+      ? (snapshot as any).mediaAssets
+      : [];
+    const targetKind = kind === "image" ? "IMAGE" : "VIDEO";
     const normalizedSrc = resolveUploadsUrl(src) || src;
 
     const match = mediaAssets.find((asset: any) => {
@@ -627,9 +830,15 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       });
       setPriceMonthInput(formatMoneyInputFromNumber(unit.priceMonth));
       setPriceWeekInput(formatMoneyInputFromNumber(unit.priceWeek));
-      setInsertionsInput(unit.insertionsPerDay != null ? String(unit.insertionsPerDay) : '');
-      setResolutionWidthInput(unit.resolutionWidthPx != null ? String(unit.resolutionWidthPx) : '');
-      setResolutionHeightInput(unit.resolutionHeightPx != null ? String(unit.resolutionHeightPx) : '');
+      setInsertionsInput(
+        unit.insertionsPerDay != null ? String(unit.insertionsPerDay) : "",
+      );
+      setResolutionWidthInput(
+        unit.resolutionWidthPx != null ? String(unit.resolutionWidthPx) : "",
+      );
+      setResolutionHeightInput(
+        unit.resolutionHeightPx != null ? String(unit.resolutionHeightPx) : "",
+      );
       setFormErrors({});
       setImageFiles([]);
       setImagePreviews([]);
@@ -638,12 +847,12 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       syncExistingAssets(unit);
     } else {
       setUnitSnapshot(null);
-      setFormData({ label: '' });
-      setPriceMonthInput('');
-      setPriceWeekInput('');
-      setInsertionsInput('');
-      setResolutionWidthInput('');
-      setResolutionHeightInput('');
+      setFormData({ label: "" });
+      setPriceMonthInput("");
+      setPriceWeekInput("");
+      setInsertionsInput("");
+      setResolutionWidthInput("");
+      setResolutionHeightInput("");
       setFormErrors({});
       setImageFiles([]);
       setImagePreviews([]);
@@ -655,51 +864,86 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     }
   }, [unit]);
 
-  const priceMonthError = useMemo(() => validateMoneyValue(priceMonthInput), [priceMonthInput]);
-  const priceWeekError = useMemo(() => validateMoneyValue(priceWeekInput), [priceWeekInput]);
+  const priceMonthError = useMemo(
+    () => validateMoneyValue(priceMonthInput),
+    [priceMonthInput],
+  );
+  const priceWeekError = useMemo(
+    () => validateMoneyValue(priceWeekInput),
+    [priceWeekInput],
+  );
 
   const updateField = (field: keyof UnitFormPayload, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const validateLimitedInteger = (value: string, maxValue: number, label: string) => {
+  const validateLimitedInteger = (
+    value: string,
+    maxValue: number,
+    label: string,
+  ) => {
     if (!value) return null;
     const numeric = parseOptionalIntInput(value);
     if (numeric === null || !Number.isFinite(numeric) || numeric < 0) {
       return `${label} deve conter somente números válidos.`;
     }
     if (numeric > maxValue) {
-      return `${label} deve ser no máximo ${new Intl.NumberFormat('pt-BR').format(maxValue)}.`;
+      return `${label} deve ser no máximo ${new Intl.NumberFormat("pt-BR").format(maxValue)}.`;
     }
     return null;
   };
 
   const updateLimitedIntegerField = (
-    field: 'insertionsPerDay' | 'resolutionWidthPx' | 'resolutionHeightPx',
+    field: "insertionsPerDay" | "resolutionWidthPx" | "resolutionHeightPx",
     rawValue: string,
   ) => {
-    const config = field === 'insertionsPerDay'
-      ? { maxValue: MAX_INSERTIONS_PER_DAY, maxDigits: 7, setInput: setInsertionsInput, label: 'Inserções por dia' }
-      : field === 'resolutionWidthPx'
-        ? { maxValue: MAX_RESOLUTION_PX, maxDigits: 5, setInput: setResolutionWidthInput, label: 'Resolução de largura' }
-        : { maxValue: MAX_RESOLUTION_PX, maxDigits: 5, setInput: setResolutionHeightInput, label: 'Resolução de altura' };
+    const config =
+      field === "insertionsPerDay"
+        ? {
+            maxValue: MAX_INSERTIONS_PER_DAY,
+            maxDigits: 7,
+            setInput: setInsertionsInput,
+            label: "Inserções por dia",
+          }
+        : field === "resolutionWidthPx"
+          ? {
+              maxValue: MAX_RESOLUTION_PX,
+              maxDigits: 5,
+              setInput: setResolutionWidthInput,
+              label: "Resolução de largura",
+            }
+          : {
+              maxValue: MAX_RESOLUTION_PX,
+              maxDigits: 5,
+              setInput: setResolutionHeightInput,
+              label: "Resolução de altura",
+            };
 
-    const sanitized = normalizeIntegerDigits(rawValue, config.maxValue, config.maxDigits);
+    const sanitized = normalizeIntegerDigits(
+      rawValue,
+      config.maxValue,
+      config.maxDigits,
+    );
     config.setInput(sanitized);
 
     setFormErrors((prev) => ({
       ...prev,
-      [field]: validateLimitedInteger(sanitized, config.maxValue, config.label) ?? undefined,
+      [field]:
+        validateLimitedInteger(sanitized, config.maxValue, config.label) ??
+        undefined,
     }));
 
     updateField(field, parseOptionalIntInput(sanitized));
   };
 
-  const updateMoneyField = (field: 'priceMonth' | 'priceWeek', rawValue: string) => {
+  const updateMoneyField = (
+    field: "priceMonth" | "priceWeek",
+    rawValue: string,
+  ) => {
     const sanitized = sanitizeMoneyInput(rawValue);
     const parsed = parseMoneyInput(sanitized);
 
-    if (field === 'priceMonth') {
+    if (field === "priceMonth") {
       setPriceMonthInput(sanitized);
     } else {
       setPriceWeekInput(sanitized);
@@ -717,16 +961,42 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     const nextErrors: UnitFormErrors = {
       priceMonth: validateMoneyValue(priceMonthInput) ?? undefined,
       priceWeek: validateMoneyValue(priceWeekInput) ?? undefined,
-      insertionsPerDay: validateLimitedInteger(insertionsInput, MAX_INSERTIONS_PER_DAY, 'Inserções por dia') ?? undefined,
-      resolutionWidthPx: validateLimitedInteger(resolutionWidthInput, MAX_RESOLUTION_PX, 'Resolução de largura') ?? undefined,
-      resolutionHeightPx: validateLimitedInteger(resolutionHeightInput, MAX_RESOLUTION_PX, 'Resolução de altura') ?? undefined,
+      insertionsPerDay:
+        validateLimitedInteger(
+          insertionsInput,
+          MAX_INSERTIONS_PER_DAY,
+          "Inserções por dia",
+        ) ?? undefined,
+      resolutionWidthPx:
+        validateLimitedInteger(
+          resolutionWidthInput,
+          MAX_RESOLUTION_PX,
+          "Resolução de largura",
+        ) ?? undefined,
+      resolutionHeightPx:
+        validateLimitedInteger(
+          resolutionHeightInput,
+          MAX_RESOLUTION_PX,
+          "Resolução de altura",
+        ) ?? undefined,
     };
 
     setFormErrors(nextErrors);
 
-    if (nextErrors.priceMonth || nextErrors.priceWeek || nextErrors.insertionsPerDay || nextErrors.resolutionWidthPx || nextErrors.resolutionHeightPx) {
-      const firstError = nextErrors.priceMonth || nextErrors.priceWeek || nextErrors.insertionsPerDay || nextErrors.resolutionWidthPx || nextErrors.resolutionHeightPx;
-      toast.error(firstError || 'Corrija os valores informados.');
+    if (
+      nextErrors.priceMonth ||
+      nextErrors.priceWeek ||
+      nextErrors.insertionsPerDay ||
+      nextErrors.resolutionWidthPx ||
+      nextErrors.resolutionHeightPx
+    ) {
+      const firstError =
+        nextErrors.priceMonth ||
+        nextErrors.priceWeek ||
+        nextErrors.insertionsPerDay ||
+        nextErrors.resolutionWidthPx ||
+        nextErrors.resolutionHeightPx;
+      toast.error(firstError || "Corrija os valores informados.");
       return null;
     }
 
@@ -748,20 +1018,28 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       return;
     }
 
-    const err = await validateUploadBatchAgainstEntitlements([
-      ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
-      ...files.map((file) => ({ file, kind: 'image' as const })),
-      ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
-    ], entitlements);
+    const err = await validateUploadBatchAgainstEntitlements(
+      [
+        ...imageFiles.map((file) => ({ file, kind: "image" as const })),
+        ...files.map((file) => ({ file, kind: "image" as const })),
+        ...videoFiles.map((file) => ({ file, kind: "video" as const })),
+      ],
+      entitlements,
+    );
     if (err) {
       toast.error(err);
-      try { (e.target as any).value = ''; } catch {}
+      try {
+        (e.target as any).value = "";
+      } catch {}
       setImageFiles([]);
       return;
     }
 
     setImageFiles((prev) => [...prev, ...files]);
-    setImagePreviews((prev) => [...prev, ...files.map((file) => URL.createObjectURL(file))]);
+    setImagePreviews((prev) => [
+      ...prev,
+      ...files.map((file) => URL.createObjectURL(file)),
+    ]);
   };
 
   const handleVideoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -772,14 +1050,19 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       return;
     }
 
-    const err = await validateUploadBatchAgainstEntitlements([
-      ...imageFiles.map((file) => ({ file, kind: 'image' as const })),
-      ...videoFiles.map((file) => ({ file, kind: 'video' as const })),
-      ...files.map((file) => ({ file, kind: 'video' as const })),
-    ], entitlements);
+    const err = await validateUploadBatchAgainstEntitlements(
+      [
+        ...imageFiles.map((file) => ({ file, kind: "image" as const })),
+        ...videoFiles.map((file) => ({ file, kind: "video" as const })),
+        ...files.map((file) => ({ file, kind: "video" as const })),
+      ],
+      entitlements,
+    );
     if (err) {
       toast.error(err);
-      try { (e.target as any).value = ''; } catch {}
+      try {
+        (e.target as any).value = "";
+      } catch {}
       setVideoFiles([]);
       return;
     }
@@ -792,7 +1075,7 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     setImageFiles((prev) => prev.filter((_, currentIdx) => currentIdx !== idx));
     setImagePreviews((prev) => {
       const target = prev[idx];
-      if (target?.startsWith('blob:')) URL.revokeObjectURL(target);
+      if (target?.startsWith("blob:")) URL.revokeObjectURL(target);
       return prev.filter((_, currentIdx) => currentIdx !== idx);
     });
   };
@@ -802,7 +1085,10 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
     setVideoPreviews([]);
   };
 
-  const handleDeleteExistingAsset = async (kind: 'image' | 'video', assetId?: string) => {
+  const handleDeleteExistingAsset = async (
+    kind: "image" | "video",
+    assetId?: string,
+  ) => {
     if (!unit?.id || !assetId || !onDeleteAsset) return;
 
     try {
@@ -813,9 +1099,13 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
       syncExistingAssets(nextUnit);
       await refreshEntitlements?.();
       await onChanged?.();
-      toast.success(kind === 'image' ? 'Imagem da unidade removida.' : 'Vídeo da unidade removido.');
+      toast.success(
+        kind === "image"
+          ? "Imagem da unidade removida."
+          : "Vídeo da unidade removido.",
+      );
     } catch (e: any) {
-      toast.error(e?.message || 'Não foi possível remover a mídia da unidade.');
+      toast.error(e?.message || "Não foi possível remover a mídia da unidade.");
     } finally {
       setDeletingAssetId(null);
     }
@@ -824,40 +1114,87 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
   useEffect(() => {
     return () => {
       for (const src of imagePreviews) {
-        if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
+        if (src?.startsWith("blob:")) URL.revokeObjectURL(src);
       }
       for (const src of videoPreviews) {
-        if (src?.startsWith('blob:')) URL.revokeObjectURL(src);
+        if (src?.startsWith("blob:")) URL.revokeObjectURL(src);
       }
     };
   }, [imagePreviews, videoPreviews]);
 
   const currentUnitStorageBytes = parseBytes(unitSnapshot?.storageUsedBytes);
-  const globalStorageUsedBytes = parseBytes(entitlements?.usage?.storageUsedBytes);
-  const pendingStorageBytes = [...imageFiles, ...videoFiles].reduce((total, file) => total + (file?.size ?? 0), 0);
-  const projectedPointStorageBytes = pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes + pendingStorageBytes;
-  const projectedGlobalStorageUsedBytes = globalStorageUsedBytes + pendingStorageBytes;
-  const projectedStoragePercent = storageLimitBytes > 0 ? Math.min(100, (projectedGlobalStorageUsedBytes / storageLimitBytes) * 100) : 0;
+  const globalStorageUsedBytes = parseBytes(
+    entitlements?.usage?.storageUsedBytes,
+  );
+  const pendingStorageBytes = [...imageFiles, ...videoFiles].reduce(
+    (total, file) => total + (file?.size ?? 0),
+    0,
+  );
+  const projectedPointStorageBytes =
+    pointBaseStorageBytes +
+    otherUnitsStorageBytes +
+    currentUnitStorageBytes +
+    pendingStorageBytes;
+  const projectedGlobalStorageUsedBytes =
+    globalStorageUsedBytes + pendingStorageBytes;
+  const projectedStoragePercent =
+    storageLimitBytes > 0
+      ? Math.min(
+          100,
+          (projectedGlobalStorageUsedBytes / storageLimitBytes) * 100,
+        )
+      : 0;
 
   return (
     <Card className="border-2 border-indigo-200">
       <CardContent className="pt-6 space-y-4">
-        <h4 className="text-gray-900 mb-4">{unit ? 'Editar Unidade' : 'Nova Unidade'}</h4>
+        <h4 className="text-gray-900 mb-4">
+          {unit ? "Editar Unidade" : "Nova Unidade"}
+        </h4>
 
         {storageLimitBytes > 0 && (
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-slate-900">Armazenamento do plano compartilhado com as {unitLabel.toLowerCase()}s</p>
-                <p className="text-xs text-slate-600">Esta {unitLabel.toLowerCase()} consome o armazenamento global do plano. Deste ponto: {formatBytes(pointBaseStorageBytes + otherUnitsStorageBytes + currentUnitStorageBytes)}.</p>
+                <p className="text-sm font-medium text-slate-900">
+                  Armazenamento do plano compartilhado com as{" "}
+                  {unitLabel.toLowerCase()}s
+                </p>
+                <p className="text-xs text-slate-600">
+                  Esta {unitLabel.toLowerCase()} consome o armazenamento global
+                  do plano. Deste ponto:{" "}
+                  {formatBytes(
+                    pointBaseStorageBytes +
+                      otherUnitsStorageBytes +
+                      currentUnitStorageBytes,
+                  )}
+                  .
+                </p>
               </div>
               <div className="text-right text-sm text-slate-700">
-                <div>{formatBytes(globalStorageUsedBytes)} / {formatBytes(storageLimitBytes)}</div>
-                {pendingStorageBytes > 0 ? <div className="text-xs text-amber-700">Após salvar: {formatBytes(projectedGlobalStorageUsedBytes)}</div> : <div className="text-xs text-slate-500">Disponível no plano: {formatBytes(Math.max(0, storageLimitBytes - globalStorageUsedBytes))}</div>}
+                <div>
+                  {formatBytes(globalStorageUsedBytes)} /{" "}
+                  {formatBytes(storageLimitBytes)}
+                </div>
+                {pendingStorageBytes > 0 ? (
+                  <div className="text-xs text-amber-700">
+                    Após salvar: {formatBytes(projectedGlobalStorageUsedBytes)}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    Disponível no plano:{" "}
+                    {formatBytes(
+                      Math.max(0, storageLimitBytes - globalStorageUsedBytes),
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${projectedStoragePercent}%` }} />
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-all"
+                style={{ width: `${projectedStoragePercent}%` }}
+              />
             </div>
           </div>
         )}
@@ -865,14 +1202,20 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
         <div className="space-y-2">
           <Label>Nome/Label *</Label>
           <Input
-            placeholder={mediaPointType === MediaType.OOH ? 'Ex: Face 1 - Principal' : 'Ex: Tela 1 - Entrada'}
-            value={formData.label || ''}
-            onChange={(e) => updateField('label', e.target.value)}
+            placeholder={
+              mediaPointType === MediaType.OOH
+                ? "Ex: Face 1 - Principal"
+                : "Ex: Tela 1 - Entrada"
+            }
+            value={formData.label || ""}
+            onChange={(e) => updateField("label", e.target.value)}
           />
         </div>
 
         <div className="space-y-2">
-          <Label>Imagem da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'}</Label>
+          <Label>
+            Imagem da {mediaPointType === MediaType.OOH ? "Face" : "Tela"}
+          </Label>
           <Input
             type="file"
             accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
@@ -882,24 +1225,43 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
           />
           {(existingImageAssets.length > 0 || imagePreviews.length > 0) && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-700">Imagens selecionadas/cadastradas</p>
+              <p className="text-xs font-medium text-gray-700">
+                Imagens selecionadas/cadastradas
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {existingImageAssets.map((asset, idx) => {
-                  const deleteAssetId = resolveExistingAssetId('image', asset.src, asset.id);
+                  const deleteAssetId = resolveExistingAssetId(
+                    "image",
+                    asset.src,
+                    asset.id,
+                  );
                   return (
-                    <div key={`existing-img-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                    <div
+                      key={`existing-img-${asset.id ?? idx}`}
+                      className="rounded-lg border bg-white p-2 space-y-2"
+                    >
                       <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                        <img src={asset.src} alt={`Imagem cadastrada ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                        <img
+                          src={asset.src}
+                          alt={`Imagem cadastrada ${idx + 1}`}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-gray-600">Imagem cadastrada {idx + 1}</span>
+                        <span className="text-xs text-gray-600">
+                          Imagem cadastrada {idx + 1}
+                        </span>
                         {deleteAssetId && onDeleteAsset ? (
                           <Button
                             type="button"
                             variant="destructive"
                             size="sm"
                             disabled={deletingAssetId === deleteAssetId}
-                            onClick={() => handleDeleteExistingAsset('image', deleteAssetId)}
+                            onClick={() =>
+                              handleDeleteExistingAsset("image", deleteAssetId)
+                            }
                           >
                             Excluir
                           </Button>
@@ -909,12 +1271,23 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   );
                 })}
                 {imagePreviews.map((src, idx) => (
-                  <div key={`img-${idx}`} className="rounded-lg border border-dashed bg-white p-2 space-y-2">
+                  <div
+                    key={`img-${idx}`}
+                    className="rounded-lg border border-dashed bg-white p-2 space-y-2"
+                  >
                     <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                      <img src={src} alt={`Nova imagem ${idx + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img
+                        src={src}
+                        alt={`Nova imagem ${idx + 1}`}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-600">Nova imagem {idx + 1}</span>
+                      <span className="text-xs text-gray-600">
+                        Nova imagem {idx + 1}
+                      </span>
                       <Button
                         type="button"
                         variant="outline"
@@ -930,12 +1303,16 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
             </div>
           )}
           <p className="text-xs text-gray-500">
-            JPG, PNG ou GIF (máx. {fileLimits?.maxImageMb ?? 4}MB por arquivo, respeitando o armazenamento restante do plano).
+            JPG, PNG ou GIF (máx. {fileLimits?.maxImageMb ?? 4}MB por arquivo,
+            respeitando o armazenamento restante do plano).
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label>Vídeo da {mediaPointType === MediaType.OOH ? 'Face' : 'Tela'} (opcional)</Label>
+          <Label>
+            Vídeo da {mediaPointType === MediaType.OOH ? "Face" : "Tela"}{" "}
+            (opcional)
+          </Label>
           <Input
             type="file"
             accept="video/*"
@@ -945,24 +1322,43 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
           />
           {(existingVideoAssets.length > 0 || videoFiles.length > 0) && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-700">Vídeos selecionados/cadastrados</p>
+              <p className="text-xs font-medium text-gray-700">
+                Vídeos selecionados/cadastrados
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {existingVideoAssets.map((asset, idx) => {
-                  const deleteAssetId = resolveExistingAssetId('video', asset.src, asset.id);
+                  const deleteAssetId = resolveExistingAssetId(
+                    "video",
+                    asset.src,
+                    asset.id,
+                  );
                   return (
-                    <div key={`existing-video-${asset.id ?? idx}`} className="rounded-lg border bg-white p-2 space-y-2">
+                    <div
+                      key={`existing-video-${asset.id ?? idx}`}
+                      className="rounded-lg border bg-white p-2 space-y-2"
+                    >
                       <div className="h-24 bg-gray-100 rounded overflow-hidden">
-                        <video src={asset.src} className="w-full h-full object-cover" controls muted preload="none" />
+                        <video
+                          src={asset.src}
+                          className="w-full h-full object-cover"
+                          controls
+                          muted
+                          preload="none"
+                        />
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-gray-600">Vídeo cadastrado {idx + 1}</span>
+                        <span className="text-xs text-gray-600">
+                          Vídeo cadastrado {idx + 1}
+                        </span>
                         {deleteAssetId && onDeleteAsset ? (
                           <Button
                             type="button"
                             variant="destructive"
                             size="sm"
                             disabled={deletingAssetId === deleteAssetId}
-                            onClick={() => handleDeleteExistingAsset('video', deleteAssetId)}
+                            onClick={() =>
+                              handleDeleteExistingAsset("video", deleteAssetId)
+                            }
                           >
                             Excluir
                           </Button>
@@ -972,13 +1368,20 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   );
                 })}
                 {videoFiles.map((file, idx) => (
-                  <div key={`video-${idx}`} className="rounded-lg border border-dashed bg-white p-3 space-y-2">
+                  <div
+                    key={`video-${idx}`}
+                    className="rounded-lg border border-dashed bg-white p-3 space-y-2"
+                  >
                     <div className="rounded bg-gray-50 px-3 py-2 text-sm text-gray-700">
                       <div className="font-medium truncate">{file.name}</div>
-                      <div className="text-xs text-gray-500">{formatBytes(file.size)} • upload pendente</div>
+                      <div className="text-xs text-gray-500">
+                        {formatBytes(file.size)} • upload pendente
+                      </div>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-gray-600">Novo vídeo {idx + 1}</span>
+                      <span className="text-xs text-gray-600">
+                        Novo vídeo {idx + 1}
+                      </span>
                       <Button
                         type="button"
                         variant="outline"
@@ -994,7 +1397,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
             </div>
           )}
           <p className="text-xs text-gray-500">
-            MP4/WebM/MOV (máx. {fileLimits?.maxVideoMb ?? 150}MB e {fileLimits?.maxVideoSeconds ?? 90}s por arquivo). O upload será feito ao salvar, respeitando o armazenamento restante do plano.
+            MP4/WebM/MOV (máx. {fileLimits?.maxVideoMb ?? 150}MB e{" "}
+            {fileLimits?.maxVideoSeconds ?? 90}s por arquivo). O upload será
+            feito ao salvar, respeitando o armazenamento restante do plano.
           </p>
         </div>
 
@@ -1009,8 +1414,13 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   step="0.01"
                   placeholder="3.00"
                   min="0"
-                  value={formData.widthM ?? ''}
-                  onChange={(e) => updateField('widthM', parseNonNegativeFloatInput(e.target.value))}
+                  value={formData.widthM ?? ""}
+                  onChange={(e) =>
+                    updateField(
+                      "widthM",
+                      parseNonNegativeFloatInput(e.target.value),
+                    )
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -1020,8 +1430,13 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   step="0.01"
                   placeholder="9.00"
                   min="0"
-                  value={formData.heightM ?? ''}
-                  onChange={(e) => updateField('heightM', parseNonNegativeFloatInput(e.target.value))}
+                  value={formData.heightM ?? ""}
+                  onChange={(e) =>
+                    updateField(
+                      "heightM",
+                      parseNonNegativeFloatInput(e.target.value),
+                    )
+                  }
                 />
               </div>
             </div>
@@ -1029,9 +1444,12 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
             <div className="space-y-2">
               <Label>Orientação</Label>
               <Select
-                value={formData.orientation || ''}
+                value={formData.orientation || ""}
                 onValueChange={(value: string) =>
-                  updateField('orientation', (value || null) as Orientation | null)
+                  updateField(
+                    "orientation",
+                    (value || null) as Orientation | null,
+                  )
                 }
               >
                 <SelectTrigger>
@@ -1039,7 +1457,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={Orientation.FLUXO}>Fluxo</SelectItem>
-                  <SelectItem value={Orientation.CONTRA_FLUXO}>Contra-Fluxo</SelectItem>
+                  <SelectItem value={Orientation.CONTRA_FLUXO}>
+                    Contra-Fluxo
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1057,17 +1477,33 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   inputMode="numeric"
                   placeholder="150"
                   value={insertionsInput}
-                  onChange={(e) => updateLimitedIntegerField('insertionsPerDay', e.target.value)}
+                  onChange={(e) =>
+                    updateLimitedIntegerField(
+                      "insertionsPerDay",
+                      e.target.value,
+                    )
+                  }
                 />
-                {formErrors.insertionsPerDay ? <p className="text-xs text-red-600">{formErrors.insertionsPerDay}</p> : <p className="text-xs text-gray-500">Somente números, até 1.000.000.</p>}
+                {formErrors.insertionsPerDay ? (
+                  <p className="text-xs text-red-600">
+                    {formErrors.insertionsPerDay}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Somente números, até 1.000.000.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Orientação</Label>
                 <Select
-                  value={formData.orientation || ''}
+                  value={formData.orientation || ""}
                   onValueChange={(value: string) =>
-                    updateField('orientation', (value || null) as Orientation | null)
+                    updateField(
+                      "orientation",
+                      (value || null) as Orientation | null,
+                    )
                   }
                 >
                   <SelectTrigger>
@@ -1075,7 +1511,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={Orientation.FLUXO}>Fluxo</SelectItem>
-                    <SelectItem value={Orientation.CONTRA_FLUXO}>Contra-Fluxo</SelectItem>
+                    <SelectItem value={Orientation.CONTRA_FLUXO}>
+                      Contra-Fluxo
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1089,9 +1527,22 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   inputMode="numeric"
                   placeholder="1920"
                   value={resolutionWidthInput}
-                  onChange={(e) => updateLimitedIntegerField('resolutionWidthPx', e.target.value)}
+                  onChange={(e) =>
+                    updateLimitedIntegerField(
+                      "resolutionWidthPx",
+                      e.target.value,
+                    )
+                  }
                 />
-                {formErrors.resolutionWidthPx ? <p className="text-xs text-red-600">{formErrors.resolutionWidthPx}</p> : <p className="text-xs text-gray-500">Somente números, até 5 dígitos.</p>}
+                {formErrors.resolutionWidthPx ? (
+                  <p className="text-xs text-red-600">
+                    {formErrors.resolutionWidthPx}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Somente números, até 5 dígitos.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Resolução Altura (px)</Label>
@@ -1100,9 +1551,22 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                   inputMode="numeric"
                   placeholder="1080"
                   value={resolutionHeightInput}
-                  onChange={(e) => updateLimitedIntegerField('resolutionHeightPx', e.target.value)}
+                  onChange={(e) =>
+                    updateLimitedIntegerField(
+                      "resolutionHeightPx",
+                      e.target.value,
+                    )
+                  }
                 />
-                {formErrors.resolutionHeightPx ? <p className="text-xs text-red-600">{formErrors.resolutionHeightPx}</p> : <p className="text-xs text-gray-500">Somente números, até 5 dígitos.</p>}
+                {formErrors.resolutionHeightPx ? (
+                  <p className="text-xs text-red-600">
+                    {formErrors.resolutionHeightPx}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    Somente números, até 5 dígitos.
+                  </p>
+                )}
               </div>
             </div>
           </>
@@ -1110,7 +1574,9 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
 
         <div className="space-y-2">
           <Label>Preços (opcional)</Label>
-          <p className="text-xs text-gray-500">Máscara monetária em real, com limite de R$ 99.999.999,99 por campo.</p>
+          <p className="text-xs text-gray-500">
+            Máscara monetária em real, com limite de R$ 99.999.999,99 por campo.
+          </p>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm">Preço/Mês (R$)</Label>
@@ -1119,9 +1585,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 inputMode="decimal"
                 placeholder="R$ 0,00"
                 value={priceMonthInput}
-                onChange={(e) => updateMoneyField('priceMonth', e.target.value)}
+                onChange={(e) => updateMoneyField("priceMonth", e.target.value)}
               />
-              {formErrors.priceMonth ? <p className="text-xs text-red-600">{formErrors.priceMonth}</p> : null}
+              {formErrors.priceMonth ? (
+                <p className="text-xs text-red-600">{formErrors.priceMonth}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -1131,9 +1599,11 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
                 inputMode="decimal"
                 placeholder="R$ 0,00"
                 value={priceWeekInput}
-                onChange={(e) => updateMoneyField('priceWeek', e.target.value)}
+                onChange={(e) => updateMoneyField("priceWeek", e.target.value)}
               />
-              {formErrors.priceWeek ? <p className="text-xs text-red-600">{formErrors.priceWeek}</p> : null}
+              {formErrors.priceWeek ? (
+                <p className="text-xs text-red-600">{formErrors.priceWeek}</p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1148,9 +1618,16 @@ function UnitForm({ unit, mediaPointType, onSave, onCancel, entitlements, onDele
               if (!payload) return;
               onSave(payload, imageFiles, videoFiles);
             }}
-            disabled={!formData.label?.trim() || !!priceMonthError || !!priceWeekError || !!formErrors.insertionsPerDay || !!formErrors.resolutionWidthPx || !!formErrors.resolutionHeightPx}
+            disabled={
+              !formData.label?.trim() ||
+              !!priceMonthError ||
+              !!priceWeekError ||
+              !!formErrors.insertionsPerDay ||
+              !!formErrors.resolutionWidthPx ||
+              !!formErrors.resolutionHeightPx
+            }
           >
-            {unit ? 'Salvar Alterações' : 'Adicionar'}
+            {unit ? "Salvar Alterações" : "Adicionar"}
           </Button>
         </div>
       </CardContent>
