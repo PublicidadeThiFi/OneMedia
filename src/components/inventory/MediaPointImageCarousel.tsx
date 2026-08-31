@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Skeleton } from '../ui/skeleton';
-import { MediaPoint } from '../../types';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Skeleton } from "../ui/skeleton";
+import { MediaPoint } from "../../types";
 
 type Slide = {
   src: string;
   label: string;
   alt: string;
-  kind: 'image' | 'video';
+  kind: "image" | "video";
 };
 
 function LoadingOverlay() {
@@ -18,11 +18,11 @@ function LoadingOverlay() {
         className="absolute top-0 bottom-0 left-0 motion-reduce:animate-none"
         style={{
           background:
-            'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)',
-          width: '60%',
-          height: '100%',
-          transform: 'translateX(-120%)',
-          animation: 'ooh_sweep 1.1s ease-in-out infinite',
+            "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)",
+          width: "60%",
+          height: "100%",
+          transform: "translateX(-120%)",
+          animation: "ooh_sweep 1.1s ease-in-out infinite",
         }}
       />
       <div className="absolute inset-0 flex items-center justify-center">
@@ -45,8 +45,8 @@ function CarouselImage({
   src: string;
   alt: string;
   fallbackSrc: string;
-  loading: 'eager' | 'lazy';
-  fetchPriority?: 'high' | 'low' | 'auto';
+  loading: "eager" | "lazy";
+  fetchPriority?: "high" | "low" | "auto";
 }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
@@ -57,6 +57,8 @@ function CarouselImage({
   }, [src]);
 
   const finalSrc = errored ? fallbackSrc : src;
+  const priorityAttribute: { fetchpriority?: "high" | "low" | "auto" } =
+    fetchPriority ? { fetchpriority: fetchPriority } : {};
 
   return (
     <div className="relative w-full h-full">
@@ -66,9 +68,9 @@ function CarouselImage({
         alt={alt}
         draggable={false}
         loading={loading}
-        fetchPriority={fetchPriority}
+        {...priorityAttribute}
         decoding="async"
-        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
         onLoad={() => setLoaded(true)}
         onError={() => {
           if (!errored) {
@@ -96,7 +98,7 @@ function CarouselVideo({ src, alt }: { src: string; alt: string }) {
       <video
         src={src}
         title={alt}
-        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
         controls
         muted
         playsInline
@@ -122,50 +124,63 @@ export function MediaPointImageCarousel({
 
     const pushSlide = (slide: Slide | null) => {
       if (!slide?.src) return;
-      if (list.some((item) => item.kind === slide.kind && item.src === slide.src)) return;
+      if (
+        list.some((item) => item.kind === slide.kind && item.src === slide.src)
+      )
+        return;
       list.push(slide);
     };
 
-    const pointGalleryImages = Array.isArray((point as any).galleryImages) && (point as any).galleryImages.length
-      ? (point as any).galleryImages
-      : [point.mainImageUrl].filter(Boolean);
+    const pointGalleryImages =
+      Array.isArray((point as any).galleryImages) &&
+      (point as any).galleryImages.length
+        ? (point as any).galleryImages
+        : [point.mainImageUrl].filter(Boolean);
     for (const [idx, srcValue] of pointGalleryImages.entries()) {
       const pointImageSrc = normalizeUploadsUrl(srcValue);
       if (!pointImageSrc) continue;
       pushSlide({
         src: pointImageSrc,
-        label: idx === 0 ? 'Imagem do ponto' : `Imagem do ponto ${idx + 1}`,
+        label: idx === 0 ? "Imagem do ponto" : `Imagem do ponto ${idx + 1}`,
         alt: point.name,
-        kind: 'image',
+        kind: "image",
       });
     }
 
-    const pointGalleryVideos = Array.isArray((point as any).galleryVideos) && (point as any).galleryVideos.length
-      ? (point as any).galleryVideos
-      : [point.mainVideoUrl].filter(Boolean);
+    const pointGalleryVideos =
+      Array.isArray((point as any).galleryVideos) &&
+      (point as any).galleryVideos.length
+        ? (point as any).galleryVideos
+        : [point.mainVideoUrl].filter(Boolean);
     for (const [idx, srcValue] of pointGalleryVideos.entries()) {
       const pointVideoSrc = normalizeUploadsUrl(srcValue);
       if (!pointVideoSrc) continue;
       pushSlide({
         src: pointVideoSrc,
-        label: idx === 0 ? 'Vídeo do ponto' : `Vídeo do ponto ${idx + 1}`,
+        label: idx === 0 ? "Vídeo do ponto" : `Vídeo do ponto ${idx + 1}`,
         alt: `${point.name} - vídeo`,
-        kind: 'video',
+        kind: "video",
       });
     }
-
 
     if (list.length === 0) {
       list.push({
         src: fallbackSrc,
-        label: 'Sem mídia cadastrada',
+        label: "Sem mídia cadastrada",
         alt: point.name,
-        kind: 'image',
+        kind: "image",
       });
     }
 
     return list;
-  }, [point.mainImageUrl, point.mainVideoUrl, point.name, point.units, normalizeUploadsUrl, fallbackSrc]);
+  }, [
+    point.mainImageUrl,
+    point.mainVideoUrl,
+    point.name,
+    point.units,
+    normalizeUploadsUrl,
+    fallbackSrc,
+  ]);
 
   const [index, setIndex] = useState(0);
   const touchStartX = useRef<number | null>(null);
@@ -205,17 +220,17 @@ export function MediaPointImageCarousel({
             <div
               key={`${s.kind}-${s.src}-${i}`}
               className="w-full h-full"
-              style={{ flex: '0 0 100%', width: '100%' }}
+              style={{ flex: "0 0 100%", width: "100%" }}
             >
-              {s.kind === 'video' ? (
+              {s.kind === "video" ? (
                 <CarouselVideo src={s.src} alt={s.alt} />
               ) : (
                 <CarouselImage
                   src={s.src}
                   alt={s.alt}
                   fallbackSrc={fallbackSrc}
-                  loading={'lazy'}
-                  fetchPriority={'auto'}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  fetchPriority={i === 0 ? "high" : "low"}
                 />
               )}
             </div>
@@ -225,21 +240,22 @@ export function MediaPointImageCarousel({
 
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
         {(() => {
-          const label = slides[index]?.label ?? '';
-          const fontSizePx = label.length > 70 ? 9 : label.length > 50 ? 10 : 11;
+          const label = slides[index]?.label ?? "";
+          const fontSizePx =
+            label.length > 70 ? 9 : label.length > 50 ? 10 : 11;
 
           return (
             <div
               className={
-                'inline-flex items-center justify-center border border-white/10 shadow-sm ' +
-                'px-3 py-1.5 rounded-md ' +
-                'min-w-[140px] max-w-[calc(100%-180px)] ' +
-                'whitespace-normal break-words hyphens-auto text-center leading-tight'
+                "inline-flex items-center justify-center border border-white/10 shadow-sm " +
+                "px-3 py-1.5 rounded-md " +
+                "min-w-[140px] max-w-[calc(100%-180px)] " +
+                "whitespace-normal break-words hyphens-auto text-center leading-tight"
               }
               style={{
                 fontSize: `${fontSizePx}px`,
-                backgroundColor: '#000',
-                color: '#fff',
+                backgroundColor: "#000",
+                color: "#fff",
               }}
               title={label}
             >
@@ -284,7 +300,7 @@ export function MediaPointImageCarousel({
               type="button"
               aria-label={`Ir para mídia ${i + 1}`}
               className={`h-1.5 w-1.5 rounded-full transition-all ${
-                i === index ? 'bg-white' : 'bg-white/50 hover:bg-white/80'
+                i === index ? "bg-white" : "bg-white/50 hover:bg-white/80"
               }`}
               onClick={(e) => {
                 e.stopPropagation();
