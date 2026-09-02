@@ -1,22 +1,20 @@
-﻿﻿import { CheckCircle2, HelpCircle, MapPin, ChevronLeft, ChevronRight, Star } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, MapPin, Star, Users } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { useWaitlist } from '../../contexts/WaitlistContext';
-import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from './pricingData';
+import { usePublicPricingCatalog } from '../../hooks/usePublicPricingCatalog';
+import {
+  formatCatalogLimit,
+  formatCatalogMoney,
+  formatCatalogPercentage,
+  getCatalogAnnualPaymentTerms,
+  getCatalogMonthlyTrialDays,
+  getCatalogOffer,
+} from '../../lib/publicPricingCatalog';
+import type { PricingCatalogBillingPeriod, PublicPricingCatalogPlan } from '../../types/pricingCatalog';
+import { sharedFeatures } from './pricingFeatures';
 
 const CARD_W = 340;
-
-function StrikeX({ text }: { text: string }) {
-  return (
-    <span style={{ position: 'relative', display: 'inline-block', color: '#9ca3af', fontSize: '0.875rem', fontWeight: 500 }}>
-      {text}
-      <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }} viewBox="0 0 100 100" preserveAspectRatio="none">
-        <line x1="0" y1="0" x2="100" y2="100" stroke="#ef4444" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        <line x1="100" y1="0" x2="0" y2="100" stroke="#ef4444" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-      </svg>
-    </span>
-  );
-}
 
 function PlanCard({ children, featured = false }: { children: React.ReactNode; featured?: boolean }) {
   return (
@@ -29,36 +27,55 @@ function PlanCard({ children, featured = false }: { children: React.ReactNode; f
   );
 }
 
+function PlanPrice({ plan, period }: { plan: PublicPricingCatalogPlan; period: PricingCatalogBillingPeriod }) {
+  const offer = getCatalogOffer(plan, period);
+
+  if (!offer) {
+    return (
+      <div>
+        <p className="text-3xl font-extrabold text-gray-900">Sob consulta</p>
+        <p className="text-xs text-gray-400 mt-1">Condições definidas com o time comercial.</p>
+      </div>
+    );
+  }
+
+  const annualTerms = getCatalogAnnualPaymentTerms(offer);
+
+  return (
+    <div>
+      <p className="text-3xl font-extrabold text-gray-900">
+        {formatCatalogMoney(offer.amount, offer.currency)}
+      </p>
+      <p className="text-sm text-gray-600">
+        {period === 'MONTHLY' ? 'por mês' : 'pagamento integral à vista'}
+      </p>
+      <p className="text-xs text-gray-400 mt-1">
+        {period === 'MONTHLY'
+          ? offer.trialDays > 0
+            ? `${offer.trialDays} dias de teste na oferta mensal`
+            : `${offer.billingCycleMonths} mês de acesso`
+          : annualTerms
+            ? `${annualTerms.monthsAccess} meses pelo valor de ${annualTerms.monthsCharged} mensalidades • economia efetiva de ${formatCatalogPercentage(annualTerms.effectiveDiscountPercent)}`
+            : `${offer.billingCycleMonths} meses de acesso • condições anuais no checkout`}
+      </p>
+    </div>
+  );
+}
+
 export function Pricing() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
+  const { plans, loading, error, refetch } = usePublicPricingCatalog();
+  const [billingPeriod, setBillingPeriod] = useState<PricingCatalogBillingPeriod>('MONTHLY');
+  const monthlyTrialDays = getCatalogMonthlyTrialDays(plans);
   const [showAddonTooltip, setShowAddonTooltip] = useState(false);
-  const [sliderPoints, setSliderPoints] = useState(proSliderConfig.minPoints);
-  const sliderPrice = useProSliderPrice(sliderPoints);
-  const sliderAfter = useMemo(() => formatBRL(sliderPrice), [sliderPrice]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const scroll = (dir: 'left' | 'right') => {
     const node = scrollRef.current;
     if (!node) return;
-    node.scrollBy({ left: dir === 'left' ? -(CARD_W + 20) : (CARD_W + 20), behavior: 'smooth' });
+    node.scrollBy({ left: dir === 'left' ? -(CARD_W + 20) : CARD_W + 20, behavior: 'smooth' });
   };
-
-  const cardBody = (children: React.ReactNode) => (
-    <div className="p-5 flex flex-col flex-1 gap-3">{children}</div>
-  );
-
-  const limites = (points: number | string) => (
-    <>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-gray-700">
-          <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
-          <span className="font-semibold text-gray-900">{points}</span>
-        </div>
-      </div>
-    </>
-  );
 
   const featureList = () => (
     <>
@@ -66,7 +83,8 @@ export function Pricing() {
       <ul className="space-y-1.5 text-xs text-gray-600 flex-1">
         {sharedFeatures.map((item) => (
           <li key={item} className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />{item}
+            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+            {item}
           </li>
         ))}
       </ul>
@@ -76,157 +94,158 @@ export function Pricing() {
   return (
     <section id="planos" className="py-20 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <p className="text-sm font-semibold uppercase tracking-widest text-blue-600 mb-2">Teste grátis</p>
-          <h2 className="text-4xl font-semibold text-gray-900 mb-3">Planos com 1 mês gratuito</h2>
-          <p className="text-base text-gray-500 max-w-xl mx-auto">Sem cartão de crédito. Cancele quando quiser.</p>
+          <h2 className="text-4xl font-semibold text-gray-900 mb-3">
+            {monthlyTrialDays ? `Planos com ${monthlyTrialDays} dias de teste na oferta mensal` : 'Planos para cada fase da operação'}
+          </h2>
+          <p className="text-base text-gray-500 max-w-xl mx-auto">Condições de teste e cobrança conforme a oferta selecionada.</p>
         </div>
 
-        {/* Nav */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm text-gray-500">Arraste ou use as setas para ver os planos</span>
-          <div className="flex gap-2">
-            <button aria-label="Anterior" onClick={() => scroll('left')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button aria-label="Próximo" onClick={() => scroll('right')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
-              <ChevronRight className="h-5 w-5" />
-            </button>
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm" aria-label="Período de cobrança">
+            {(['MONTHLY', 'ANNUAL'] as PricingCatalogBillingPeriod[]).map((period) => (
+              <button
+                key={period}
+                type="button"
+                onClick={() => setBillingPeriod(period)}
+                className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${
+                  billingPeriod === period ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {period === 'MONTHLY' ? 'Mensal' : 'Anual'}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Scroll container */}
-        <div ref={scrollRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-6" style={{ scrollbarWidth: 'none' }}>
-
-          {displayPlans.map((plan) => (
-            <PlanCard key={plan.id}>
-              {/* Badge */}
-              {plan.tag && (
-                <div className="absolute top-3 right-3">
-                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-blue-100">
-                    <Star className="w-2.5 h-2.5" />{plan.tag}
-                  </span>
-                </div>
-              )}
-              {cardBody(
-                <>
-                  {/* Name */}
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
-                    <h3 className="text-base font-bold text-gray-900">{plan.name}</h3>
-                  </div>
-
-                  {/* Price */}
-                  <div>
-                    {plan.strikePrice && <p><StrikeX text={plan.strikePrice} /></p>}
-                    <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                    <p className="text-sm text-gray-600">no primeiro mês</p>
-                    <p className="text-xs text-gray-400">Depois {plan.monthlyPrice}</p>
-                  </div>
-
-                  <hr className="border-gray-100" />
-
-                  {/* Description */}
-                  <p className="text-xs text-gray-500 leading-relaxed">{plan.description}</p>
-
-                  <hr className="border-gray-100" />
-
-                  {limites(plan.points)}
-
-                  <hr className="border-gray-100" />
-
-                  {featureList()}
-
-                  <button onClick={() => openWaitlist(`planos:card:${plan.id}:comecar-gratis`)} className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
-                    Começar grátis
-                  </button>
-                </>
-              )}
-            </PlanCard>
-          ))}
-
-          {/* Pro 2000 */}
-          <PlanCard featured>
-            <div className="absolute top-3 right-3">
-              <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                <Star className="w-2.5 h-2.5" />Escalavel
-              </span>
+        {loading ? (
+          <div className="grid gap-5 md:grid-cols-3">
+            {[0, 1, 2].map((item) => (
+              <div key={item} className="h-[460px] animate-pulse rounded-2xl border border-gray-200 bg-white" />
+            ))}
+          </div>
+        ) : error || plans.length === 0 ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
+            <p className="font-semibold text-amber-950">Não foi possível carregar os preços atualizados.</p>
+            <p className="mt-2 text-sm text-amber-800">
+              Para evitar exibir valores antigos, os planos ficam indisponíveis até o catálogo oficial responder.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => void refetch().catch(() => undefined)}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Tentar novamente
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/contato')}
+                className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Falar com vendas
+              </button>
             </div>
-            {cardBody(
-              <>
-                {/* Name */}
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border-2 border-blue-500 flex-shrink-0" />
-                  <h3 className="text-base font-bold text-gray-900">{proSliderConfig.name}</h3>
-                </div>
-
-                {/* Price */}
-                <div>
-                  <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                  <p className="text-sm text-gray-600">no primeiro mês</p>
-                  <p className="text-xs text-gray-400">Depois {sliderAfter}/mês</p>
-                </div>
-
-                <hr className="border-gray-100" />
-
-                {/* Slider */}
-                <div className="bg-blue-50 rounded-xl p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-gray-800">
-                    <span>Pontos</span><span>{sliderPoints} pts</span>
-                  </div>
-                  <input type="range"
-                    min={proSliderConfig.minPoints} max={proSliderConfig.maxPoints} step={proSliderConfig.step}
-                    value={sliderPoints} onChange={(e) => setSliderPoints(Number(e.target.value))}
-                    className="w-full accent-blue-600" />
-                  <p className="text-[10px] text-gray-500">Arraste para ajustar pontos e ver o preco.</p>
-                </div>
-
-                <hr className="border-gray-100" />
-
-                {limites(sliderPoints)}
-
-                <hr className="border-gray-100" />
-
-                {featureList()}
-
-                <button onClick={() => navigate('/contato')} className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors">
-                  Falar com vendas
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-gray-500">Arraste ou use as setas para ver os planos</span>
+              <div className="flex gap-2">
+                <button aria-label="Anterior" onClick={() => scroll('left')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+                  <ChevronLeft className="h-5 w-5" />
                 </button>
-              </>
-            )}
-          </PlanCard>
-        </div>
+                <button aria-label="Próximo" onClick={() => scroll('right')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
 
-        {/* Multi-Proprietários */}
+            <div ref={scrollRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-6" style={{ scrollbarWidth: 'none' }}>
+              {plans.map((plan) => {
+                const isEnterprise = plan.offers.length === 0;
+                const isFeatured = plan.code === 'PRO';
+
+                return (
+                  <PlanCard key={plan.code} featured={isFeatured}>
+                    {isFeatured && (
+                      <div className="absolute top-3 right-3">
+                        <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                          <Star className="w-2.5 h-2.5" />Destaque
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="p-5 flex flex-col flex-1 gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${isFeatured ? 'border-blue-500' : 'border-gray-300'}`} />
+                        <h3 className="text-base font-bold text-gray-900">{plan.publicName}</h3>
+                      </div>
+
+                      <PlanPrice plan={plan} period={billingPeriod} />
+
+                      <hr className="border-gray-100" />
+
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        {plan.description || 'Plano comercial OneMedia.'}
+                      </p>
+
+                      <hr className="border-gray-100" />
+
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs text-gray-700">
+                          <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
+                          <span className="font-semibold text-gray-900">{formatCatalogLimit(plan.entitlements.pointsLimit)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-700">
+                          <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400" />Usuários</span>
+                          <span className="font-semibold text-gray-900">{formatCatalogLimit(plan.entitlements.usersLimit)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-700">
+                          <span>Proprietários por ponto</span>
+                          <span className="font-semibold text-gray-900">{formatCatalogLimit(plan.entitlements.maxOwnersPerMediaPoint)}</span>
+                        </div>
+                      </div>
+
+                      <hr className="border-gray-100" />
+
+                      {featureList()}
+
+                      <button
+                        onClick={() => isEnterprise ? navigate('/contato') : openWaitlist(`planos:catalog:${plan.code}:${billingPeriod.toLowerCase()}`)}
+                        className="mt-auto w-full py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-colors"
+                      >
+                        {isEnterprise ? 'Falar com vendas' : 'Começar grátis'}
+                      </button>
+                    </div>
+                  </PlanCard>
+                );
+              })}
+            </div>
+          </>
+        )}
+
         <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm mt-2">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
               <h3 className="text-base font-bold text-gray-900 mb-1">Multi-Proprietários</h3>
-              <p className="text-xs text-gray-500 mb-4">Permite cadastrar até 4 proprietários por ponto de mídia. Por padrão, todos os planos incluem 1 proprietário por ponto.</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: '1 proprietário', value: 'Incluso', color: 'text-green-600', bg: 'bg-gray-50 border-gray-200' },
-                  { label: '2 proprietários', value: 'R$ 99/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                  { label: '3 proprietários', value: 'R$ 113,85/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                  { label: '4 proprietários', value: 'R$ 128,70/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                ].map(({ label, value, color, bg }) => (
-                  <div key={label} className={`rounded-xl ${bg} border px-3 py-2.5 text-center`}>
-                    <div className="text-[11px] text-gray-500 mb-0.5">{label}</div>
-                    <div className={`text-xs font-semibold ${color}`}>{value}</div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-xs text-gray-500 mb-4">Os limites por plano acima vêm do catálogo oficial. As condições comerciais adicionais serão consolidadas nas próximas etapas da migração.</p>
             </div>
             <div className="relative">
-              <button onMouseEnter={() => setShowAddonTooltip(true)} onMouseLeave={() => setShowAddonTooltip(false)}
-                onClick={() => setShowAddonTooltip(!showAddonTooltip)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button
+                onMouseEnter={() => setShowAddonTooltip(true)}
+                onMouseLeave={() => setShowAddonTooltip(false)}
+                onClick={() => setShowAddonTooltip(!showAddonTooltip)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
                 <HelpCircle className="w-5 h-5 text-gray-400" />
               </button>
               {showAddonTooltip && (
                 <div className="absolute right-0 top-10 w-72 bg-white rounded-xl shadow-xl p-4 border border-gray-200 z-10 text-xs text-gray-600">
-                  <p className="font-semibold text-gray-900 mb-1">Quando preciso de múltiplos proprietários?</p>
-                  Se você gerencia pontos que pertencem a vários proprietários diferentes, ou precisa dividir repasses entre múltiplas empresas por ponto.
+                  <p className="font-semibold text-gray-900 mb-1">Fonte dos limites</p>
+                  Pontos, usuários e proprietários por ponto são carregados do Pricing Catalog V2 publicado pelo backend.
                 </div>
               )}
             </div>

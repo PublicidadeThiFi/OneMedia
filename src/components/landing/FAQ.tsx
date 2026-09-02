@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { usePublicTrialDays } from '../../hooks/usePublicTrialDays';
 
 export function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const trialDays = usePublicTrialDays();
 
   const faqs = [
     {
@@ -18,8 +20,10 @@ export function FAQ() {
       answer: 'Sim. Você pode importar seus pontos via planilha Excel/CSV ou cadastrar manualmente. Nossa equipe também pode ajudar na migração dos dados durante o período de teste.',
     },
     {
-      question: 'Como funciona o teste grátis de 30 dias?',
-      answer: 'Você pode usar todos os recursos da plataforma por 30 dias sem custos e sem precisar cadastrar cartão de crédito. Ao final, basta escolher um plano para continuar usando ou cancelar sem nenhuma cobrança.',
+      question: trialDays ? `Como funciona o teste grátis de ${trialDays} dias?` : 'Como funciona o teste grátis?',
+      answer: trialDays
+        ? `Nas ofertas mensais elegíveis, o teste dura ${trialDays} dias e respeita os limites do plano selecionado. Ofertas anuais podem não incluir período de teste.`
+        : 'Nas ofertas mensais elegíveis, a duração do teste é a informada no catálogo oficial e respeita os limites do plano selecionado. Ofertas anuais podem não incluir período de teste.',
     },
     {
       question: 'Tem fidelidade ou multa de cancelamento?',
@@ -28,10 +32,6 @@ export function FAQ() {
     {
       question: 'Posso usar a plataforma com minha equipe (multiusuário)?',
       answer: 'Sim! Todos os planos incluem acesso multiusuário. Você pode convidar sua equipe comercial, financeira e operacional, cada um com permissões adequadas ao seu papel.',
-    },
-    {
-      question: 'Vocês emitem NF automaticamente?',
-      answer: 'Atualmente estamos integrando com APIs de emissão de notas fiscais. Por enquanto, a plataforma registra e controla as cobranças, mas a emissão ainda precisa ser feita externamente.',
     },
     {
       question: 'Como funciona o suporte?',

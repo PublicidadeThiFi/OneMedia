@@ -1,35 +1,55 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Progress } from '../ui/progress';
-import { AlertCircle, CheckCircle2, CreditCard, Crown, Info, Loader2, HardDrive, Wifi } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Crown,
+  ExternalLink,
+  HardDrive,
+  Info,
+  Loader2,
+  ShieldCheck,
+  Wifi,
+} from 'lucide-react';
 import {
   Company,
-  PlatformPlan,
-  PlatformSubscription,
-  PlatformSubscriptionStatus,
-  PlatformSubscriptionAddonCode,
   PlatformBillingProfile,
+  PlatformSubscription,
+  PlatformSubscriptionAddonCode,
+  PlatformSubscriptionStatus,
 } from '../../types';
 import { useCompany } from '../../contexts/CompanyContext';
-import { getFriendlyPlanLabel, getMultiOwnerPlanPrice, getMultiOwnerPlanName, getMultiOwnerPriceCents } from '../../lib/plans';
 import { buildMediaUsageSummary, formatBytes } from '../../lib/mediaValidation';
+import {
+  billingPeriodLabel,
+  formatCatalogMoney,
+  formatCatalogPercentage,
+  getCatalogAnnualPaymentTerms,
+  getCatalogOffer,
+} from '../../lib/publicPricingCatalog';
+import { startCaktoCheckout } from '../../lib/billingCheckout';
+import type {
+  PricingCatalogBillingPeriod,
+  PublicPricingCatalogPlan,
+  PublicPricingCatalogResponse,
+} from '../../types/pricingCatalog';
 import { toast } from 'sonner';
- 
+
 interface SubscriptionSettingsProps {
   company: Company;
   subscription: PlatformSubscription;
-  plans: PlatformPlan[];
-  plansLoading?: boolean;
   pointsUsed: number;
-  onUpdateSubscription: (updates: { planId: string; maxOwnersPerMediaPoint: number }) => Promise<void>;
+  pricingCatalog: PublicPricingCatalogResponse | null;
+  pricingCatalogLoading?: boolean;
+  pricingCatalogError?: Error | null;
 }
 
-function formatCurrency(value: number, isCents = false) {
-  const normalized = isCents ? value / 100 : value;
-  return normalized.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function formatCurrency(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function statusLabel(status: PlatformSubscriptionStatus) {
@@ -47,7 +67,6 @@ function statusLabel(status: PlatformSubscriptionStatus) {
   }
 }
 
-
 function billingMethodStatusVariant(status?: PlatformBillingProfile['paymentMethodStatus']): 'default' | 'secondary' | 'outline' {
   switch (status) {
     case 'PRONTO_PARA_COBRANCA':
@@ -64,102 +83,79 @@ const MEDIA_ADDONS: Array<{
   code: PlatformSubscriptionAddonCode;
   title: string;
   subtitle: string;
-  priceBrl: number;
-  addStorageGb: number;
-  addTrafficGb: number;
 }> = [
-  { code: 'MEDIA_P', title: 'Mídia extra P', subtitle: '+10 GB storage • +50 GB tráfego/mês', priceBrl: 99, addStorageGb: 10, addTrafficGb: 50 },
-  { code: 'MEDIA_M', title: 'Mídia extra M', subtitle: '+25 GB storage • +125 GB tráfego/mês', priceBrl: 199, addStorageGb: 25, addTrafficGb: 125 },
-  { code: 'MEDIA_G', title: 'Mídia extra G', subtitle: '+50 GB storage • +250 GB tráfego/mês', priceBrl: 349, addStorageGb: 50, addTrafficGb: 250 },
-  { code: 'MEDIA_GG', title: 'Mídia extra GG', subtitle: '+100 GB storage • +500 GB tráfego/mês', priceBrl: 599, addStorageGb: 100, addTrafficGb: 500 },
+  { code: 'MEDIA_P', title: 'Mídia extra P', subtitle: '+10 GB storage • +50 GB tráfego/mês' },
+  { code: 'MEDIA_M', title: 'Mídia extra M', subtitle: '+25 GB storage • +125 GB tráfego/mês' },
+  { code: 'MEDIA_G', title: 'Mídia extra G', subtitle: '+50 GB storage • +250 GB tráfego/mês' },
+  { code: 'MEDIA_GG', title: 'Mídia extra GG', subtitle: '+100 GB storage • +500 GB tráfego/mês' },
 ];
 
-function addonCount(addons: { code: PlatformSubscriptionAddonCode; quantity: number }[] | undefined, code: PlatformSubscriptionAddonCode): number {
-  const line = (addons || []).find((a) => a.code === code);
+function addonCount(
+  addons: { code: PlatformSubscriptionAddonCode; quantity: number }[] | undefined,
+  code: PlatformSubscriptionAddonCode,
+): number {
+  const line = (addons || []).find((addon) => addon.code === code);
   return Math.max(0, Math.floor(line?.quantity ?? 0));
 }
 
+function resolveCurrentCatalogPlan(
+  pricingCatalog: PublicPricingCatalogResponse | null,
+  company: Company,
+  subscription: PlatformSubscription,
+): PublicPricingCatalogPlan | null {
+  if (!pricingCatalog) return null;
+
+  const exact = pricingCatalog.plans.find((plan) => {
+    const samePoints = (plan.entitlements.pointsLimit ?? null) === (company.pointsLimit ?? null);
+    const expectedOwners = plan.entitlements.maxOwnersPerMediaPoint;
+    const sameOwners = expectedOwners == null || expectedOwners === subscription.maxOwnersPerMediaPoint;
+    return samePoints && sameOwners;
+  });
+
+  return exact ?? null;
+}
 
 function onlyDigitsValue(value?: string | null) {
   return String(value || '').replace(/\D/g, '');
 }
 
-let mercadoPagoSdkPromise: Promise<any> | null = null;
-
-async function loadMercadoPagoSdk() {
-  if (typeof window === 'undefined') {
-    throw new Error('Mercado Pago indisponível neste ambiente.');
-  }
-  if ((window as any).MercadoPago) {
-    return (window as any).MercadoPago;
-  }
-  if (!mercadoPagoSdkPromise) {
-    mercadoPagoSdkPromise = new Promise((resolve, reject) => {
-      const existing = document.querySelector('script[data-mercado-pago-sdk="true"]') as HTMLScriptElement | null;
-      if (existing) {
-        existing.addEventListener('load', () => resolve((window as any).MercadoPago));
-        existing.addEventListener('error', () => reject(new Error('Falha ao carregar o SDK do Mercado Pago.')));
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://sdk.mercadopago.com/js/v2';
-      script.async = true;
-      script.dataset.mercadoPagoSdk = 'true';
-      script.onload = () => resolve((window as any).MercadoPago);
-      script.onerror = () => reject(new Error('Falha ao carregar o SDK do Mercado Pago.'));
-      document.head.appendChild(script);
-    });
-  }
-  return mercadoPagoSdkPromise;
-}
-
 export function SubscriptionSettings({
   company,
   subscription,
-  plans,
-  plansLoading,
   pointsUsed,
-  onUpdateSubscription,
+  pricingCatalog,
+  pricingCatalogLoading,
+  pricingCatalogError,
 }: SubscriptionSettingsProps) {
   const {
     entitlements,
     billingSummary,
-    purchaseMediaAddon,
-    removeMediaAddon,
     updateBillingProfile,
-    activateMercadoPagoCard,
     refreshEntitlements,
     refreshBillingSummary,
     refreshCompanyData,
     blockReason,
   } = useCompany();
 
-  const sortedPlans = useMemo(
-    () => [...plans].sort((a, b) => (a.minPoints ?? 0) - (b.minPoints ?? 0)),
-    [plans]
+  const currentCatalogPlan = useMemo(
+    () => resolveCurrentCatalogPlan(pricingCatalog, company, subscription),
+    [pricingCatalog, company, subscription],
   );
 
-  const currentPlan = useMemo(
-    () => sortedPlans.find((p) => p.id === subscription.planId) || null,
-    [sortedPlans, subscription.planId]
-  );
+  const gatewayBilling = useMemo(() => {
+    const integrations = company.integrations && typeof company.integrations === 'object' ? company.integrations : {};
+    const billing = (integrations as any)?.billing;
+    return billing && typeof billing === 'object' ? billing : {};
+  }, [company.integrations]);
 
-  const [selectedPlanId, setSelectedPlanId] = useState(subscription.planId);
-  const [selectedMaxOwners, setSelectedMaxOwners] = useState(subscription.maxOwnersPerMediaPoint || 1);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [addonLoading, setAddonLoading] = useState<PlatformSubscriptionAddonCode | null>(null);
-  const [addonRemoving, setAddonRemoving] = useState<PlatformSubscriptionAddonCode | null>(null);
+  const initialBillingPeriod: PricingCatalogBillingPeriod =
+    gatewayBilling.billingPeriod === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY';
+
+  const [selectedPlanCode, setSelectedPlanCode] = useState<string>('');
+  const [selectedBillingPeriod, setSelectedBillingPeriod] = useState<PricingCatalogBillingPeriod>(initialBillingPeriod);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [isSavingBilling, setIsSavingBilling] = useState(false);
   const [isRefreshingBillingStatus, setIsRefreshingBillingStatus] = useState(false);
-  const mercadoPagoPublicKey = ((import.meta as any).env?.VITE_MERCADO_PAGO_PUBLIC_KEY as string | undefined)?.trim() || '';
-  const cardFormRef = useRef<any>(null);
-  const [isBindingCard, setIsBindingCard] = useState(false);
-  const [cardFormReady, setCardFormReady] = useState(false);
-  const [cardFormError, setCardFormError] = useState<string | null>(null);
-  const [cardholderNameValue, setCardholderNameValue] = useState('');
-  const [cardholderEmailValue, setCardholderEmailValue] = useState('');
-  const [cardIdentificationNumberValue, setCardIdentificationNumberValue] = useState('');
-  const [cardIdentificationTypeValue, setCardIdentificationTypeValue] = useState<'CPF' | 'CNPJ'>('CPF');
   const [billingForm, setBillingForm] = useState<PlatformBillingProfile>({
     contactName: '',
     legalName: '',
@@ -176,7 +172,7 @@ export function SubscriptionSettings({
     addressState: '',
     addressCountry: 'Brasil',
     paymentMethodStatus: 'PENDENTE',
-    paymentMethodStatusLabel: 'Dados financeiros pendentes',
+    paymentMethodStatusLabel: 'Checkout pendente',
     autoChargeReady: false,
   });
 
@@ -186,80 +182,35 @@ export function SubscriptionSettings({
   }, [billingSummary]);
 
   useEffect(() => {
-    setCardholderNameValue(billingForm.contactName || '');
-    setCardholderEmailValue(billingForm.email || '');
-    const digits = onlyDigitsValue(billingForm.document || '');
-    setCardIdentificationNumberValue(digits);
-    setCardIdentificationTypeValue((billingForm.documentType as 'CPF' | 'CNPJ' | undefined) || (digits.length === 11 ? 'CPF' : 'CNPJ'));
-  }, [billingForm.contactName, billingForm.email, billingForm.document, billingForm.documentType]);
+    if (!pricingCatalog?.plans?.length) return;
+    if (selectedPlanCode && pricingCatalog.plans.some((plan) => plan.code === selectedPlanCode)) return;
 
-  const selectedPlan = useMemo(
-    () => sortedPlans.find((p) => p.id === selectedPlanId) || null,
-    [sortedPlans, selectedPlanId]
+    const firstCheckoutPlan = pricingCatalog.plans.find((plan) => plan.offers.length > 0);
+    setSelectedPlanCode(currentCatalogPlan?.code || firstCheckoutPlan?.code || pricingCatalog.plans[0].code);
+  }, [pricingCatalog, currentCatalogPlan, selectedPlanCode]);
+
+  const selectedCatalogPlan = useMemo(
+    () => pricingCatalog?.plans.find((plan) => plan.code === selectedPlanCode) ?? null,
+    [pricingCatalog, selectedPlanCode],
   );
 
-  const maxPoints = selectedPlan?.maxPoints ?? null;
-  const pointsLimitLabel = maxPoints == null ? 'Ilimitado' : String(maxPoints);
-  const usagePercentage = maxPoints == null ? 0 : Math.min(100, Math.round((pointsUsed / maxPoints) * 100));
+  const selectedOffer = useMemo(
+    () => (selectedCatalogPlan ? getCatalogOffer(selectedCatalogPlan, selectedBillingPeriod) : null),
+    [selectedCatalogPlan, selectedBillingPeriod],
+  );
+  const selectedAnnualTerms = useMemo(
+    () => getCatalogAnnualPaymentTerms(selectedOffer),
+    [selectedOffer],
+  );
 
-  const hasChanges = selectedPlanId !== subscription.planId || selectedMaxOwners !== subscription.maxOwnersPerMediaPoint;
-
-  const canDowngradePoints = maxPoints == null ? true : pointsUsed <= maxPoints;
-
-  const planMonthlyPrice = selectedPlan?.monthlyPrice ?? 0;
-  // Alguns ambientes armazenam preços em centavos (ex.: 69900), outros em BRL (ex.: 699).
-  const priceIsCents = planMonthlyPrice >= 10000;
-
-  const multiOwnerPlanPrice = priceIsCents
-    ? getMultiOwnerPriceCents(selectedMaxOwners)
-    : getMultiOwnerPlanPrice(selectedMaxOwners);
-
-  const normalizedPlanMonthlyPrice = priceIsCents ? planMonthlyPrice / 100 : planMonthlyPrice;
-  const normalizedMultiOwnerPrice = priceIsCents ? multiOwnerPlanPrice / 100 : multiOwnerPlanPrice;
-  const baseMonthlyPrice = normalizedPlanMonthlyPrice + normalizedMultiOwnerPrice;
-  const addonMonthlyTotal = billingSummary?.totals?.addonsMonthly ?? 0;
-  const totalMonthlyEstimate = baseMonthlyPrice + addonMonthlyTotal;
-
-  const handleRefreshBillingStatus = async () => {
-    try {
-      setIsRefreshingBillingStatus(true);
-      await Promise.all([refreshBillingSummary(), refreshCompanyData()]);
-      toast.success('Status de cobrança atualizado.');
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.message || 'Não foi possível atualizar o status de cobrança.');
-    } finally {
-      setIsRefreshingBillingStatus(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!selectedPlan) {
-      alert('Selecione um plano válido.');
-      return;
-    }
-
-    if (!canDowngradePoints) {
-      alert(
-        `Você possui ${pointsUsed} pontos cadastrados. Para escolher este plano (${pointsLimitLabel}), exclua pontos ou selecione um plano maior.`
-      );
-      return;
-    }
-
-    try {
-      setIsUpdating(true);
-      await onUpdateSubscription({ planId: selectedPlanId, maxOwnersPerMediaPoint: selectedMaxOwners });
-      alert('Assinatura atualizada com sucesso.');
-      await refreshEntitlements();
-    } catch (e: any) {
-      alert(e?.response?.data?.message || 'Erro ao atualizar assinatura.');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  const currentPointsLimit = company.pointsLimit ?? null;
+  const pointsLimitLabel = currentPointsLimit == null ? 'Ilimitado' : currentPointsLimit.toLocaleString('pt-BR');
+  const usagePercentage = currentPointsLimit == null || currentPointsLimit <= 0
+    ? 0
+    : Math.min(100, Math.round((pointsUsed / currentPointsLimit) * 100));
 
   const status = subscription.status;
   const isActive = status === PlatformSubscriptionStatus.ATIVA || status === PlatformSubscriptionStatus.TESTE;
-
   const mediaSummary = useMemo(() => buildMediaUsageSummary(entitlements), [entitlements]);
 
   const storagePct = useMemo(() => {
@@ -273,55 +224,31 @@ export function SubscriptionSettings({
   }, [mediaSummary]);
 
   const monthLabel = useMemo(() => {
-    const y = entitlements?.usage?.year;
-    const m = entitlements?.usage?.month;
-    if (!y || !m) return null;
-    const mm = String(m).padStart(2, '0');
-    return `${mm}/${y}`;
+    const year = entitlements?.usage?.year;
+    const month = entitlements?.usage?.month;
+    if (!year || !month) return null;
+    return `${String(month).padStart(2, '0')}/${year}`;
   }, [entitlements?.usage?.year, entitlements?.usage?.month]);
 
-  const buyAddon = async (code: PlatformSubscriptionAddonCode) => {
-    const addon = MEDIA_ADDONS.find((a) => a.code === code);
-    if (!addon) return;
+  const normalizedPlanMonthlyPrice = billingSummary?.totals?.planMonthly ?? 0;
+  const normalizedMultiOwnerPrice = billingSummary?.totals?.multiOwnerMonthly ?? 0;
+  const addonMonthlyTotal = billingSummary?.totals?.addonsMonthly ?? 0;
+  const totalMonthlyEstimate = billingSummary?.totals?.totalMonthly ?? 0;
 
-    const ok = window.confirm(
-      `Adicionar ${addon.title}?\n\nInclui: ${addon.subtitle}\nValor: ${formatCurrency(addon.priceBrl)} / mês\n\n(Fluxo de pagamento ainda não integrado — isto apenas registra o add-on no sistema.)`
-    );
-    if (!ok) return;
-
+  const handleRefreshBillingStatus = async () => {
     try {
-      setAddonLoading(code);
-      await purchaseMediaAddon(code, 1);
-      toast.success('Add-on registrado com sucesso.');
-      await refreshEntitlements();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Erro ao adicionar add-on.');
+      setIsRefreshingBillingStatus(true);
+      await Promise.all([refreshBillingSummary(), refreshCompanyData()]);
+      toast.success('Status de cobrança atualizado.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Não foi possível atualizar o status de cobrança.');
     } finally {
-      setAddonLoading(null);
-    }
-  };
-
-  const handleRemoveAddon = async (code: PlatformSubscriptionAddonCode) => {
-    const addon = MEDIA_ADDONS.find((a) => a.code === code);
-    if (!addon) return;
-
-    const ok = window.confirm(`Remover 1 unidade de ${addon.title} da sua assinatura mensal?`);
-    if (!ok) return;
-
-    try {
-      setAddonRemoving(code);
-      await removeMediaAddon(code, 1);
-      toast.success('Add-on removido com sucesso.');
-      await refreshEntitlements();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Erro ao remover add-on.');
-    } finally {
-      setAddonRemoving(null);
+      setIsRefreshingBillingStatus(false);
     }
   };
 
   const handleBillingField = (field: keyof PlatformBillingProfile, value: string) => {
-    setBillingForm((prev) => ({ ...prev, [field]: value }));
+    setBillingForm((previous) => ({ ...previous, [field]: value }));
   };
 
   const validateBillingForm = (profile: PlatformBillingProfile) => {
@@ -351,133 +278,48 @@ export function SubscriptionSettings({
       await updateBillingProfile(billingForm);
       await refreshBillingSummary();
       toast.success('Dados financeiros atualizados.');
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Erro ao salvar dados financeiros.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Erro ao salvar dados financeiros.');
     } finally {
       setIsSavingBilling(false);
     }
   };
 
-  useEffect(() => {
-    if (billingForm.preferredMethod !== 'CARTAO') {
-      setCardFormReady(false);
-      setCardFormError(null);
+  const handleCheckout = async () => {
+    if (!selectedCatalogPlan || !selectedOffer) {
+      toast.error('A oferta selecionada ainda não possui checkout disponível.');
       return;
     }
 
-    if (!mercadoPagoPublicKey) {
-      setCardFormReady(false);
-      setCardFormError('Defina VITE_MERCADO_PAGO_PUBLIC_KEY no frontend para habilitar a tokenização com o Mercado Pago.');
+    if (selectedCatalogPlan.entitlements.pointsLimit != null && pointsUsed > selectedCatalogPlan.entitlements.pointsLimit) {
+      toast.error(
+        `Você possui ${pointsUsed} pontos cadastrados. Reduza o uso antes de contratar um plano com limite de ${selectedCatalogPlan.entitlements.pointsLimit.toLocaleString('pt-BR')} pontos.`,
+      );
       return;
     }
 
-    let cancelled = false;
-    let localCardForm: any = null;
+    try {
+      setCheckoutLoading(selectedOffer.code);
+      await startCaktoCheckout(selectedOffer.code);
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Não foi possível abrir o checkout seguro da Cakto.',
+      );
+      setCheckoutLoading(null);
+    }
+  };
 
-    const mountCardForm = async () => {
-      try {
-        setCardFormReady(false);
-        setCardFormError(null);
-        const MercadoPagoCtor = await loadMercadoPagoSdk();
-        if (cancelled) return;
+  const gatewayProvider = String(
+    gatewayBilling.gatewayProvider || billingSummary?.billingProfile?.gatewayProvider || '',
+  ).trim().toUpperCase();
 
-        try {
-          cardFormRef.current?.unmount?.();
-        } catch {
-          // noop
-        }
-
-        const mp = new MercadoPagoCtor(mercadoPagoPublicKey, { locale: 'pt-BR' });
-        localCardForm = mp.cardForm({
-          amount: String(Math.max(totalMonthlyEstimate || 0, 1).toFixed(2)),
-          iframe: true,
-          form: {
-            id: 'onemedia-mp-card-form',
-            cardNumber: { id: 'form-checkout__cardNumber', placeholder: 'Número do cartão' },
-            expirationDate: { id: 'form-checkout__expirationDate', placeholder: 'MM/AA' },
-            securityCode: { id: 'form-checkout__securityCode', placeholder: 'CVV' },
-            cardholderName: { id: 'form-checkout__cardholderName', placeholder: 'Titular do cartão' },
-            cardholderEmail: { id: 'form-checkout__cardholderEmail', placeholder: 'email@empresa.com' },
-            identificationType: { id: 'form-checkout__identificationType', placeholder: 'Tipo de documento' },
-            identificationNumber: { id: 'form-checkout__identificationNumber', placeholder: 'CPF/CNPJ do titular' },
-            issuer: { id: 'form-checkout__issuer', placeholder: 'Banco emissor' },
-            installments: { id: 'form-checkout__installments', placeholder: 'Parcelas' },
-          },
-          callbacks: {
-            onFormMounted: (error: any) => {
-              if (cancelled) return;
-              if (error) {
-                setCardFormError(error?.message || 'Não foi possível montar o formulário seguro do Mercado Pago.');
-                setCardFormReady(false);
-                return;
-              }
-              setCardFormReady(true);
-            },
-            onSubmit: async (event: Event) => {
-              event.preventDefault();
-              const billingPayload: PlatformBillingProfile = { ...billingForm, preferredMethod: 'CARTAO' };
-              const billingError = validateBillingForm(billingPayload);
-              if (billingError) {
-                toast.error(billingError);
-                return;
-              }
-              try {
-                setIsBindingCard(true);
-                const data = localCardForm?.getCardFormData?.() || {};
-                if (!data?.token) {
-                  throw new Error('O Mercado Pago não retornou o token do cartão.');
-                }
-                await updateBillingProfile(billingPayload);
-                await activateMercadoPagoCard({
-                  cardToken: data.token,
-                  paymentMethodId: data.paymentMethodId || null,
-                  paymentMethodLabel: data.paymentMethodId ? `Cartão ${data.paymentMethodId}` : 'Cartão Mercado Pago',
-                  identificationType: data.identificationType || cardIdentificationTypeValue,
-                  identificationNumber: data.identificationNumber || cardIdentificationNumberValue || onlyDigitsValue(billingForm.document || ''),
-                  cardholderName: data.cardholderName || cardholderNameValue,
-                  lastFourDigits: null,
-                });
-                await refreshBillingSummary();
-                toast.success('Cartão vinculado com sucesso ao Mercado Pago.');
-              } catch (error: any) {
-                toast.error(error?.response?.data?.message || error?.message || 'Não foi possível vincular o cartão no Mercado Pago.');
-              } finally {
-                setIsBindingCard(false);
-              }
-            },
-          },
-        });
-
-        cardFormRef.current = localCardForm;
-      } catch (error: any) {
-        if (cancelled) return;
-        setCardFormReady(false);
-        setCardFormError(error?.message || 'Falha ao carregar o Mercado Pago.');
-      }
-    };
-
-    const timer = window.setTimeout(mountCardForm, 0);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-      try {
-        localCardForm?.unmount?.();
-      } catch {
-        // noop
-      }
-    };
-  }, [
-    billingForm.preferredMethod,
-    billingForm.contactName,
-    billingForm.email,
-    billingForm.document,
-    billingForm.documentType,
-    totalMonthlyEstimate,
-    mercadoPagoPublicKey,
-    cardIdentificationNumberValue,
-    cardIdentificationTypeValue,
-    cardholderNameValue,
-  ]);
+  const gatewayStatusLabel = billingSummary?.billingProfile?.autoChargeReady
+    ? 'Cobrança recorrente ativa'
+    : gatewayProvider === 'CAKTO'
+      ? 'Checkout Cakto ainda não conciliado'
+      : 'Aguardando checkout Cakto';
 
   return (
     <div className="space-y-6">
@@ -509,29 +351,162 @@ export function SubscriptionSettings({
 
             <div className="text-right">
               <div className="text-sm text-gray-600">Plano atual</div>
-              <div className="font-medium">{getFriendlyPlanLabel(currentPlan as any)}</div>
+              <div className="font-medium">{currentCatalogPlan?.publicName || 'Plano contratado'}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {currentPointsLimit == null ? 'Limite sob consulta' : `${currentPointsLimit.toLocaleString('pt-BR')} pontos`}
+                {' • '}
+                {subscription.maxOwnersPerMediaPoint} proprietário(s) por ponto
+              </div>
             </div>
           </div>
+
+          <Card className="border-blue-100 bg-blue-50/40">
+            <CardContent className="p-4 space-y-4">
+              <div>
+                <div className="text-sm font-semibold text-gray-900">Alterar ou contratar plano</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  O catálogo vem do backend e o pagamento acontece no checkout hospedado da Cakto. Nenhum dado de cartão passa pelo OneMedia.
+                </div>
+              </div>
+
+              {pricingCatalogLoading ? (
+                <div className="text-sm text-gray-500">Carregando catálogo oficial...</div>
+              ) : pricingCatalogError || !pricingCatalog ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  Catálogo oficial indisponível. O checkout fica bloqueado para evitar contratação com informação comercial desatualizada.
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {pricingCatalog.plans.map((catalogPlan) => {
+                      const monthly = getCatalogOffer(catalogPlan, 'MONTHLY');
+                      const annual = getCatalogOffer(catalogPlan, 'ANNUAL');
+                      const annualTerms = getCatalogAnnualPaymentTerms(annual);
+                      const selected = catalogPlan.code === selectedPlanCode;
+
+                      return (
+                        <button
+                          key={catalogPlan.code}
+                          type="button"
+                          onClick={() => setSelectedPlanCode(catalogPlan.code)}
+                          className={`text-left rounded-xl border p-3 transition-colors ${
+                            selected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-300' : 'border-blue-100 bg-white hover:border-blue-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-semibold text-gray-900">{catalogPlan.publicName}</div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {catalogPlan.entitlements.pointsLimit == null
+                                  ? 'Pontos sob consulta'
+                                  : `${catalogPlan.entitlements.pointsLimit.toLocaleString('pt-BR')} pontos`}
+                                {' • '}
+                                {catalogPlan.entitlements.usersLimit == null
+                                  ? 'usuários sob consulta'
+                                  : `${catalogPlan.entitlements.usersLimit} usuários`}
+                                {' • '}
+                                {catalogPlan.entitlements.maxOwnersPerMediaPoint == null
+                                  ? 'proprietários sob consulta'
+                                  : `${catalogPlan.entitlements.maxOwnersPerMediaPoint} proprietário(s)/ponto`}
+                              </div>
+                            </div>
+                            <Badge variant="outline">{catalogPlan.code}</Badge>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <div className="text-gray-500">Mensal</div>
+                              <div className="font-semibold text-gray-900 mt-1">
+                                {monthly ? formatCatalogMoney(monthly.amount, monthly.currency) : 'Sob consulta'}
+                              </div>
+                            </div>
+                            <div className="rounded-lg bg-gray-50 p-2">
+                              <div className="text-gray-500">Anual</div>
+                              <div className="font-semibold text-gray-900 mt-1">
+                                {annual ? formatCatalogMoney(annual.amount, annual.currency) : 'Sob consulta'}
+                              </div>
+                              {annualTerms && (
+                                <div className="mt-1 text-[11px] leading-tight text-gray-500">
+                                  {annualTerms.monthsAccess} meses pelo valor de {annualTerms.monthsCharged}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-[220px_1fr] items-end">
+                    <div>
+                      <div className="text-sm font-medium mb-2">Cobrança</div>
+                      <Select
+                        value={selectedBillingPeriod}
+                        onValueChange={(value: string) => setSelectedBillingPeriod(value === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY')}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MONTHLY">Mensal</SelectItem>
+                          <SelectItem value="ANNUAL">Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-white p-3 flex-wrap">
+                      <div>
+                        <div className="text-sm text-gray-500">
+                          {selectedCatalogPlan?.publicName || 'Plano'} • {billingPeriodLabel(selectedBillingPeriod)}
+                        </div>
+                        <div className="font-semibold text-gray-900 mt-1">
+                          {selectedOffer
+                            ? formatCatalogMoney(selectedOffer.amount, selectedOffer.currency)
+                            : 'Oferta sob consulta'}
+                        </div>
+                        {selectedBillingPeriod === 'ANNUAL' && selectedOffer && (
+                          <div className="mt-1 text-xs text-gray-500">
+                            {selectedAnnualTerms
+                              ? `${selectedAnnualTerms.monthsAccess} meses pelo valor de ${selectedAnnualTerms.monthsCharged} mensalidades • economia efetiva de ${formatCatalogPercentage(selectedAnnualTerms.effectiveDiscountPercent)} • cobrança integral à vista`
+                              : `${selectedOffer.billingCycleMonths} meses de acesso • condições anuais no checkout Cakto`}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        onClick={handleCheckout}
+                        disabled={!selectedOffer || checkoutLoading != null}
+                      >
+                        {checkoutLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Abrindo checkout...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Ir para checkout Cakto
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="border-gray-200">
             <CardContent className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Info className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium">Uso de pontos (limite por conta)</span>
+                  <span className="text-sm font-medium">Uso de pontos (limite atual da conta)</span>
                 </div>
-                <span className="text-sm text-gray-600">
-                  {pointsUsed} / {pointsLimitLabel}
-                </span>
+                <span className="text-sm text-gray-600">{pointsUsed} / {pointsLimitLabel}</span>
               </div>
-              {maxPoints != null && <Progress value={usagePercentage} />}
-              <div className="text-xs text-gray-500">
-                O limite de pontos é sempre da <b>conta</b>, independentemente da quantidade de proprietários.
-              </div>
+              {currentPointsLimit != null && <Progress value={usagePercentage} />}
             </CardContent>
           </Card>
 
-          {/* Media quotas */}
           <Card className={(blockReason === 'STORAGE_EXCEEDED' || blockReason === 'TRAFFIC_EXCEEDED') ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
             <CardContent className="p-4 space-y-4">
               <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -539,35 +514,26 @@ export function SubscriptionSettings({
                   <HardDrive className="w-4 h-4 text-gray-600" />
                   <span className="text-sm font-medium">Mídia (Storage + Tráfego)</span>
                 </div>
-                <Button variant="outline" size="sm" onClick={refreshEntitlements}>
-                  Atualizar
-                </Button>
+                <Button variant="outline" size="sm" onClick={refreshEntitlements}>Atualizar</Button>
               </div>
 
               {!entitlements ? (
-                <div className="text-sm text-gray-600">
-                  Não foi possível carregar os limites de mídia. Clique em <b>Atualizar</b>.
-                </div>
+                <div className="text-sm text-gray-600">Não foi possível carregar os limites de mídia. Clique em <b>Atualizar</b>.</div>
               ) : (
                 <div className="space-y-4">
-                  {/* Storage */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <HardDrive className="w-4 h-4 text-gray-500" />
                         <span className="text-sm font-medium">Armazenamento</span>
-                      </div> 
+                      </div>
                       <span className="text-sm text-gray-600">
                         {formatBytes(mediaSummary?.storageUsedBytes ?? 0)} / {entitlements.limits.totalStorageGb} GB
                       </span>
                     </div>
                     <Progress value={storagePct} />
-                    <div className="text-xs text-gray-500">
-                      Se atingir 100%, novos uploads serão bloqueados.
-                    </div>
                   </div>
 
-                  {/* Traffic */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -580,45 +546,26 @@ export function SubscriptionSettings({
                       </span>
                     </div>
                     <Progress value={trafficPct} />
-                    <div className="text-xs text-gray-500">
-                      Se atingir 100%, o acesso a mídias (uploads/downloads) pode ser bloqueado até comprar Mídia extra.
-                    </div>
                   </div>
 
-                  {/* File limits */}
                   <div className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
                     <div className="text-sm font-medium">Limites por arquivo (seu plano)</div>
                     <div className="text-xs text-gray-600 grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <div>
-                        <b>Vídeo:</b> até {entitlements.limits.file.maxVideoMb}MB e {entitlements.limits.file.maxVideoSeconds}s
-                      </div>
-                      <div>
-                        <b>Imagem:</b> até {entitlements.limits.file.maxImageMb}MB
-                      </div>
-                      <div>
-                        <b>PDF:</b> até {entitlements.limits.file.maxPdfMb}MB
-                      </div>
+                      <div><b>Vídeo:</b> até {entitlements.limits.file.maxVideoMb}MB e {entitlements.limits.file.maxVideoSeconds}s</div>
+                      <div><b>Imagem:</b> até {entitlements.limits.file.maxImageMb}MB</div>
+                      <div><b>PDF:</b> até {entitlements.limits.file.maxPdfMb}MB</div>
                     </div>
                   </div>
 
-                  {/* Current addons */}
                   <div className="space-y-2">
                     <div className="text-sm font-medium">Add-ons ativos</div>
                     <div className="flex flex-wrap gap-2">
-                      {MEDIA_ADDONS.map((a) => {
-                        const qty = addonCount(entitlements.addons, a.code);
-                        if (!qty) return null;
+                      {MEDIA_ADDONS.map((addon) => {
+                        const quantity = addonCount(entitlements.addons, addon.code);
+                        if (!quantity) return null;
                         return (
-                          <div key={a.code} className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-indigo-800">
-                            <span className="text-xs font-medium">{a.title} ×{qty}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveAddon(a.code)}
-                              disabled={addonRemoving != null}
-                              className="text-[11px] font-semibold hover:underline disabled:opacity-50"
-                            >
-                              {addonRemoving === a.code ? 'Removendo...' : 'Remover 1'}
-                            </button>
+                          <div key={addon.code} className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-800">
+                            {addon.title} ×{quantity}
                           </div>
                         );
                       })}
@@ -626,40 +573,8 @@ export function SubscriptionSettings({
                         <span className="text-xs text-gray-500">Nenhum add-on ativo.</span>
                       )}
                     </div>
-                  </div>
-
-                  {/* Buy addons */}
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Comprar Mídia extra</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {MEDIA_ADDONS.map((a) => (
-                        <div key={a.code} className="rounded-lg border border-gray-200 bg-white p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="font-medium">{a.title}</div>
-                              <div className="text-xs text-gray-600">{a.subtitle}</div>
-                              <div className="text-sm font-semibold mt-1">{formatCurrency(a.priceBrl)}</div>
-                            </div>
-                            <Button
-                              onClick={() => buyAddon(a.code)}
-                              disabled={addonLoading != null}
-                              className={blockReason === 'STORAGE_EXCEEDED' || blockReason === 'TRAFFIC_EXCEEDED' ? 'bg-red-600 hover:opacity-95' : undefined}
-                            >
-                              {addonLoading === a.code ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  Processando...
-                                </>
-                              ) : (
-                                'Adicionar'
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      O add-on aumenta seu <b>storage</b> e automaticamente aumenta o <b>tráfego mensal</b> (k=5).
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      Compra e remoção de Mídia Extra ficam indisponíveis no browser até existirem ofertas oficiais desses add-ons no gateway. Nenhuma mutação direta de entitlement é enviada ao backend.
                     </div>
                   </div>
                 </div>
@@ -667,67 +582,13 @@ export function SubscriptionSettings({
             </CardContent>
           </Card>
 
-          <Card className="border-gray-200">
-            <CardContent className="p-4 space-y-2">
-              <div className="text-sm font-medium">Selecione seu plano de pontos</div>
-
-              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
-                <SelectTrigger disabled={!!plansLoading}>
-                  <SelectValue placeholder={plansLoading ? 'Carregando planos...' : 'Selecione um plano'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedPlans.map((plan) => {
-                    const label = getFriendlyPlanLabel(plan as any);
-                    return (
-                      <SelectItem key={plan.id} value={plan.id}>
-                        {label}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-
-              {!canDowngradePoints && (
-                <div className="text-xs text-red-600">
-                  Este plano é menor que a quantidade de pontos já cadastrados ({pointsUsed}).
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-gray-200">
-            <CardContent className="p-4 space-y-2">
-              <div className="text-sm font-medium">Assinatura multi-proprietários (limite por ponto)</div>
-
-              <Select
-                value={String(selectedMaxOwners)}
-                onValueChange={(v: string) => setSelectedMaxOwners(parseInt(v, 10))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[1, 2, 3, 4].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {getMultiOwnerPlanName(n)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="text-xs text-gray-500">
-                Esse limite é aplicado em cada ponto de mídia (ex.: 2 proprietários por ponto).
-                <br />
-                Você pode cadastrar empresas proprietárias ilimitadas no Super Admin.
+          <Card className="border-emerald-200 bg-emerald-50/50">
+            <CardContent className="p-4 text-sm text-emerald-900 flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
+              <div>
+                <b>Checkout hospedado pela Cakto.</b> O OneMedia não carrega SDK de cartão, não tokeniza cartão no navegador e não recebe número, validade ou CVV.
+                <div className="text-xs mt-1 text-emerald-800">A ativação do plano ocorre somente após webhook autenticado e reconciliação no backend.</div>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-amber-200 bg-amber-50">
-            <CardContent className="p-4 text-sm text-amber-900">
-              <b>Mercado Pago habilitado para cartão recorrente.</b> O sistema já recebe webhook para sincronizar status da assinatura e das cobranças.
-              <br />
-              <span className="text-xs">Ao configurar a URL do webhook no Mercado Pago com a chave secreta, aprovações, pendências e falhas passam a refletir automaticamente aqui.</span>
             </CardContent>
           </Card>
 
@@ -738,28 +599,19 @@ export function SubscriptionSettings({
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4">
                 <div>
-                  <div className="text-sm font-medium text-gray-900">Status do método de pagamento</div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    {billingSummary?.billingProfile?.paymentMethodStatusLabel || 'Aguardando configuração do Mercado Pago'}
-                  </div>
+                  <div className="text-sm font-medium text-gray-900">Gateway de cobrança</div>
+                  <div className="text-sm text-gray-600 mt-1">{gatewayStatusLabel}</div>
                   <div className="text-xs text-gray-500 mt-2">
-                    Use o botão ao lado para forçar uma atualização manual depois de testar o webhook no Mercado Pago.
+                    {gatewayProvider === 'CAKTO' ? 'Provider conciliado: Cakto.' : 'O provider passa a ser definido após o checkout e webhook conciliado.'}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={billingMethodStatusVariant(billingSummary?.billingProfile?.paymentMethodStatus)}>
-                    {billingSummary?.billingProfile?.paymentMethodStatus === 'PRONTO_PARA_COBRANCA'
-                      ? 'Pronto para cobrança'
-                      : billingSummary?.billingProfile?.paymentMethodStatus === 'AGUARDANDO_VINCULACAO'
-                        ? 'Aguardando vínculo'
-                        : 'Pendente'}
+                    {billingSummary?.billingProfile?.autoChargeReady ? 'Recorrência ativa' : 'Checkout pendente'}
                   </Badge>
                   <Button type="button" variant="outline" size="sm" onClick={handleRefreshBillingStatus} disabled={isRefreshingBillingStatus}>
                     {isRefreshingBillingStatus ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Atualizando...
-                      </>
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Atualizando...</>
                     ) : (
                       'Atualizar status'
                     )}
@@ -770,272 +622,86 @@ export function SubscriptionSettings({
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm font-medium mb-2">Responsável financeiro</div>
-                  <input
-                    type="text"
-                    value={billingForm.contactName || ''}
-                    onChange={(e) => handleBillingField('contactName', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <input type="text" value={billingForm.contactName || ''} onChange={(event) => handleBillingField('contactName', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
                   <div className="text-sm font-medium mb-2">Nome / razão social para cobrança</div>
-                  <input
-                    type="text"
-                    value={billingForm.legalName || ''}
-                    onChange={(e) => handleBillingField('legalName', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <input type="text" value={billingForm.legalName || ''} onChange={(event) => handleBillingField('legalName', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
                   <div className="text-sm font-medium mb-2">E-mail financeiro</div>
-                  <input
-                    type="email"
-                    value={billingForm.email || ''}
-                    onChange={(e) => handleBillingField('email', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <input type="email" value={billingForm.email || ''} onChange={(event) => handleBillingField('email', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
                   <div className="text-sm font-medium mb-2">Telefone</div>
-                  <input
-                    type="text"
-                    value={billingForm.phone || ''}
-                    onChange={(e) => handleBillingField('phone', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <input type="text" value={billingForm.phone || ''} onChange={(event) => handleBillingField('phone', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium mb-2">CPF ou CNPJ</div>
-                  <input
-                    type="text"
-                    value={billingForm.document || ''}
-                    onChange={(e) => handleBillingField('document', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <div className="text-sm font-medium mb-2">CPF/CNPJ</div>
+                  <input type="text" value={billingForm.document || ''} onChange={(event) => handleBillingField('document', onlyDigitsValue(event.target.value))} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium mb-2">Forma preferida de cobrança</div>
-                  <Select
-                    value={String(billingForm.preferredMethod || 'CARTAO')}
-                    onValueChange={(value: string) => handleBillingField('preferredMethod', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
+                  <div className="text-sm font-medium mb-2">Preferência de pagamento</div>
+                  <Select value={String(billingForm.preferredMethod || 'CARTAO')} onValueChange={(value: string) => handleBillingField('preferredMethod', value)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="CARTAO">Cartão recorrente</SelectItem>
-                      <SelectItem value="PIX">PIX</SelectItem>
+                      <SelectItem value="CARTAO">Cartão</SelectItem>
+                      <SelectItem value="PIX">Pix</SelectItem>
                       <SelectItem value="BOLETO">Boleto</SelectItem>
                     </SelectContent>
                   </Select>
+                  <div className="text-xs text-gray-500 mt-1">É apenas uma preferência cadastral. O meio disponível é confirmado no checkout Cakto.</div>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-4">
-                <div className="text-sm font-medium text-gray-900">Endereço de cobrança</div>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-sm font-medium mb-2">CEP</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressZipcode || ''}
-                      onChange={(e) => handleBillingField('addressZipcode', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <div className="text-sm font-medium mb-2">Logradouro</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressStreet || ''}
-                      onChange={(e) => handleBillingField('addressStreet', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium mb-2">Número</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressNumber || ''}
-                      onChange={(e) => handleBillingField('addressNumber', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <div className="text-sm font-medium mb-2">Complemento</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressComplement || ''}
-                      onChange={(e) => handleBillingField('addressComplement', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium mb-2">Bairro</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressDistrict || ''}
-                      onChange={(e) => handleBillingField('addressDistrict', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium mb-2">Cidade</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressCity || ''}
-                      onChange={(e) => handleBillingField('addressCity', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium mb-2">Estado / UF</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressState || ''}
-                      onChange={(e) => handleBillingField('addressState', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
-                  <div className="md:col-span-3">
-                    <div className="text-sm font-medium mb-2">País</div>
-                    <input
-                      type="text"
-                      value={billingForm.addressCountry || ''}
-                      onChange={(e) => handleBillingField('addressCountry', e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                    />
-                  </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">CEP</div>
+                  <input type="text" value={billingForm.addressZipcode || ''} onChange={(event) => handleBillingField('addressZipcode', onlyDigitsValue(event.target.value))} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
                 </div>
-              </div>
-
-              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-600 space-y-2">
-                {billingSummary?.billingProfile?.autoChargeReady ? (
-                  <span>Meio de pagamento tokenizado e pronto para cobrança automática.</span>
-                ) : (
-                  <span>Salve os dados financeiros e, em seguida, vincule um cartão recorrente do Mercado Pago.</span>
-                )}
-                {billingSummary?.billingProfile?.paymentMethodLabel ? (
-                  <div className="text-xs text-gray-500">Método atual: <b>{billingSummary.billingProfile.paymentMethodLabel}</b>{billingSummary.billingProfile.paymentMethodLast4 ? ` • final ${billingSummary.billingProfile.paymentMethodLast4}` : ''}</div>
-                ) : null}
+                <div>
+                  <div className="text-sm font-medium mb-2">Logradouro</div>
+                  <input type="text" value={billingForm.addressStreet || ''} onChange={(event) => handleBillingField('addressStreet', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Número</div>
+                  <input type="text" value={billingForm.addressNumber || ''} onChange={(event) => handleBillingField('addressNumber', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Complemento</div>
+                  <input type="text" value={billingForm.addressComplement || ''} onChange={(event) => handleBillingField('addressComplement', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Bairro</div>
+                  <input type="text" value={billingForm.addressDistrict || ''} onChange={(event) => handleBillingField('addressDistrict', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Cidade</div>
+                  <input type="text" value={billingForm.addressCity || ''} onChange={(event) => handleBillingField('addressCity', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">Estado/UF</div>
+                  <input type="text" value={billingForm.addressState || ''} onChange={(event) => handleBillingField('addressState', event.target.value.toUpperCase())} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium mb-2">País</div>
+                  <input type="text" value={billingForm.addressCountry || ''} onChange={(event) => handleBillingField('addressCountry', event.target.value)} className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+                </div>
               </div>
 
               <div className="flex justify-end">
                 <Button onClick={handleSaveBilling} disabled={isSavingBilling}>
-                  {isSavingBilling ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    'Salvar dados financeiros'
-                  )}
+                  {isSavingBilling ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</> : 'Salvar dados financeiros'}
                 </Button>
               </div>
-
-              {String(billingForm.preferredMethod || 'CARTAO') === 'CARTAO' && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-emerald-700" />
-                    <div>
-                      <div className="text-sm font-semibold text-emerald-900">Vincular cartão recorrente no Mercado Pago</div>
-                      <div className="text-xs text-emerald-800">O cartão é tokenizado no frontend e enviado ao backend apenas como token seguro.</div>
-                    </div>
-                  </div>
-
-                  {!mercadoPagoPublicKey ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      Configure <b>VITE_MERCADO_PAGO_PUBLIC_KEY</b> no frontend para habilitar o formulário seguro do Mercado Pago.
-                    </div>
-                  ) : (
-                    <form id="onemedia-mp-card-form" className="space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2">
-                          <div className="text-sm font-medium mb-2">Número do cartão</div>
-                          <div id="form-checkout__cardNumber" className="min-h-[48px] rounded-xl border border-gray-200 bg-white px-4 py-3" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">Validade</div>
-                          <div id="form-checkout__expirationDate" className="min-h-[48px] rounded-xl border border-gray-200 bg-white px-4 py-3" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">CVV</div>
-                          <div id="form-checkout__securityCode" className="min-h-[48px] rounded-xl border border-gray-200 bg-white px-4 py-3" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">Titular do cartão</div>
-                          <input id="form-checkout__cardholderName" value={cardholderNameValue} onChange={(e) => setCardholderNameValue(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="Nome como está no cartão" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">E-mail do pagador</div>
-                          <input id="form-checkout__cardholderEmail" type="email" value={cardholderEmailValue} onChange={(e) => setCardholderEmailValue(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="email@empresa.com" />
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">Tipo de documento</div>
-                          <select id="form-checkout__identificationType" value={cardIdentificationTypeValue} onChange={(e) => setCardIdentificationTypeValue(e.target.value as 'CPF' | 'CNPJ')} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                            <option value="CPF">CPF</option>
-                            <option value="CNPJ">CNPJ</option>
-                          </select>
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium mb-2">CPF/CNPJ do pagador</div>
-                          <input id="form-checkout__identificationNumber" value={cardIdentificationNumberValue} onChange={(e) => setCardIdentificationNumberValue(onlyDigitsValue(e.target.value))} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="Somente números" />
-                        </div>
-                      </div>
-
-                      <div className="hidden">
-                        <select id="form-checkout__issuer" />
-                        <select id="form-checkout__installments" />
-                      </div>
-
-                      {cardFormError ? (
-                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{cardFormError}</div>
-                      ) : null}
-
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div className="text-xs text-gray-500">
-                          Valor mensal atual que será vinculado: <b>{formatCurrency(totalMonthlyEstimate)}</b>
-                        </div>
-                        <Button type="submit" disabled={!cardFormReady || isBindingCard || isSavingBilling}>
-                          {isBindingCard ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Vinculando cartão...
-                            </>
-                          ) : (
-                            'Vincular cartão no Mercado Pago'
-                          )}
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
 
           <Card className="border-gray-200">
-            <CardHeader>
-              <CardTitle className="text-base">Resumo mensal da cobrança</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base">Resumo mensal da cobrança</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Plano de pontos</span>
-                  <span>{formatCurrency(normalizedPlanMonthlyPrice)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Multi-proprietários</span>
-                  <span>{formatCurrency(normalizedMultiOwnerPrice)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Mídia extra</span>
-                  <span>{formatCurrency(addonMonthlyTotal)}</span>
-                </div>
-                <div className="border-t pt-2 flex items-center justify-between font-semibold text-base">
-                  <span>Total mensal</span>
-                  <span>{formatCurrency(totalMonthlyEstimate)}</span>
-                </div>
+                <div className="flex items-center justify-between"><span>Plano de pontos</span><span>{formatCurrency(normalizedPlanMonthlyPrice)}</span></div>
+                <div className="flex items-center justify-between"><span>Multi-proprietários</span><span>{formatCurrency(normalizedMultiOwnerPrice)}</span></div>
+                <div className="flex items-center justify-between"><span>Mídia extra</span><span>{formatCurrency(addonMonthlyTotal)}</span></div>
+                <div className="border-t pt-2 flex items-center justify-between font-semibold text-base"><span>Total mensal</span><span>{formatCurrency(totalMonthlyEstimate)}</span></div>
               </div>
 
               {!!billingSummary?.invoices?.length && (
@@ -1054,25 +720,6 @@ export function SubscriptionSettings({
               )}
             </CardContent>
           </Card>
-
-          <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
-            <div>
-              <div className="text-sm text-gray-600">Total mensal consolidado</div>
-              <div className="text-lg font-semibold">{formatCurrency(totalMonthlyEstimate)}</div>
-              <div className="text-xs text-gray-500">Plano + multi-proprietários + mídia extra.</div>
-            </div>
-
-            <Button onClick={handleSave} disabled={!hasChanges || isUpdating || !!plansLoading}>
-              {isUpdating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                'Atualizar assinatura'
-              )}
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

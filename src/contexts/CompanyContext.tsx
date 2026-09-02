@@ -26,10 +26,8 @@ import {
   PlatformSubscriptionStatus,
   CompanySubscriptionStatus,
   PlatformSubscriptionEntitlementsResponse,
-  PlatformSubscriptionAddonCode,
   PlatformBillingProfile,
   PlatformBillingSummary,
-  ActivateMercadoPagoCardPayload,
 } from '../types';
 import {
   AccessBlockReason,
@@ -78,11 +76,7 @@ interface CompanyContextValue {
 
   // Actions
   updateCompanyData: (updates: Partial<Company>) => Promise<void>;
-  updateSubscriptionData: (updates: Partial<PlatformSubscription>) => Promise<void>;
-  purchaseMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
-  removeMediaAddon: (code: PlatformSubscriptionAddonCode, quantity: number) => Promise<void>;
   updateBillingProfile: (profile: PlatformBillingProfile) => Promise<void>;
-  activateMercadoPagoCard: (payload: ActivateMercadoPagoCardPayload) => Promise<void>;
   refreshCompanyData: () => Promise<void>;
   refreshPointsUsed: () => Promise<void>;
   refreshEntitlements: () => Promise<void>;
@@ -329,27 +323,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateSubscriptionData = async (updates: Partial<PlatformSubscription>) => {
-    if (!subscription) return;
-
-    const resp = await apiClient.put<PlatformSubscription>('/platform-subscription', updates);
-    const updated = resp.data;
-    setSubscription(updated);
-
-    // Reload plan if changed
-    if (updates.planId && updates.planId !== subscription.planId) {
-      try {
-        const planResp = await apiClient.get<PlatformPlan>(`/platform-plans/${updates.planId}`);
-        setPlan(planResp.data);
-      } catch {
-        setPlan(null);
-      }
-    }
-
-    // Full refresh to sync limits/status/trial dates
-    await loadCompanyData();
-  };
-
   const refreshEntitlements = async () => {
     try {
       const entResp = await apiClient.get<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/entitlements');
@@ -368,40 +341,29 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const purchaseMediaAddon = async (code: PlatformSubscriptionAddonCode, quantity: number) => {
-    const q = Math.max(1, Math.floor(quantity || 1));
-    const resp = await apiClient.post<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/addons', {
-      code,
-      quantity: q,
-    });
-    // Backend returns updated entitlements.
-    setEntitlements(resp.data);
-
-    // If the account was blocked due to quota (402), a successful add-on purchase
-    // should immediately unlock the UI. If limits are still exceeded, the next
-    // protected request will re-trigger the 402.
-    clearAccessState();
-    await refreshBillingSummary();
-  };
-
-  const removeMediaAddon = async (code: PlatformSubscriptionAddonCode, quantity: number) => {
-    const q = Math.max(1, Math.floor(quantity || 1));
-    const resp = await apiClient.post<PlatformSubscriptionEntitlementsResponse>('/platform-subscription/addons/remove', {
-      code,
-      quantity: q,
-    });
-    setEntitlements(resp.data);
-    await refreshBillingSummary();
-  };
-
   const updateBillingProfile = async (profile: PlatformBillingProfile) => {
-    const resp = await apiClient.put<PlatformBillingSummary>('/platform-subscription/billing-profile', profile);
-    setBillingSummary(resp.data);
-    await loadCompanyData();
-  };
+    // Only editable billing identity/address fields are sent back to the backend.
+    // Gateway identifiers and payment-method metadata are read-only and must never
+    // be echoed from browser state into a billing mutation.
+    const safeProfile = {
+      contactName: profile.contactName,
+      legalName: profile.legalName ?? null,
+      email: profile.email,
+      phone: profile.phone ?? null,
+      document: profile.document ?? null,
+      documentType: profile.documentType ?? null,
+      preferredMethod: profile.preferredMethod,
+      addressZipcode: profile.addressZipcode ?? null,
+      addressStreet: profile.addressStreet ?? null,
+      addressNumber: profile.addressNumber ?? null,
+      addressComplement: profile.addressComplement ?? null,
+      addressDistrict: profile.addressDistrict ?? null,
+      addressCity: profile.addressCity ?? null,
+      addressState: profile.addressState ?? null,
+      addressCountry: profile.addressCountry ?? null,
+    };
 
-  const activateMercadoPagoCard = async (payload: ActivateMercadoPagoCardPayload) => {
-    const resp = await apiClient.post<PlatformBillingSummary>('/platform-subscription/mercado-pago/activate-card', payload);
+    const resp = await apiClient.put<PlatformBillingSummary>('/platform-subscription/billing-profile', safeProfile);
     setBillingSummary(resp.data);
     await loadCompanyData();
   };
@@ -437,11 +399,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     isTrialEndingSoon,
 
     updateCompanyData,
-    updateSubscriptionData,
-    purchaseMediaAddon,
-    removeMediaAddon,
     updateBillingProfile,
-    activateMercadoPagoCard,
     refreshCompanyData,
     refreshPointsUsed,
     refreshEntitlements,

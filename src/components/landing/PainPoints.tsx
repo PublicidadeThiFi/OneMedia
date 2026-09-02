@@ -20,7 +20,7 @@ export function PainPoints() {
     {
       icon: AlertCircle,
       title: 'Cobrança manual e desorganizada',
-      description: 'Boletos, PIX e notas fiscais em lugares diferentes, sem visão clara de recebimentos.',
+      description: 'Boletos, PIX e registros de cobrança em lugares diferentes, sem visão clara de recebimentos.',
     },
   ];
 

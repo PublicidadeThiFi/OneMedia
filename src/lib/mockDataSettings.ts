@@ -53,7 +53,7 @@ export const mockCurrentCompany: Company = {
   storageLimitMb: 1000,
   usersLimit: 3,
   subscriptionStatus: CompanySubscriptionStatus.TRIAL,
-  trialEndsAt: new Date(2024, 3, 15), // 15 abril 2024 (15 dias a partir de hoje hipotético)
+  trialEndsAt: new Date(2024, 2, 15), // 14 dias após o início hipotético em 1º de março
   createdAt: new Date(2024, 2, 1, 8, 0, 0),
   updatedAt: new Date(2024, 2, 1, 8, 0, 0),
 };
@@ -269,7 +269,7 @@ export const mockPlatformSubscription: PlatformSubscription = {
   startAt: new Date(2024, 2, 1, 8, 0, 0), // Início do trial
   endAt: null,
   currentPeriodStart: new Date(2024, 2, 1, 8, 0, 0),
-  currentPeriodEnd: new Date(2024, 3, 15, 23, 59, 59), // Fim do trial
+  currentPeriodEnd: new Date(2024, 2, 15, 23, 59, 59), // Fim do trial de 14 dias
   gatewayCustomerId: null,
   createdAt: new Date(2024, 2, 1, 8, 0, 0),
   updatedAt: new Date(2024, 2, 1, 8, 0, 0),

@@ -82,12 +82,19 @@
     "qa:marketplace:routes": "node ./scripts/marketplace-route-smoke.mjs",
     "qa:marketplace": "npm run build && npm run qa:marketplace:bundle",
     "qa:phase5": "node ./scripts/phase5-static-check.mjs",
+    "qa:phase6": "npm run security:scan && npm run qa:pricing-catalog-v2 && npm run qa:pricing-hardcodes && npm run qa:billing-cakto && npm run qa:trial-policy && npm run qa:annual-policy && npm run qa:fiscal-communication && npm run qa:phase5 && npm run build",
     "qa:final:static": "node ./scripts/final-qa-static.mjs",
     "qa:final:http": "node ./scripts/final-qa-public.mjs",
     "qa:final:browser": "node ./scripts/final-qa-browser.mjs",
     "qa:final:safe": "npm run qa:final:self-test && npm run qa:final:static && npm run security:scan && npm run qa:phase5 && npm run build && npm run qa:marketplace:bundle",
     "qa:final:remote": "npm run qa:final:http && npm run qa:final:browser",
     "qa:final": "npm run qa:final:safe",
-    "qa:final:self-test": "node ./scripts/final-qa-self-test.mjs"
+    "qa:final:self-test": "node ./scripts/final-qa-self-test.mjs",
+    "qa:pricing-catalog-v2": "node ./scripts/pricing-catalog-v2-static.mjs",
+    "qa:pricing-hardcodes": "node ./scripts/pricing-hardcodes-static.mjs",
+    "qa:billing-cakto": "node ./scripts/billing-cakto-static.mjs",
+    "qa:trial-policy": "node ./scripts/trial-policy-static.mjs",
+    "qa:annual-policy": "node ./scripts/annual-policy-static.mjs",
+    "qa:fiscal-communication": "node ./scripts/fiscal-communication-static.mjs"
   }
 }

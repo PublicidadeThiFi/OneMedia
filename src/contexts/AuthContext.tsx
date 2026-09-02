@@ -15,6 +15,7 @@ import { useNavigation } from '../contexts/NavigationContext';
 import apiClient, { publicApiClient } from '../lib/apiClient';
 import { clearAccessState } from '../lib/accessControl';
 import { clearStoredTokens, getStoredTokens, storeTokens } from '../lib/authStorage';
+import { resumePendingCaktoCheckout } from '../lib/billingCheckout';
 import {
   AuthUser,
   AuthTokens,
@@ -202,11 +203,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Salva tokens respeitando o modo de persistência escolhido
-      await setSessionFromTokens(extracted, { remember: !!credentials.rememberMe });
+      const authenticatedUser = await setSessionFromTokens(extracted, { remember: !!credentials.rememberMe });
 
-        // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
-        // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
-        navigate('/app/');
+      if (authenticatedUser.companyId && authenticatedUser.onboardingCompleted !== false) {
+        try {
+          const redirected = await resumePendingCaktoCheckout();
+          if (redirected) return;
+        } catch (checkoutError) {
+          console.warn('[auth] Checkout Cakto pendente não pôde ser retomado.', checkoutError);
+        }
+      }
+
+      // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
+      navigate('/app/');
     } finally {
       setLoading(false);
     }
@@ -230,9 +239,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      await setSessionFromTokens(extracted, { remember: false });
-      // Garante a barra final: GitHub Pages costuma canonizar "/app" -> "/app/".
-      // Evita um 301 extra (e edge-cases de cache) durante recarregamentos.
+      const authenticatedUser = await setSessionFromTokens(extracted, { remember: false });
+      if (authenticatedUser.companyId && authenticatedUser.onboardingCompleted !== false) {
+        try {
+          const redirected = await resumePendingCaktoCheckout();
+          if (redirected) return;
+        } catch (checkoutError) {
+          console.warn('[auth] Checkout Cakto pendente não pôde ser retomado após 2FA.', checkoutError);
+        }
+      }
       navigate('/app/');
     } finally {
       setLoading(false);

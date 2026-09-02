@@ -3,10 +3,12 @@ import { CheckCircle, Home, LogIn, Send } from 'lucide-react';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { publicApiClient } from '../../lib/apiClient';
 import { getApiError } from '../../lib/getApiError';
+import { usePublicPricingCatalog } from '../../hooks/usePublicPricingCatalog';
 
 type SuccessScreenProps = {
   companyName: string;
   userEmail: string;
+  selectedOfferCode: string | null;
 };
 
 type ResendVerificationResponse = {
@@ -14,8 +16,12 @@ type ResendVerificationResponse = {
   retryAfterSeconds?: number;
 };
 
-export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
+export function SuccessScreen({ companyName, userEmail, selectedOfferCode }: SuccessScreenProps) {
   const navigate = useNavigation();
+  const { plans } = usePublicPricingCatalog();
+  const selectedOffer = plans
+    .flatMap((plan) => plan.offers)
+    .find((offer) => offer.code === selectedOfferCode) ?? null;
 
   const [resendLoading, setResendLoading] = useState(false);
   const [resendInfo, setResendInfo] = useState<string | null>(null);
@@ -75,8 +81,12 @@ export function SuccessScreen({ companyName, userEmail }: SuccessScreenProps) {
       
       <div className="max-w-lg mx-auto space-y-4 mb-10">
         <p className="text-gray-600 text-lg">
-          Parabéns! A conta da empresa <span className="font-semibold text-gray-900">{companyName}</span> foi criada 
-          com sucesso e você já pode começar seu teste grátis de 30 dias.
+          Parabéns! A conta da empresa <span className="font-semibold text-gray-900">{companyName}</span> foi criada com sucesso.{' '}
+          {selectedOffer
+            ? selectedOffer.trialDays > 0
+              ? `A oferta selecionada inclui ${selectedOffer.trialDays} dias de teste.`
+              : 'A oferta selecionada não inclui período de teste.'
+            : 'As condições de teste seguem a oferta selecionada no catálogo oficial.'}
         </p>
         
         <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5">

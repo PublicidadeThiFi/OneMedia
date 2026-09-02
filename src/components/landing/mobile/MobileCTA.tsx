@@ -15,12 +15,12 @@ export function MobileCTA() {
             Coloque seu inventário, propostas e financeiro no celular da equipe em dias, não meses.
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Teste com dados reais, convide seu time e mantenha tudo sincronizado com o desktop. Sem cartão e com suporte humano.
+            Teste com dados reais, convide seu time e mantenha tudo sincronizado com o desktop. Condições claras por oferta e suporte humano.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => openWaitlist('mobile-landing:cta:trial-30-days')}
+              onClick={() => openWaitlist('mobile-landing:cta:trial')}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-white font-semibold shadow-md hover:bg-blue-700"
             >
               Criar conta grátis

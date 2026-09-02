@@ -4,11 +4,18 @@ import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 import { Pricing } from '../components/landing/Pricing';
+import { usePublicPricingCatalog } from '../hooks/usePublicPricingCatalog';
+import { formatCatalogPercentage, getCatalogSharedAnnualPaymentTerms } from '../lib/publicPricingCatalog';
+import { usePublicTrialDays } from '../hooks/usePublicTrialDays';
 
 export default function Planos() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
   const [showContactModal, setShowContactModal] = useState(false);
+  const trialDays = usePublicTrialDays();
+  const { plans } = usePublicPricingCatalog();
+  const annualTerms = getCatalogSharedAnnualPaymentTerms(plans);
+  const trialDuration = trialDays ? `${trialDays} dias` : 'o período informado na oferta mensal';
 
   const goToHomeSection = (section: string) => {
     navigate('/home');
@@ -64,10 +71,10 @@ export default function Planos() {
           {/* Trial Banner */}
           <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-3xl p-12 text-center text-white">
             <h2 className="text-4xl font-semibold mb-4">
-              Experimente grátis por 30 dias
+              {trialDays ? `Experimente grátis por ${trialDays} dias` : 'Experimente a oferta mensal'}
             </h2>
             <p className="text-xl mb-8 opacity-95">
-              Teste todas as funcionalidades sem compromisso. Não é necessário cartão de crédito.
+              Conheça os recursos do plano selecionado durante o período de teste aplicável à oferta mensal.
             </p>
             <button
               onClick={() => {
@@ -102,7 +109,7 @@ export default function Planos() {
                   Como funciona o período de teste?
                 </h3>
                 <p className="text-gray-700">
-                  Você tem acesso completo a todas as funcionalidades por 30 dias. Não pedimos cartão de crédito.
+                  Nas ofertas mensais elegíveis, o período de teste dura {trialDuration} e respeita os limites do plano selecionado. Ofertas anuais podem não incluir período de teste.
                 </p>
               </div>
 
@@ -111,16 +118,20 @@ export default function Planos() {
                   Qual a forma de pagamento?
                 </h3>
                 <p className="text-gray-700">
-                  Aceitamos cartão de crédito, boleto bancário e transferência bancária para planos anuais.
+                  {annualTerms
+                    ? `O pagamento é concluído no checkout hospedado da Cakto. Na oferta anual, a cobrança é integral à vista para os ${annualTerms.monthsAccess} meses contratados.`
+                    : 'O pagamento é concluído no checkout hospedado da Cakto, que exibe as condições da oferta antes da confirmação.'}
                 </p>
               </div>
 
               <div className="bg-gray-50 rounded-2xl p-6">
                 <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                  Tem desconto para pagamento anual?
+                  Como funciona a condição anual?
                 </h3>
                 <p className="text-gray-700">
-                  Sim! Oferecemos 20% de desconto para pagamentos anuais antecipados.
+                  {annualTerms
+                    ? `Você contrata ${annualTerms.monthsAccess} meses pelo valor equivalente a ${annualTerms.monthsCharged} mensalidades, com economia efetiva de ${formatCatalogPercentage(annualTerms.effectiveDiscountPercent)}. A cobrança é integral à vista.`
+                    : 'As condições vigentes da oferta anual aparecem no catálogo oficial e no checkout antes da confirmação.'}
                 </p>
               </div>
             </div>
