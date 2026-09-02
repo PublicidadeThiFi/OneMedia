@@ -32,7 +32,6 @@ import {
   BillingStatus,
 } from '../types';
 
-import { PLATFORM_PLANS } from './plans';
 
 // ============================================================================
 // CONSTANTS
@@ -70,7 +69,7 @@ const MOCK_COMPANIES: Record<string, Company> = {
     storageLimitMb: 5000,
     usersLimit: 10,
     subscriptionStatus: CompanySubscriptionStatus.TRIAL,
-    trialEndsAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+    trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
     createdAt: new Date('2024-11-01'),
     updatedAt: new Date(),
   },
@@ -197,7 +196,7 @@ const MOCK_PLATFORM_SUBSCRIPTIONS: Record<string, PlatformSubscription> = {
     startAt: new Date('2024-11-01'),
     endAt: undefined,
     currentPeriodStart: new Date('2024-11-01'),
-    currentPeriodEnd: new Date('2024-11-16'), // 15 days trial
+    currentPeriodEnd: new Date('2024-11-15'), // 14 days trial
     gatewayCustomerId: undefined,
     createdAt: new Date('2024-11-01'),
     updatedAt: new Date(),
@@ -211,17 +210,15 @@ export function getPlatformSubscriptionForCompany(
 }
 
 export function getPlatformPlanById(planId: string): PlatformPlan | null {
-  const planDef = PLATFORM_PLANS.find(p => p.id === planId);
-  if (!planDef) return null;
-  
-  // Convert PlanDefinition to PlatformPlan (Prisma model)
+  // Legacy mock helper only. Commercial catalog data must not be mirrored here.
+  if (planId !== 'plan-003') return null;
   return {
-    id: planDef.id,
-    name: planDef.name,
-    minPoints: planDef.minPoints,
-    maxPoints: planDef.maxPoints,
-    monthlyPrice: planDef.monthlyPrice,
-    isPopular: planDef.isPopular || false,
+    id: 'plan-003',
+    name: 'Plano demo',
+    minPoints: 0,
+    maxPoints: 150,
+    monthlyPrice: 0,
+    isPopular: false,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
   };

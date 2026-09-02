@@ -905,7 +905,6 @@ export interface PlatformBillingProfile {
   paymentMethodId?: string | null;
   paymentMethodLabel?: string | null;
   paymentMethodLast4?: string | null;
-  paymentMethodToken?: string | null;
   paymentMethodStatus?: 'PENDENTE' | 'AGUARDANDO_VINCULACAO' | 'PRONTO_PARA_COBRANCA' | null;
   paymentMethodStatusLabel?: string | null;
   autoChargeReady: boolean;
@@ -923,16 +922,6 @@ export interface PlatformBillingLineItem {
   trafficGb?: number;
 }
 
-
-export interface ActivateMercadoPagoCardPayload {
-  cardToken: string;
-  paymentMethodId?: string | null;
-  paymentMethodLabel?: string | null;
-  identificationType?: string | null;
-  identificationNumber?: string | null;
-  cardholderName?: string | null;
-  lastFourDigits?: string | null;
-}
 
 export interface PlatformBillingSummary {
   subscription: PlatformSubscription | null;

@@ -5,7 +5,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { CompanyEntitySettings } from './settings/CompanyEntitySettings';
 import { SubscriptionSettings } from './settings/SubscriptionSettings';
 import { UserProfileSettings } from './settings/UserProfileSettings';
-import { usePlatformPlans } from '../hooks/usePlatformPlans';
+import { usePublicPricingCatalog } from '../hooks/usePublicPricingCatalog';
 
 const getInitialTab = () => {
   if (typeof window === 'undefined') return 'company';
@@ -15,8 +15,8 @@ const getInitialTab = () => {
 };
 
 export function Settings() {
-  const { company, subscription, pointsUsed, updateCompanyData, updateSubscriptionData, refreshCompanyData, isLoading } = useCompany();
-  const { plans, loading: plansLoading, error: plansError } = usePlatformPlans();
+  const { company, subscription, pointsUsed, updateCompanyData, refreshCompanyData, isLoading } = useCompany();
+  const { catalog: pricingCatalog, loading: pricingCatalogLoading, error: pricingCatalogError } = usePublicPricingCatalog();
   const [activeTab, setActiveTab] = useState(getInitialTab);
   const currentSearch = typeof window === 'undefined' ? '' : window.location.search;
 
@@ -68,18 +68,13 @@ export function Settings() {
             </TabsContent>
 
             <TabsContent value="subscription" className="mt-6">
-              {plansError && (
-                <div className="text-sm text-red-600 mb-3">{String(plansError)}</div>
-              )}
               <SubscriptionSettings
                 company={company}
                 subscription={subscription}
-                plans={plans}
-                plansLoading={plansLoading}
                 pointsUsed={pointsUsed}
-                onUpdateSubscription={async (updates) => {
-                  await updateSubscriptionData(updates as any);
-                }}
+                pricingCatalog={pricingCatalog}
+                pricingCatalogLoading={pricingCatalogLoading}
+                pricingCatalogError={pricingCatalogError}
               />
             </TabsContent>
 

@@ -1,6 +1,7 @@
 import { ArrowRight, Play, ShieldCheck, Sparkles, Check } from 'lucide-react';
 import { useNavigation } from '../../../contexts/NavigationContext';
 import { useWaitlist } from '../../../contexts/WaitlistContext';
+import { usePublicTrialDays } from '../../../hooks/usePublicTrialDays';
 import imgOnemediaLogo from 'figma:asset/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 import imgRelatorios from 'figma:asset/24be53fa98cb70de89bcd6b3013fd88d5eff019e.png';
 import imgLogotipoOutdoorBr from 'figma:asset/b772fcca664e51771498ee420b09d2bb7a1c5fed.png';
@@ -16,6 +17,7 @@ const brands = ['Clear Channel', 'JCDecaux', 'Kallas', 'MediaOut', 'OutdoorBR'];
 export function MobileHero() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
+  const trialDays = usePublicTrialDays();
 
   return (
     <section className="pb-16 md:pb-20 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
@@ -36,10 +38,10 @@ export function MobileHero() {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <button
-            onClick={() => openWaitlist('mobile-landing:hero:trial-30-days')}
+            onClick={() => openWaitlist('mobile-landing:hero:trial')}
             className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-white font-semibold shadow-md hover:bg-blue-700"
           >
-            Testar grátis 30 dias
+            {trialDays ? `Testar grátis por ${trialDays} dias` : 'Testar grátis'}
             <ArrowRight className="h-5 w-5" />
           </button>
           <button

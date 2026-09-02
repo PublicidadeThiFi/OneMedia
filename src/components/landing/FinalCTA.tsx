@@ -1,8 +1,10 @@
 import { ArrowRight, Check } from 'lucide-react';
 import { useNavigation } from '../../contexts/NavigationContext';
+import { usePublicTrialDays } from '../../hooks/usePublicTrialDays';
 
 export function FinalCTA() {
   const navigate = useNavigation();
+  const trialDays = usePublicTrialDays();
 
   return (
     <section className="py-20 bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white">
@@ -11,8 +13,9 @@ export function FinalCTA() {
           Pronto para sair das planilhas?
         </h2>
         <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-          Comece agora seu teste gratuito de 30 dias e veja o OneMedia funcionando 
-          com seus próprios pontos de mídia.
+          {trialDays
+            ? `Comece agora seu teste gratuito de ${trialDays} dias e veja o OneMedia funcionando com seus próprios pontos de mídia.`
+            : 'Comece agora e veja o OneMedia funcionando com seus próprios pontos de mídia.'}
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
@@ -28,11 +31,11 @@ export function FinalCTA() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-white/90 text-sm">
           <div className="flex items-center gap-2">
             <Check className="w-5 h-5" />
-            <span>30 dias grátis</span>
+            <span>{trialDays ? `${trialDays} dias grátis na oferta mensal` : 'Teste conforme a oferta mensal'}</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="w-5 h-5" />
-            <span>Sem cartão de crédito</span>
+            <span>Checkout seguro quando aplicável</span>
           </div>
           <div className="flex items-center gap-2">
             <Check className="w-5 h-5" />

@@ -44,7 +44,6 @@ jobs:
           # Configure these in GitHub: Settings -> Secrets and variables -> Actions -> Variables
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           URL_ONE_MEDIA: ${{ vars.URL_ONE_MEDIA }}
-          VITE_MERCADO_PAGO_PUBLIC_KEY: ${{ vars.VITE_MERCADO_PAGO_PUBLIC_KEY }} 
           VITE_ASSISTANT_PERSISTENT_CLIENT_IMPORTS: ${{ vars.VITE_ASSISTANT_PERSISTENT_CLIENT_IMPORTS }}
           VITE_ASSISTANT_PERSISTENT_INVENTORY_IMPORTS: ${{ vars.VITE_ASSISTANT_PERSISTENT_INVENTORY_IMPORTS }}
         run: npm run build

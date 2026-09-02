@@ -1,0 +1,16 @@
+export const sharedFeatures = [
+  'Mídia Kit Ao vivo',
+  'Mapa Interativo',
+  'Propostas Comerciais',
+  'Notificações de Leitura',
+  'Gestão Simples do Inventário',
+  'Gestão de Campanhas',
+  'Fluxo de Caixa',
+  'DRE por Ponto de Mídia',
+  'Relatórios',
+  'Cobranças',
+  'Gestão Avançada do Inventário',
+  'Sistema de Reservas',
+  'Multi-Proprietários',
+  'Assinatura Digital Nativa',
+];

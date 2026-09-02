@@ -2,12 +2,14 @@ import { ArrowLeft, FileCheck, Shield, Clock, AlertCircle, Copyright, Scale } fr
 import { useNavigation } from '../contexts/NavigationContext';
 import { useWaitlist } from '../contexts/WaitlistContext';
 import { appendInternalReturnUrl, readInternalReturnUrl } from '../lib/internalReturnUrl';
+import { usePublicTrialDays } from '../hooks/usePublicTrialDays';
 import imgOnemediaLogo from '../assets/4e6db870c03dccede5d3c65f6e7438ecda23a8e5.png';
 
 export default function Termos() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
   const returnUrl = readInternalReturnUrl('/home');
+  const trialDays = usePublicTrialDays();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50">
@@ -85,7 +87,9 @@ export default function Termos() {
               <div className="min-w-0">
                 <h2 className="text-base sm:text-2xl font-semibold mb-2 sm:mb-3">3. Período de Teste Gratuito</h2>
                 <p className="text-sm sm:text-base leading-relaxed opacity-95 mb-3">
-                  Oferecemos um período de teste gratuito de 30 dias com acesso completo à plataforma. Durante este período:
+                  {trialDays
+                    ? `As ofertas mensais elegíveis do catálogo vigente oferecem ${trialDays} dias de teste gratuito, respeitando os limites do plano selecionado. Ofertas anuais podem não incluir período de teste. Durante o teste:`
+                    : 'Quando disponível, o período de teste gratuito segue a duração indicada na oferta mensal do catálogo oficial e respeita os limites do plano selecionado. Ofertas anuais podem não incluir período de teste. Durante o teste:'}
                 </p>
                 <ul className="space-y-2">
                   <li className="flex items-start gap-2 text-sm sm:text-base">
@@ -94,7 +98,7 @@ export default function Termos() {
                   </li>
                   <li className="flex items-start gap-2 text-sm sm:text-base">
                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-1.5 flex-shrink-0"></div>
-                    <span className="opacity-95">Sem necessidade de cartão de crédito</span>
+                    <span className="opacity-95">Condições de cobrança conforme a oferta selecionada</span>
                   </li>
                   <li className="flex items-start gap-2 text-sm sm:text-base">
                     <div className="w-1.5 h-1.5 bg-white rounded-full mt-1.5 flex-shrink-0"></div>

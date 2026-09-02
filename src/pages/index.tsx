@@ -1,6 +1,7 @@
 import { useNavigation } from '../contexts/NavigationContext';
 import { Pricing } from '../components/landing/Pricing';
 import { useWaitlist } from '../contexts/WaitlistContext';
+import { usePublicTrialDays } from '../hooks/usePublicTrialDays';
 import { 
   ArrowRight, Check, AlertTriangle, CheckCircle2, 
   Zap, Eye, Rocket, Link as LinkIcon, Settings,
@@ -249,6 +250,8 @@ dashboard: {
 export default function Home() {
   const navigate = useNavigation();
   const { openWaitlist } = useWaitlist();
+  const trialDays = usePublicTrialDays();
+  const trialCtaLabel = trialDays ? `Teste grátis por ${trialDays} dias` : 'Teste grátis';
   const [selectedModule, setSelectedModule] = useState<ModuleKey>('inventario');
   const [previousModule, setPreviousModule] = useState<ModuleKey | null>(null);
   const [exitedModules, setExitedModules] = useState<Set<ModuleKey>>(new Set());
@@ -362,13 +365,13 @@ export default function Home() {
             </button>
             <button
               onClick={() => {
-                openWaitlist('index:header:teste-gratis-30-dias');
+                openWaitlist('index:header:teste-gratis');
                 // navigate('/cadastro');
               }}
               className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:shadow-lg transition-all institutional-trial-button"
             >
               <span className="institutional-trial-short">Teste grátis</span>
-              <span className="institutional-trial-full">Teste Grátis 30 dias</span>
+              <span className="institutional-trial-full">{trialCtaLabel}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -403,15 +406,15 @@ export default function Home() {
               <div className="flex flex-col items-center gap-4">
                 <button
                   onClick={() => {
-                    openWaitlist('index:hero:teste-gratis-30-dias');
+                    openWaitlist('index:hero:teste-gratis');
                     // navigate('/cadastro');
                   }}
                   className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-500 to-blue-700 text-white text-xl rounded-full hover:shadow-xl transition-all"
                 >
-                  Teste Grátis 30 dias
+                  {trialCtaLabel}
                   <ArrowRight className="w-6 h-6" />
                 </button>
-                <p className="text-gray-600">Não é necessário cartão de crédito</p>
+                <p className="text-gray-600">Condições de teste e cobrança conforme a oferta selecionada</p>
               </div>
             </div>
 
@@ -567,12 +570,12 @@ export default function Home() {
 
               <button
                 onClick={() => {
-                  openWaitlist('index:produtos:teste-gratis-30-dias');
+                  openWaitlist('index:produtos:teste-gratis');
                   // navigate('/cadastro');
                 }}
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-full hover:shadow-lg transition-all"
               >
-                Teste Grátis 30 dias
+                {trialCtaLabel}
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>
@@ -623,12 +626,12 @@ export default function Home() {
             </p>
             <button
               onClick={() => {
-                openWaitlist(`index:solucoes:${selectedSolution}:teste-gratis-30-dias`);
+                openWaitlist(`index:solucoes:${selectedSolution}:teste-gratis`);
                 // navigate('/cadastro');
               }}
               className="solutions-left-cta"
             >
-              Teste Grátis 30 dias
+              {trialCtaLabel}
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>

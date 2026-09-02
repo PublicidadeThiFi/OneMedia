@@ -304,8 +304,8 @@ export function Step2Company({ data, onChange, onNext, onBack, errors }: Step2Co
         <div className="pt-2 border-t border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Dados financeiros</h3>
           <p className="text-sm text-gray-600 mb-5">
-            Nesta etapa já coletamos o perfil do pagador e o endereço de cobrança.
-            A tokenização real do cartão e a ativação automática no Mercado Pago entram na próxima etapa.
+            Nesta etapa coletamos apenas o perfil do pagador e o endereço de cobrança.
+            O pagamento é concluído depois no checkout hospedado da Cakto; o OneMedia não recebe dados de cartão.
           </p>
 
           <div className="space-y-5">

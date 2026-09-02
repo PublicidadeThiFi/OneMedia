@@ -12,8 +12,6 @@ import {
   SignupUserStep,
   SignupRequestDto,
   CompleteOAuthSignupRequestDto,
-  PlanRange,
-  PLAN_DEFINITIONS,
 } from '../types/signup';
 import { 
   onlyDigits, 
@@ -29,6 +27,7 @@ import { appendRetryAfter } from '../lib/retryAfter';
 import { useAuth } from '../contexts/AuthContext';
 import { SocialAuthButtons } from '../components/auth/SocialAuthButtons';
 import { stripOAuthErrorParams } from '../lib/urlSecurity';
+import { rememberPendingBillingOffer, startCaktoCheckout } from '../lib/billingCheckout';
 
 export default function Cadastro() {
   const navigate = useNavigation();
@@ -50,8 +49,9 @@ export default function Cadastro() {
   // Step data
   const [step1Data, setStep1Data] = useState<SignupPlanStep>({
     estimatedPoints: null,
-    selectedPlanRange: null,
-    selectedPlatformPlanId: null,
+    selectedPlanCode: null,
+    selectedOfferCode: null,
+    selectedBillingPeriod: 'MONTHLY',
   });
 
   const [step2Data, setStep2Data] = useState<SignupCompanyStep>({
@@ -94,18 +94,19 @@ export default function Cadastro() {
   const [step2Errors, setStep2Errors] = useState<Record<string, string>>({});
   const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
 
-  // Handle pre-selected plan from query string
+  // Handle pre-selected canonical Pricing Catalog V2 plan from query string.
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const planRange = urlParams.get('planRange') as PlanRange | null;
-    
-    const plan = planRange ? PLAN_DEFINITIONS.find((p) => p.range === planRange) : undefined;
-    if (planRange && plan) {
-      setStep1Data({
-        estimatedPoints: null,
-        selectedPlanRange: planRange,
-        selectedPlatformPlanId: plan.id,
-      });
+    const planCode = String(urlParams.get('planCode') || '').trim().toUpperCase();
+    const selectedBillingPeriod = urlParams.get('billingPeriod') === 'ANNUAL' ? 'ANNUAL' : 'MONTHLY';
+
+    if (planCode) {
+      setStep1Data((current) => ({
+        ...current,
+        selectedPlanCode: planCode,
+        selectedOfferCode: null,
+        selectedBillingPeriod,
+      }));
     }
   }, []);
 
@@ -189,7 +190,7 @@ export default function Cadastro() {
 
   // Step 1 validation
   const validateStep1 = (): boolean => {
-    if (!step1Data.selectedPlanRange || !step1Data.selectedPlatformPlanId) {
+    if (!step1Data.selectedPlanCode || !step1Data.selectedOfferCode) {
       setStep1Error('Selecione um plano para continuar');
       return false;
     }
@@ -376,8 +377,8 @@ export default function Cadastro() {
     setIsLoading(true);
 
     try {
-      // Safety: if for some reason planId wasn't set, send user back to step 1.
-      if (!step1Data.selectedPlatformPlanId) {
+      // Safety: the new flow must carry the public V2 plan code selected from the catalog.
+      if (!step1Data.selectedPlanCode) {
         setCurrentStep(1);
         setStep1Error('Selecione um plano para continuar');
         return;
@@ -389,7 +390,7 @@ export default function Cadastro() {
 
       if (isOAuthOnboarding) {
         const dto: CompleteOAuthSignupRequestDto = {
-          planId: step1Data.selectedPlatformPlanId,
+          planCode: step1Data.selectedPlanCode,
           companyName: step2Data.fantasyName,
           cnpj: step2Data.cnpj ? onlyDigits(step2Data.cnpj) : undefined,
           companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
@@ -431,10 +432,21 @@ export default function Cadastro() {
 
         await apiClient.post('/signup/oauth/complete', dto);
         await refreshMe();
+
+        if (step1Data.selectedOfferCode) {
+          rememberPendingBillingOffer(step1Data.selectedOfferCode);
+          try {
+            await startCaktoCheckout(step1Data.selectedOfferCode);
+            return;
+          } catch (checkoutError: any) {
+            console.warn('[signup] Checkout Cakto não abriu após onboarding OAuth.', checkoutError);
+          }
+        }
+
         navigate('/app/');
       } else {
         const dto: SignupRequestDto = {
-          planId: step1Data.selectedPlatformPlanId,
+          planCode: step1Data.selectedPlanCode,
           companyName: step2Data.fantasyName,
           cnpj: step2Data.cnpj ? onlyDigits(step2Data.cnpj) : undefined,
           companyPhone: step2Data.phone ? onlyDigits(step2Data.phone) : undefined,
@@ -473,6 +485,12 @@ export default function Cadastro() {
         };
 
         await publicApiClient.post('/signup', dto);
+        if (step1Data.selectedOfferCode) {
+          // Email/password signup needs verification + login before the authenticated
+          // /billing/checkout endpoint can be called. Keep the selected offer only
+          // in sessionStorage so the next successful login can resume checkout.
+          rememberPendingBillingOffer(step1Data.selectedOfferCode);
+        }
         setIsSuccess(true);
       }
     } catch (err: any) {
@@ -519,6 +537,7 @@ export default function Cadastro() {
             <SuccessScreen
               companyName={step2Data.fantasyName}
               userEmail={step3Data.email}
+              selectedOfferCode={step1Data.selectedOfferCode}
             />
           </div>
         ) : (

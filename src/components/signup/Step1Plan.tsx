@@ -1,21 +1,16 @@
-import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle, MapPin, Star } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, MapPin, Star, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { displayPlans, formatBRL, proSliderConfig, sharedFeatures, useProSliderPrice } from '../landing/pricingData';
+import { sharedFeatures } from '../landing/pricingFeatures';
 import { SignupPlanStep } from '../../types/signup';
+import { usePublicPricingCatalog } from '../../hooks/usePublicPricingCatalog';
 import {
-  FIXED_PLAN_IDS,
-  getFriendlyPlanName,
-  getPlanById,
-  getPro2000PlanForPoints,
-  isPro2000PlanId,
-} from '../../lib/plans';
-
-const PLAN_MAP: Record<string, { platformId: string }> = {
-  solo: { platformId: FIXED_PLAN_IDS.solo },
-  core: { platformId: FIXED_PLAN_IDS.core },
-  start: { platformId: FIXED_PLAN_IDS.start },
-  pro: { platformId: FIXED_PLAN_IDS.pro },
-};
+  formatCatalogLimit,
+  formatCatalogMoney,
+  formatCatalogPercentage,
+  getCatalogAnnualPaymentTerms,
+  getCatalogOffer,
+} from '../../lib/publicPricingCatalog';
+import type { PricingCatalogBillingPeriod, PublicPricingCatalogPlan } from '../../types/pricingCatalog';
 
 const CARD_W = 300;
 const CARD_STYLE: React.CSSProperties = {
@@ -24,38 +19,6 @@ const CARD_STYLE: React.CSSProperties = {
   maxWidth: CARD_W,
 };
 
-function StrikeX({ text }: { text: string }) {
-  return (
-    <span
-      style={{
-        position: 'relative',
-        display: 'inline-block',
-        color: '#9ca3af',
-        fontSize: '0.875rem',
-        fontWeight: 500,
-      }}
-    >
-      {text}
-      <svg
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          pointerEvents: 'none',
-          overflow: 'visible',
-        }}
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-      >
-        <line x1="0" y1="0" x2="100" y2="100" stroke="#ef4444" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-        <line x1="100" y1="0" x2="0" y2="100" stroke="#ef4444" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-      </svg>
-    </span>
-  );
-}
-
 type Step1PlanProps = {
   data: SignupPlanStep;
   onChange: (data: SignupPlanStep) => void;
@@ -63,68 +26,75 @@ type Step1PlanProps = {
   error: string | null;
 };
 
-export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
-  const initialSliderPoints = useMemo(() => {
-    const selectedPlan = data.selectedPlatformPlanId ? getPlanById(data.selectedPlatformPlanId) : null;
-    if (selectedPlan && isPro2000PlanId(selectedPlan.id) && selectedPlan.maxPoints) {
-      return selectedPlan.maxPoints;
-    }
-    return proSliderConfig.minPoints;
-  }, [data.selectedPlatformPlanId]);
+function CatalogPrice({ plan, period }: { plan: PublicPricingCatalogPlan; period: PricingCatalogBillingPeriod }) {
+  const offer = getCatalogOffer(plan, period);
 
-  const [sliderPoints, setSliderPoints] = useState(initialSliderPoints);
-  const sliderPrice = useProSliderPrice(sliderPoints);
-  const sliderAfter = useMemo(() => formatBRL(sliderPrice), [sliderPrice]);
+  if (!offer) {
+    return (
+      <div>
+        <p className="text-2xl font-extrabold text-gray-900">Sob consulta</p>
+        <p className="text-xs text-gray-400 mt-1">Não disponível no cadastro self-service.</p>
+      </div>
+    );
+  }
+
+  const annualTerms = getCatalogAnnualPaymentTerms(offer);
+
+  return (
+    <div>
+      <p className="text-3xl font-extrabold text-gray-900">{formatCatalogMoney(offer.amount, offer.currency)}</p>
+      <p className="text-sm text-gray-600">
+        {period === 'MONTHLY' ? 'por mês' : 'pagamento integral à vista'}
+      </p>
+      <p className="text-xs text-gray-400 mt-1">
+        {period === 'MONTHLY'
+          ? offer.trialDays > 0
+            ? `${offer.trialDays} dias de teste`
+            : `${offer.billingCycleMonths} mês de acesso`
+          : annualTerms
+            ? `${annualTerms.monthsAccess} meses pelo valor de ${annualTerms.monthsCharged} mensalidades • economia efetiva de ${formatCatalogPercentage(annualTerms.effectiveDiscountPercent)}`
+            : `${offer.billingCycleMonths} meses de acesso • condições anuais no checkout`}
+      </p>
+    </div>
+  );
+}
+
+export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
+  const { plans, loading, error: catalogError, refetch } = usePublicPricingCatalog();
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [billingPeriod, setBillingPeriod] = useState<PricingCatalogBillingPeriod>(
+    data.selectedBillingPeriod || 'MONTHLY',
+  );
+
+  const selectedPlan = useMemo(
+    () => plans.find((plan) => plan.code === data.selectedPlanCode) ?? null,
+    [data.selectedPlanCode, plans],
+  );
 
   useEffect(() => {
-    const selectedPlan = data.selectedPlatformPlanId ? getPlanById(data.selectedPlatformPlanId) : null;
-    if (selectedPlan && isPro2000PlanId(selectedPlan.id) && selectedPlan.maxPoints && selectedPlan.maxPoints !== sliderPoints) {
-      setSliderPoints(selectedPlan.maxPoints);
-    }
-  }, [data.selectedPlatformPlanId, sliderPoints]);
-
-  const selectedKey = useMemo(() => {
-    if (!data.selectedPlatformPlanId) return null;
-    if (isPro2000PlanId(data.selectedPlatformPlanId)) return 'pro-2000';
-    return Object.entries(PLAN_MAP).find(([, value]) => value.platformId === data.selectedPlatformPlanId)?.[0] ?? null;
-  }, [data.selectedPlatformPlanId]);
-
-  const applyPlanSelection = (planId: string, estimatedPoints?: number | null) => {
-    const selectedPlan = getPlanById(planId);
     if (!selectedPlan) return;
+    const offer = getCatalogOffer(selectedPlan, billingPeriod);
 
     onChange({
       ...data,
-      estimatedPoints: estimatedPoints ?? selectedPlan.maxPoints ?? selectedPlan.minPoints,
-      selectedPlanRange: selectedPlan.range,
-      selectedPlatformPlanId: selectedPlan.id,
+      selectedBillingPeriod: billingPeriod,
+      selectedOfferCode: offer?.code ?? null,
     });
-  };
+    // Keep selection synchronized when the user switches monthly/annual.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billingPeriod, selectedPlan?.code]);
 
-  const select = (key: string) => {
-    if (key === 'pro-2000') {
-      const proPlan = getPro2000PlanForPoints(sliderPoints);
-      if (!proPlan) return;
-      applyPlanSelection(proPlan.id, sliderPoints);
-      return;
-    }
+  const selectPlan = (plan: PublicPricingCatalogPlan) => {
+    const offer = getCatalogOffer(plan, billingPeriod);
+    if (!offer) return;
 
-    const mapped = PLAN_MAP[key];
-    if (!mapped) return;
-    const fixedPlan = getPlanById(mapped.platformId);
-    applyPlanSelection(mapped.platformId, fixedPlan?.maxPoints ?? null);
-  };
-
-  const handleSliderChange = (value: number) => {
-    setSliderPoints(value);
-    if (selectedKey === 'pro-2000') {
-      const proPlan = getPro2000PlanForPoints(value);
-      if (proPlan) {
-        applyPlanSelection(proPlan.id, value);
-      }
-    }
+    onChange({
+      ...data,
+      estimatedPoints: plan.entitlements.pointsLimit,
+      selectedPlanCode: plan.code,
+      selectedOfferCode: offer.code,
+      selectedBillingPeriod: billingPeriod,
+    });
   };
 
   const scroll = (dir: 'left' | 'right') => {
@@ -133,23 +103,6 @@ export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
       behavior: 'smooth',
     });
   };
-
-  const cardBody = (children: React.ReactNode) => <div className="p-5 flex flex-col flex-1 gap-3">{children}</div>;
-
-  const limites = (points: number | string) => (
-    <>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs text-gray-700">
-          <span className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-gray-400" />
-            Pontos
-          </span>
-          <span className="font-semibold text-gray-900">{points}</span>
-        </div>
-      </div>
-    </>
-  );
 
   const featureList = () => (
     <>
@@ -165,210 +118,142 @@ export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
     </>
   );
 
-  const radioStyle = (key: string): React.CSSProperties => ({
-    width: 16,
-    height: 16,
-    borderRadius: '50%',
-    flexShrink: 0,
-    background: 'white',
-    transition: 'border 0.15s',
-    border: selectedKey === key ? '5px solid #2563eb' : '2px solid #d1d5db',
-  });
-
   return (
     <div>
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-semibold text-gray-900 mb-3">Comece seu teste grátis em 3 passos</h2>
-        <p className="text-gray-600">
-          Escolha o volume de pontos que você pretende gerenciar. Você pode mudar o plano depois.
-        </p>
+        <h2 className="text-3xl font-semibold text-gray-900 mb-3">Escolha seu plano em 3 passos</h2>
+        <p className="text-gray-600">Escolha um plano publicado no catálogo oficial da OneMedia.</p>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-sm text-gray-500">Arraste ou use as setas para ver os planos</span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => scroll('left')}
-            className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scroll('right')}
-            className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
+      <div className="flex justify-center mb-6">
+        <div className="inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm" aria-label="Período de cobrança">
+          {(['MONTHLY', 'ANNUAL'] as PricingCatalogBillingPeriod[]).map((period) => (
+            <button
+              key={period}
+              type="button"
+              onClick={() => setBillingPeriod(period)}
+              className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${
+                billingPeriod === period ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {period === 'MONTHLY' ? 'Mensal' : 'Anual'}
+            </button>
+          ))}
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-6" style={{ scrollbarWidth: 'none' }}>
-        {displayPlans.map((plan) => {
-          const isSelected = selectedKey === plan.id;
-          const fixedPlanId = PLAN_MAP[plan.id]?.platformId;
-          const fixedPlanName = getFriendlyPlanName(fixedPlanId ? getPlanById(fixedPlanId) : null);
-
-          return (
-            <button
-              key={plan.id}
-              type="button"
-              onClick={() => select(plan.id)}
-              style={CARD_STYLE}
-              className={`relative text-left flex-shrink-0 snap-start bg-white rounded-2xl flex flex-col transition-all duration-200 ${
-                isSelected
-                  ? 'border-2 border-blue-600 shadow-lg'
-                  : 'border border-gray-200 shadow-sm hover:border-blue-300 hover:shadow-md'
-              }`}
-            >
-              {plan.tag && (
-                <div className="absolute top-3 right-3">
-                  <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-[11px] font-semibold px-2 py-0.5 rounded-full border border-blue-100">
-                    <Star className="w-2.5 h-2.5" />
-                    {plan.tag}
-                  </span>
-                </div>
-              )}
-              {cardBody(
-                <>
-                  <div className="flex items-center gap-2">
-                    <div style={radioStyle(plan.id)} />
-                    <h3 className="text-base font-bold text-gray-900">{fixedPlanName || plan.name}</h3>
-                  </div>
-                  <div>
-                    {plan.strikePrice && (
-                      <p>
-                        <StrikeX text={plan.strikePrice} />
-                      </p>
-                    )}
-                    <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                    <p className="text-sm text-gray-600">no primeiro mês</p>
-                    <p className="text-xs text-gray-400">Depois {plan.monthlyPrice}</p>
-                  </div>
-                  <hr className="border-gray-100" />
-                  <p className="text-xs text-gray-500 leading-relaxed">{plan.description}</p>
-                  <hr className="border-gray-100" />
-                  {limites(plan.points)}
-                  <hr className="border-gray-100" />
-                  {featureList()}
-                  <div
-                    className={`mt-auto w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors ${
-                      isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {isSelected ? 'Selecionado ✓' : 'Selecionar plano'}
-                  </div>
-                </>
-              )}
-            </button>
-          );
-        })}
-
-        {(() => {
-          const isSelected = selectedKey === 'pro-2000';
-          return (
-            <button
-              type="button"
-              onClick={() => select('pro-2000')}
-              style={CARD_STYLE}
-              className={`relative text-left flex-shrink-0 snap-start bg-white rounded-2xl flex flex-col transition-all duration-200 ${
-                isSelected
-                  ? 'border-2 border-blue-600 shadow-lg'
-                  : 'border-2 border-blue-200 shadow-sm hover:border-blue-400 hover:shadow-md'
-              }`}
-            >
-              <div className="absolute top-3 right-3">
-                <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                  <Star className="w-2.5 h-2.5" />
-                  Escalável
-                </span>
-              </div>
-              {cardBody(
-                <>
-                  <div className="flex items-center gap-2">
-                    <div style={radioStyle('pro-2000')} />
-                    <h3 className="text-base font-bold text-gray-900">{proSliderConfig.name}</h3>
-                  </div>
-                  <div>
-                    <p className="text-3xl font-extrabold text-gray-900">R$ 0,00</p>
-                    <p className="text-sm text-gray-600">no primeiro mês</p>
-                    <p className="text-xs text-gray-400">Depois {sliderAfter}/mês</p>
-                  </div>
-                  <hr className="border-gray-100" />
-                  <div className="bg-blue-50 rounded-xl p-3 space-y-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-between text-xs font-semibold text-gray-800">
-                      <span>Pontos</span>
-                      <span>{sliderPoints} pts</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={proSliderConfig.minPoints}
-                      max={proSliderConfig.maxPoints}
-                      step={proSliderConfig.step}
-                      value={sliderPoints}
-                      onChange={(e) => handleSliderChange(Number(e.target.value))}
-                      className="w-full accent-blue-600"
-                    />
-                    <p className="text-[10px] text-gray-500">Arraste para ajustar pontos e ver o preço.</p>
-                  </div>
-                  <hr className="border-gray-100" />
-                  {limites(sliderPoints)}
-                  <hr className="border-gray-100" />
-                  {featureList()}
-                  <div
-                    className={`mt-auto w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors ${
-                      isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {isSelected ? 'Selecionado ✓' : 'Selecionar plano'}
-                  </div>
-                </>
-              )}
-            </button>
-          );
-        })()}
-      </div>
-
-      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm mb-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <h3 className="text-base font-bold text-gray-900 mb-1">Multi-Proprietários</h3>
-            <p className="text-xs text-gray-500 mb-4">
-              Permite cadastrar até 4 proprietários por ponto de mídia. Por padrão, todos os planos incluem 1 proprietário por ponto.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { qty: '1', value: 'Incluso', color: 'text-green-600', bg: 'bg-gray-50 border-gray-200' },
-                { qty: '2', value: 'R$ 99/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                { qty: '3', value: 'R$ 113,85/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                { qty: '4', value: 'R$ 128,70/mês', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-              ].map(({ qty, value, color, bg }) => (
-                <div key={qty} className={`rounded-xl ${bg} border px-3 py-4 text-center flex flex-col items-center gap-1.5`}>
-                  <div className="text-xl font-bold text-gray-800 leading-none">{qty}</div>
-                  <div className="text-xs text-gray-500 leading-tight">proprietário{qty !== '1' ? 's' : ''}</div>
-                  <div className={`text-xs font-semibold ${color} leading-tight`}>{value}</div>
-                </div>
-              ))}
+      {loading ? (
+        <div className="grid gap-4 md:grid-cols-3 mb-6">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="h-[420px] animate-pulse rounded-2xl border border-gray-200 bg-white" />
+          ))}
+        </div>
+      ) : catalogError || plans.length === 0 ? (
+        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
+          <p className="font-semibold text-amber-950">Não foi possível carregar os planos atualizados.</p>
+          <p className="mt-2 text-sm text-amber-800">O cadastro fica bloqueado para evitar selecionar um preço ou limite antigo.</p>
+          <button
+            type="button"
+            onClick={() => void refetch().catch(() => undefined)}
+            className="mt-4 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm text-gray-500">Arraste ou use as setas para ver os planos</span>
+            <div className="flex gap-2">
+              <button type="button" aria-label="Plano anterior" onClick={() => scroll('left')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button type="button" aria-label="Próximo plano" onClick={() => scroll('right')} className="p-2 rounded-full border border-gray-200 bg-white hover:border-blue-500 hover:text-blue-600 transition-colors">
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
           </div>
-          <div className="relative">
-            <button
-              type="button"
-              onMouseEnter={() => setShowTooltip(true)}
-              onMouseLeave={() => setShowTooltip(false)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <HelpCircle className="w-5 h-5 text-gray-400" />
-            </button>
-            {showTooltip && (
-              <div className="absolute right-0 top-10 w-64 bg-white rounded-xl shadow-xl p-4 border border-gray-200 z-10 text-xs text-gray-600">
-                O add-on Multi-Proprietários permite associar mais de um proprietário por ponto de mídia, facilitando a gestão de receitas e comissões por proprietário.
-              </div>
-            )}
+
+          <div ref={scrollRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-6" style={{ scrollbarWidth: 'none' }}>
+            {plans.map((plan) => {
+              const offer = getCatalogOffer(plan, billingPeriod);
+              const isEnterprise = plan.offers.length === 0;
+              const isSelected = data.selectedPlanCode === plan.code && data.selectedOfferCode === offer?.code;
+              const isFeatured = plan.code === 'PRO';
+
+              return (
+                <button
+                  key={plan.code}
+                  type="button"
+                  onClick={() => selectPlan(plan)}
+                  disabled={!offer}
+                  style={CARD_STYLE}
+                  className={`relative text-left flex-shrink-0 snap-start bg-white rounded-2xl flex flex-col transition-all duration-200 disabled:cursor-not-allowed ${
+                    isSelected
+                      ? 'border-2 border-blue-600 shadow-lg'
+                      : isFeatured
+                        ? 'border-2 border-blue-200 shadow-sm hover:border-blue-400 hover:shadow-md'
+                        : 'border border-gray-200 shadow-sm hover:border-blue-300 hover:shadow-md'
+                  } ${isEnterprise ? 'opacity-80' : ''}`}
+                >
+                  {isFeatured && (
+                    <div className="absolute top-3 right-3">
+                      <span className="inline-flex items-center gap-1 bg-blue-600 text-white text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                        <Star className="w-2.5 h-2.5" />Destaque
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="p-5 flex flex-col flex-1 gap-3">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-4 h-4 rounded-full flex-shrink-0 bg-white"
+                        style={{ border: isSelected ? '5px solid #2563eb' : '2px solid #d1d5db' }}
+                      />
+                      <h3 className="text-base font-bold text-gray-900">{plan.publicName}</h3>
+                    </div>
+
+                    <CatalogPrice plan={plan} period={billingPeriod} />
+
+                    <hr className="border-gray-100" />
+                    <p className="text-xs text-gray-500 leading-relaxed">{plan.description || 'Plano comercial OneMedia.'}</p>
+                    <hr className="border-gray-100" />
+
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Limites</p>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs text-gray-700">
+                        <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />Pontos</span>
+                        <span className="font-semibold text-gray-900">{formatCatalogLimit(plan.entitlements.pointsLimit)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-700">
+                        <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-gray-400" />Usuários</span>
+                        <span className="font-semibold text-gray-900">{formatCatalogLimit(plan.entitlements.usersLimit)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-700">
+                        <span>Proprietários/ponto</span>
+                        <span className="font-semibold text-gray-900">{formatCatalogLimit(plan.entitlements.maxOwnersPerMediaPoint)}</span>
+                      </div>
+                    </div>
+
+                    <hr className="border-gray-100" />
+                    {featureList()}
+
+                    <div className={`mt-auto w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors ${
+                      isEnterprise
+                        ? 'bg-gray-100 text-gray-500'
+                        : isSelected
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {isEnterprise ? 'Sob consulta' : isSelected ? 'Selecionado ✓' : 'Selecionar plano'}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
@@ -376,7 +261,7 @@ export function Step1Plan({ data, onChange, onNext, error }: Step1PlanProps) {
         <button
           type="button"
           onClick={onNext}
-          disabled={!data.selectedPlatformPlanId}
+          disabled={!data.selectedPlanCode || !data.selectedOfferCode || loading || !!catalogError}
           className="px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
         >
           Continuar

@@ -24,7 +24,6 @@ jobs:
       VITE_API_URL: https://api.example.com/api
       VITE_APP_URL: https://app.example.com
       URL_ONE_MEDIA: https://www.example.com
-      VITE_MERCADO_PAGO_PUBLIC_KEY: TEST-PLACEHOLDER
       VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       QA_WEB_BASE_URL: ${{ inputs.web_base_url }}
       QA_ALLOW_PRODUCTION: ${{ inputs.allow_production }}

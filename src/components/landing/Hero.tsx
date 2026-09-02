@@ -1,8 +1,10 @@
 import { ArrowRight, Check } from 'lucide-react';
 import { useNavigation } from '../../contexts/NavigationContext';
+import { usePublicTrialDays } from '../../hooks/usePublicTrialDays';
 
 export function Hero() {
   const navigate = useNavigation();
+  const trialDays = usePublicTrialDays();
 
   const scrollToSolutions = () => {
     const element = document.querySelector('#solucoes');
@@ -31,12 +33,12 @@ export function Hero() {
                 onClick={() => navigate('/cadastro')}
                 className="inline-flex items-center gap-2 bg-[#4F46E5] text-white px-8 py-4 rounded-lg hover:bg-[#4338CA] transition-colors text-lg"
               >
-                Começar teste grátis de 30 dias
+                {trialDays ? `Começar teste grátis por ${trialDays} dias` : 'Começar teste grátis'}
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>
             <p className="text-sm text-gray-500 mb-6">
-              Sem cartão de crédito • Cancele quando quiser
+              Condições conforme a oferta selecionada • Cancele quando quiser
             </p>
 
             {/* Secondary CTA */}
