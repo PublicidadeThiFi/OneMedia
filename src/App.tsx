@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, Component, ReactNode 
 import { Toaster } from 'sonner';
 import { AuthProvider } from './contexts/AuthContext';
 import { CompanyProvider } from './contexts/CompanyContext';
+import { ProductAccessProvider } from './contexts/ProductAccessContext';
 import { WaitlistProvider, useWaitlist } from './contexts/WaitlistContext';
 import { NavigationContext, NavigateFunction, useNavigation } from './contexts/NavigationContext';
 import { UploadQueueProvider } from './contexts/UploadQueueContext';
@@ -179,13 +180,15 @@ function AdminShell({ children }: { children: ReactNode }) {
 function InternalAppShell({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <CompanyProvider>
-        <UploadQueueProvider>
-          <TutorialProvider>
-            <AssistantProvider>{children}</AssistantProvider>
-          </TutorialProvider>
-        </UploadQueueProvider>
-      </CompanyProvider>
+      <ProductAccessProvider>
+        <CompanyProvider>
+          <UploadQueueProvider>
+            <TutorialProvider>
+              <AssistantProvider>{children}</AssistantProvider>
+            </TutorialProvider>
+          </UploadQueueProvider>
+        </CompanyProvider>
+      </ProductAccessProvider>
     </AuthProvider>
   );
 }
@@ -282,8 +285,9 @@ export default function App() {
     }
 
     if (cleanPath.startsWith('/app')) {
+      const isDoohPath = cleanPath === '/app/dooh' || cleanPath.startsWith('/app/dooh/');
       const pagePath = cleanPath.replace('/app/', '').replace('/app', '');
-      const initialPage = (!pagePath || pagePath === '') ? 'home' : (pagePath as any);
+      const initialPage = isDoohPath || !pagePath || pagePath === '' ? 'home' : (pagePath as any);
       return wrap('internal', <Suspended><MainApp key={cleanPath} initialPage={initialPage} /></Suspended>);
     }
 

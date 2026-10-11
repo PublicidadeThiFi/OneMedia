@@ -13,6 +13,9 @@ import {
 } from '../../types';
 import { CampaignStatusBadge } from './CampaignStatusBadge';
 import apiClient from '../../lib/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
+import { useProductAccess } from '../../contexts/ProductAccessContext';
+import { DoohCampaignDraftPanel } from './DoohCampaignDraftPanel';
 import { toast } from 'sonner';
 import { useNavigation } from '../../contexts/NavigationContext';
 import {
@@ -77,6 +80,9 @@ export function CampaignDetailsDrawer({
   onRequestCheckIn,
 }: CampaignDetailsDrawerProps) {
   const navigate = useNavigation();
+  const { user } = useAuth();
+  const { canWriteModule } = useProductAccess();
+  const canDraftDooh = canWriteModule('DOOH') && Boolean(user?.roles?.some((role) => String(role) === 'TI' || String(role) === 'ADMINISTRATIVO'));
   const [loading, setLoading] = useState(false);
   const [localCampaign, setLocalCampaign] = useState<Campaign | null>(null);
   const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
@@ -291,6 +297,7 @@ export function CampaignDetailsDrawer({
             <TabsList className="w-full justify-start px-6 py-0 h-12 border-b rounded-none bg-transparent overflow-x-auto flex-nowrap">
               <TabsTrigger value="summary" className="flex-none">Resumo</TabsTrigger>
               <TabsTrigger value="media" className="flex-none">Veiculações</TabsTrigger>
+              {canDraftDooh && <TabsTrigger value="dooh" className="flex-none">Programação DOOH</TabsTrigger>}
               <TabsTrigger value="installations" className="flex-none">Instalações OOH</TabsTrigger>
               <TabsTrigger value="billing" className="flex-none">Financeiro</TabsTrigger>
               <TabsTrigger value="messages" className="flex-none">Mensagens</TabsTrigger>
@@ -406,6 +413,12 @@ export function CampaignDetailsDrawer({
                 </div>
               )}
             </TabsContent>
+
+            {canDraftDooh && (
+              <TabsContent value="dooh" className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
+                <DoohCampaignDraftPanel campaignId={c.id} />
+              </TabsContent>
+            )}
 
             {/* Aba: Instalações OOH */}
             <TabsContent value="installations" className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">

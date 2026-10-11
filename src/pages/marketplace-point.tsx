@@ -727,6 +727,7 @@ export default function MarketplacePointPage({
             <aside className="marketplace-point-detail__aside">
               <div className="marketplace-point-detail__sticky">
                 <MarketplaceBookingCard
+                  mediaType={detail.type}
                   priceBiweekly={detail.price.amount}
                   priceMonthly={detail.price.monthlyAmount}
                   selectedRange={selectedRange}
