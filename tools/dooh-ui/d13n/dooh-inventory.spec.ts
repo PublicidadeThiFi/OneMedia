@@ -1,7 +1,7 @@
 /** D13N Playwright UI: production React components, synthetic HTTP, no backend or DB. */
 import { test, expect, type Page } from '@playwright/test';
 
-const SECRET = 'D13N_PRIVATE_METADATA_MUST_NOT_DISPLAY';
+const PRIVATE_TEST_MARKER = 'D13N_PRIVATE_METADATA_MUST_NOT_DISPLAY';
 const seenMethods: string[] = [];
 
 type Life = 'ACTIVE' | 'INACTIVE' | 'RETIRED';
@@ -30,7 +30,7 @@ function inventory(url: URL, source: Item[] = base) {
   const pageSize = 20;
   const total = filtered.length;
   return { items: filtered.slice((page - 1) * pageSize, page * pageSize).map(item => ({ ...item,
-    installationId: SECRET, metadata: { secret: SECRET } })),
+    installationId: PRIVATE_TEST_MARKER, metadata: { secret: PRIVATE_TEST_MARKER } })),
     meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)), offlineAfterSeconds: 180 } };
 }
 function detail(item: Item) {
@@ -38,9 +38,9 @@ function detail(item: Item) {
     currentAssignment: item.id === 'player-a' ? { id: 'assignment-a', mediaUnit: {
       id: 'screen-a', label: 'Tela A', unitType: 'SCREEN', isActive: true, mediaPoint: { name: 'Ponto A' },
     } } : null,
-    credential: { active: true, lastUsedAt: null, secretHash: SECRET, id: SECRET },
+    credential: { active: true, lastUsedAt: null, secretHash: PRIVATE_TEST_MARKER, id: PRIVATE_TEST_MARKER },
     manifestCount: 1, commandCount: 0, playbackEventCount: 0,
-    installationId: SECRET, metadata: { secret: SECRET },
+    installationId: PRIVATE_TEST_MARKER, metadata: { secret: PRIVATE_TEST_MARKER },
   };
 }
 
@@ -52,16 +52,16 @@ async function setup(page: Page, opts: { status?: number; invalid?: boolean; sou
     if (req.method() !== 'GET') throw new Error('D13N_READ_ONLY_HTTP_VIOLATION');
     const match = url.pathname.match(/\/players\/([^/]+)$/);
     if (opts.status) {
-      await route.fulfill({ status: opts.status, contentType: 'application/json', body: JSON.stringify({ message: SECRET }) });
+      await route.fulfill({ status: opts.status, contentType: 'application/json', body: JSON.stringify({ message: PRIVATE_TEST_MARKER }) });
       return;
     }
     if (opts.invalid) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{installationId: SECRET}], meta: {} }) });
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{installationId: PRIVATE_TEST_MARKER}], meta: {} }) });
       return;
     }
     const item = match ? (opts.source || base).find(x => x.id === decodeURIComponent(match[1])) : undefined;
     await route.fulfill({ status: item || !match ? 200 : 404, contentType: 'application/json',
-      body: JSON.stringify(match ? (item ? detail(item) : { message: SECRET }) : inventory(url, opts.source)) });
+      body: JSON.stringify(match ? (item ? detail(item) : { message: PRIVATE_TEST_MARKER }) : inventory(url, opts.source)) });
   });
   await page.goto('/');
 }
@@ -73,7 +73,7 @@ test('01 shows the inventory with real component and no private fields', async (
   await expect(page.getByText('Alpha', {exact:true})).toBeVisible();
   await expect(page.getByText('Bravo', {exact:true})).toBeVisible();
   await expect(page.getByText('3 player(s) no filtro')).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(SECRET);
+  await expect(page.locator('body')).not.toContainText(PRIVATE_TEST_MARKER);
 });
 
 test('02 ACTIVE offline remains licensed and is not displayed as operational', async ({page}) => {
@@ -99,7 +99,7 @@ test('04 detail shows sanitized technical diagnostics; closing hides them', asyn
   await expect(page.getByRole('region', {name:'Detalhes técnicos do player'})).toBeVisible();
   await expect(page.getByText('Ponto A')).toBeVisible();
   await expect(page.getByText('Versões de manifest divergentes; sincronização técnica pendente de verificação.')).toBeVisible();
-  await expect(page.locator('body')).not.toContainText(SECRET);
+  await expect(page.locator('body')).not.toContainText(PRIVATE_TEST_MARKER);
   await page.getByRole('button', {name:'Fechar detalhes'}).click();
   await expect(page.getByRole('region', {name:'Detalhes técnicos do player'})).toHaveCount(0);
 });
@@ -135,19 +135,19 @@ test('07 mismatched company snapshots close the view and never expose stale data
 test('08 403 and 503 return fixed sanitized errors, never server messages', async ({page}) => {
   await setup(page, {status:403});
   await expect(page.getByRole('alert')).toContainText('Consulta não autorizada');
-  await expect(page.locator('body')).not.toContainText(SECRET);
+  await expect(page.locator('body')).not.toContainText(PRIVATE_TEST_MARKER);
   await page.unrouteAll({behavior:'wait'});
-  await page.route('**/api/dooh/players**', route => route.fulfill({status:503, contentType:'application/json',body:JSON.stringify({message:SECRET})}));
+  await page.route('**/api/dooh/players**', route => route.fulfill({status:503, contentType:'application/json',body:JSON.stringify({message:PRIVATE_TEST_MARKER})}));
   await page.getByRole('button', {name:'Atualizar'}).click();
   await expect(page.getByRole('alert')).toContainText('Serviço DOOH temporariamente indisponível');
-  await expect(page.locator('body')).not.toContainText(SECRET);
+  await expect(page.locator('body')).not.toContainText(PRIVATE_TEST_MARKER);
 });
 
 test('09 bad inventory fails closed instead of displaying incomplete data', async ({page}) => {
   await setup(page, {invalid:true});
   await expect(page.getByRole('alert')).toContainText('Resposta do inventário DOOH incompatível');
   await expect(page.getByRole('button',{name:/Ver detalhes de/})).toHaveCount(0);
-  await expect(page.locator('body')).not.toContainText(SECRET);
+  await expect(page.locator('body')).not.toContainText(PRIVATE_TEST_MARKER);
 });
 
 test('10 pagination and user search keep the interface read-only', async ({page}) => {
