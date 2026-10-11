@@ -24,6 +24,15 @@ import { TutorialOverlay } from "./tutorial/TutorialOverlay";
 import { useAssistant } from "../contexts/AssistantContext";
 import { AssistantLauncher } from "./assistant/AssistantLauncher";
 import { getAssistantModuleLabel } from "../lib/assistant";
+import { useProductAccess } from "../contexts/ProductAccessContext";
+import {
+  DOOH_SECTION_PATHS,
+  getDoohSectionFromPath,
+  getProductHomePath,
+  getProductModuleFromPath,
+  type DoohFoundationSection,
+} from "../lib/productNavigation";
+import { DoohFoundationPage } from "./DoohFoundationPage";
 
 const HomePage = lazy(() =>
   import("./HomePage").then((m) => ({ default: m.HomePage })),
@@ -157,6 +166,20 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
     useTutorial();
   const { setScreenContext, setIsOpen: setIsAssistantOpen } = useAssistant();
   const navigate = useNavigation();
+  const {
+    isLoading: isProductAccessLoading,
+    error: productAccessError,
+    activeModule,
+    availableModules,
+    hasModule,
+    setActiveModule,
+    refreshProductAccess,
+  } = useProductAccess();
+
+  const currentPathname =
+    typeof window !== "undefined" ? window.location.pathname : "/app/home";
+  const requestedModule = getProductModuleFromPath(currentPathname);
+  const currentDoohSection = getDoohSectionFromPath(currentPathname);
 
   const {
     isBlocked,
@@ -168,21 +191,32 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
   } = useCompany();
 
   useEffect(() => {
+    if (requestedModule !== "OOH") return;
     setCurrentModule(currentPage);
-  }, [currentPage, setCurrentModule]);
+  }, [currentPage, requestedModule, setCurrentModule]);
 
   useEffect(() => {
     const currentPath =
       typeof window !== "undefined"
         ? `${window.location.pathname}${window.location.search}`
-        : `/app/${currentPage}`;
+        : requestedModule === "DOOH"
+          ? "/app/dooh"
+          : `/app/${currentPage}`;
 
     setScreenContext({
-      currentModule: currentPage,
+      currentModule: requestedModule === "OOH" ? currentPage : "home",
       currentPath,
-      currentTitle: getAssistantModuleLabel(currentPage),
+      currentTitle:
+        requestedModule === "OOH"
+          ? getAssistantModuleLabel(currentPage)
+          : `DOOH · ${currentDoohSection}`,
     });
-  }, [currentPage, setScreenContext]);
+  }, [
+    currentDoohSection,
+    currentPage,
+    requestedModule,
+    setScreenContext,
+  ]);
 
   const pastDueGraceDaysLeft = useMemo(() => {
     if (isBlocked) return null;
@@ -216,6 +250,39 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
       navigate("/cadastro");
     }
   }, [authReady, user, navigate]);
+
+  useEffect(() => {
+    if (!authReady || !user || user.onboardingCompleted === false) return;
+    if (isProductAccessLoading || productAccessError) return;
+
+    if (hasModule(requestedModule)) {
+      if (activeModule !== requestedModule) {
+        setActiveModule(requestedModule);
+      }
+      return;
+    }
+
+    const fallbackModule = availableModules[0] ?? null;
+    if (!fallbackModule) return;
+
+    setActiveModule(fallbackModule);
+    const fallbackPath = getProductHomePath(fallbackModule);
+    if (currentPathname !== fallbackPath) {
+      navigate(fallbackPath);
+    }
+  }, [
+    activeModule,
+    authReady,
+    availableModules,
+    currentPathname,
+    hasModule,
+    isProductAccessLoading,
+    navigate,
+    productAccessError,
+    requestedModule,
+    setActiveModule,
+    user,
+  ]);
 
   if (!authReady) {
     return (
@@ -258,6 +325,66 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
     );
   }
 
+  if (isProductAccessLoading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-sm text-gray-500">
+          Carregando módulos contratados…
+        </div>
+      </div>
+    );
+  }
+
+  if (productAccessError) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <p className="font-medium text-gray-900">
+            Não foi possível validar o acesso aos módulos.
+          </p>
+          <p className="mt-2 text-sm text-gray-600">{productAccessError}</p>
+          <button
+            type="button"
+            onClick={() => void refreshProductAccess()}
+            className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (availableModules.length === 0) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <p className="font-medium text-gray-900">
+            Nenhum módulo OneMedia está disponível para esta empresa.
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            O backend não concedeu acesso a OOH nem a DOOH.
+          </p>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-4 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Sair
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasModule(requestedModule)) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-sm text-gray-500">Ajustando módulo disponível…</div>
+      </div>
+    );
+  }
+
   const goToSubscriptionSettings = () => {
     setCurrentPage("settings");
     setIsMobileMenuOpen(false);
@@ -272,7 +399,7 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
     });
   };
 
-  const currentPageHasTutorial = hasTutorialForModule(currentPage);
+  const currentPageHasTutorial = requestedModule === "OOH" && hasTutorialForModule(currentPage);
 
   // Keep URL and visible module in sync.
   // This avoids getting visually back to Mídia Map while the browser URL
@@ -285,9 +412,25 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
     navigate(targetPath);
   };
 
+  const handleModuleChange = (module: "OOH" | "DOOH") => {
+    if (!hasModule(module)) return;
+    setActiveModule(module);
+    setIsMobileMenuOpen(false);
+    navigate(getProductHomePath(module));
+  };
+
+  const handleDoohNavigate = (section: DoohFoundationSection) => {
+    setIsMobileMenuOpen(false);
+    navigate(DOOH_SECTION_PATHS[section]);
+  };
+
   // Render the current page content
   // Render the current page content
   const renderContent = () => {
+    if (requestedModule === "DOOH") {
+      return <DoohFoundationPage section={currentDoohSection} />;
+    }
+
     switch (currentPage) {
       case "home":
         return <HomePage />;
@@ -357,6 +500,11 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
             currentPage={currentPage}
             onNavigate={handleNavigate}
             isSuperAdmin={Boolean(user?.isSuperAdmin)}
+            activeModule={requestedModule}
+            availableModules={availableModules}
+            onModuleChange={handleModuleChange}
+            currentDoohSection={currentDoohSection}
+            onDoohNavigate={handleDoohNavigate}
           />
         </div>
 
@@ -388,6 +536,11 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
               onNavigate={handleNavigate}
               isSuperAdmin={Boolean(user?.isSuperAdmin)}
               isMobile={true}
+              activeModule={requestedModule}
+              availableModules={availableModules}
+              onModuleChange={handleModuleChange}
+              currentDoohSection={currentDoohSection}
+              onDoohNavigate={handleDoohNavigate}
             />
           </div>
         </div>
@@ -407,7 +560,7 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
                 </button>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-[#4F46E5] rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">OOH</span>
+                    <span className="text-white font-bold text-sm">{requestedModule}</span>
                   </div>
                   <span className="text-lg text-gray-900">OneMedia</span>
                 </div>
@@ -424,15 +577,17 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
                     {user.email}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAssistantOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50"
-                  aria-label="Abrir chat da plataforma"
-                >
-                  <Bot className="h-4 w-4" />
-                  <span>Chat</span>
-                </button>
+                {requestedModule === "OOH" ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAssistantOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-colors hover:bg-indigo-50"
+                    aria-label="Abrir chat da plataforma"
+                  >
+                    <Bot className="h-4 w-4" />
+                    <span>Chat</span>
+                  </button>
+                ) : null}
                 {currentPageHasTutorial ? (
                   <button
                     type="button"
@@ -454,9 +609,10 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
             </div>
           </header>
 
-          {(isBlocked ||
-            isTrialEndingSoon ||
-            (pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0)) && (
+          {requestedModule === "OOH" &&
+            (isBlocked ||
+              isTrialEndingSoon ||
+              (pastDueGraceDaysLeft !== null && pastDueGraceDaysLeft > 0)) && (
             <div
               className={
                 "px-4 md:px-8 py-3 border-b " +
@@ -520,8 +676,8 @@ export function MainApp({ initialPage = "home" }: MainAppProps) {
           </main>
         </div>
       </div>
-      <TutorialOverlay />
-      <AssistantLauncher />
+      {requestedModule === "OOH" ? <TutorialOverlay /> : null}
+      {requestedModule === "OOH" ? <AssistantLauncher /> : null}
     </>
   );
 }

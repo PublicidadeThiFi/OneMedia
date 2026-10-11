@@ -163,7 +163,9 @@ export function MarketplaceInquiries() {
 
   const performConversion = async (item: MarketplaceInquiryOperatorItem) => {
     const confirmed = window.confirm(
-      "Criar um cliente e uma proposta em rascunho para esta solicitação? Nenhuma reserva será criada agora.",
+      item.point.type === "DOOH"
+        ? "Criar uma proposta DOOH em rascunho para a tela solicitada? A programação e a publicação exigem aprovação manual. Nenhuma reserva, cobrança ou publicação será criada agora."
+        : "Criar um cliente e uma proposta em rascunho para esta solicitação? Nenhuma reserva será criada agora.",
     );
     if (!confirmed) return;
     setActionId(item.id);
@@ -383,6 +385,19 @@ export function MarketplaceInquiries() {
                     </button>
                   )}
                 </div>
+
+                {selected.point.type === "DOOH" && (
+                  <section data-testid="dooh-operator-approval-notice" className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+                    <h3 className="font-semibold">Solicitação de mídia digital — aprovação manual</h3>
+                    <p className="mt-1 leading-6">
+                      A conversão cria apenas a proposta em rascunho. Antes da exibição,
+                      valide comercialmente a proposta, a SCREEN e o conteúdo.
+                      Programação e publicação dependem de integração operacional DOOH
+                      específica, ainda indisponível nesta tela. Não há checkout,
+                      reserva, agendamento nem publicação automática.
+                    </p>
+                  </section>
+                )}
 
                 <div className="grid gap-3 rounded-xl bg-gray-50 p-4 text-sm sm:grid-cols-2">
                   <div className="flex gap-2">

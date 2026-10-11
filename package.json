@@ -95,6 +95,8 @@
     "qa:billing-cakto": "node ./scripts/billing-cakto-static.mjs",
     "qa:trial-policy": "node ./scripts/trial-policy-static.mjs",
     "qa:annual-policy": "node ./scripts/annual-policy-static.mjs",
-    "qa:fiscal-communication": "node ./scripts/fiscal-communication-static.mjs"
+    "qa:fiscal-communication": "node ./scripts/fiscal-communication-static.mjs",
+    "qa:product-access": "node ./scripts/product-access-static.mjs",
+    "qa:product-navigation": "node ./scripts/product-navigation-static.mjs"
   }
 }

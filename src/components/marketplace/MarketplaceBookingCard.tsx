@@ -23,6 +23,7 @@ import type {
 type MarketplaceBookingCardProps = {
   priceBiweekly: number;
   priceMonthly: number | null;
+  mediaType?: string | null;
   selectedRange: MarketplaceDateRangeValue;
   campaignType: MarketplaceCampaignType;
   availability: Pick<
@@ -49,6 +50,7 @@ function statusClass(status: MarketplaceAvailabilityStatus | undefined) {
 export function MarketplaceBookingCard({
   priceBiweekly,
   priceMonthly,
+  mediaType,
   selectedRange,
   campaignType,
   availability,
@@ -58,6 +60,7 @@ export function MarketplaceBookingCard({
   onCampaignTypeChange,
   onRequest,
 }: MarketplaceBookingCardProps) {
+  const isDooh = mediaType === "DOOH";
   const fixedDurationDays =
     getMarketplaceCampaignDurationDays(campaignType);
   const fixedCampaign = fixedDurationDays !== null;
@@ -174,7 +177,7 @@ export function MarketplaceBookingCard({
         }
         onClick={onRequest}
       >
-        <CalendarDays aria-hidden="true" /> Solicitar reserva
+        <CalendarDays aria-hidden="true" /> {isDooh ? "Solicitar proposta DOOH" : "Solicitar reserva"}
       </button>
 
       {message && (
@@ -186,10 +189,17 @@ export function MarketplaceBookingCard({
       <p className="marketplace-booking-card__notice">
         <ShieldCheck aria-hidden="true" />
         <span>
-          Você ainda não será cobrado. A solicitação será enviada para
-          confirmação de disponibilidade e condições comerciais.
+          {isDooh
+            ? "Sem cobrança automática: sua solicitação será analisada pela equipe comercial. A data é uma consulta, não uma reserva confirmada."
+            : "Você ainda não será cobrado. A solicitação será enviada para confirmação de disponibilidade e condições comerciais."}
         </span>
       </p>
+      {isDooh && (
+        <div data-testid="dooh-manual-commercial-flow" className="mt-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs leading-5 text-indigo-900">
+          <strong>Etapas da mídia digital:</strong> análise da solicitação → proposta comercial → aprovação manual → programação em rascunho → publicação autorizada.
+          Nenhuma tela é programada ou publicada por este pedido.
+        </div>
+      )}
     </div>
   );
 }
