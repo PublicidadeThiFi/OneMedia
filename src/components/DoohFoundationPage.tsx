@@ -14,6 +14,7 @@ import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
 import { DoohGroupMembersSafeEditor } from './DoohGroupMembersSafeEditor';
 import { DoohPlayerRestartQa } from './DoohPlayerRestartQa';
 import { DoohMediaLibraryReadOnly } from './DoohMediaLibraryReadOnly';
+import { DoohPlaylistCatalogReadOnly } from './DoohPlaylistCatalogReadOnly';
 import {
   DOOH_SECTION_LABELS,
   type DoohFoundationSection,
@@ -31,7 +32,7 @@ const sectionDescriptions: Record<DoohFoundationSection, string> = {
   library:
     'Biblioteca com pastas, organização CAS, upload S3 controlado e histórico de jobs de processamento. Enfileiramento de QA desligado por padrão; worker e distribuição não estão homologados.',
   scheduling:
-    'A infraestrutura de playlists e agendas já existe no backend. O vínculo manual com campanhas aprovadas do Marketplace está disponível no detalhe da campanha; a interface completa de programação DOOH será entregue progressivamente.',
+    'Playlists e suas versões podem ser consultadas. O vínculo manual de campanhas aprovadas do Marketplace continua disponível; criação, edição e publicação de playlists/agenda serão entregues progressivamente.',
   reports:
     'A rota de Relatórios já está reservada. Proof-of-play, agregações e exportações serão adicionados após o runtime e a sincronização.',
 };
@@ -114,7 +115,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
                   {card.description}
                 </p>
                 <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {card.title === 'Telas e Players' ? 'Inventário e operações de players; restart condicionado ao gate de QA' : card.title === 'Biblioteca' ? 'Inventário de mídias/pastas disponível para consulta' : 'Estrutura reservada — ainda não operacional'}
+                  {card.title === 'Telas e Players' ? 'Inventário e operações de players; restart condicionado ao gate de QA' : card.title === 'Biblioteca' ? 'Inventário e gestão de mídias; upload/processing sob gates de QA' : card.title === 'Programação' ? 'Catálogo e versões de playlists disponíveis para consulta; publicação ainda não exposta' : 'Estrutura reservada — ainda não operacional'}
                 </p>
               </div>
             );
@@ -123,7 +124,10 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
       ) : section === 'library' ? (
         <DoohMediaLibraryReadOnly />
       ) : section === 'scheduling' ? (
-        <DoohMarketplaceCampaignSelection />
+        <div className="space-y-5">
+          <DoohPlaylistCatalogReadOnly />
+          <DoohMarketplaceCampaignSelection />
+        </div>
       ) : section === 'screens' ? (
         <DoohPlayerInventoryReadOnly />
       ) : (
