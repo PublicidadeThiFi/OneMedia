@@ -29,7 +29,7 @@ const sectionDescriptions: Record<DoohFoundationSection, string> = {
   screens:
     'Consulta de players, gestão de nomes/grupos, pareamento e associação. Edição individual de membros exige o novo endpoint atômico e grupos sem programação; restart disponível apenas em compilação/empresa de QA explicitamente autorizadas.',
   library:
-    'Inventário DOOH com consulta real de pastas, mídias e estados de processamento. Upload, edição e distribuição de assets serão habilitados progressivamente.',
+    'Biblioteca com pastas, organização CAS e upload direto ao S3 protegido por gate de QA. Processamento e distribuição ainda requerem integração e homologação.',
   scheduling:
     'A infraestrutura de playlists e agendas já existe no backend. O vínculo manual com campanhas aprovadas do Marketplace está disponível no detalhe da campanha; a interface completa de programação DOOH será entregue progressivamente.',
   reports:
