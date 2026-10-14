@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohFolderOperations } from './DoohFolderOperations';
 import {
   displayDoohMediaSize,
   doohLibraryReadError,
@@ -117,6 +118,7 @@ export function DoohMediaLibraryReadOnly() {
     {loading && <p role="status" className="text-sm text-gray-600">Carregando biblioteca…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {visible && <>
+      <DoohFolderOperations companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
       <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
         <p>{visible.folders.length} pasta(s) cadastrada(s) · {filtered.length} de {visible.media.length} mídia(s) carregada(s) neste filtro</p>
         <p>Consultado em: {visible.fetchedAt}</p>
