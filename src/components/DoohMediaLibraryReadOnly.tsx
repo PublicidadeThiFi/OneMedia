@@ -7,6 +7,7 @@ import { DoohFolderOperations } from './DoohFolderOperations';
 import { DoohMediaOrganizeCas } from './DoohMediaOrganizeCas';
 import { DoohMediaUpload } from './DoohMediaUpload';
 import { DoohMediaProcessing } from './DoohMediaProcessing';
+import { DoohMediaVersionsReadOnly } from './DoohMediaVersionsReadOnly';
 import {
   displayDoohMediaSize,
   doohLibraryReadError,
@@ -125,6 +126,7 @@ export function DoohMediaLibraryReadOnly() {
       <DoohMediaUpload companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
       <DoohMediaOrganizeCas companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
       <DoohMediaProcessing companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
+      <DoohMediaVersionsReadOnly companyId={companyId!} media={visible.media} />
       <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
         <p>{visible.folders.length} pasta(s) cadastrada(s) · {filtered.length} de {visible.media.length} mídia(s) carregada(s) neste filtro</p>
         <p>Consultado em: {visible.fetchedAt}</p>
