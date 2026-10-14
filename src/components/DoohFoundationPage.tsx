@@ -10,6 +10,7 @@ import { DoohMarketplaceCampaignSelection } from './campaigns/DoohMarketplaceCam
 import { DoohPlayerInventoryReadOnly } from './DoohPlayerInventoryReadOnly';
 import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
+import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
 import {
   DOOH_SECTION_LABELS,
   type DoohFoundationSection,
@@ -21,9 +22,9 @@ interface DoohFoundationPageProps {
 
 const sectionDescriptions: Record<DoohFoundationSection, string> = {
   home:
-    'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Comandos, distribuição de mídia e homologação física continuam pendentes.',
+    'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Consulta de histórico de comandos disponível; envio de restart, distribuição de mídia e homologação física continuam pendentes.',
   screens:
-    'Consulta de players, gestão de nomes/grupos e pareamento/associação controlados por FULL, RBAC, pausa global e quotas no backend. Comandos remotos permanecem pendentes.',
+    'Consulta de players, gestão de nomes/grupos e pareamento/associação controlados por FULL, RBAC, pausa global e quotas no backend. Histórico de comandos e membros de grupos disponíveis em consulta; envio de restart permanece pendente.',
   library:
     'A rota da Biblioteca DOOH já está reservada. Upload, processamento, versões e distribuição de mídia serão implementados nas próximas fases.',
   scheduling:
@@ -110,7 +111,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
                   {card.description}
                 </p>
                 <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {card.title === 'Telas e Players' ? 'Inventário, nomes, grupos e operações de pareamento/associação disponíveis; restart pendente' : 'Estrutura reservada — ainda não operacional'}
+                  {card.title === 'Telas e Players' ? 'Inventário, nomes, grupos e operações de pareamento/associação disponíveis; histórico de comandos disponível; restart pendente' : 'Estrutura reservada — ainda não operacional'}
                 </p>
               </div>
             );
@@ -132,6 +133,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
       )}
       {section === 'screens' && <DoohPlayerOperations />}
       {section === 'screens' && <DoohPlayerPairingAndAssignment />}
+      {section === 'screens' && <DoohPlayerAuditReadOnly />}
     </div>
   );
 }
