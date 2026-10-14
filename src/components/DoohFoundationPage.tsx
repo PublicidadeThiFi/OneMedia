@@ -9,6 +9,7 @@ import { useProductAccess } from '../contexts/ProductAccessContext';
 import { DoohMarketplaceCampaignSelection } from './campaigns/DoohMarketplaceCampaignSelection';
 import { DoohPlayerInventoryReadOnly } from './DoohPlayerInventoryReadOnly';
 import { DoohPlayerOperations } from './DoohPlayerOperations';
+import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
 import {
   DOOH_SECTION_LABELS,
   type DoohFoundationSection,
@@ -20,9 +21,9 @@ interface DoohFoundationPageProps {
 
 const sectionDescriptions: Record<DoohFoundationSection, string> = {
   home:
-    'O módulo DOOH possui consulta de players, gestão administrativa de nomes e grupos e programação comercial manual. Pareamento, comandos, distribuição de mídia e homologação física continuam pendentes.',
+    'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Comandos, distribuição de mídia e homologação física continuam pendentes.',
   screens:
-    'Consulta técnica de players e gestão de nomes/grupos sob permissões DOOH FULL. Pareamento, ativação e comandos remotos permanecem indisponíveis.',
+    'Consulta de players, gestão de nomes/grupos e pareamento/associação controlados por FULL, RBAC, pausa global e quotas no backend. Comandos remotos permanecem pendentes.',
   library:
     'A rota da Biblioteca DOOH já está reservada. Upload, processamento, versões e distribuição de mídia serão implementados nas próximas fases.',
   scheduling:
@@ -109,7 +110,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
                   {card.description}
                 </p>
                 <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {card.title === 'Telas e Players' ? 'Inventário, nomes e grupos disponíveis; pareamento e comandos pendentes' : 'Estrutura reservada — ainda não operacional'}
+                  {card.title === 'Telas e Players' ? 'Inventário, nomes, grupos e operações de pareamento/associação disponíveis; restart pendente' : 'Estrutura reservada — ainda não operacional'}
                 </p>
               </div>
             );
@@ -130,6 +131,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
         </div>
       )}
       {section === 'screens' && <DoohPlayerOperations />}
+      {section === 'screens' && <DoohPlayerPairingAndAssignment />}
     </div>
   );
 }
