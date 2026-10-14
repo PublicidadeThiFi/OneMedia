@@ -13,6 +13,7 @@ import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment
 import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
 import { DoohGroupMembersSafeEditor } from './DoohGroupMembersSafeEditor';
 import { DoohPlayerRestartQa } from './DoohPlayerRestartQa';
+import { DoohMediaLibraryReadOnly } from './DoohMediaLibraryReadOnly';
 import {
   DOOH_SECTION_LABELS,
   type DoohFoundationSection,
@@ -28,7 +29,7 @@ const sectionDescriptions: Record<DoohFoundationSection, string> = {
   screens:
     'Consulta de players, gestão de nomes/grupos, pareamento e associação. Edição individual de membros exige o novo endpoint atômico e grupos sem programação; restart disponível apenas em compilação/empresa de QA explicitamente autorizadas.',
   library:
-    'A rota da Biblioteca DOOH já está reservada. Upload, processamento, versões e distribuição de mídia serão implementados nas próximas fases.',
+    'Inventário DOOH com consulta real de pastas, mídias e estados de processamento. Upload, edição e distribuição de assets serão habilitados progressivamente.',
   scheduling:
     'A infraestrutura de playlists e agendas já existe no backend. O vínculo manual com campanhas aprovadas do Marketplace está disponível no detalhe da campanha; a interface completa de programação DOOH será entregue progressivamente.',
   reports:
@@ -113,12 +114,14 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
                   {card.description}
                 </p>
                 <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {card.title === 'Telas e Players' ? 'Inventário, nomes, grupos e operações de pareamento/associação disponíveis; histórico de comandos disponível; restart condicionado ao gate de QA' : 'Estrutura reservada — ainda não operacional'}
+                  {card.title === 'Telas e Players' ? 'Inventário e operações de players; restart condicionado ao gate de QA' : card.title === 'Biblioteca' ? 'Inventário de mídias/pastas disponível para consulta' : 'Estrutura reservada — ainda não operacional'}
                 </p>
               </div>
             );
           })}
         </div>
+      ) : section === 'library' ? (
+        <DoohMediaLibraryReadOnly />
       ) : section === 'scheduling' ? (
         <DoohMarketplaceCampaignSelection />
       ) : section === 'screens' ? (
