@@ -26,6 +26,7 @@ export interface DoohLibraryMedia {
   heightPx: number | null;
   versionCount: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export type DoohLibraryFolderFilter = 'all' | 'root' | string;
@@ -114,7 +115,7 @@ export function parseDoohLibraryMedia(
         typeof asset.bytes !== 'string' || !/^(0|[1-9]\d{0,19})$/.test(asset.bytes) ||
         !count || !Number.isSafeInteger(count.versions) || Number(count.versions) < 0 ||
         !optionalPositive(item.durationMs) || !optionalPositive(item.widthPx) ||
-        !optionalPositive(item.heightPx) || !validDate(item.createdAt)) return null;
+        !optionalPositive(item.heightPx) || !validDate(item.createdAt) || !validDate(item.updatedAt)) return null;
     ids.add(item.id);
     result.push({
       id: item.id, folderId: item.folderId as string | null, name: item.name.trim(),
@@ -123,7 +124,7 @@ export function parseDoohLibraryMedia(
       durationMs: item.durationMs as number | null,
       widthPx: item.widthPx as number | null,
       heightPx: item.heightPx as number | null,
-      versionCount: count.versions as number, createdAt: item.createdAt,
+      versionCount: count.versions as number, createdAt: item.createdAt, updatedAt: item.updatedAt,
     });
   }
   return result;

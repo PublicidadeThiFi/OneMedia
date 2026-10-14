@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
 import { DoohFolderOperations } from './DoohFolderOperations';
+import { DoohMediaOrganizeCas } from './DoohMediaOrganizeCas';
 import {
   displayDoohMediaSize,
   doohLibraryReadError,
@@ -85,7 +86,7 @@ export function DoohMediaLibraryReadOnly() {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
         <h3 className="font-semibold text-gray-900">Biblioteca de mídias — inventário operacional</h3>
-        <p className="text-sm text-gray-600">Pastas e mídias consultadas na API da empresa autenticada. Somente leitura nesta etapa.</p>
+        <p className="text-sm text-gray-600">Pastas e mídias consultadas na API da empresa autenticada. Consulta e organização de metadados, conforme permissões.</p>
         <p className="text-xs text-amber-800">READY significa processamento concluído, não publicação, reprodução física ou entrega certificada.</p>
       </div>
       <Button type="button" variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}>Atualizar</Button>
@@ -119,6 +120,7 @@ export function DoohMediaLibraryReadOnly() {
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {visible && <>
       <DoohFolderOperations companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
+      <DoohMediaOrganizeCas companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
       <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
         <p>{visible.folders.length} pasta(s) cadastrada(s) · {filtered.length} de {visible.media.length} mídia(s) carregada(s) neste filtro</p>
         <p>Consultado em: {visible.fetchedAt}</p>
