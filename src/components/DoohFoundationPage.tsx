@@ -11,6 +11,7 @@ import { DoohPlayerInventoryReadOnly } from './DoohPlayerInventoryReadOnly';
 import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
 import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
+import { DoohGroupMembersSafeEditor } from './DoohGroupMembersSafeEditor';
 import {
   DOOH_SECTION_LABELS,
   type DoohFoundationSection,
@@ -24,7 +25,7 @@ const sectionDescriptions: Record<DoohFoundationSection, string> = {
   home:
     'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Consulta de histórico de comandos disponível; envio de restart, distribuição de mídia e homologação física continuam pendentes.',
   screens:
-    'Consulta de players, gestão de nomes/grupos e pareamento/associação controlados por FULL, RBAC, pausa global e quotas no backend. Histórico de comandos e membros de grupos disponíveis em consulta; envio de restart permanece pendente.',
+    'Consulta de players, gestão de nomes/grupos, pareamento e associação. Edição individual de membros exige o novo endpoint atômico e grupos sem programação; restart permanece pendente.',
   library:
     'A rota da Biblioteca DOOH já está reservada. Upload, processamento, versões e distribuição de mídia serão implementados nas próximas fases.',
   scheduling:
@@ -134,6 +135,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
       {section === 'screens' && <DoohPlayerOperations />}
       {section === 'screens' && <DoohPlayerPairingAndAssignment />}
       {section === 'screens' && <DoohPlayerAuditReadOnly />}
+      {section === 'screens' && <DoohGroupMembersSafeEditor />}
     </div>
   );
 }
