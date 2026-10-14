@@ -12,6 +12,7 @@ import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
 import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
 import { DoohGroupMembersSafeEditor } from './DoohGroupMembersSafeEditor';
+import { DoohPlayerRestartQa } from './DoohPlayerRestartQa';
 import {
   DOOH_SECTION_LABELS,
   type DoohFoundationSection,
@@ -23,9 +24,9 @@ interface DoohFoundationPageProps {
 
 const sectionDescriptions: Record<DoohFoundationSection, string> = {
   home:
-    'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Consulta de histórico de comandos disponível; envio de restart, distribuição de mídia e homologação física continuam pendentes.',
+    'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Consulta de histórico de comandos disponível; restart protegido por gate exclusivo de QA, enquanto distribuição de mídia e homologação física continuam pendentes.',
   screens:
-    'Consulta de players, gestão de nomes/grupos, pareamento e associação. Edição individual de membros exige o novo endpoint atômico e grupos sem programação; restart permanece pendente.',
+    'Consulta de players, gestão de nomes/grupos, pareamento e associação. Edição individual de membros exige o novo endpoint atômico e grupos sem programação; restart disponível apenas em compilação/empresa de QA explicitamente autorizadas.',
   library:
     'A rota da Biblioteca DOOH já está reservada. Upload, processamento, versões e distribuição de mídia serão implementados nas próximas fases.',
   scheduling:
@@ -112,7 +113,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
                   {card.description}
                 </p>
                 <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {card.title === 'Telas e Players' ? 'Inventário, nomes, grupos e operações de pareamento/associação disponíveis; histórico de comandos disponível; restart pendente' : 'Estrutura reservada — ainda não operacional'}
+                  {card.title === 'Telas e Players' ? 'Inventário, nomes, grupos e operações de pareamento/associação disponíveis; histórico de comandos disponível; restart condicionado ao gate de QA' : 'Estrutura reservada — ainda não operacional'}
                 </p>
               </div>
             );
@@ -136,6 +137,7 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
       {section === 'screens' && <DoohPlayerPairingAndAssignment />}
       {section === 'screens' && <DoohPlayerAuditReadOnly />}
       {section === 'screens' && <DoohGroupMembersSafeEditor />}
+      {section === 'screens' && <DoohPlayerRestartQa />}
     </div>
   );
 }
