@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { DoohPlaylistCreateRename } from './DoohPlaylistCreateRename';
 import { DoohPlaylistDraftEditor } from './DoohPlaylistDraftEditor';
 import { DoohPlaylistDraftReorder } from './DoohPlaylistDraftReorder';
+import { DoohPlaylistPublishQa } from './DoohPlaylistPublishQa';
 import { canReadDoohPlaylists, doohPlaylistReadError, parseDoohPlaylistCatalog,
   parseDoohPlaylistDetail, type DoohPlaylistDetail, type DoohPlaylistSummary,
 } from '../lib/doohPlaylistCatalogContract';
@@ -108,6 +109,7 @@ export function DoohPlaylistCatalogReadOnly() {
     {entries && companyId && <DoohPlaylistCreateRename companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
     {entries && companyId && <DoohPlaylistDraftEditor companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
     {entries && companyId && <DoohPlaylistDraftReorder companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
+    {entries && companyId && <DoohPlaylistPublishQa companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
     {selectedExists && <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold text-gray-900">Histórico da playlist selecionada</h4>
         <Button type="button" variant="outline" size="sm" onClick={() => setSelectedId('')}>Fechar</Button></div>
