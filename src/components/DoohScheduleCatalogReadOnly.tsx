@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { DoohScheduleTargetsCasEditor } from './DoohScheduleTargetsCasEditor';
 import { DoohScheduleDetailsCasEditor } from './DoohScheduleDetailsCasEditor';
 import { DoohScheduleTemporalPreview } from './DoohScheduleTemporalPreview';
+import { DoohSchedulePublicationAudit } from './DoohSchedulePublicationAudit';
 import { DoohSchedulePublishQa } from './DoohSchedulePublishQa';
 import { canReadDoohSchedules, doohScheduleReadError, parseDoohSchedule,
   parseDoohScheduleCatalog, parseDoohScheduleTargets, type DoohScheduleSummary,
@@ -178,6 +179,7 @@ export function DoohScheduleCatalogReadOnly() {
             <DoohScheduleTargetsCasEditor companyId={companyId} summary={current} inventory={targetInventory}
               onChanged={() => setRefresh((value) => value + 1)} />}
         </div>
+        {companyId && <DoohSchedulePublicationAudit companyId={companyId} summary={current} />}
         <p className="text-xs text-amber-800">Destinos são vínculos cadastrados, não evidência de conectividade, entrega de manifest ou exibição. A prévia temporal é apenas simulação de leitura.</p>
       </>}
     </div>}
