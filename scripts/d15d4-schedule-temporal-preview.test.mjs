@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { canPreviewDoohSchedules, normalizePreviewInstant, buildPreviewRequest,
   parseInstantPreview, parseTimelinePreview, doohPreviewError } from '../src/lib/doohSchedulePreviewContract.ts';
 const source = p => readFileSync(join(process.cwd(), p), 'utf8');
@@ -99,10 +100,34 @@ test('D15D04-17 agenda integra painel sem apagar editores ou Marketplace',() => 
  assert.match(catalog,/<DoohScheduleTemporalPreview /);assert.match(catalog,/<DoohScheduleTargetsCasEditor /);assert.match(catalog,/<DoohScheduleDetailsCasEditor/);
  assert.match(source('src/components/DoohFoundationPage.tsx'),/<DoohMarketplaceCampaignSelection \/>/);
 });
-test('D15D04-18 backend já expõe preview e timeline read-only e limites',() => {
- const ctrl=source('../backend/src/dooh-schedule-core/dooh-schedules.controller.ts');
+// Backend is a separate checkout. Resolve it from the test file, not the
+// process working directory; frontend-only CI jobs must not fail on ENOENT.
+const frontendRoot = fileURLToPath(new URL('../', import.meta.url));
+const controllerPath = 'src/dooh-schedule-core/dooh-schedules.controller.ts';
+const timelinePath = 'src/dooh-schedule-core/dooh-schedule-timeline.service.ts';
+function locateBackendCheckout() {
+ const configuredRoot = process.env.ONEMEDIA_BACKEND_ROOT?.trim();
+ if (configuredRoot) {
+  const backendRoot = resolve(configuredRoot);
+  assert.ok(existsSync(join(backendRoot, controllerPath)) && existsSync(join(backendRoot, timelinePath)),
+   'ONEMEDIA_BACKEND_ROOT apontou para um checkout sem os dois arquivos exigidos');
+  return backendRoot;
+ }
+ for (const sibling of ['ooh-manager-api', 'backend', 'ooh-manager-api_atual']) {
+  const candidate = resolve(frontendRoot, '..', sibling);
+  if (existsSync(join(candidate, controllerPath)) && existsSync(join(candidate, timelinePath))) return candidate;
+ }
+ return null;
+}
+test('D15D04-18 backend já expõe preview e timeline read-only e limites',t => {
+ const backendRoot = locateBackendCheckout();
+ if (!backendRoot) {
+  t.skip('Backend não está neste checkout; a API é validada no CI/Jest do backend.');
+  return;
+ }
+ const ctrl=readFileSync(join(backendRoot,controllerPath),'utf8');
  assert.match(ctrl,/@Get\('preview\/timeline'\)/);assert.match(ctrl,/@Get\('preview'\)/);
- const timeline=source('../backend/src/dooh-schedule-core/dooh-schedule-timeline.service.ts');
+ const timeline=readFileSync(join(backendRoot,timelinePath),'utf8');
  assert.match(timeline,/const MAX_RANGE_MS = 24/);assert.match(timeline,/MAX_MATCH_EVALUATIONS = 75_000/);
  assert.match(timeline,/authoritativeForPublication: false/);
 });
