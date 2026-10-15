@@ -5,6 +5,7 @@ import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
 import { DoohScheduleTargetsCasEditor } from './DoohScheduleTargetsCasEditor';
 import { DoohScheduleDetailsCasEditor } from './DoohScheduleDetailsCasEditor';
+import { DoohScheduleTemporalPreview } from './DoohScheduleTemporalPreview';
 import { canReadDoohSchedules, doohScheduleReadError, parseDoohSchedule,
   parseDoohScheduleCatalog, parseDoohScheduleTargets, type DoohScheduleSummary,
   type DoohScheduleTargetInventory,
@@ -139,6 +140,7 @@ export function DoohScheduleCatalogReadOnly() {
         </tr>)}</tbody>
       </table></div>}
     </>}
+    {entries && companyId && <DoohScheduleTemporalPreview companyId={companyId} schedules={entries} catalogRevision={listKey} />}
     {selectedSummary && <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
       <div className="flex justify-between gap-3"><h4 className="font-semibold text-gray-900">Detalhes da agenda</h4>
         <Button type="button" variant="outline" size="sm" onClick={() => setSelectedId('')}>Fechar</Button></div>
@@ -172,7 +174,7 @@ export function DoohScheduleCatalogReadOnly() {
             <DoohScheduleTargetsCasEditor companyId={companyId} summary={current} inventory={targetInventory}
               onChanged={() => setRefresh((value) => value + 1)} />}
         </div>
-        <p className="text-xs text-amber-800">Destinos são vínculos cadastrados, não evidência de conectividade, entrega de manifest ou exibição. Prévia de conflitos e operações de escrita serão etapas posteriores.</p>
+        <p className="text-xs text-amber-800">Destinos são vínculos cadastrados, não evidência de conectividade, entrega de manifest ou exibição. A prévia temporal é apenas simulação de leitura.</p>
       </>}
     </div>}
   </section>;
