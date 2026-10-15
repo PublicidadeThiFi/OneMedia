@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { DoohScheduleTargetsCasEditor } from './DoohScheduleTargetsCasEditor';
 import { DoohScheduleDetailsCasEditor } from './DoohScheduleDetailsCasEditor';
 import { DoohScheduleTemporalPreview } from './DoohScheduleTemporalPreview';
+import { DoohSchedulePublishQa } from './DoohSchedulePublishQa';
 import { canReadDoohSchedules, doohScheduleReadError, parseDoohSchedule,
   parseDoohScheduleCatalog, parseDoohScheduleTargets, type DoohScheduleSummary,
   type DoohScheduleTargetInventory,
@@ -170,6 +171,9 @@ export function DoohScheduleCatalogReadOnly() {
                 {targetText[t.targetType]} · {shortId(t.targetId)} · associado em {stamp(t.createdAt)}
               </li>)}</ul>}
           </>}
+          {targetInventory && current.status === 'DRAFT' && companyId &&
+            <DoohSchedulePublishQa companyId={companyId} summary={current} inventory={targetInventory}
+              onChanged={() => setRefresh((value) => value + 1)} />}
           {targetInventory && current.status === 'DRAFT' && companyId &&
             <DoohScheduleTargetsCasEditor companyId={companyId} summary={current} inventory={targetInventory}
               onChanged={() => setRefresh((value) => value + 1)} />}
