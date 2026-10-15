@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
 import { DoohScheduleTargetsCasEditor } from './DoohScheduleTargetsCasEditor';
+import { DoohScheduleDetailsCasEditor } from './DoohScheduleDetailsCasEditor';
 import { canReadDoohSchedules, doohScheduleReadError, parseDoohSchedule,
   parseDoohScheduleCatalog, parseDoohScheduleTargets, type DoohScheduleSummary,
   type DoohScheduleTargetInventory,
@@ -121,6 +122,8 @@ export function DoohScheduleCatalogReadOnly() {
       <Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar agendas</Button>
     </div>
     <p className="text-xs text-gray-600">A API retorna até 100 agendas ordenadas por atualização, sem paginação ou total. O inventário pode estar incompleto.</p>
+    {companyId && entries && <DoohScheduleDetailsCasEditor companyId={companyId} mode="create"
+      existingIds={entries.map(s => s.id)} onChanged={() => setRefresh(n => n + 1)} />}
     {loading && <p role="status" className="text-sm text-gray-600">Carregando agendas…</p>}
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {entries && <>
@@ -151,6 +154,9 @@ export function DoohScheduleCatalogReadOnly() {
           <p><strong>Dias:</strong> {current.weekdays.length ? current.weekdays.map((d) => dayText[d - 1]).join(', ') : 'Sem restrição de dia configurada'}</p>
           <p><strong>Faixa diária:</strong> {current.dailyStartMinute === null || current.dailyEndMinute === null ? 'Sem faixa configurada' : `${minute(current.dailyStartMinute)} – ${minute(current.dailyEndMinute)}`}</p>
         </div>
+        {current.status === 'DRAFT' && companyId && <DoohScheduleDetailsCasEditor
+          companyId={companyId} mode="edit" summary={current} existingIds={entries?.map(s => s.id) ?? []}
+          onChanged={() => setRefresh(n => n + 1)} />}
         <div className="rounded-lg border border-gray-200 bg-white p-3">
           <p className="text-sm font-medium text-gray-800">Destinos associados ({current.targetCount})</p>
           {targetsLoading && <p role="status" className="text-xs text-gray-600">Consultando destinos…</p>}
