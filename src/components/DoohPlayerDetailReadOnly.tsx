@@ -7,6 +7,7 @@ import {
 } from '../lib/doohPlayerDetailContract';
 import { Button } from './ui/button';
 import { doohPlayerReadFailure } from '../lib/doohPlayerReadFailure';
+import { DoohManifestInventoryReadOnly } from './DoohManifestInventoryReadOnly';
 
 function when(value: string | null): string {
   if (!value) return 'Não informado';
@@ -78,6 +79,7 @@ export function DoohPlayerDetailReadOnly({ companyId, playerId, onClose }: {
         <p className="mb-2 text-sm font-medium text-amber-950">Pontos para conferência</p>
         <ul className="list-disc space-y-1 pl-5 text-sm text-amber-900">{signals.map((item) => <li key={item}>{item}</li>)}</ul>
       </div>}
+      <DoohManifestInventoryReadOnly companyId={companyId} player={data} />
       <p className="text-xs text-gray-600">Heartbeat, manifests e eventos reportados não comprovam reprodução física, audiência nem impressões certificadas. A contagem de eventos é técnica, não comercial.</p>
     </>}
   </section>;
