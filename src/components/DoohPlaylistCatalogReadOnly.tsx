@@ -7,6 +7,7 @@ import { DoohPlaylistCreateRename } from './DoohPlaylistCreateRename';
 import { DoohPlaylistDraftEditor } from './DoohPlaylistDraftEditor';
 import { DoohPlaylistDraftReorder } from './DoohPlaylistDraftReorder';
 import { DoohPlaylistPublishQa } from './DoohPlaylistPublishQa';
+import { DoohPublishedVersionInspector } from './DoohPublishedVersionInspector';
 import { canReadDoohPlaylists, doohPlaylistReadError, parseDoohPlaylistCatalog,
   parseDoohPlaylistDetail, type DoohPlaylistDetail, type DoohPlaylistSummary,
 } from '../lib/doohPlaylistCatalogContract';
@@ -124,6 +125,7 @@ export function DoohPlaylistCatalogReadOnly() {
             <p>Criada em {dateText(v.createdAt)}{v.publishedAt ? ` · publicada em ${dateText(v.publishedAt)}` : ''}</p>
             {v.checksumPrefix && <p>Checksum registrado: {v.checksumPrefix}… (não verificado contra conteúdo)</p>}
           </li>)}</ul>}
+        {companyId && <DoohPublishedVersionInspector companyId={companyId} detail={selected} />}
       </>}
     </div>}
   </section>;
