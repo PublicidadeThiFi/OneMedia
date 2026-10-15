@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohScheduleTargetsCasEditor } from './DoohScheduleTargetsCasEditor';
 import { canReadDoohSchedules, doohScheduleReadError, parseDoohSchedule,
   parseDoohScheduleCatalog, parseDoohScheduleTargets, type DoohScheduleSummary,
   type DoohScheduleTargetInventory,
@@ -161,6 +162,9 @@ export function DoohScheduleCatalogReadOnly() {
                 {targetText[t.targetType]} · {shortId(t.targetId)} · associado em {stamp(t.createdAt)}
               </li>)}</ul>}
           </>}
+          {targetInventory && current.status === 'DRAFT' && companyId &&
+            <DoohScheduleTargetsCasEditor companyId={companyId} summary={current} inventory={targetInventory}
+              onChanged={() => setRefresh((value) => value + 1)} />}
         </div>
         <p className="text-xs text-amber-800">Destinos são vínculos cadastrados, não evidência de conectividade, entrega de manifest ou exibição. Prévia de conflitos e operações de escrita serão etapas posteriores.</p>
       </>}
