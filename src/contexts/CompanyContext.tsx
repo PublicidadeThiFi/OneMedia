@@ -41,14 +41,20 @@ import {
 // Trial exemptions (do not expire free trial)
 const TRIAL_EXEMPT_EMAILS = new Set([
   'thifi.contato.oficial2@gmail.com',
-  'Eduardo@publicitymidia.com.br',
   'eduardo@publicitymidia.com.br',
   'zhiendtg@gmail.com',
+  'douguerpw2@hotmail.com',
 ]);
 
 function isTrialExemptEmail(email?: string | null): boolean {
   const e = String(email || '').trim().toLowerCase();
   return !!e && TRIAL_EXEMPT_EMAILS.has(e);
+}
+
+/** O backend é autoritativo; fallback só para respostas de versões antigas sem o campo. */
+function isCompanyTrialExempt(company: Company | null, userEmail?: string | null): boolean {
+  if (typeof company?.trialExempt === 'boolean') return company.trialExempt;
+  return isTrialExemptEmail(userEmail) || company?.notificationPrefs?.trialExempt === true;
 }
 
 interface CompanyContextValue {
@@ -104,10 +110,7 @@ function computeBlock(
   const now = Date.now();
   const trialEndsAt = toDate(company?.trialEndsAt)?.getTime() ?? null;
 
-  const trialExempt =
-    isTrialExemptEmail(userEmail) ||
-    // backend may persist this flag in notificationPrefs
-    ((company as any)?.notificationPrefs?.trialExempt === true);
+  const trialExempt = isCompanyTrialExempt(company, userEmail);
 
   const hasActiveSubscription =
     subscription?.status === PlatformSubscriptionStatus.ATIVA ||
@@ -277,7 +280,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [loadCompanyData]);
 
   const isTrialExempt = useMemo(() => {
-    return isTrialExemptEmail(user?.email ?? null) || ((company as any)?.notificationPrefs?.trialExempt === true);
+    return isCompanyTrialExempt(company, user?.email ?? null);
   }, [user?.email, company]);
 
   const isTrialActive = useMemo(() => {

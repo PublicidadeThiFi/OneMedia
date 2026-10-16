@@ -277,6 +277,8 @@ export interface Company {
   usersLimit?: number;
   subscriptionStatus?: CompanySubscriptionStatus;
   trialEndsAt?: Date;
+  /** Flag canônica read-only retornada pelo backend; não editável na tela de empresa. */
+  trialExempt?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
