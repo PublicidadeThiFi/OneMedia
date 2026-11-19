@@ -98,5 +98,8 @@
     "qa:fiscal-communication": "node ./scripts/fiscal-communication-static.mjs",
     "qa:product-access": "node ./scripts/product-access-static.mjs",
     "qa:product-navigation": "node ./scripts/product-navigation-static.mjs"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.3"
   }
 }
