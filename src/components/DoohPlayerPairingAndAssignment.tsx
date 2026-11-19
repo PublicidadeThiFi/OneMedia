@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { isOperationalWriteAllowed, normalizedOperationalName } from '../lib/doohPlayerOperationsContract';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
 import { parseDoohPlayerDetail } from '../lib/doohPlayerDetailContract';
+import { parseDoohPointOptions, parseDoohScreenOptions, type DoohPointOption, type DoohScreenOption } from '../lib/doohScreenSelectionContract';
 import {
   isUuidV4, parseAssignmentResult, parsePairResult, parseScreenCandidate,
   safePairingError, validPairingCode, type ScreenCandidate,
@@ -37,6 +38,15 @@ export function DoohPlayerPairingAndAssignment() {
   const [acknowledged, setAcknowledged] = useState(false);
   const [playerId, setPlayerId] = useState('');
   const [screenId, setScreenId] = useState('');
+  const [pointSearch, setPointSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [pointId, setPointId] = useState('');
+  const [pointOptions, setPointOptions] = useState<DoohPointOption[]>([]);
+  const [screenOptions, setScreenOptions] = useState<DoohScreenOption[]>([]);
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [selectionError, setSelectionError] = useState('');
+  const [hasMorePoints, setHasMorePoints] = useState(false);
   const [screen, setScreen] = useState<{ key: string; value: ScreenCandidate } | null>(null);
   const [screenLoading, setScreenLoading] = useState(false);
   const operationKey = JSON.stringify([companyId, snapshot?.companyId, snapshot?.modules.DOOH.accessMode]);
@@ -63,6 +73,46 @@ export function DoohPlayerPairingAndAssignment() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [authorized, requestKey]);
+
+  // Consult existing, tenant-scoped OOH inventory rather than asking users to type UUIDs.
+  // Server-side access control remains authoritative; these projections are for selection only.
+  useEffect(() => {
+    setPointOptions([]); setPointId(''); setScreenId(''); setScreenOptions([]);
+    setSelectionError(''); setHasMorePoints(false);
+    if (!canValidateScreen || !companyId) { setPointsLoading(false); return; }
+    const controller = new AbortController();
+    setPointsLoading(true);
+    void apiClient.get<unknown>('/media-points', {
+      params: { page: 1, pageSize: 100, summary: true, type: 'DOOH',
+        ...(appliedSearch ? { search: appliedSearch } : {}) }, signal: controller.signal,
+    }).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      const parsed = parseDoohPointOptions(data, companyId);
+      if (!parsed) { setSelectionError('Inventário de pontos incompatível com a empresa. Selecione a tela pelo Inventário OOH.'); return; }
+      setPointOptions(parsed.items); setHasMorePoints(parsed.hasMore);
+    }).catch(() => { if (!controller.signal.aborted) setSelectionError('Não foi possível consultar os pontos digitais. Tente novamente.'); })
+      .finally(() => { if (!controller.signal.aborted) setPointsLoading(false); });
+    return () => controller.abort();
+  }, [canValidateScreen, companyId, appliedSearch]);
+
+  useEffect(() => {
+    setScreenId(''); setScreenOptions([]); setSelectionError('');
+    if (!canValidateScreen || !companyId || !pointOptions.some((p) => p.id === pointId)) {
+      setOptionsLoading(false); return;
+    }
+    const controller = new AbortController();
+    setOptionsLoading(true);
+    void apiClient.get<unknown>(`/media-points/${encodeURIComponent(pointId)}/units`, {
+      params: { detailed: false }, signal: controller.signal,
+    }).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      const options = parseDoohScreenOptions(data, companyId, pointId);
+      if (!options) { setSelectionError('Unidades incompatíveis. Confira as telas no Inventário OOH.'); return; }
+      setScreenOptions(options);
+    }).catch(() => { if (!controller.signal.aborted) setSelectionError('Não foi possível carregar as telas deste ponto.'); })
+      .finally(() => { if (!controller.signal.aborted) setOptionsLoading(false); });
+    return () => controller.abort();
+  }, [canValidateScreen, companyId, pointId, pointOptions]);
 
   useEffect(() => {
     setScreen(null);
@@ -174,7 +224,8 @@ export function DoohPlayerPairingAndAssignment() {
         {!writable && <p className="text-xs text-gray-600">Requer acesso FULL e papel técnico.</p>}
       </form>
       <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitAssignment(event)}>
-        <h4 className="font-medium">Associar player existente a uma SCREEN</h4>
+        <h4 className="font-medium">Associar player existente a uma tela</h4>
+        <p className="text-xs text-gray-600">Escolha um ponto digital e a tela cadastrada. Se ainda não cadastrou uma tela, <a className="font-medium text-indigo-700 underline" href="/app/inventory">abra o Inventário</a>, crie o ponto DOOH e uma unidade SCREEN ativa.</p>
         <label className="block space-y-1 text-sm"><span>Player da empresa</span>
           <select className="w-full rounded-md border p-2" value={playerId} onChange={(e) => setPlayerId(e.target.value)} disabled={!canValidateScreen || busy}>
             <option value="">Selecionar</option>
@@ -182,9 +233,34 @@ export function DoohPlayerPairingAndAssignment() {
           </select>
         </label>
         {currentPlayers && currentPlayers.total > 100 && <p className="text-xs text-amber-800">Exibidos apenas 100 players. Seleção paginada será incorporada posteriormente.</p>}
-        <label className="block space-y-1 text-sm"><span>ID da unidade SCREEN (UUID)</span>
-          <input className="w-full rounded-md border p-2" maxLength={36} value={screenId} onChange={(e) => setScreenId(e.target.value.trim())} placeholder="UUID da tela cadastrada no inventário OOH" disabled={!canValidateScreen || busy} />
-        </label>
+        <div className="space-y-2">
+          <label className="block space-y-1 text-sm"><span>Local de instalação (ponto digital)</span>
+            <div className="flex gap-2">
+              <input className="min-w-0 flex-1 rounded-md border p-2" maxLength={100} value={pointSearch}
+                onChange={(e) => setPointSearch(e.target.value)} placeholder="Buscar pelo nome do local" disabled={!canValidateScreen || busy} />
+              <Button type="button" variant="outline" disabled={!canValidateScreen || busy || pointsLoading}
+                onClick={() => setAppliedSearch(pointSearch.trim())}>Buscar</Button>
+            </div>
+          </label>
+          <select aria-label="Ponto digital" className="w-full rounded-md border p-2" value={pointId}
+            onChange={(e) => setPointId(e.target.value)} disabled={!canValidateScreen || busy || pointsLoading}>
+            <option value="">Selecione o ponto de mídia</option>
+            {pointOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          <label className="block space-y-1 text-sm"><span>Tela cadastrada</span>
+            <select aria-label="Tela digital" className="w-full rounded-md border p-2" value={screenId}
+              onChange={(e) => setScreenId(e.target.value)} disabled={!canValidateScreen || busy || optionsLoading || !pointId}>
+              <option value="">Selecione a tela</option>
+              {screenOptions.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </label>
+          {pointsLoading && <p role="status" className="text-xs text-gray-600">Carregando pontos digitais…</p>}
+          {optionsLoading && <p role="status" className="text-xs text-gray-600">Carregando telas…</p>}
+          {selectionError && <p role="alert" className="text-xs text-amber-800">{selectionError}</p>}
+          {hasMorePoints && <p className="text-xs text-amber-800">Há mais pontos no inventário. Utilize a busca pelo nome para encontrar o local desejado.</p>}
+          {!pointsLoading && !pointOptions.length && !selectionError && <p className="text-xs text-gray-600">Nenhum ponto DOOH encontrado. Cadastre primeiro o ponto e a unidade SCREEN em Inventário.</p>}
+          {pointId && !optionsLoading && !screenOptions.length && !selectionError && <p className="text-xs text-gray-600">Este ponto ainda não tem tela SCREEN ativa. Cadastre ou ative uma unidade no Inventário.</p>}
+        </div>
         {screenLoading && <p role="status" className="text-xs text-gray-600">Validando tela…</p>}
         {checkedScreen && <p className="text-xs text-gray-700">Tela: {checkedScreen.label} · {checkedScreen.isActive ? 'Ativa' : 'Inativa'} · SCREEN validada nesta empresa.</p>}
         {isUuidV4(screenId) && !screenLoading && !checkedScreen && <p className="text-xs text-amber-800">A tela não pôde ser validada para associação.</p>}
