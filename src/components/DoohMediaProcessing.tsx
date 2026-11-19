@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { useDoohMediaPilotCapabilities } from '../lib/useDoohMediaPilotCapabilities';
 import type { DoohLibraryMedia, DoohLibraryFolder } from '../lib/doohMediaLibraryContract';
 import { parseDoohMediaCasSnapshot } from '../lib/doohMediaOrganizeCasContract';
 import {
@@ -11,7 +12,8 @@ import {
   type DoohProcessingJob,
 } from '../lib/doohMediaProcessingContract';
 
-const processingQaUiEnabled = import.meta.env.VITE_DOOH_MEDIA_PROCESSING_QA_UI_ENABLED === 'true';
+const processingUiEnabled = import.meta.env.VITE_DOOH_MEDIA_PROCESSING_PILOT_UI_ENABLED === 'true' ||
+  import.meta.env.VITE_DOOH_MEDIA_PROCESSING_QA_UI_ENABLED === 'true';
 const statusLabels = { QUEUED: 'Na fila', RUNNING: 'Em execução', COMPLETED: 'Concluído', FAILED: 'Falhou' } as const;
 interface Props { companyId: string; media: readonly DoohLibraryMedia[]; folders: readonly DoohLibraryFolder[]; onChanged: () => void; }
 
@@ -25,10 +27,12 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
   const access = snapshot?.modules.DOOH;
   const canRead = user?.companyId === companyId && canReadDoohProcessing(companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, roles);
-  const canQueue = user?.companyId === companyId && canRequestDoohProcessing(companyId, snapshot?.companyId,
-    access?.granted, access?.accessMode, roles, processingQaUiEnabled);
+  const eligibleQueue = user?.companyId === companyId && canRequestDoohProcessing(companyId, snapshot?.companyId,
+    access?.granted, access?.accessMode, roles, processingUiEnabled);
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...roles].sort()]);
+  const pilot = useDoohMediaPilotCapabilities(companyId, contextKey, Boolean(eligibleQueue));
+  const canQueue = eligibleQueue && pilot.processingEnabled;
   const [selectedId, setSelectedId] = useState('');
   const [history, setHistory] = useState<{ key: string; items: DoohProcessingJob[] } | null>(null);
   const [refresh, setRefresh] = useState(0);
@@ -96,14 +100,14 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
           !recent || !canEnqueueDoohProcessing(current, recent)) {
         setError('A mídia ou o processamento foi alterado. Atualize a Biblioteca antes de continuar.'); return;
       }
-      if (!window.confirm(`Enfileirar processamento da mídia “${selected.name}” em ambiente de QA? A fila não inicia o worker nem garante READY.`) ||
+      if (!window.confirm(`Enfileirar processamento da mídia “${selected.name}” para a fila de processamento? O status READY depende de um worker operacional.`) ||
           activeKey.current !== stableKey) return;
       const queued = await apiClient.post<unknown>(`/dooh/media/${encodeURIComponent(selected.id)}/process`, {});
       if (activeKey.current !== stableKey) return;
       const receipt = confirmDoohProcessingEnqueued(queued.data);
       if (!receipt) { setError('A API não confirmou um job válido. Consulte o histórico antes de repetir.'); return; }
       setNotice(receipt.alreadyQueued ? 'Um job existente foi retornado. Consulte o histórico.' :
-        'Job enfileirado. Não foi iniciado um worker; consulte o histórico para acompanhar.');
+        'Job enfileirado. Acompanhe o processamento até READY ou ERROR no histórico.');
       setConfirmation(''); setRefresh((number) => number + 1); onChanged();
     } catch (err: unknown) {
       if (activeKey.current === stableKey) setError(doohProcessingError(err, 'queue'));
@@ -140,15 +144,15 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
           <span>Solicitado em {new Date(job.createdAt).toLocaleString('pt-BR')}</span>
         </li>)}
       </ul>)}
-    {!processingQaUiEnabled ? <p className="text-xs text-amber-800">Enfileiramento bloqueado nesta compilação. O worker atual é manual e permitido somente em ambiente isolado; nenhum job será criado por esta tela.</p> :
+    {!processingUiEnabled ? <p className="text-xs text-amber-800">Enfileiramento ainda não habilitado nesta compilação.</p> : !pilot.processingEnabled ? <p className="text-xs text-amber-800">Processamento não autorizado para esta empresa ou worker piloto desabilitado.</p> :
       <form onSubmit={(event) => void enqueue(event)} className="space-y-2 border-t border-gray-200 pt-3">
-        <p className="text-xs text-amber-800">Enfileiramento reservado a QA com backend explicitamente habilitado. Não execute em produção. O processamento efetivo depende de worker isolado.</p>
+        <p className="text-xs text-amber-800">Enfileiramento autorizado pelo backend para esta empresa. O conteúdo fica disponível para programação somente após o processamento atingir READY.</p>
         <label className="block space-y-1 text-sm">Confirmação textual: PROCESSAR
           <input aria-label="Confirmação de processamento DOOH" value={confirmation} disabled={!canQueue || busy}
             onChange={(event) => setConfirmation(event.target.value)} maxLength={16}
             className="block w-full max-w-xs rounded-md border border-gray-300 bg-white p-2" />
         </label>
-        <Button type="submit" disabled={!canStart}>{busy ? 'Conferindo…' : 'Enfileirar para QA'}</Button>
+        <Button type="submit" disabled={!canStart}>{busy ? 'Conferindo…' : 'Iniciar processamento'}</Button>
       </form>}
   </section>;
 }

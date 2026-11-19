@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { useDoohMediaPilotCapabilities } from '../lib/useDoohMediaPilotCapabilities';
 import type { DoohLibraryFolder } from '../lib/doohMediaLibraryContract';
 import {
   canUploadDoohMedia, confirmDoohUploadFinalized, doohUploadError,
@@ -23,9 +24,11 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   const { snapshot } = useProductAccess();
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, [...(user?.roles ?? [])].sort()]);
-  const writable = canUploadDoohMedia(user?.companyId, snapshot?.companyId,
+  const eligible = canUploadDoohMedia(user?.companyId, snapshot?.companyId,
     snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, user?.roles ?? [], uploadUiEnabled) &&
     user?.companyId === companyId;
+  const pilot = useDoohMediaPilotCapabilities(companyId, contextKey, Boolean(eligible));
+  const writable = eligible && pilot.uploadEnabled;
   const contextRef = useRef(contextKey);
   contextRef.current = contextKey;
   const controller = useRef<AbortController | null>(null);
@@ -129,7 +132,8 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   }
 
   if (!uploadUiEnabled) return <p className="text-xs text-gray-600">Upload de mídia DOOH ainda bloqueado nesta compilação. A liberação exige autorização de QA e configuração segura do S3.</p>;
-  if (!writable) return <p className="text-xs text-gray-600">Upload exige DOOH FULL e função ADMINISTRATIVO ou TI.</p>;
+  if (!eligible) return <p className="text-xs text-gray-600">Upload exige DOOH FULL e função ADMINISTRATIVO ou TI.</p>;
+  if (!pilot.uploadEnabled) return <p className="text-xs text-amber-800">Upload ainda não liberado para esta empresa. A plataforma precisa autorizar o piloto e o armazenamento.</p>;
 
   return <section aria-label="Upload de mídia DOOH D15B-04" className="space-y-3 rounded-xl border border-indigo-200 p-4">
     <div>
