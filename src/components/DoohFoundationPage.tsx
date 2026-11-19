@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { DoohMarketplaceCampaignSelection } from './campaigns/DoohMarketplaceCampaignSelection';
+import { DoohGettingStarted } from './DoohGettingStarted';
 import { DoohPlayerInventoryReadOnly } from './DoohPlayerInventoryReadOnly';
 import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
@@ -27,13 +28,13 @@ interface DoohFoundationPageProps {
 
 const sectionDescriptions: Record<DoohFoundationSection, string> = {
   home:
-    'O módulo DOOH possui consulta de players, operações administrativas e formulário de pareamento/associação com proteção do backend. Consulta de histórico de comandos disponível; restart protegido por gate exclusivo de QA, enquanto distribuição de mídia e homologação física continuam pendentes.',
+    'Configure a primeira tela, envie conteúdo e prepare a programação. As operações disponíveis dependem da autorização do servidor; o status do player não garante exibição.',
   screens:
     'Consulta de players, gestão de nomes/grupos, pareamento e associação. Edição individual de membros exige o novo endpoint atômico e grupos sem programação; restart disponível apenas em compilação/empresa de QA explicitamente autorizadas.',
   library:
-    'Biblioteca com pastas, organização CAS, upload S3 controlado e histórico de jobs de processamento. Enfileiramento de QA desligado por padrão; worker e distribuição não estão homologados.',
+    'Envie e organize mídias quando o backend liberar upload e processamento. Aguarde estado Pronta antes de usar um arquivo na programação.',
   scheduling:
-    'Playlists, versões e agendas DOOH podem ser consultadas. Os editores de playlists permanecem protegidos, e a publicação exige QA; destinos, conflitos e distribuição serão habilitados progressivamente. O vínculo manual do Marketplace foi preservado.',
+    'Crie playlists e agendas, revise e publique quando a empresa estiver autorizada. A entrega ao player depende de gerar e sincronizar o manifest; o vínculo com Marketplace é separado.',
   reports:
     'A rota de Relatórios já está reservada. Proof-of-play, agregações e exportações serão adicionados após o runtime e a sincronização.',
 };
@@ -100,7 +101,9 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
       </div>
 
       {section === 'home' ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-5">
+          <DoohGettingStarted />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {roadmapCards.map((card) => {
             const Icon = card.icon;
             return (
@@ -116,11 +119,12 @@ export function DoohFoundationPage({ section }: DoohFoundationPageProps) {
                   {card.description}
                 </p>
                 <p className="mt-4 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {card.title === 'Telas e Players' ? 'Inventário e operações de players; restart condicionado ao gate de QA' : card.title === 'Biblioteca' ? 'Inventário e gestão de mídias; upload/processing sob gates de QA' : card.title === 'Programação' ? 'Catálogo de playlists e agendas em consulta; publicação controlada por gate de QA' : 'Estrutura reservada — ainda não operacional'}
+                  {card.title === 'Telas e Players' ? 'Inventário e operações de players; restart condicionado ao gate de QA' : card.title === 'Biblioteca' ? 'Mídias reais e processamento conforme autorização do servidor' : card.title === 'Programação' ? 'Criação, revisão e publicação conforme autorização do servidor' : 'Estrutura reservada — ainda não operacional'}
                 </p>
               </div>
             );
           })}
+          </div>
         </div>
       ) : section === 'library' ? (
         <DoohMediaLibraryReadOnly />

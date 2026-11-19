@@ -18,6 +18,7 @@ import {
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
+import { publicMarketplacePointPath } from "../lib/publicMarketplacePointLink";
 import {
   Dialog,
   DialogContent,
@@ -213,9 +214,11 @@ function parseHighlightLines(value: string): MarketplacePointHighlight[] {
 function ProfileEditor({
   item,
   onSaved,
+  companyEnabled,
 }: {
   item: MarketplaceModerationProfileItem;
   onSaved: (item: MarketplaceModerationProfileItem) => void;
+  companyEnabled: boolean;
 }) {
   const [status, setStatus] = useState<MarketplacePointPublicationStatus>(
     item.profile?.status || "DRAFT",
@@ -280,6 +283,15 @@ function ProfileEditor({
     }
   };
 
+  const publicPath = publicMarketplacePointPath(item.profile?.slug, item.profile?.status, companyEnabled);
+  const copyPublicLink = async () => {
+    if (!publicPath) return;
+    try {
+      await navigator.clipboard.writeText(new URL(publicPath, window.location.origin).href);
+      toast.success("Link público do ponto copiado.");
+    } catch { toast.error("Não foi possível copiar o link. Abra a página e copie o endereço."); }
+  };
+
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -293,16 +305,16 @@ function ProfileEditor({
               "Localização não informada"}
           </p>
         </div>
-        {item.profile?.slug ? (
-          <a
-            href={`/pontos/${encodeURIComponent(item.profile.slug)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700"
-          >
-            <Eye className="h-4 w-4" /> Ver página
-          </a>
-        ) : null}
+        {publicPath ? (
+          <div className="flex flex-wrap gap-3">
+            <a href={publicPath} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700">
+              <Eye className="h-4 w-4" /> Ver página pública
+            </a>
+            <button type="button" onClick={() => void copyPublicLink()}
+              className="text-sm font-medium text-indigo-600 underline-offset-4 hover:underline">Copiar link</button>
+          </div>
+        ) : <p className="text-xs text-gray-500">O link público fica disponível quando o ponto e o Marketplace estiverem publicados.</p>}
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -790,7 +802,7 @@ export function MarketplaceManagement() {
                 })}
               </section>
               {selectedProfile ? (
-                <ProfileEditor item={selectedProfile} onSaved={saveProfile} />
+                <ProfileEditor item={selectedProfile} onSaved={saveProfile} companyEnabled={companyEnabled} />
               ) : null}
             </div>
           ) : (
