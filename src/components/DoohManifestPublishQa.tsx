@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useDoohManifestPublishCapabilities } from '../lib/useDoohManifestPublishCapabilities';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -8,7 +9,7 @@ import { canReadManifestInventory } from '../lib/doohManifestInventoryContract';
 import { buildManifestCasRequest, canPublishManifestQa, manifestCasError, manifestCasResult,
   parseManifestPreflight, validManifestWindow, type ManifestPreflightView } from '../lib/doohManifestPublishCasContract';
 
-// Build-time UX switch only. The D16A02 backend gate is mandatory and production-deny.
+// Legacy QA UX switch; pilot authorization is always decided by the backend.
 const qaUiEnabled = import.meta.env.VITE_DOOH_MANIFEST_PUBLISH_QA_UI_ENABLED === 'true';
 export function DoohManifestPublishQa({ companyId, player }: { companyId: string; player: DoohPlayerDetailView }) {
   const { user } = useAuth();
@@ -17,8 +18,12 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
   const roles = user?.roles ?? [];
   const canRead = player.lifecycleStatus === 'ACTIVE' && canReadManifestInventory(companyId,
     user?.companyId, snapshot?.companyId, moduleAccess?.granted, moduleAccess?.accessMode, roles);
+  const capabilityKey = JSON.stringify([companyId, user?.id, user?.companyId, snapshot?.companyId,
+    moduleAccess?.granted, moduleAccess?.accessMode, [...roles].sort(), player.id, player.lifecycleStatus]);
+  const server = useDoohManifestPublishCapabilities(companyId, capabilityKey, canRead);
+  const materializeUiEnabled = server.materializeEnabled && (server.mode === 'PILOT' || (server.mode === 'QA' && qaUiEnabled));
   const canWrite = canPublishManifestQa(companyId, user?.companyId, snapshot?.companyId,
-    moduleAccess?.granted, moduleAccess?.accessMode, roles, qaUiEnabled, player.lifecycleStatus);
+    moduleAccess?.granted, moduleAccess?.accessMode, roles, materializeUiEnabled, player.lifecycleStatus);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [review, setReview] = useState<{ key: string; value: ManifestPreflightView } | null>(null);
@@ -31,7 +36,8 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
   const abort = useRef<AbortController | null>(null);
   const key = JSON.stringify([companyId, user?.id, user?.companyId, [...roles].sort(),
     snapshot?.companyId, moduleAccess?.granted, moduleAccess?.accessMode, player.id,
-    player.lifecycleStatus, player.currentManifestVersion, player.desiredManifestVersion, from, to]);
+    player.lifecycleStatus, player.currentManifestVersion, player.desiredManifestVersion,
+    server.materializeEnabled, server.mode, from, to]);
   const keyRef = useRef(key); keyRef.current = key;
   useEffect(() => {
     abort.current?.abort(); setReview(null); setConfirmation(''); setAck(false);
@@ -59,8 +65,11 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
   }
   async function materialize() {
     const visible = review?.key === key ? review.value : null;
-    if (!canWrite || !visible || confirmation !== 'MATERIALIZAR QA' || !ack || busy || pending.current) return;
-    const request = buildManifestCasRequest(visible, true);
+    if (!canWrite || !visible ||
+        (server.mode === 'QA' && confirmation !== 'MATERIALIZAR QA') ||
+        (server.mode === 'PILOT' && confirmation !== 'MATERIALIZAR PILOTO') ||
+        !ack || busy || pending.current) return;
+    const request = buildManifestCasRequest(visible, true, server.mode === 'PILOT' ? 'PILOT' : 'QA');
     if (!request) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
     const requestKey = key;
@@ -72,7 +81,7 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
           latest.desired !== visible.desired || latest.current !== visible.current) {
         setReview(null); setError('A revisão do preflight mudou. Consulte novamente.'); return;
       }
-      if (!window.confirm('Materializar manifest para player de QA? Isto avança desiredManifestVersion e pode ser entregue ao runtime. Somente ambiente isolado autorizado.')) return;
+      if (!window.confirm('Gerar manifest para este player? Isso avança desiredManifestVersion e pode entregar a programação ao dispositivo. Confirme que a tela e o período são os autorizados.')) return;
       if (keyRef.current !== requestKey) return;
       const { data } = await apiClient.post<unknown>(
         `/dooh/manifests/players/${encodeURIComponent(player.id)}/publish-cas`, request);
@@ -81,7 +90,7 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
       setReview(null);
       if (!receipt) { setError('Resposta incompatível. Consulte o inventário antes de repetir, para evitar publicação duplicada.'); return; }
       setNotice(receipt.alreadyPublished ? 'Snapshot já persistido. Reabra o detalhe antes de nova operação.' :
-        'Manifest materializado no QA. A versão desejada mudou; confirme o estado no inventário.');
+        'Manifest gerado. A versão desejada mudou; confira a sincronização no inventário. Isso não comprova reprodução.');
     } catch (cause: unknown) { if (keyRef.current === requestKey) { setReview(null); setError(manifestCasError(cause)); } }
     finally { pending.current = false; if (keyRef.current === requestKey) { setBusy(false); setConfirmation(''); setAck(false); } }
   }
@@ -111,16 +120,17 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
       {current.checksum && <p>Checksum candidato: <span className="font-mono">{current.checksum.slice(0, 12)}…</span></p>}
       {current.issues.length > 0 && <p role="alert">Revisão necessária: {current.issues.join(', ')}</p>}
     </div>}
-    {!qaUiEnabled ? <p className="text-xs text-amber-800">Materialização desabilitada nesta compilação. O preflight não autoriza publicação e não prova distribuição ou reprodução.</p> :
+    {!materializeUiEnabled ? <p className="text-xs text-amber-800">Geração de manifest indisponível para esta empresa e ambiente. O preflight é somente consultivo e não comprova distribuição.</p> :
       <div className="space-y-2 border-t pt-3">
-        <p className="text-xs text-amber-800">Atenção: materializar altera desiredManifestVersion e pode permitir entrega ao runtime. Somente em QA isolado com autorização externa e QA Gate do servidor.</p>
-        <label className="block text-xs">Digite MATERIALIZAR QA
+        <p className="text-xs text-amber-800">Atenção: gerar o manifest altera a versão desejada do player e pode liberar a entrega dos arquivos ao runtime. Operação sujeita à autorização do servidor.</p>
+        <label className="block text-xs">Digite {server.mode === 'PILOT' ? 'MATERIALIZAR PILOTO' : 'MATERIALIZAR QA'}
           <input className="mt-1 block rounded-md border p-2" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} disabled={!canWrite || busy}/>
         </label>
         <label className="flex gap-2 text-xs"><input type="checkbox" checked={ack} disabled={!canWrite || busy}
-          onChange={(e) => setAck(e.target.checked)}/>Confirmo operação exclusiva de QA isolado e a mudança da versão desejada.</label>
-        <Button type="button" size="sm" disabled={!canWrite || !ack || confirmation !== 'MATERIALIZAR QA' ||
-            current?.status !== 'READY' || busy} onClick={() => void materialize()}>Solicitar materialização CAS (QA)</Button>
+          onChange={(e) => setAck(e.target.checked)}/>Confirmo a geração de manifest para este player e a mudança da versão desejada.</label>
+        <Button type="button" size="sm" disabled={!canWrite || !ack ||
+            confirmation !== (server.mode === 'PILOT' ? 'MATERIALIZAR PILOTO' : 'MATERIALIZAR QA') ||
+            current?.status !== 'READY' || busy} onClick={() => void materialize()}>Gerar manifest (CAS)</Button>
       </div>}
   </section>;
 }

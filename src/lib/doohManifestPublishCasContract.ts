@@ -58,12 +58,12 @@ export function parseManifestPreflight(raw: unknown, companyId: string, player: 
     segments: typeof r.segmentCount === 'number' ? r.segmentCount : null,
     assets: typeof r.assetCount === 'number' ? r.assetCount : null };
 }
-export function buildManifestCasRequest(view: ManifestPreflightView, confirmed: boolean) {
+export function buildManifestCasRequest(view: ManifestPreflightView, confirmed: boolean, mode: 'QA' | 'PILOT' = 'QA') {
   if (!confirmed || view.status !== 'READY' || !view.checksum || !SHA.test(view.checksum) ||
       !version(view.current) || !version(view.desired) || !validManifestWindow(view.from, view.to)) return null;
   return { from: view.from, to: view.to, expectedCandidateChecksum: view.checksum,
     expectedCurrentManifestVersion: view.current, expectedDesiredManifestVersion: view.desired,
-    confirmation: 'MATERIALIZAR_MANIFEST_QA' as const };
+    confirmation: mode === 'PILOT' ? 'MATERIALIZAR_MANIFEST_PILOTO' as const : 'MATERIALIZAR_MANIFEST_QA' as const };
 }
 export function manifestCasResult(raw: unknown, view: ManifestPreflightView) {
   const r = obj(raw);
@@ -77,7 +77,7 @@ export function manifestCasResult(raw: unknown, view: ManifestPreflightView) {
 export function manifestCasError(error: unknown): string {
   const status = obj(obj(error)?.response)?.status;
   if (status === 401) return 'Sessão expirada. Entre novamente.';
-  if (status === 402 || status === 403) return 'Materialização indisponível. O QA Gate no servidor permanece bloqueado.';
+  if (status === 402 || status === 403) return 'Materialização indisponível para esta empresa ou ambiente. Confirme a autorização no servidor.';
   if (status === 404) return 'Player ou rota indisponível na API atual.';
   if (status === 409) return 'Dados alterados, conflito ou conteúdo não pronto. Atualize o preflight.';
   if (status === 429) return 'Limite de requisições atingido. Aguarde.';

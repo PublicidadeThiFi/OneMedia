@@ -95,8 +95,10 @@ test('D15D05-12 backend protege rotas antiga e nova; publica dentro de SERIALIZA
  if(!backend){t.skip('Backend não está no mesmo workspace; executar Jest da API.');return;}
  const ctrl=readFileSync(join(backend,'src/dooh-schedule-core/dooh-schedules.controller.ts'),'utf8');
  assert.match(ctrl,/@Post\(':id\/publish'\)/);assert.match(ctrl,/@Post\(':id\/publish-cas'\)/);
- assert.ok((ctrl.match(/assertDoohSchedulePublishQaAllowed\(req\.user\.companyId\)/g)||[]).length>=2);
+ assert.match(ctrl,/assertDoohSchedulePublishQaAllowed\(req\.user\.companyId\)/);
+ assert.match(ctrl,/@Get\('publish-capabilities'\)/);
  const service=readFileSync(join(backend,'src/dooh-schedule-core/dooh-schedule-publication.service.ts'),'utf8');
+ assert.match(service,/assertDoohSchedulePublishCasAllowed\(companyId\)/);
  assert.match(service,/matchesObservedSchedule/);assert.match(service,/matchesObservedTargets/);
  assert.match(service,/TransactionIsolationLevel\.Serializable/);
 });

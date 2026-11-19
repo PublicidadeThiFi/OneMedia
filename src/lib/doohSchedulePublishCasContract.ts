@@ -63,7 +63,7 @@ export function parseSchedulePublishReceipt(input: unknown, schedule: DoohSchedu
 export function schedulePublishError(error: unknown): string {
   const status = record(record(error)?.response)?.status;
   if (status === 401) return 'Sessão expirada. Entre novamente.';
-  if (status === 402 || status === 403) return 'Publicação de agendas bloqueada: QA não autorizado ou acesso insuficiente.';
+  if (status === 402 || status === 403) return 'Publicação de agendas não autorizada para esta empresa ou ambiente.';
   if (status === 404) return 'Agenda não encontrada nesta empresa.';
   if (status === 409) return 'Agenda, destinos ou conflitos alterados. Atualize, revise e tente novamente.';
   if (status === 429) return 'Muitas solicitações; aguarde antes de continuar.';

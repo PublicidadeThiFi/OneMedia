@@ -3,12 +3,14 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { useDoohPlaylistPublishCapabilities } from '../lib/useDoohPlaylistPublishCapabilities';
 import { parseDoohPlaylistDetail, type DoohPlaylistSummary } from '../lib/doohPlaylistCatalogContract';
 import { canEditPlaylistDraft, draftStillCurrent, parsePlaylistDraft, playlistDraftError,
   type PlaylistDraftSnapshot } from '../lib/doohPlaylistDraftEditorContract';
 import { parsePlaylistPublished, playlistPublishError, publishCasPayload, publishReviewReady } from '../lib/doohPlaylistPublishContract';
 
 interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; onChanged: () => void }
+// Existing QA UI restriction remains; the server capability is authoritative for every write.
 const qaUiEnabled = import.meta.env.MODE === 'qa' && import.meta.env.VITE_DOOH_PLAYLIST_PUBLISH_QA_ENABLED === 'true';
 
 /** D15C-05: QA-only immutable version registration; does NOT schedule or distribute to players. */
@@ -21,6 +23,8 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     access?.granted, access?.accessMode, roles);
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...roles].sort()]);
+  const backendPublishEnabled = useDoohPlaylistPublishCapabilities(companyId, contextKey, allowed);
+  const publishUiEnabled = backendPublishEnabled && (import.meta.env.MODE !== 'qa' || qaUiEnabled);
   const [playlistId, setPlaylistId] = useState('');
   const [draft, setDraft] = useState<PlaylistDraftSnapshot | null>(null);
   const [confirmation, setConfirmation] = useState('');
@@ -62,14 +66,14 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
 
   if (!allowed) return <p className="text-xs text-gray-600">Prévia de publicação exige DOOH FULL e papel técnico.</p>;
   const selected = playlists.find((p) => p.id === playlistId && p.status === 'ACTIVE' && p.draftVersion !== null);
-  const canPublish = qaUiEnabled && Boolean(selected && publishReviewReady(draft) && !busy && !loading && confirmation === 'PUBLICAR');
+  const canPublish = publishUiEnabled && Boolean(selected && publishReviewReady(draft) && !busy && !loading && confirmation === 'PUBLICAR');
 
   async function publish() {
     if (!canPublish || !draft || !selected || !allowed) return;
     const before = draft;
     const payload = publishCasPayload(before);
     if (!payload) return;
-    if (!window.confirm(`CONFIRMA A PUBLICAÇÃO QA da versão ${selected.currentVersion + 1} de "${selected.name}"?\n` +
+    if (!window.confirm(`Confirma a publicação da versão ${selected.currentVersion + 1} de "${selected.name}"?\n` +
       `${before.items.length} itens. Cria uma versão IMUTÁVEL no banco; NÃO distribui nem agenda conteúdos.`)) return;
     const controller = new AbortController();
     write.current = controller;
@@ -99,8 +103,8 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     finally { if (write.current === controller) write.current = null; if (valid()) setBusy(false); }
   }
 
-  return <section aria-label="Publicação QA de playlist D15C-05" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4">
-    <h4 className="font-semibold text-gray-900">Revisão e publicação controlada — D15C-05</h4>
+  return <section aria-label="Publicação controlada de playlist" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4">
+    <h4 className="font-semibold text-gray-900">Revisão e publicação da playlist</h4>
     <p className="text-xs text-amber-900">Publicar cria uma versão imutável e outro rascunho no banco. NÃO configura agendamento, manifest, distribuição, reprodução ou Proof-of-Play.</p>
     <div className="flex flex-wrap gap-2 items-end">
       <label className="flex-1 min-w-[220px] space-y-1 text-sm"><span className="block">Playlist ativa com rascunho</span>
@@ -122,12 +126,12 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
           #{item.position + 1} · Mídia {item.mediaVersionId.slice(0, 8)}… · {item.durationMs} ms
         </li>)}</ol>
     </div>}
-    {qaUiEnabled && draft && <label className="block space-y-1 text-xs"><span>Digite PUBLICAR para aprovar o snapshot mostrado</span>
+    {publishUiEnabled && draft && <label className="block space-y-1 text-xs"><span>Digite PUBLICAR para aprovar o snapshot mostrado</span>
       <input className="w-full rounded-md border bg-white p-2" value={confirmation} disabled={busy || loading}
         onChange={(e) => setConfirmation(e.target.value)} placeholder="PUBLICAR" autoComplete="off" />
     </label>}
-    <Button type="button" disabled={!canPublish} onClick={() => { void publish(); }}>{busy ? 'Registrando…' : 'Publicar versão (somente QA)'}</Button>
-    {!qaUiEnabled && <p className="text-xs text-amber-800">Publicação desabilitada por padrão. Disponível apenas em build QA explicitamente configurado e empresa autorizada no backend.</p>}
+    <Button type="button" disabled={!canPublish} onClick={() => { void publish(); }}>{busy ? 'Registrando…' : 'Publicar versão'}</Button>
+    {!publishUiEnabled && <p className="text-xs text-amber-800">Publicação indisponível para esta empresa ou ambiente. A liberação é controlada pelo servidor.</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;
