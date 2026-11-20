@@ -95,7 +95,7 @@ export function DoohPlaylistCreateRename({ companyId, playlists, onChanged }: Pr
   }
 
   return <section aria-label="Operações seguras de playlists D15C-02" className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-    <h4 className="font-semibold text-gray-900">Criar e renomear playlists</h4>
+    <h4 className="font-semibold text-gray-900">Criar ou renomear lista de exibição</h4>
     <p className="text-xs text-gray-600">Criação gera somente um rascunho vazio. Renomeação utiliza confirmação e controle atômico de concorrência. Sem publicação.</p>
     <form onSubmit={(event) => { void submit(event); }} className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Operação</span>

@@ -35,6 +35,7 @@ export function DoohPlayerPairingAndAssignment() {
   const [notice, setNotice] = useState<{ key: string; message: string } | null>(null);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [step, setStep] = useState<'pair' | 'associate'>('pair');
   const [acknowledged, setAcknowledged] = useState(false);
   const [playerId, setPlayerId] = useState('');
   const [screenId, setScreenId] = useState('');
@@ -52,6 +53,8 @@ export function DoohPlayerPairingAndAssignment() {
   const operationKey = JSON.stringify([companyId, snapshot?.companyId, snapshot?.modules.DOOH.accessMode]);
   const requestKey = JSON.stringify([operationKey, reload]);
   const attemptRef = useRef<{ code: string; key: string } | null>(null);
+  const newlyPairedIdRef = useRef<string | null>(null);
+  useEffect(() => { setStep('pair'); newlyPairedIdRef.current = null; }, [operationKey]);
 
   useEffect(() => {
     setPlayers(null); setFailure(''); setPlayerId('');
@@ -69,6 +72,9 @@ export function DoohPlayerPairingAndAssignment() {
         setFailure('Inventário incompatível. Nenhuma operação será habilitada.'); return;
       }
       setPlayers({ key: requestKey, items: parsed.items, total: parsed.meta.total });
+      if (newlyPairedIdRef.current && parsed.items.some(p => p.id === newlyPairedIdRef.current)) {
+        setPlayerId(newlyPairedIdRef.current); newlyPairedIdRef.current = null;
+      }
     }).catch((error: unknown) => { if (!controller.signal.aborted) setFailure(safePairingError(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
@@ -166,6 +172,7 @@ export function DoohPlayerPairingAndAssignment() {
       // Never display installationId, device secret, pollToken or session id.
       setNotice({ key: operationKey, message: `Pareamento confirmado para “${result.name}” (${result.lifecycle}). Atualização do inventário solicitada.` });
       setCode(''); setName(''); setAcknowledged(false); attemptRef.current = null;
+      newlyPairedIdRef.current = result.playerId; setPlayerId(result.playerId); setStep('associate');
       setReload((v) => v + 1);
     } catch (error: unknown) { setFailure(safePairingError(error)); }
     finally { setBusy(false); }
@@ -198,22 +205,32 @@ export function DoohPlayerPairingAndAssignment() {
     finally { setBusy(false); }
   }
 
-  return <section aria-label="Pareamento e associação DOOH D15A1-02" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
+  return <section aria-label="Conectar uma tela digital" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
     <div className="space-y-1">
-      <h3 className="font-semibold text-gray-900">Pareamento e associação de telas — D15A1-02</h3>
-      <p className="text-sm text-gray-600">O código é gerado pelo aplicativo instalado no dispositivo. A interface administrativa apenas reivindica esse código; emissão de credencial ocorre exclusivamente no runtime do player.</p>
-      <p className="text-xs text-amber-800">A pausa global DOOH e o limite ACTIVE_PLAYER são aplicados exclusivamente pelo backend. Esta página não habilita ativação, não altera quotas e não registra credenciais.</p>
+      <h3 className="font-semibold text-gray-900">Conectar uma tela</h3>
+      <p className="text-sm text-gray-600">Abra o Player Web na TV ou navegador e gere um código. Depois informe o código abaixo e escolha o local da tela.</p>
+      <p className="text-xs text-amber-800">A conexão só será concluída se a autorização e as licenças da empresa permitirem. Nenhuma credencial será exibida nesta página.</p>
     </div>
     {loading && <p role="status" className="text-sm text-gray-600">Consultando os players existentes…</p>}
     {failure && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{failure}</p>}
     {notice?.key === operationKey && <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">{notice.message}</p>}
-    <div className="grid gap-6 lg:grid-cols-2">
-      <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitPair(event)}>
-        <h4 className="font-medium">Parear pelo código do dispositivo</h4>
-        <label className="block space-y-1 text-sm"><span>Código temporário (6–32 caracteres)</span>
+    <a href="https://player.onemediaap.com.br" target="_blank" rel="noopener noreferrer"
+      className="inline-flex min-h-11 items-center rounded-xl border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 focus-visible:outline-indigo-600">
+      Abrir Player Web para obter o código
+    </a>
+    <div role="group" aria-label="Etapas para conectar tela" className="flex flex-wrap gap-2">
+      <button type="button" aria-pressed={step === 'pair'} onClick={() => setStep('pair')}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold ${step === 'pair' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>1. Informar código</button>
+      <button type="button" aria-pressed={step === 'associate'} onClick={() => setStep('associate')}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold ${step === 'associate' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}>2. Escolher local</button>
+    </div>
+    <div className="space-y-4">
+      {step === 'pair' && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitPair(event)}>
+        <h4 className="font-medium">1. Digite o código exibido na tela</h4>
+        <label className="block space-y-1 text-sm"><span>Código da tela</span>
           <input autoComplete="off" spellCheck={false} className="w-full rounded-md border p-2" maxLength={32} value={code} onChange={(e) => { setCode(e.target.value); attemptRef.current = null; }} placeholder="Código exibido no player" disabled={!writable || busy} />
         </label>
-        <label className="block space-y-1 text-sm"><span>Nome do novo player</span>
+        <label className="block space-y-1 text-sm"><span>Nome para identificar esta tela</span>
           <input className="w-full rounded-md border p-2" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} disabled={!writable || busy} />
         </label>
         <label className="flex items-start gap-2 text-xs text-gray-700">
@@ -222,11 +239,11 @@ export function DoohPlayerPairingAndAssignment() {
         </label>
         <Button type="submit" disabled={!pairAllowed}>Confirmar pareamento</Button>
         {!writable && <p className="text-xs text-gray-600">Requer acesso FULL e papel técnico.</p>}
-      </form>
-      <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitAssignment(event)}>
-        <h4 className="font-medium">Associar player existente a uma tela</h4>
+      </form>}
+      {step === 'associate' && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitAssignment(event)}>
+        <h4 className="font-medium">2. Escolha onde sua tela fica</h4>
         <p className="text-xs text-gray-600">Escolha um ponto digital e a tela cadastrada. Se ainda não cadastrou uma tela, <a className="font-medium text-indigo-700 underline" href="/app/inventory">abra o Inventário</a>, crie o ponto DOOH e uma unidade SCREEN ativa.</p>
-        <label className="block space-y-1 text-sm"><span>Player da empresa</span>
+        <label className="block space-y-1 text-sm"><span>Tela conectada</span>
           <select className="w-full rounded-md border p-2" value={playerId} onChange={(e) => setPlayerId(e.target.value)} disabled={!canValidateScreen || busy}>
             <option value="">Selecionar</option>
             {currentPlayers?.items.map((p) => <option value={p.id} key={p.id}>{p.name} · {p.lifecycleStatus}</option>)}
@@ -268,7 +285,7 @@ export function DoohPlayerPairingAndAssignment() {
         <Button type="submit" disabled={!assignAllowed}>Confirmar associação</Button>
         {!canValidateScreen && <p className="text-xs text-amber-800">Pré-validação da SCREEN exige papel ADMINISTRATIVO no contrato atual da API OOH.</p>}
         <p className="text-xs text-gray-600">Este bloco não remove associações nem apaga históricos. A API recusa telas ocupadas, inativas ou fora do tenant.</p>
-      </form>
+      </form>}
     </div>
   </section>;
 }

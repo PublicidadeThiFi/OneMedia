@@ -111,10 +111,10 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
   }
 
   return <section aria-label="Ordenação de itens de playlist D15C-04" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
-    <h4 className="font-semibold text-gray-900">Ordenação de itens — D15C-04</h4>
+    <h4 className="font-semibold text-gray-900">Organizar a ordem de exibição</h4>
     <p className="text-xs text-gray-600">Use Subir/Descer para reorganizar até 200 itens. A ordem só será gravada após revisão e confirmação. Somente rascunhos podem ser alterados.</p>
     <div className="flex flex-wrap items-end gap-2">
-      <label className="min-w-[220px] flex-1 space-y-1 text-sm"><span className="block">Playlist ativa com rascunho</span>
+      <label className="min-w-[220px] flex-1 space-y-1 text-sm"><span className="block">Lista em edição</span>
         <select aria-label="Playlist para ordenar" className="w-full rounded-md border border-gray-300 bg-white p-2" value={playlistId} disabled={busy}
           onChange={(e) => { writeRef.current?.abort(); setPlaylistId(e.target.value); }}>
           <option value="">Selecione uma playlist</option>
@@ -131,7 +131,7 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
         <ol className="space-y-1">{planned.map((id, index) => {
           const item = draft.items.find((row) => row.id === id);
           return <li key={id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white p-2 text-xs">
-            <span>#{index + 1} · versão {item?.mediaVersionId.slice(0, 8)}… · {item?.durationMs} ms</span>
+            <span>#{index + 1} · versão {item?.mediaVersionId.slice(0, 8)}… · {item?.durationMs ? (item.durationMs / 1000).toLocaleString('pt-BR') : 0} s</span>
             <span className="flex gap-1">
               <Button type="button" variant="outline" size="sm" disabled={busy || loading || index === 0} aria-label={`Subir item ${index + 1}`} onClick={() => shift(id, -1)}>Subir</Button>
               <Button type="button" variant="outline" size="sm" disabled={busy || loading || index === planned.length - 1} aria-label={`Descer item ${index + 1}`} onClick={() => shift(id, 1)}>Descer</Button>

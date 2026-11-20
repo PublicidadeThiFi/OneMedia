@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohSchedulePlayerPicker } from './DoohSchedulePlayerPicker';
 import { parseDoohSchedule, parseDoohScheduleTargets,
   type DoohScheduleSummary, type DoohScheduleTargetInventory,
   type DoohScheduleTargetType } from '../lib/doohScheduleCatalogContract';
@@ -70,26 +71,35 @@ export function DoohScheduleTargetsCasEditor({ companyId, summary, inventory, on
   if (!writable) return <p className="mt-2 text-xs text-gray-600">Edição de destinos exige DOOH FULL e função técnica.</p>;
   if (summary.status !== 'DRAFT') return <p className="mt-2 text-xs text-gray-600">Somente agendas em rascunho podem ter destinos alterados.</p>;
   return <section aria-label="Edição CAS de destinos DOOH D15D-02" className="mt-3 space-y-3 rounded-lg border border-indigo-200 bg-indigo-50/30 p-3">
-    <h5 className="text-sm font-semibold text-gray-900">Editar destinos do rascunho — D15D-02</h5>
-    <p className="text-xs text-gray-600">Adicione ou remova um vínculo de cada vez. Informe um UUID já cadastrado: a API verificará se o player, grupo, tela ou ponto pertence à empresa e está disponível. Nenhuma exibição será iniciada.</p>
+    <h5 className="text-sm font-semibold text-gray-900">Onde essa agenda será exibida?</h5>
+    <p className="text-xs text-gray-600">Escolha uma tela cadastrada pelo nome. As outras opções de destino estão disponíveis para suporte técnico. Adicionar um destino não inicia a exibição.</p>
     <form onSubmit={(event) => void submit(event)} className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Operação</span>
         <select aria-label="Operação de destino" className="w-full rounded-md border p-2" value={operation} disabled={busy}
           onChange={(event) => { setOperation(event.target.value as 'add' | 'remove'); setError(''); }}>
-          <option value="add">Adicionar destino</option><option value="remove">Remover destino</option>
+          <option value="add">Adicionar uma tela</option><option value="remove">Remover vínculo</option>
         </select>
       </label>
       {operation === 'add' ? <>
-        <label className="space-y-1 text-sm"><span className="block">Tipo</span>
+        <label className="space-y-1 text-sm"><span className="block">Tipo de destino (mais opções)</span>
           <select aria-label="Tipo de destino" className="w-full rounded-md border p-2" value={type} disabled={busy}
-            onChange={(event) => setType(event.target.value as DoohScheduleTargetType)}>
+            onChange={(event) => { setType(event.target.value as DoohScheduleTargetType); setUuidInput(''); }}>
             {Object.entries(targetText).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
           </select>
         </label>
-        <label className="space-y-1 text-sm"><span className="block">UUID do destino</span>
-          <input aria-label="UUID do destino" className="w-full rounded-md border p-2" placeholder="UUID de player, grupo, tela ou ponto"
+        {type === 'PLAYER' && <div className="md:col-span-2 space-y-2">
+          <DoohSchedulePlayerPicker companyId={companyId} value={uuidInput} onChange={setUuidInput} disabled={busy} />
+          <details className="rounded-md bg-white p-2 text-xs text-gray-600"><summary className="cursor-pointer">Seleção avançada pelo identificador</summary>
+            <label className="mt-2 block">UUID do dispositivo
+              <input aria-label="UUID do destino" className="mt-1 w-full rounded-md border p-2 font-mono" maxLength={36} value={uuidInput}
+                onChange={e => setUuidInput(e.target.value)} disabled={busy} />
+            </label>
+          </details>
+        </div>}
+        {type !== 'PLAYER' && <label className="space-y-1 text-sm"><span className="block">Identificador do destino (avançado)</span>
+          <input aria-label="UUID do destino" className="w-full rounded-md border p-2" placeholder="UUID de grupo, tela ou ponto"
             value={uuidInput} maxLength={36} disabled={busy} onChange={(event) => setUuidInput(event.target.value)} />
-        </label>
+        </label>}
       </> : <label className="space-y-1 text-sm md:col-span-2"><span className="block">Vínculo a remover</span>
         <select aria-label="Destino para remover" className="w-full rounded-md border p-2" value={associationId} disabled={busy}
           onChange={(event) => setAssociationId(event.target.value)}>

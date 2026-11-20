@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohPlaylistCreateRename } from './DoohPlaylistCreateRename';
 import { DoohPlaylistDraftEditor } from './DoohPlaylistDraftEditor';
 import { DoohPlaylistDraftReorder } from './DoohPlaylistDraftReorder';
@@ -27,6 +28,8 @@ export function DoohPlaylistCatalogReadOnly() {
   const contextKey = JSON.stringify([user?.id, companyId, snapshot?.companyId, granted, mode, [...roles].sort()]);
   const [refresh, setRefresh] = useState(0);
   const [selectedId, setSelectedId] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [action, setAction] = useState<'list' | 'create' | 'edit' | 'order' | 'publish' | 'history'>('list');
   const [listing, setListing] = useState<{ key: string; items: DoohPlaylistSummary[] } | null>(null);
   const [detail, setDetail] = useState<{ key: string; item: DoohPlaylistDetail } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,7 +41,7 @@ export function DoohPlaylistCatalogReadOnly() {
   const currentDetailKey = useRef(detailKey);
   currentDetailKey.current = detailKey;
 
-  useEffect(() => { setSelectedId(''); setListing(null); setDetail(null); setError(''); setDetailError(''); }, [contextKey]);
+  useEffect(() => { setSelectedId(''); setAction('list'); setListing(null); setDetail(null); setError(''); setDetailError(''); }, [contextKey]);
   useEffect(() => {
     setListing(null); setDetail(null); setError('');
     if (!allowed || !companyId) { setLoading(false); return; }
@@ -79,41 +82,54 @@ export function DoohPlaylistCatalogReadOnly() {
     O catálogo de playlists exige acesso DOOH e função ADMINISTRATIVO ou TI. Nenhum dado foi consultado.
   </div>;
   const selected = detail?.key === detailKey && selectedExists ? detail.item : null;
-  return <section aria-label="Catálogo de playlists DOOH D15C-01" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+  return <section aria-label="Listas de exibição DOOH" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
-        <h3 className="font-semibold text-gray-900">Playlists — catálogo operacional</h3>
-        <p className="text-sm text-gray-600">Consulta de playlists e versões registradas no backend da empresa autenticada.</p>
-        <p className="text-xs text-amber-800">Uma versão publicada não comprova distribuição aos players, reprodução ou audiência. Nenhuma programação é acionada nesta tela.</p>
+        <h2 className="text-lg font-bold text-gray-900">Minhas listas de exibição</h2>
+        <p className="text-sm text-gray-600">Monte uma sequência de mídias prontas e publique quando quiser disponibilizá-la para uma agenda.</p>
+        
       </div>
-      <Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar</Button>
+      <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setAction('create')}>Criar lista de exibição</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar</Button></div>
     </div>
-    <p className="text-xs text-gray-600">A API fornece até 100 playlists recentes, sem informar total ou oferecer paginação. O catálogo pode ser parcial.</p>
+    <DoohWorkspaceTabs label="Etapas da lista de exibição" selected={action} onSelect={setAction} tabs={[
+      { id: 'list', label: 'Minhas listas', description: 'Listas registradas. Publicar uma lista não a envia automaticamente às telas.' },
+      { id: 'create', label: 'Criar ou renomear', description: 'Dê um nome à sua lista. Este passo não publica conteúdo.' },
+      { id: 'edit', label: 'Adicionar mídias', description: 'Selecione uma lista e adicione arquivos prontos pelo nome.' },
+      { id: 'order', label: 'Ordenar', description: 'Defina a sequência das mídias antes de publicar.' },
+      { id: 'publish', label: 'Revisar e publicar', description: 'Confira os itens e confirme uma nova versão; a publicação continua protegida.' },
+      { id: 'history', label: 'Versões', description: 'Consulte versões anteriores e detalhes técnicos.' },
+    ]} />
+    <p className="text-xs text-gray-600">O catálogo pode exibir apenas as 100 listas recentes.</p>
+    <details className="text-xs text-gray-600"><summary className="cursor-pointer">Sobre os estados de publicação</summary>
+      <p className="mt-1">Uma versão publicada não comprova distribuição aos players, reprodução ou audiência. A entrega para a tela exige agenda e atualização posterior.</p>
+    </details>
+    {successMessage && <p role="status" className="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-900">{successMessage}</p>}
     {loading && <p role="status" className="text-sm text-gray-600">Carregando playlists…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {entries && <>
-      <p className="text-xs text-gray-600">{entries.length} playlist(s) retornada(s) pela API.</p>
-      {entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma playlist cadastrada.</p> :
+      {action === 'list' && <p className="text-xs text-gray-600">{entries.length} lista(s) encontradas.</p>}
+      {action !== 'list' ? null : entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma lista cadastrada. Comece em Criar lista de exibição.</p> :
         <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm">
-          <thead className="border-b bg-gray-50"><tr><th className="p-3">Playlist</th><th className="p-3">Estado</th>
+          <thead className="border-b bg-gray-50"><tr><th className="p-3">Lista</th><th className="p-3">Estado</th>
             <th className="p-3">Versão atual</th><th className="p-3">Versões</th><th className="p-3">Atualização</th><th className="p-3">Detalhe</th></tr></thead>
           <tbody>{entries.map((playlist) => <tr key={playlist.id} className="border-b text-gray-700">
             <td className="p-3 break-words font-medium">{playlist.name}</td><td className="p-3">{playlist.status === 'ACTIVE' ? 'Ativa' : 'Arquivada'}</td>
             <td className="p-3">{playlist.currentVersion === 0 ? 'Ainda não publicada' : playlist.currentVersion}</td>
             <td className="p-3">{playlist.versionCount}{playlist.draftVersion !== null ? ` · rascunho v${playlist.draftVersion}` : ''}</td>
             <td className="p-3">{dateText(playlist.updatedAt)}</td>
-            <td className="p-3"><Button type="button" variant="outline" size="sm" onClick={() => setSelectedId(playlist.id)}
-              aria-label={`Consultar detalhes de ${playlist.name}`}>Consultar</Button></td>
+            <td className="p-3"><Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(playlist.id); setAction('history'); }}
+              aria-label={`Consultar detalhes de ${playlist.name}`}>Ver versões</Button></td>
           </tr>)}</tbody>
         </table></div>}
     </>}
-    {entries && companyId && <DoohPlaylistCreateRename companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
-    {entries && companyId && <DoohPlaylistDraftEditor companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
-    {entries && companyId && <DoohPlaylistDraftReorder companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
-    {entries && companyId && <DoohPlaylistPublishQa companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
-    {selectedExists && <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold text-gray-900">Histórico da playlist selecionada</h4>
-        <Button type="button" variant="outline" size="sm" onClick={() => setSelectedId('')}>Fechar</Button></div>
+    {action === 'create' && entries && companyId && <DoohPlaylistCreateRename companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
+    {action === 'edit' && entries && companyId && <DoohPlaylistDraftEditor companyId={companyId} playlists={entries} onChanged={() => { setRefresh((n) => n + 1); setSuccessMessage('Itens da lista atualizados. Continue para ordenar ou revisar antes de publicar.'); }} />}
+    {action === 'order' && entries && companyId && <DoohPlaylistDraftReorder companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
+    {action === 'publish' && entries && companyId && <DoohPlaylistPublishQa companyId={companyId} playlists={entries} onChanged={() => { setRefresh((n) => n + 1); setAction('list'); setSuccessMessage('A lista foi atualizada. Consulte a versão publicada para criar uma agenda.'); }} />}
+    {action === 'history' && !selectedExists && <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600">Selecione uma lista em “Minhas listas” para consultar versões e criar agenda com uma versão publicada.</p>}
+    {action === 'history' && selectedExists && <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold text-gray-900">Versões da lista selecionada</h4>
+        <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(''); setAction('list'); }}>Voltar às listas</Button></div>
       {detailLoading && <p role="status" className="text-sm text-gray-600">Consultando versões…</p>}
       {detailError && <p role="alert" className="text-sm text-red-800">{detailError}</p>}
       {selected && <>
@@ -123,7 +139,9 @@ export function DoohPlaylistCatalogReadOnly() {
           <ul className="space-y-2">{selected.versions.map((v) => <li key={v.id} className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-700">
             <p className="font-medium">Versão {v.version} · {versionStatusText[v.status]} · {v.itemCount} item(ns)</p>
             <p>Criada em {dateText(v.createdAt)}{v.publishedAt ? ` · publicada em ${dateText(v.publishedAt)}` : ''}</p>
-            {v.checksumPrefix && <p>Checksum registrado: {v.checksumPrefix}… (não verificado contra conteúdo)</p>}
+            {v.status === 'PUBLISHED' && <a className="mt-2 inline-flex rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-700"
+              href={`/app/dooh/scheduling?ux=agendas&playlistId=${encodeURIComponent(selected.id)}&versionId=${encodeURIComponent(v.id)}`}>Criar agenda com esta lista</a>}
+            {v.checksumPrefix && <details className="mt-2"><summary className="cursor-pointer">Detalhes técnicos</summary><p>Checksum registrado: {v.checksumPrefix}… (não verificado contra conteúdo)</p></details>}
           </li>)}</ul>}
         {companyId && <DoohPublishedVersionInspector companyId={companyId} detail={selected} />}
       </>}

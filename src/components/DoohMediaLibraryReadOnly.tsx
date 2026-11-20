@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohFolderOperations } from './DoohFolderOperations';
 import { DoohMediaOrganizeCas } from './DoohMediaOrganizeCas';
 import { DoohMediaUpload } from './DoohMediaUpload';
@@ -20,7 +21,7 @@ import {
 } from '../lib/doohMediaLibraryContract';
 
 const statusLabels: Record<DoohLibraryStatus, string> = {
-  PENDING: 'Pendente', PROCESSING: 'Processando', READY: 'Pronta', ERROR: 'Erro',
+  PENDING: 'Enviada · falta preparar', PROCESSING: 'Preparando arquivo', READY: 'Pronta para usar', ERROR: 'Não foi possível preparar',
 };
 
 /** D15B-01 — catálogo real, GET apenas. NÃO publica, envia, exclui ou certifica exibição. */
@@ -39,25 +40,28 @@ export function DoohMediaLibraryReadOnly() {
   const [statusFilter, setStatusFilter] = useState<'' | DoohLibraryStatus>('');
   const [typedSearch, setTypedSearch] = useState('');
   const [reload, setReload] = useState(0);
+  const [view, setView] = useState<'media' | 'upload' | 'processing' | 'organize'>('media');
+  const [preferredMediaId, setPreferredMediaId] = useState('');
   const onUploaded = () => {
     // Upload cria PENDING; filtros antigos como READY/raiz ocultariam a nova mídia.
     setFolderFilter('all'); setStatusFilter(''); setTypedSearch('');
+    setView('media'); setPreferredMediaId('');
     setReload((value) => value + 1);
   };
   const [state, setState] = useState<{
-    key: string; folders: DoohLibraryFolder[]; media: DoohLibraryMedia[]; fetchedAt: string;
+    key: string; contextKey: string; folderFilter: DoohLibraryFolderFilter; folders: DoohLibraryFolder[]; media: DoohLibraryMedia[]; fetchedAt: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const requestKey = JSON.stringify([contextKey, folderFilter, reload]);
 
   useEffect(() => {
-    setFolderFilter('all'); setStatusFilter(''); setTypedSearch('');
+    setFolderFilter('all'); setStatusFilter(''); setTypedSearch(''); setView('media'); setPreferredMediaId('');
     setState(null); setError('');
   }, [contextKey]);
 
   useEffect(() => {
-    setState(null); setError('');
+    setError('');
     if (!authorized || !companyId) { setLoading(false); return; }
     const controller = new AbortController();
     setLoading(true);
@@ -73,14 +77,14 @@ export function DoohMediaLibraryReadOnly() {
         setError('Contrato da Biblioteca DOOH incompatível com a API. Nenhum dado foi exibido.');
         return;
       }
-      setState({ key: requestKey, folders, media, fetchedAt: new Date().toLocaleString('pt-BR') });
+      setState({ key: requestKey, contextKey, folderFilter, folders, media, fetchedAt: new Date().toLocaleString('pt-BR') });
     }).catch((readError: unknown) => {
       if (!controller.signal.aborted) setError(doohLibraryReadError(readError));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [authorized, companyId, requestKey, folderFilter]);
 
-  const visible = state?.key === requestKey ? state : null;
+  const visible = state?.contextKey === contextKey && state.folderFilter === folderFilter ? state : null;
   const filtered = useMemo(() => (visible?.media ?? []).filter((item) =>
     (!statusFilter || item.status === statusFilter) &&
     (!typedSearch.trim() || item.name.toLocaleLowerCase('pt-BR').includes(typedSearch.trim().toLocaleLowerCase('pt-BR'))),
@@ -90,16 +94,22 @@ export function DoohMediaLibraryReadOnly() {
     A Biblioteca exige acesso DOOH e função ADMINISTRATIVO ou TI. Nenhum dado foi solicitado.
   </div>;
 
-  return <section aria-label="Biblioteca de mídias DOOH D15B-01" className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+  return <section aria-label="Minhas mídias DOOH" className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
-        <h3 className="font-semibold text-gray-900">Biblioteca de mídias — inventário operacional</h3>
-        <p className="text-sm text-gray-600">Pastas e mídias consultadas na API da empresa autenticada. Consulta e organização de metadados, conforme permissões.</p>
-        <p className="text-xs text-amber-800">READY significa processamento concluído, não publicação, reprodução física ou entrega certificada.</p>
+        <h2 className="text-lg font-bold text-gray-900">Minhas mídias</h2>
+        <p className="text-sm text-gray-600">Envie imagens e vídeos, prepare os arquivos e adicione-os a uma lista de exibição.</p>
+        
       </div>
-      <Button type="button" variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}>Atualizar</Button>
+      <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setView('upload')}>Adicionar mídia</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}>Atualizar</Button></div>
     </div>
-    <div className="grid gap-3 md:grid-cols-3">
+    <DoohWorkspaceTabs label="Ações de mídia" selected={view} onSelect={setView} tabs={[
+      { id: 'media', label: 'Minhas mídias', description: 'Consulte os arquivos carregados nesta pasta.' },
+      { id: 'upload', label: 'Adicionar mídia', description: 'Escolha arquivo, nome e pasta opcional. O envio não publica conteúdo.' },
+      { id: 'processing', label: 'Preparar mídia', description: 'Solicite o processamento quando autorizado e acompanhe o resultado.' },
+      { id: 'organize', label: 'Organizar · mais opções', description: 'Pastas, renomeação, movimentação, versões e histórico.' },
+    ]} />
+    {view === 'media' && <div className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Pasta (filtro na API)</span>
         <select aria-label="Pasta DOOH" className="w-full rounded-md border border-gray-300 p-2" value={folderFilter}
           onChange={(event) => { setFolderFilter(event.target.value); setStatusFilter(''); setTypedSearch(''); }}>
@@ -122,34 +132,51 @@ export function DoohMediaLibraryReadOnly() {
           value={typedSearch} maxLength={160} placeholder="Buscar entre os resultados carregados"
           onChange={(event) => setTypedSearch(event.target.value)} />
       </label>
-    </div>
-    <p className="text-xs text-gray-600">A API retorna até 100 mídias recentes por filtro de pasta, sem total nem paginação. A busca por nome e estado abrange somente esses resultados, não a biblioteca completa.</p>
+    </div>}
+    {view === 'media' && <p className="text-xs text-gray-600">Busca apenas nos 100 resultados recentes por pasta; não é uma pesquisa global.</p>}
     {loading && <p role="status" className="text-sm text-gray-600">Carregando biblioteca…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {visible && <>
-      <DoohFolderOperations companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
-      <DoohMediaUpload companyId={companyId!} folders={visible.folders} onChanged={onUploaded} />
-      <DoohMediaOrganizeCas companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
-      <DoohMediaProcessing companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
-      <DoohMediaVersionsReadOnly companyId={companyId!} media={visible.media} />
-      <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
-        <p>{visible.folders.length} pasta(s) cadastrada(s) · {filtered.length} de {visible.media.length} mídia(s) carregada(s) neste filtro</p>
-        <p>Consultado em: {visible.fetchedAt}</p>
-      </div>
-      {filtered.length === 0 ? <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">Nenhuma mídia encontrada neste conjunto de resultados.</p> :
-        <ul aria-label="Resultados de mídias DOOH" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((item) => <li key={item.id} className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <div className="flex items-start justify-between gap-2">
-              <p className="break-words text-sm font-semibold text-gray-900">{item.name}</p>
-              <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs text-gray-700">{statusLabels[item.status]}</span>
-            </div>
-            <p className="text-xs text-gray-600">{item.kind} · {displayDoohMediaSize(item.bytes)} · {item.mimeType}</p>
-            <p className="text-xs text-gray-600">{item.widthPx && item.heightPx ? `${item.widthPx} × ${item.heightPx} px · ` : ''}
-              {item.durationMs !== null ? `${(item.durationMs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s · ` : ''}
-              {item.versionCount} versão(ões)</p>
-            <p className="text-xs text-gray-500">Criada em {new Date(item.createdAt).toLocaleString('pt-BR')}</p>
-          </li>)}
-        </ul>}
+      {view === 'upload' && <DoohMediaUpload companyId={companyId!} folders={visible.folders} onChanged={onUploaded} />}
+      {view === 'processing' && <DoohMediaProcessing companyId={companyId!} folders={visible.folders}
+        media={visible.media} preferredMediaId={preferredMediaId} onChanged={() => setReload((value) => value + 1)} />}
+      {view === 'organize' && <div className="space-y-4">
+        <DoohFolderOperations companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
+        <DoohMediaOrganizeCas companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
+        <DoohMediaVersionsReadOnly companyId={companyId!} media={visible.media} />
+      </div>}
+      {view === 'media' && <>
+        <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
+          <p>{filtered.length} de {visible.media.length} mídia(s) encontradas neste filtro · {visible.folders.length} pasta(s)</p>
+          <p>Consultado em {visible.fetchedAt}</p>
+        </div>
+        {filtered.length === 0 ? <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">Nenhuma mídia encontrada. Ajuste o filtro ou adicione um arquivo.</p> :
+          <ul aria-label="Resultados de mídias DOOH" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((item) => <li key={item.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{item.name}</p>
+                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{statusLabels[item.status]}</span>
+              </div>
+              <p className="text-sm text-gray-600">{item.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'} · {displayDoohMediaSize(item.bytes)}</p>
+              {item.status === 'PENDING' && <p className="text-sm text-gray-700">Arquivo enviado. Falta preparar para usar na programação.</p>}
+              {item.status === 'PROCESSING' && <p className="text-sm text-gray-700">O arquivo está sendo preparado.</p>}
+              {item.status === 'READY' && <p className="text-sm text-gray-700">Pronta para usar em uma lista de exibição.</p>}
+              {item.status === 'ERROR' && <p className="text-sm text-gray-700">O processamento não foi concluído. Consulte o histórico antes de tentar novamente.</p>}
+              <div className="mt-auto flex flex-wrap items-center gap-2">
+                {item.status === 'READY' ? <a href="/app/dooh/scheduling" className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-indigo-600">Usar em lista</a> :
+                  <Button type="button" variant="outline" onClick={() => { setPreferredMediaId(item.id); setView('processing'); }}>
+                    {item.status === 'PENDING' ? 'Preparar mídia' : item.status === 'ERROR' ? 'Ver motivo / tentar novamente' : 'Acompanhar situação'}
+                  </Button>}
+                <details className="text-xs text-gray-500"><summary className="cursor-pointer focus-visible:outline-indigo-600">Detalhes do arquivo</summary>
+                  <p className="mt-1">{item.mimeType} · {item.versionCount} versão(ões)</p>
+                  <p>{item.widthPx && item.heightPx ? `${item.widthPx} × ${item.heightPx} px` : 'Dimensões não informadas'} · {item.durationMs === null ? 'Duração não informada' : `${(item.durationMs / 1000).toLocaleString('pt-BR')} s`}</p>
+                  <p>Enviado em {new Date(item.createdAt).toLocaleString('pt-BR')}</p>
+                </details>
+              </div>
+            </li>)}
+          </ul>}
+        <p className="text-xs text-gray-500">Arquivo pronto não significa programação publicada ou exibição comprovada.</p>
+      </>}
     </>}
   </section>;
 }

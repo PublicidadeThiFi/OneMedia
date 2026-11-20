@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { doohUxMillisecondsFromSeconds } from '../lib/doohUxDuration';
 import { parseDoohVersions, type DoohVersionSummary } from '../lib/doohMediaVersionsContract';
 import type { DoohPlaylistSummary } from '../lib/doohPlaylistCatalogContract';
 import {
@@ -26,7 +27,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
   const [playlistId, setPlaylistId] = useState('');
   const [mediaId, setMediaId] = useState('');
   const [versionId, setVersionId] = useState('');
-  const [durationText, setDurationText] = useState('10000');
+  const [durationText, setDurationText] = useState('10');
   const [draft, setDraft] = useState<PlaylistDraftSnapshot | null>(null);
   const [media, setMedia] = useState<PlaylistMediaOption[] | null>(null);
   const [versions, setVersions] = useState<DoohVersionSummary[] | null>(null);
@@ -94,8 +95,8 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
 
   if (!allowed) return <p className="text-xs text-gray-600">Editor exige DOOH FULL e papel ADMINISTRATIVO ou TI.</p>;
   const selected = playlists.find((p) => p.id === playlistId);
-  const durationMs = Number(durationText);
-  const validDuration = /^\d+$/.test(durationText) && Number.isSafeInteger(durationMs) && durationMs > 0 && durationMs <= 86_400_000;
+  const durationMs = doohUxMillisecondsFromSeconds(durationText) ?? 0;
+  const validDuration = durationMs > 0;
   const canAdd = Boolean(!busy && !loading && draft && selected?.status === 'ACTIVE' &&
     versions?.some((v) => v.id === versionId) && validDuration && draft.items.length < 200);
 
@@ -106,7 +107,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
     const before = draft;
     const selectedVersion = versionId;
     if (!window.confirm(operation === 'add'
-      ? `Adicionar a versão ${selectedVersion} ao rascunho de "${selected.name}" por ${durationMs} ms? Nenhuma publicação ocorrerá.`
+      ? `Adicionar a versão ${selectedVersion} ao rascunho de "${selected.name}" por ${Number(durationText).toLocaleString('pt-BR')} segundo(s)? Nenhuma publicação ocorrerá.`
       : `Remover o item ${itemId} do rascunho de "${selected.name}"? Versões publicadas não serão modificadas.`)) return;
     const controller = new AbortController();
     writeControl.current = controller;
@@ -141,10 +142,10 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
 
   function submit(event: FormEvent) { event.preventDefault(); void mutate('add'); }
   return <section aria-label="Editor de itens do rascunho D15C-03" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
-    <h4 className="font-semibold text-gray-900">Itens do rascunho — D15C-03</h4>
-    <p className="text-xs text-gray-600">Inclusão e remoção com comparação atômica da ordem completa do rascunho. Até 200 itens. Sem reordenar, publicar ou agendar.</p>
+    <h4 className="font-semibold text-gray-900">Mídias desta lista</h4>
+    <p className="text-xs text-gray-600">Selecione uma lista em edição, escolha a mídia pelo nome e defina por quantos segundos ela aparece.</p>
     <div className="flex gap-2 items-end">
-      <label className="flex-1 space-y-1 text-sm"><span className="block">Playlist ativa com draft</span>
+      <label className="flex-1 space-y-1 text-sm"><span className="block">Lista em edição</span>
         <select aria-label="Playlist para editar itens" value={playlistId} disabled={busy} className="w-full rounded-md border border-gray-300 bg-white p-2"
           onChange={(e) => { setPlaylistId(e.target.value); setError(''); setNotice(''); }}>
           <option value="">Selecione uma playlist</option>
@@ -155,10 +156,10 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
     </div>
     {loading && <p role="status" className="text-sm text-gray-600">Lendo rascunho…</p>}
     {draft && <>
-      <p className="text-sm text-gray-700">{draft.items.length} item(ns) neste draft. Cada remoção exige confirmação.</p>
-      {draft.items.length === 0 ? <p className="text-sm text-gray-600">Rascunho vazio.</p> :
+      <p className="text-sm text-gray-700">{draft.items.length} mídia(s) nesta lista. Remover uma mídia exige confirmação.</p>
+      {draft.items.length === 0 ? <p className="text-sm text-gray-600">Esta lista ainda não tem mídias. Adicione uma abaixo.</p> :
         <ul className="space-y-1">{draft.items.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white p-2 text-xs">
-          <span>#{item.position + 1} · mídia versão {item.mediaVersionId.slice(0, 8)}… · {item.durationMs} ms</span>
+          <span>#{item.position + 1} · {(item.durationMs / 1000).toLocaleString('pt-BR')} s · mídia pronta</span>
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { void mutate('remove', item.id); }}>Remover</Button>
         </li>)}</ul>}
       <form onSubmit={submit} className="grid gap-3 md:grid-cols-3">
@@ -167,19 +168,19 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
             onChange={(e) => setMediaId(e.target.value)}><option value="">Selecione uma mídia</option>
             {(media ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>
         </label>
-        <label className="space-y-1 text-sm"><span className="block">Versão READY com metadados válidos</span>
+        <label className="space-y-1 text-sm"><span className="block">Versão pronta da mídia</span>
           <select aria-label="Versão READY para adicionar" value={versionId} disabled={busy || !versions} className="w-full rounded-md border border-gray-300 bg-white p-2"
             onChange={(e) => setVersionId(e.target.value)}><option value="">Selecione uma versão pronta</option>
             {(versions ?? []).map((v) => <option key={v.id} value={v.id}>Versão {v.version} · {v.id.slice(0, 8)}…</option>)}</select>
         </label>
-        <label className="space-y-1 text-sm"><span className="block">Duração (milissegundos)</span>
-          <input aria-label="Duração da exibição em ms" type="number" min={1} max={86400000} step={1} value={durationText} disabled={busy}
+        <label className="space-y-1 text-sm"><span className="block">Tempo na tela (segundos)</span>
+          <input aria-label="Duração da exibição em segundos" type="number" min={0.001} max={86400} step={0.001} value={durationText} disabled={busy}
             onChange={(e) => setDurationText(e.target.value)} className="w-full rounded-md border border-gray-300 bg-white p-2" />
         </label>
-        <Button type="submit" disabled={!canAdd}>{busy ? 'Salvando…' : 'Adicionar ao rascunho'}</Button>
+        <Button type="submit" disabled={!canAdd}>{busy ? 'Salvando…' : 'Adicionar à lista'}</Button>
       </form>
     </>}
-    <p className="text-xs text-amber-800">Metadados READY não comprovam a integridade dos bytes no S3, codecs compatíveis ou reprodução real. O backend revalida READY e asset antes da inclusão.</p>
+    <p className="text-xs text-amber-800">Somente arquivos com uma versão pronta e validada podem ser adicionados. Isso não publica nem inicia exibição.</p>
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;

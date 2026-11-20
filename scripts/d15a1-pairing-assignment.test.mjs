@@ -94,7 +94,7 @@ test('D15A1-02-12 GET SCREEN validada pela empresa, role ADMIN, antes de PUT', (
 });
 test('D15A1-02-13 inventário read only anterior e módulo D15A1-01 preservados', () => {
  const f=source('src/components/DoohFoundationPage.tsx');
- assert.match(f, /section === 'screens'\s*\?\s*\(\s*<DoohPlayerInventoryReadOnly\s*\/>/);
- assert.match(f, /section === 'screens' && <DoohPlayerOperations \/>/);
- assert.match(f, /section === 'screens' && <DoohPlayerPairingAndAssignment \/>/);
+ assert.match(f, /screenTask === 'my-screens' && <DoohPlayerInventoryReadOnly \/>/);
+ assert.match(f, /screenTask === 'manage' && <DoohPlayerOperations \/>/);
+ assert.match(f, /screenTask === 'connect' && <DoohPlayerPairingAndAssignment \/>/);
 });

@@ -13,12 +13,12 @@ import {
 } from '../lib/doohMediaProcessingContract';
 
 const statusLabels = { QUEUED: 'Na fila', RUNNING: 'Em execução', COMPLETED: 'Concluído', FAILED: 'Falhou' } as const;
-interface Props { companyId: string; media: readonly DoohLibraryMedia[]; folders: readonly DoohLibraryFolder[]; onChanged: () => void; }
+interface Props { companyId: string; media: readonly DoohLibraryMedia[]; folders: readonly DoohLibraryFolder[]; onChanged: () => void; preferredMediaId?: string; }
 
 /** D15B-05: histórico GET e fila POST opcional, desabilitada por padrão.
  * Nenhum worker é iniciado, nenhuma mídia é publicada e não existe retry automático.
  */
-export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Props) {
+export function DoohMediaProcessing({ companyId, media, folders, onChanged, preferredMediaId }: Props) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const roles = user?.roles ?? [];
@@ -51,6 +51,9 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
     setSelectedId(''); setHistory(null); setError(''); setNotice(''); setConfirmation('');
     setAutoTracking(false); setRefreshAttempts(0);
   }, [contextKey]);
+  useEffect(() => {
+    if (preferredMediaId && media.some(item => item.id === preferredMediaId)) setSelectedId(preferredMediaId);
+  }, [preferredMediaId]);
   useEffect(() => {
     if (selectedId && !media.some((item) => item.id === selectedId)) setSelectedId('');
   }, [media, selectedId]);

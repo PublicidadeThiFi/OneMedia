@@ -90,7 +90,7 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
       setReview(null);
       if (!receipt) { setError('Resposta incompatível. Consulte o inventário antes de repetir, para evitar publicação duplicada.'); return; }
       setNotice(receipt.alreadyPublished ? 'Snapshot já persistido. Reabra o detalhe antes de nova operação.' :
-        'Manifest gerado. A versão desejada mudou; confira a sincronização no inventário. Isso não comprova reprodução.');
+        'Atualização preparada. Abra o Player Web e sincronize a programação. A exibição precisa ser conferida no dispositivo.');
     } catch (cause: unknown) { if (keyRef.current === requestKey) { setReview(null); setError(manifestCasError(cause)); } }
     finally { pending.current = false; if (keyRef.current === requestKey) { setBusy(false); setConfirmation(''); setAck(false); } }
   }
@@ -98,9 +98,14 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
   if (!canRead) return null;
   const current = review?.key === key ? review.value : null;
   return <section aria-label="Preflight e materialização QA de manifest" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-    <h5 className="text-sm font-semibold text-gray-900">Preflight de distribuição — D16A04</h5>
-    <p className="text-xs text-gray-600">Prévia consultiva de uma janela UTC futura de até 24 horas; sem publicação ou operações de player durante a consulta.</p>
-    <div className="grid gap-2 sm:grid-cols-2">
+    <h5 className="text-sm font-semibold text-gray-900">Revisar programação desta tela</h5>
+    <p className="text-xs text-gray-600">Escolha um período para conferir o conteúdo da tela. Revisar não envia nada ao dispositivo.</p>
+    <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => {
+      const begin = new Date(); setFrom(begin.toISOString()); setTo(new Date(begin.getTime() + 24 * 60 * 60 * 1000).toISOString());
+    }}>Escolher próximas 24 horas</Button>
+    <details className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+      <summary className="cursor-pointer font-medium">Outro período / detalhes técnicos (UTC)</summary>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
       <label className="text-xs">Início UTC — YYYY-MM-DDTHH:mm:ss.sssZ
         <input className="mt-1 w-full rounded-md border p-2 font-mono text-xs" value={from}
           onChange={(event) => setFrom(event.target.value)} placeholder="2026-10-16T12:00:00.000Z" disabled={busy}/>
@@ -109,9 +114,9 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
         <input className="mt-1 w-full rounded-md border p-2 font-mono text-xs" value={to}
           onChange={(event) => setTo(event.target.value)} placeholder="2026-10-16T13:00:00.000Z" disabled={busy}/>
       </label>
-    </div>
+    </div></details>
     <Button type="button" variant="outline" size="sm" disabled={!canRead || !validManifestWindow(from, to) || busy}
-      onClick={() => void inspect()}>{busy ? 'Aguarde…' : 'Executar preflight GET'}</Button>
+      onClick={() => void inspect()}>{busy ? 'Aguarde…' : 'Revisar programação'}</Button>
     {error && <p role="alert" className="text-xs text-red-800">{error}</p>}
     {notice && <p role="status" className="text-xs text-green-800">{notice}</p>}
     {current && <div className="space-y-2 text-xs">
@@ -130,7 +135,7 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
           onChange={(e) => setAck(e.target.checked)}/>Confirmo a geração de manifest para este player e a mudança da versão desejada.</label>
         <Button type="button" size="sm" disabled={!canWrite || !ack ||
             confirmation !== (server.mode === 'PILOT' ? 'MATERIALIZAR PILOTO' : 'MATERIALIZAR QA') ||
-            current?.status !== 'READY' || busy} onClick={() => void materialize()}>Gerar manifest (CAS)</Button>
+            current?.status !== 'READY' || busy} onClick={() => void materialize()}>Preparar atualização</Button>
       </div>}
   </section>;
 }

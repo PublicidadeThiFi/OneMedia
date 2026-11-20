@@ -22,8 +22,8 @@ export const DOOH_SECTION_PATHS: Record<DoohFoundationSection, string> = {
 
 export const DOOH_SECTION_LABELS: Record<DoohFoundationSection, string> = {
   home: 'Visão geral',
-  screens: 'Telas e Players',
-  library: 'Biblioteca',
+  screens: 'Telas e dispositivos',
+  library: 'Mídias',
   scheduling: 'Programação',
   reports: 'Relatórios',
 };

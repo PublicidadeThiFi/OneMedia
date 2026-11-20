@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohScheduleTargetsCasEditor } from './DoohScheduleTargetsCasEditor';
 import { DoohScheduleDetailsCasEditor } from './DoohScheduleDetailsCasEditor';
 import { DoohScheduleTemporalPreview } from './DoohScheduleTemporalPreview';
@@ -34,6 +35,9 @@ export function DoohScheduleCatalogReadOnly() {
     access?.granted, access?.accessMode, [...roles].sort()]);
   const [refresh, setRefresh] = useState(0);
   const [selectedId, setSelectedId] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [selectedAction, setSelectedAction] = useState<'details' | 'edit' | 'targets' | 'publish' | 'advanced'>('details');
   const [listing, setListing] = useState<{ key: string; items: DoohScheduleSummary[] } | null>(null);
   const [detail, setDetail] = useState<{ key: string; item: DoohScheduleSummary } | null>(null);
   const [targets, setTargets] = useState<{ key: string; items: DoohScheduleTargetInventory } | null>(null);
@@ -48,7 +52,7 @@ export function DoohScheduleCatalogReadOnly() {
   const latestDetailKey = useRef(detailKey);
   latestDetailKey.current = detailKey;
 
-  useEffect(() => { setSelectedId(''); setListing(null); setDetail(null); setTargets(null); setError(''); }, [contextKey]);
+  useEffect(() => { setSelectedId(''); setShowCreate(false); setShowPreview(false); setSelectedAction('details'); setListing(null); setDetail(null); setTargets(null); setError(''); }, [contextKey]);
   useEffect(() => {
     setListing(null); setDetail(null); setTargets(null); setError('');
     if (!allowed || !companyId) { setLoading(false); return; }
@@ -115,54 +119,73 @@ export function DoohScheduleCatalogReadOnly() {
     Consulta de agendas requer empresa autorizada, grant DOOH e função ADMINISTRATIVO ou TI. Nenhum dado foi consultado.
   </section>;
   const targetInventory = targets?.key === targetsKey ? targets.items : null;
-  return <section aria-label="Agendas DOOH D15D-01" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+  return <section aria-label="Minhas agendas DOOH" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
-        <h3 className="font-semibold text-gray-900">Agendas — catálogo operacional</h3>
-        <p className="text-sm text-gray-600">Consulta de agendas, prioridades, janelas de exibição e destinos associados à empresa.</p>
-        <p className="text-xs text-amber-800">Agenda publicada não comprova distribuição, manifest atualizado, reprodução ou audiência. Nenhum comando é enviado a players.</p>
+        <h3 className="font-semibold text-gray-900">Minhas agendas</h3>
+        <p className="text-sm text-gray-600">Escolha quando e onde cada lista publicada será exibida.</p>
+        
       </div>
-      <Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar agendas</Button>
+      <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => { setShowCreate(value => !value); setSelectedId(''); }}>{showCreate ? 'Ver agendas' : 'Criar agenda'}</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar</Button></div>
     </div>
-    <p className="text-xs text-gray-600">A API retorna até 100 agendas ordenadas por atualização, sem paginação ou total. O inventário pode estar incompleto.</p>
-    {companyId && entries && <DoohScheduleDetailsCasEditor companyId={companyId} mode="create"
+    <p className="text-xs text-gray-600">Mostrando até 100 agendas recentes; este resultado pode ser parcial.</p>
+    <details className="text-xs text-gray-600"><summary className="cursor-pointer">Sobre a publicação e a exibição</summary>
+      <p className="mt-1">Agenda publicada não comprova distribuição, manifest atualizado, reprodução ou audiência. Preparar e sincronizar são passos posteriores.</p>
+    </details>
+    {showCreate && companyId && entries && <DoohScheduleDetailsCasEditor companyId={companyId} mode="create"
       existingIds={entries.map(s => s.id)} onChanged={() => setRefresh(n => n + 1)} />}
     {loading && <p role="status" className="text-sm text-gray-600">Carregando agendas…</p>}
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {entries && <>
-      <p className="text-xs text-gray-600">{entries.length} agenda(s) retornada(s).</p>
-      {entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma agenda cadastrada.</p> :
-      <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
+      {!showCreate && <p className="text-xs text-gray-600">{entries.length} agenda(s) encontradas.</p>}
+      {showCreate ? null : entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma agenda cadastrada. Crie uma para definir quando e onde exibir.</p> :
+      <><ul className="grid gap-3 md:hidden">{entries.map(item => <li key={item.id} className="rounded-xl border bg-gray-50 p-4 text-sm">
+        <p className="font-semibold text-gray-900">{item.name}</p><p className="mt-1">{statusText[item.status]} · {priorityText[item.priority]} · {item.targetCount} destino(s)</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(item.id); setSelectedAction('details'); setShowCreate(false); }}>Ver agenda</Button>
+      </li>)}</ul><div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[760px] text-left text-sm">
         <thead className="border-b bg-gray-50"><tr><th className="p-2">Agenda</th><th className="p-2">Estado</th><th className="p-2">Prioridade</th><th className="p-2">Destinos</th><th className="p-2">Atualização</th><th className="p-2">Detalhes</th></tr></thead>
         <tbody>{entries.map((s) => <tr key={s.id} className="border-b text-gray-700">
           <td className="p-2 font-medium break-words">{s.name}</td><td className="p-2">{statusText[s.status]}</td>
           <td className="p-2">{priorityText[s.priority]}</td><td className="p-2">{s.targetCount}</td>
           <td className="p-2">{stamp(s.updatedAt)}</td><td className="p-2"><Button type="button" size="sm" variant="outline"
-            onClick={() => setSelectedId(s.id)} aria-label={`Consultar agenda ${s.name}`}>Consultar</Button></td>
+            onClick={() => { setSelectedId(s.id); setSelectedAction('details'); setShowCreate(false); }} aria-label={`Consultar agenda ${s.name}`}>Ver agenda</Button></td>
         </tr>)}</tbody>
-      </table></div>}
+      </table></div></>}
     </>}
-    {entries && companyId && <DoohScheduleTemporalPreview companyId={companyId} schedules={entries} catalogRevision={listKey} />}
+    {entries && companyId && <section className="rounded-xl border bg-gray-50 p-4 text-sm">
+      <button type="button" aria-expanded={showPreview} onClick={() => setShowPreview(value => !value)}
+        className="font-medium text-indigo-700 underline-offset-2 hover:underline focus-visible:outline-indigo-600">
+        {showPreview ? 'Ocultar prévia de horários' : 'Mais opções · prévia de horários e prioridades'}
+      </button>
+      {showPreview && <div className="mt-4"><DoohScheduleTemporalPreview companyId={companyId} schedules={entries} catalogRevision={listKey} /></div>}
+    </section>}
     {selectedSummary && <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-      <div className="flex justify-between gap-3"><h4 className="font-semibold text-gray-900">Detalhes da agenda</h4>
+      <div className="flex justify-between gap-3"><h4 className="font-semibold text-gray-900">{selectedSummary.name}</h4>
         <Button type="button" variant="outline" size="sm" onClick={() => setSelectedId('')}>Fechar</Button></div>
       {detailLoading && <p role="status" className="text-sm text-gray-600">Consultando agenda…</p>}
       {detailError && <p role="alert" className="text-sm text-red-800">{detailError}</p>}
       {current && <>
-        <div className="grid gap-2 text-sm text-gray-700 md:grid-cols-2">
+        <DoohWorkspaceTabs label="Ações da agenda" selected={selectedAction} onSelect={setSelectedAction} tabs={[
+          { id: 'details', label: 'Resumo', description: 'Confira o que foi salvo e a situação da agenda.' },
+          { id: 'edit', label: 'Horários', description: 'Ajuste datas, horários e a lista enquanto a agenda estiver em edição.' },
+          { id: 'targets', label: 'Onde exibir', description: 'Escolha as telas de destino antes de publicar.' },
+          { id: 'publish', label: 'Publicar agenda', description: 'Revise tudo antes de confirmar a publicação.' },
+          { id: 'advanced', label: 'Detalhes técnicos', description: 'Histórico, IDs e evidências de alterações.' },
+        ]} />
+        {selectedAction === 'details' && <div className="grid gap-2 text-sm text-gray-700 md:grid-cols-2">
           <p><strong>Nome:</strong> {current.name}</p><p><strong>Estado:</strong> {statusText[current.status]}</p>
-          <p><strong>Prioridade:</strong> {priorityText[current.priority]}</p><p><strong>Fuso IANA:</strong> {current.timezone}</p>
-          <p><strong>Versão da playlist:</strong> {shortId(current.playlistVersionId)} (ID resumido)</p>
+          <p><strong>Prioridade:</strong> {priorityText[current.priority]}</p><p><strong>Fuso:</strong> {current.timezone}</p>
+          <p><strong>Lista escolhida:</strong> Versão publicada (identificador nos detalhes técnicos)</p>
           <p><strong>Publicação:</strong> {current.publishedAt ? stamp(current.publishedAt) : 'Não registrada'}</p>
           <p><strong>Início:</strong> {stamp(current.startsAt)}</p><p><strong>Fim:</strong> {stamp(current.endsAt)}</p>
           <p><strong>Dias:</strong> {current.weekdays.length ? current.weekdays.map((d) => dayText[d - 1]).join(', ') : 'Sem restrição de dia configurada'}</p>
           <p><strong>Faixa diária:</strong> {current.dailyStartMinute === null || current.dailyEndMinute === null ? 'Sem faixa configurada' : `${minute(current.dailyStartMinute)} – ${minute(current.dailyEndMinute)}`}</p>
-        </div>
-        {current.status === 'DRAFT' && companyId && <DoohScheduleDetailsCasEditor
+        </div>}
+        {selectedAction === 'edit' && current.status === 'DRAFT' && companyId && <DoohScheduleDetailsCasEditor
           companyId={companyId} mode="edit" summary={current} existingIds={entries?.map(s => s.id) ?? []}
           onChanged={() => setRefresh(n => n + 1)} />}
-        <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <p className="text-sm font-medium text-gray-800">Destinos associados ({current.targetCount})</p>
+        {(selectedAction === 'targets' || selectedAction === 'publish') && <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <p className="text-sm font-medium text-gray-800">Telas de destino ({current.targetCount})</p>
           {targetsLoading && <p role="status" className="text-xs text-gray-600">Consultando destinos…</p>}
           {targetsError && <p role="alert" className="text-xs text-red-800">{targetsError}</p>}
           {targetInventory && <>
@@ -172,15 +195,20 @@ export function DoohScheduleCatalogReadOnly() {
                 {targetText[t.targetType]} · {shortId(t.targetId)} · associado em {stamp(t.createdAt)}
               </li>)}</ul>}
           </>}
-          {targetInventory && current.status === 'DRAFT' && companyId &&
+          {selectedAction === 'publish' && targetInventory && current.status === 'DRAFT' && companyId &&
             <DoohSchedulePublishQa companyId={companyId} summary={current} inventory={targetInventory}
               onChanged={() => setRefresh((value) => value + 1)} />}
-          {targetInventory && current.status === 'DRAFT' && companyId &&
+          {selectedAction === 'targets' && targetInventory && current.status === 'DRAFT' && companyId &&
             <DoohScheduleTargetsCasEditor companyId={companyId} summary={current} inventory={targetInventory}
               onChanged={() => setRefresh((value) => value + 1)} />}
-        </div>
-        {companyId && <DoohSchedulePublicationAudit companyId={companyId} summary={current} />}
-        <p className="text-xs text-amber-800">Destinos são vínculos cadastrados, não evidência de conectividade, entrega de manifest ou exibição. A prévia temporal é apenas simulação de leitura.</p>
+        </div>}
+        {selectedAction === 'advanced' && companyId && <DoohSchedulePublicationAudit companyId={companyId} summary={current} />}
+        {selectedAction === 'advanced' && <p className="text-xs text-gray-600">Identificador da versão da lista: {current.playlistVersionId}. Os destinos são vínculos registrados, não prova de exibição.</p>}
+        {selectedAction === 'details' && current.status === 'PUBLISHED' && <div className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-950">
+          <p className="font-semibold">Agenda publicada. Próximo passo: preparar a atualização da tela.</p>
+          <a href="/app/dooh/screens" className="mt-2 inline-flex font-semibold underline">Abrir minhas telas</a>
+          <p className="mt-2 text-xs">Publicar uma agenda não sincroniza o dispositivo automaticamente.</p>
+        </div>}
       </>}
     </div>}
   </section>;

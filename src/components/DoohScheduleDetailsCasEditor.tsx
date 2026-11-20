@@ -3,6 +3,8 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohPublishedPlaylistPicker } from './DoohPublishedPlaylistPicker';
+import { doohUxIsoWithOffset, doohUxLocalFromIso } from '../lib/doohUxLocalTime';
 import { parseDoohSchedule, type DoohSchedulePriority, type DoohScheduleSummary } from '../lib/doohScheduleCatalogContract';
 import { buildScheduleDetailsCas, canWriteDoohScheduleDetails, detailsFormFromSchedule,
   doohScheduleDetailsError, normalizeScheduleDetailsForm, parseScheduleDetailsReceipt,
@@ -30,14 +32,21 @@ export function DoohScheduleDetailsCasEditor({ companyId, mode, summary = null, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [localError, setLocalError] = useState('');
   useEffect(() => {
     controllerRef.current?.abort(); controllerRef.current = null;
-    setForm(detailsFormFromSchedule(summary)); setBusy(false); setError(''); setNotice('');
+    setForm(detailsFormFromSchedule(summary)); setBusy(false); setError(''); setNotice(''); setLocalError('');
     return () => { controllerRef.current?.abort(); };
   }, [contextKey]);
   const update = (field: keyof DoohScheduleDetailsForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value })); setError('');
   };
+  function updateLocalDate(field: 'startsAt' | 'endsAt', value: string) {
+    if (!value) { update(field, ''); setLocalError(''); return; }
+    const converted = doohUxIsoWithOffset(value, form.timezone);
+    if (!converted) { setLocalError('Esse horário não existe ou é ambíguo neste fuso. Use outro horário ou informe ISO com offset em Detalhes técnicos.'); return; }
+    update(field, converted); setLocalError('');
+  }
   const normalized = normalizeScheduleDetailsForm(form);
   const mutation = summary ? buildScheduleDetailsCas(summary, form) : null;
   const enabled = writable && !busy && normalized !== null && (mode === 'create' || mutation !== null) &&
@@ -90,34 +99,52 @@ export function DoohScheduleDetailsCasEditor({ companyId, mode, summary = null, 
   if (!writable) return <p className="text-xs text-gray-600">Criar ou editar agendas exige DOOH FULL e função ADMINISTRATIVO ou TI.</p>;
   if (mode === 'edit' && summary?.status !== 'DRAFT') return <p className="text-xs text-gray-600">Apenas agendas DRAFT podem ser editadas.</p>;
   return <section aria-label="Criação e edição CAS de agendas D15D-03" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/20 p-4">
-    <h4 className="font-semibold text-gray-900">{mode === 'create' ? 'Criar agenda em rascunho' : 'Editar dados da agenda — CAS'}</h4>
-    <p className="text-xs text-gray-600">A versão da playlist precisa estar publicada e pertencer à empresa. Informe datas ISO-8601 com fuso explícito (Z ou ±HH:MM). Datas em branco não limitam a agenda. Nada será publicado, ativado ou distribuído.</p>
+    <h4 className="font-semibold text-gray-900">{mode === 'create' ? 'Criar uma agenda' : 'Editar agenda'}</h4>
+    <p className="text-sm text-gray-600">Escolha a lista publicada e os horários. Salvar o rascunho não publica nem envia a programação.</p>
     <form onSubmit={(event) => { void submit(event); }} className="grid gap-3 md:grid-cols-2">
       <label className="text-sm">Nome da agenda
         <input className="mt-1 block w-full rounded-md border p-2" aria-label="Nome da agenda" value={form.name} maxLength={160} disabled={busy} onChange={e => update('name', e.target.value)} />
       </label>
-      <label className="text-sm">UUID da versão publicada da playlist
-        <input className="mt-1 block w-full rounded-md border p-2" aria-label="Versão publicada da playlist" value={form.playlistVersionId} maxLength={36} disabled={busy} onChange={e => update('playlistVersionId', e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
-      </label>
+      <div className="md:col-span-2"><DoohPublishedPlaylistPicker companyId={companyId} value={form.playlistVersionId}
+        onChange={id => update('playlistVersionId', id)} disabled={busy} /></div>
       <label className="text-sm">Prioridade
         <select className="mt-1 block w-full rounded-md border p-2" aria-label="Prioridade da agenda" value={form.priority} disabled={busy}
           onChange={e => update('priority', e.target.value as DoohSchedulePriority)}>
           <option value="STANDARD">Padrão</option><option value="TAKEOVER">Prioritária</option><option value="FALLBACK">Reserva</option>
         </select>
       </label>
-      <label className="text-sm">Timezone IANA
-        <input className="mt-1 block w-full rounded-md border p-2" aria-label="Timezone IANA" maxLength={64} value={form.timezone} disabled={busy} onChange={e => update('timezone', e.target.value)} placeholder="America/Sao_Paulo" />
+      <label className="text-sm">Fuso horário
+        <input className="mt-1 block w-full rounded-md border p-2" aria-label="Fuso horário IANA" maxLength={64} value={form.timezone} disabled={busy} onChange={e => update('timezone', e.target.value)} placeholder="America/Sao_Paulo" />
       </label>
-      <label className="text-sm">Início (ISO-8601 com offset)
-        <input className="mt-1 block w-full rounded-md border p-2" aria-label="Início ISO" value={form.startsAt} disabled={busy} onChange={e => update('startsAt', e.target.value)} placeholder="2026-10-20T08:00:00-03:00" />
+      <label className="text-sm">Data e hora de início
+        <input type="datetime-local" className="mt-1 block w-full rounded-md border p-2" aria-label="Início local"
+          value={doohUxLocalFromIso(form.startsAt, form.timezone)} disabled={busy} onChange={e => updateLocalDate('startsAt', e.target.value)} />
       </label>
-      <label className="text-sm">Fim (ISO-8601 com offset)
-        <input className="mt-1 block w-full rounded-md border p-2" aria-label="Fim ISO" value={form.endsAt} disabled={busy} onChange={e => update('endsAt', e.target.value)} placeholder="2026-10-20T22:00:00-03:00" />
+      <label className="text-sm">Data e hora de término
+        <input type="datetime-local" className="mt-1 block w-full rounded-md border p-2" aria-label="Fim local"
+          value={doohUxLocalFromIso(form.endsAt, form.timezone)} disabled={busy} onChange={e => updateLocalDate('endsAt', e.target.value)} />
       </label>
-      <label className="text-sm">Início da faixa diária (HH:mm)
+      {localError && <p className="md:col-span-2 text-sm text-red-800" role="alert">{localError}</p>}
+      <details className="md:col-span-2 rounded-lg border border-gray-200 bg-white p-3 text-sm">
+        <summary className="cursor-pointer font-medium text-gray-700">Detalhes técnicos · data com fuso e identificador</summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <label>Identificador da versão publicada
+            <input className="mt-1 block w-full rounded-md border p-2 font-mono text-xs" aria-label="Versão publicada da playlist" value={form.playlistVersionId} maxLength={36}
+              disabled={busy} onChange={e => update('playlistVersionId', e.target.value)} placeholder="UUID da versão" />
+          </label>
+          <p className="self-center text-xs text-gray-600">A API exige um UUID de versão publicada; use o seletor acima sempre que possível.</p>
+          <label>Início ISO-8601 com offset
+            <input className="mt-1 block w-full rounded-md border p-2 font-mono text-xs" aria-label="Início ISO" value={form.startsAt} disabled={busy} onChange={e => update('startsAt', e.target.value)} placeholder="2026-11-22T08:00:00-03:00" />
+          </label>
+          <label>Fim ISO-8601 com offset
+            <input className="mt-1 block w-full rounded-md border p-2 font-mono text-xs" aria-label="Fim ISO" value={form.endsAt} disabled={busy} onChange={e => update('endsAt', e.target.value)} placeholder="2026-11-22T22:00:00-03:00" />
+          </label>
+        </div>
+      </details>
+      <label className="text-sm">Horário de início em cada dia
         <input className="mt-1 block w-full rounded-md border p-2" aria-label="Início diário" value={form.dailyStart} maxLength={5} disabled={busy} onChange={e => update('dailyStart', e.target.value)} placeholder="08:00" />
       </label>
-      <label className="text-sm">Fim da faixa diária (HH:mm; permite 24:00)
+      <label className="text-sm">Horário de término em cada dia (até 24:00)
         <input className="mt-1 block w-full rounded-md border p-2" aria-label="Fim diário" value={form.dailyEnd} maxLength={5} disabled={busy} onChange={e => update('dailyEnd', e.target.value)} placeholder="20:00" />
       </label>
       <fieldset className="md:col-span-2 space-y-2">
@@ -128,11 +155,11 @@ export function DoohScheduleDetailsCasEditor({ companyId, mode, summary = null, 
           }} />{day}</label>)}</div>
       </fieldset>
       <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={!enabled}>{busy ? 'Conferindo…' : mode === 'create' ? 'Criar rascunho com confirmação' : 'Salvar alterações com CAS'}</Button>
+        <Button type="submit" disabled={!enabled}>{busy ? 'Conferindo…' : mode === 'create' ? 'Salvar rascunho com confirmação' : 'Salvar alterações com confirmação'}</Button>
         <span className="text-xs text-gray-600">Sem destino, publicação, manifest ou comando de player.</span>
       </div>
     </form>
-    {!normalized && <p className="text-xs text-amber-800">Preencha UUID, nome e fuso válidos. As datas precisam de offset; faixa diária deve ter início anterior ao fim.</p>}
+    {!normalized && <p className="text-xs text-amber-800">Escolha uma lista publicada e confira nome, fuso, datas e horários. O início diário deve ser anterior ao fim.</p>}
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;
