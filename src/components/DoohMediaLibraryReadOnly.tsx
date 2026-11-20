@@ -39,6 +39,11 @@ export function DoohMediaLibraryReadOnly() {
   const [statusFilter, setStatusFilter] = useState<'' | DoohLibraryStatus>('');
   const [typedSearch, setTypedSearch] = useState('');
   const [reload, setReload] = useState(0);
+  const onUploaded = () => {
+    // Upload cria PENDING; filtros antigos como READY/raiz ocultariam a nova mídia.
+    setFolderFilter('all'); setStatusFilter(''); setTypedSearch('');
+    setReload((value) => value + 1);
+  };
   const [state, setState] = useState<{
     key: string; folders: DoohLibraryFolder[]; media: DoohLibraryMedia[]; fetchedAt: string;
   } | null>(null);
@@ -123,7 +128,7 @@ export function DoohMediaLibraryReadOnly() {
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {visible && <>
       <DoohFolderOperations companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
-      <DoohMediaUpload companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
+      <DoohMediaUpload companyId={companyId!} folders={visible.folders} onChanged={onUploaded} />
       <DoohMediaOrganizeCas companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
       <DoohMediaProcessing companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
       <DoohMediaVersionsReadOnly companyId={companyId!} media={visible.media} />

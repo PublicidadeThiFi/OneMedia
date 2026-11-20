@@ -11,7 +11,6 @@ import {
   validDoohUploadFolder,
 } from '../lib/doohMediaUploadContract';
 
-const uploadUiEnabled = import.meta.env.VITE_DOOH_MEDIA_UPLOAD_UI_ENABLED === 'true';
 interface Props { companyId: string; folders: readonly DoohLibraryFolder[]; onChanged: () => void; }
 type PendingFinalize = {
   intentId: string; companyId: string; contextKey: string; name: string;
@@ -25,13 +24,14 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, [...(user?.roles ?? [])].sort()]);
   const eligible = canUploadDoohMedia(user?.companyId, snapshot?.companyId,
-    snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, user?.roles ?? [], uploadUiEnabled) &&
+    snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, user?.roles ?? [], true) &&
     user?.companyId === companyId;
   const pilot = useDoohMediaPilotCapabilities(companyId, contextKey, Boolean(eligible));
   const writable = eligible && pilot.uploadEnabled;
   const contextRef = useRef(contextKey);
   contextRef.current = contextKey;
   const controller = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingFinalize = useRef<PendingFinalize | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [nameInput, setNameInput] = useState('');
@@ -53,6 +53,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   useEffect(() => {
     setFile(null); setNameInput(''); setFolderId('root'); setError(''); setNotice('');
     setNeedsFinalize(false); pendingFinalize.current = null; controller.current?.abort();
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }, [contextKey]);
 
   async function finalize(pending: PendingFinalize, abort: AbortController) {
@@ -72,6 +73,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       }
       pendingFinalize.current = null; setNeedsFinalize(false);
       setFile(null); setNameInput(''); setFolderId('root');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setNotice('Upload confirmado. Mídia registrada como PENDING; o processamento e a publicação são etapas separadas.');
       onChanged();
     } catch (e: unknown) {
@@ -131,18 +133,17 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
     if (controller.current === abort) controller.current = null;
   }
 
-  if (!uploadUiEnabled) return <p className="text-xs text-gray-600">Upload de mídia DOOH ainda bloqueado nesta compilação. A liberação exige autorização de QA e configuração segura do S3.</p>;
   if (!eligible) return <p className="text-xs text-gray-600">Upload exige DOOH FULL e função ADMINISTRATIVO ou TI.</p>;
-  if (!pilot.uploadEnabled) return <p className="text-xs text-amber-800">Upload ainda não liberado para esta empresa. A plataforma precisa autorizar o piloto e o armazenamento.</p>;
+  if (!pilot.uploadEnabled) return <p className="text-xs text-amber-800">Upload indisponível nesta conta. Verifique a autorização do piloto, o armazenamento e a conexão com a API.</p>;
 
   return <section aria-label="Upload de mídia DOOH D15B-04" className="space-y-3 rounded-xl border border-indigo-200 p-4">
     <div>
-      <h4 className="font-semibold text-gray-900">Enviar mídia — D15B-04</h4>
+      <h4 className="font-semibold text-gray-900">Enviar mídia</h4>
       <p className="text-xs text-gray-600">Envio direto ao S3 usando URL temporária. O servidor valida cota e objeto antes de registrar a mídia como PENDING. Nada é publicado automaticamente.</p>
     </div>
     <form onSubmit={(e) => void submit(e)} className="grid gap-3 md:grid-cols-3">
-      <label className="space-y-1 text-sm"><span className="block">Arquivo (imagem, vídeo ou PDF)</span>
-        <input aria-label="Arquivo de mídia DOOH" type="file" disabled={isBusy || needsFinalize}
+      <label className="space-y-1 text-sm"><span className="block">Arquivo (PNG, JPEG ou MP4; outros formatos conforme plano)</span>
+        <input ref={fileInputRef} aria-label="Arquivo de mídia DOOH" type="file" disabled={isBusy || needsFinalize}
           accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,.webm,.mov,.m4v,.avi,.mkv,.pdf"
           onChange={(e) => { const candidate = e.target.files?.[0] ?? null; setFile(candidate);
             setNameInput(candidate ? candidate.name.replace(/\.[^/.]+$/, '') : ''); setError(''); }}

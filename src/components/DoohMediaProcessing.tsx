@@ -12,8 +12,6 @@ import {
   type DoohProcessingJob,
 } from '../lib/doohMediaProcessingContract';
 
-const processingUiEnabled = import.meta.env.VITE_DOOH_MEDIA_PROCESSING_PILOT_UI_ENABLED === 'true' ||
-  import.meta.env.VITE_DOOH_MEDIA_PROCESSING_QA_UI_ENABLED === 'true';
 const statusLabels = { QUEUED: 'Na fila', RUNNING: 'Em execução', COMPLETED: 'Concluído', FAILED: 'Falhou' } as const;
 interface Props { companyId: string; media: readonly DoohLibraryMedia[]; folders: readonly DoohLibraryFolder[]; onChanged: () => void; }
 
@@ -28,7 +26,7 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
   const canRead = user?.companyId === companyId && canReadDoohProcessing(companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, roles);
   const eligibleQueue = user?.companyId === companyId && canRequestDoohProcessing(companyId, snapshot?.companyId,
-    access?.granted, access?.accessMode, roles, processingUiEnabled);
+    access?.granted, access?.accessMode, roles, true);
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...roles].sort()]);
   const pilot = useDoohMediaPilotCapabilities(companyId, contextKey, Boolean(eligibleQueue));
@@ -41,6 +39,8 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [autoTracking, setAutoTracking] = useState(false);
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
   const requestKey = JSON.stringify([contextKey, selectedId, refresh]);
   const activeKey = useRef(requestKey);
   activeKey.current = requestKey;
@@ -49,6 +49,7 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
 
   useEffect(() => {
     setSelectedId(''); setHistory(null); setError(''); setNotice(''); setConfirmation('');
+    setAutoTracking(false); setRefreshAttempts(0);
   }, [contextKey]);
   useEffect(() => {
     if (selectedId && !media.some((item) => item.id === selectedId)) setSelectedId('');
@@ -82,6 +83,21 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
   const canStart = Boolean(canQueue && visible && selected && canEnqueueDoohProcessing(selected, visible) &&
     confirmation === 'PROCESSAR' && !loading && !busy && !pending.current);
 
+  // Leitura limitada a 5 minutos APÓS um enfileiramento confirmado. Nunca envia
+  // POST automático, não consulta outra empresa e para ao concluir ou ao trocar a mídia.
+  useEffect(() => {
+    if (!autoTracking || !canRead || !selected || !visible || loading || busy ||
+        refreshAttempts >= 60 || !['PENDING', 'PROCESSING'].includes(selected.status) ||
+        !visible.some((job) => job.status === 'QUEUED' || job.status === 'RUNNING')) return;
+    const timer = window.setTimeout(() => {
+      setRefreshAttempts((value) => value + 1);
+      setRefresh((value) => value + 1);
+      onChanged();
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [autoTracking, canRead, selected, visible, loading, busy, refreshAttempts, onChanged]);
+
+
   async function enqueue(event: FormEvent) {
     event.preventDefault();
     if (!canStart || !selected || !visible || pending.current) return;
@@ -108,7 +124,8 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
       if (!receipt) { setError('A API não confirmou um job válido. Consulte o histórico antes de repetir.'); return; }
       setNotice(receipt.alreadyQueued ? 'Um job existente foi retornado. Consulte o histórico.' :
         'Job enfileirado. Acompanhe o processamento até READY ou ERROR no histórico.');
-      setConfirmation(''); setRefresh((number) => number + 1); onChanged();
+      setConfirmation(''); setAutoTracking(true); setRefreshAttempts(0);
+      setRefresh((number) => number + 1); onChanged();
     } catch (err: unknown) {
       if (activeKey.current === stableKey) setError(doohProcessingError(err, 'queue'));
     } finally { pending.current = false; setBusy(false); }
@@ -117,13 +134,14 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
   if (!canRead) return <p className="text-xs text-gray-600">Histórico DOOH disponível apenas para função técnica com permissão de leitura.</p>;
   return <section aria-label="Processamento de mídias DOOH D15B-05" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div>
-      <h4 className="font-semibold text-gray-900">Processamento de mídias — D15B-05</h4>
+      <h4 className="font-semibold text-gray-900">Processar mídia e acompanhar resultado</h4>
       <p className="text-xs text-gray-600">Histórico real dos últimos 50 jobs por mídia. Um job na fila não comprova conversão, publicação, reprodução ou proof-of-play.</p>
     </div>
     <div className="flex flex-wrap items-end gap-3">
       <label className="min-w-60 flex-1 space-y-1 text-sm"><span className="block">Mídia</span>
         <select value={selectedId} aria-label="Mídia para consultar processamento DOOH" disabled={busy}
-          onChange={(event) => { setSelectedId(event.target.value); setNotice(''); }}
+          onChange={(event) => { setSelectedId(event.target.value); setNotice('');
+            setAutoTracking(false); setRefreshAttempts(0); }}
           className="w-full rounded-md border border-gray-300 bg-white p-2">
           <option value="">Selecione uma mídia carregada</option>
           {media.map((item) => <option key={item.id} value={item.id}>{item.name} — {item.status}</option>)}
@@ -135,6 +153,10 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
     {loading && <p role="status" className="text-sm text-gray-600">Consultando jobs…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
+    {autoTracking && visible && <p role="status" className="text-xs text-gray-600">
+      {selected?.status === 'READY' ? 'Mídia pronta para a playlist.' : selected?.status === 'ERROR' ? 'Processamento terminou com erro.' :
+        refreshAttempts >= 60 ? 'Acompanhamento automático encerrado. Use Atualizar histórico.' : 'Acompanhando a cada 5 segundos, por até 5 minutos.'}
+    </p>}
     {visible && (visible.length === 0 ? <p className="text-sm text-gray-600">Nenhum job registrado para esta mídia.</p> :
       <ul aria-label="Jobs de processamento DOOH" className="space-y-2">
         {visible.map((job) => <li key={job.id} className="flex flex-wrap justify-between gap-2 rounded-md border border-gray-200 bg-white p-3 text-xs text-gray-700">
@@ -144,7 +166,7 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged }: Pr
           <span>Solicitado em {new Date(job.createdAt).toLocaleString('pt-BR')}</span>
         </li>)}
       </ul>)}
-    {!processingUiEnabled ? <p className="text-xs text-amber-800">Enfileiramento ainda não habilitado nesta compilação.</p> : !pilot.processingEnabled ? <p className="text-xs text-amber-800">Processamento não autorizado para esta empresa ou worker piloto desabilitado.</p> :
+    {!pilot.processingEnabled ? <p className="text-xs text-amber-800">Processamento não autorizado para esta empresa ou worker piloto desabilitado.</p> :
       <form onSubmit={(event) => void enqueue(event)} className="space-y-2 border-t border-gray-200 pt-3">
         <p className="text-xs text-amber-800">Enfileiramento autorizado pelo backend para esta empresa. O conteúdo fica disponível para programação somente após o processamento atingir READY.</p>
         <label className="block space-y-1 text-sm">Confirmação textual: PROCESSAR

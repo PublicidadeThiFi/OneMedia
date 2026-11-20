@@ -96,7 +96,8 @@ test('D15B04-11: codigos de erro fixos nao vazam secrets ou URLs', () => {
 });
 test('D15B04-12: upload nao manda auth ao S3 nem segue redirecionamento', () => {
   const source = readFileSync(join(process.cwd(), 'src/components/DoohMediaUpload.tsx'), 'utf8');
-  assert.match(source, /VITE_DOOH_MEDIA_UPLOAD_UI_ENABLED === 'true'/);
+  assert.doesNotMatch(source, /VITE_DOOH_MEDIA_UPLOAD_UI_ENABLED/);
+  assert.match(source, /eligible && pilot\.uploadEnabled/);
   assert.match(source, /apiClient\.post<unknown>\('\/dooh\/media\/uploads\/init'/);
   assert.match(source, /fetch\(intent\.url/);
   assert.match(source, /credentials: 'omit', redirect: 'error'/);

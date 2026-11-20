@@ -114,7 +114,8 @@ test('D15B05-11: interface conecta leitura e gate, sem iniciar worker ou publica
   const page = source('src/components/DoohMediaLibraryReadOnly.tsx');
   const ui = source('src/components/DoohMediaProcessing.tsx');
   assert.match(page, /<DoohMediaProcessing /);
-  assert.match(ui, /VITE_DOOH_MEDIA_PROCESSING_QA_UI_ENABLED === 'true'/);
+  assert.doesNotMatch(ui, /VITE_DOOH_MEDIA_PROCESSING_QA_UI_ENABLED|VITE_DOOH_MEDIA_PROCESSING_PILOT_UI_ENABLED/);
+  assert.match(ui, /eligibleQueue && pilot\.processingEnabled/);
   assert.match(ui, /apiClient\.get<unknown>\(`\/dooh\/media\/\$\{encodeURIComponent\(selectedId\)\}\/processing`/);
   assert.match(ui, /apiClient\.post<unknown>\(`\/dooh\/media\/\$\{encodeURIComponent\(selected.id\)\}\/process`/);
   assert.match(ui, /confirmation === 'PROCESSAR'/);
