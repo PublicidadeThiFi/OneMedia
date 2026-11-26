@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import apiClient from './apiClient';
 
-export type DoohMediaPilotCapabilities = Readonly<{ uploadEnabled: boolean; processingEnabled: boolean }>;
-const disabled = Object.freeze({ uploadEnabled: false, processingEnabled: false });
+export type DoohMediaPilotCapabilities = Readonly<{ uploadEnabled: boolean; processingEnabled: boolean; autoProcessingEnabled: boolean }>;
+const disabled = Object.freeze({ uploadEnabled: false, processingEnabled: false, autoProcessingEnabled: false });
 
 /** Server is authoritative: neither env flags nor DOOH FULL alone enable writes. */
 export function useDoohMediaPilotCapabilities(companyId: string, contextKey: string, enabled: boolean): DoohMediaPilotCapabilities {
@@ -21,6 +21,7 @@ export function useDoohMediaPilotCapabilities(companyId: string, contextKey: str
         setResult({ key: contextKey, data: valid ? {
           uploadEnabled: response.uploadEnabled as boolean,
           processingEnabled: response.processingEnabled as boolean,
+          autoProcessingEnabled: response.autoProcessingEnabled === true && response.processingEnabled === true,
         } : disabled });
       })
       .catch(() => { if (!abort.signal.aborted) setResult({ key: contextKey, data: disabled }); });

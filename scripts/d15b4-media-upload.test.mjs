@@ -87,6 +87,15 @@ test('D15B04-10: finalize rejeita READY, outro tenant, outra pasta e bytes alter
     {storedAsset:{ ...receipt.storedAsset,bytes:'4000'}}, {_count:{ versions:1 }}])
     assert.equal(confirmDoohUploadFinalized({ ...receipt,...altered }, companyId, folderId, 'Campanha x', fileToExpected(file), folders), null);
 });
+test('UX08-01: finalize de processamento automatico aceita reenvio idempotente ja READY', () => {
+  const processed = { ...receipt, status: 'READY', _count: { versions: 1 } };
+  assert.equal(confirmDoohUploadFinalized(processed, companyId, folderId, 'Campanha x',
+    fileToExpected(file), folders), null);
+  assert.equal(confirmDoohUploadFinalized(processed, companyId, folderId, 'Campanha x',
+    fileToExpected(file), folders, true)?.status, 'READY');
+  assert.equal(confirmDoohUploadFinalized({ ...processed, companyId: another }, companyId, folderId,
+    'Campanha x', fileToExpected(file), folders, true), null);
+});
 test('D15B04-11: codigos de erro fixos nao vazam secrets ou URLs', () => {
   for (const status of [400,401,402,403,404,409,413,429,500,503]) {
     const label = doohUploadError({response:{status,data:{secret:'MY_SECRET'}}}, 'init');

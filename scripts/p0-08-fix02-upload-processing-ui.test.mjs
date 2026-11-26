@@ -73,7 +73,7 @@ test('FIX02-05: intenção e recibo usam contrato real e recusam outro tenant', 
 });
 
 test('FIX02-06: após upload, filtro Pronta e pasta não escondem PENDING novo', () => {
-  assert.match(library, /const onUploaded = \(\) =>/);
+  assert.match(library, /const onUploaded = \(mediaId: string, autoProcessing: boolean\) =>/);
   assert.match(library, /setFolderFilter\('all'\); setStatusFilter\(''\); setTypedSearch\(''\)/);
   assert.match(library, /<DoohMediaUpload[^>]+onChanged=\{onUploaded\}/);
   assert.match(upload, /setFile\(null\); setNameInput\(''\); setFolderId\('root'\)/);
