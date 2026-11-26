@@ -1,10 +1,7 @@
 name: Frontend Security CI
 
+# CI manual: validações locais obrigatórias antes de commit/push.
 on:
-  push:
-    branches: ["main", "master"]
-  pull_request:
-    branches: ["main", "master"]
   workflow_dispatch:
 
 permissions:
