@@ -11,7 +11,7 @@ import { parseDoohPlaylistDetail, type DoohPlaylistDetail } from '../lib/doohPla
 import { parsePlaylistPublished, publishCasPayload, publishReviewReady } from '../lib/doohPlaylistPublishContract';
 import { parseDoohSchedule, parseDoohScheduleTargets, type DoohScheduleSummary } from '../lib/doohScheduleCatalogContract';
 import { buildSchedulePublishCas, parseSchedulePublishReceipt } from '../lib/doohSchedulePublishCasContract';
-import { parseDoohPlayerDetail } from '../lib/doohPlayerDetailContract';
+import { parseDoohPlayerDetail, type DoohPlayerDetailView } from '../lib/doohPlayerDetailContract';
 import { parseManifestPreflight, buildManifestCasRequest, manifestCasResult, type ManifestPreflightView } from '../lib/doohManifestPublishCasContract';
 import { buildGuidedSchedulePlan, localInputFor, preflightWindow, parseGuidedScheduleCapability,
   parseGuidedScheduleLink, parseGuidedScheduleReceipt, parseSimpleBooleanCapability,
@@ -19,6 +19,8 @@ import { buildGuidedSchedulePlan, localInputFor, preflightWindow, parseGuidedSch
   type GuidedScheduleLink } from '../lib/doohGuidedPublicationContract';
 
 import { initialPublicationEnabled, buildInitialPublication, existingGuidedPlan, parseInitialPublicationReceipt, initialPublicationError } from '../lib/doohGuidedInitialPublicationContract';
+
+import { republicationEnabled, canReviewRepublication, buildRepublication, parseRepublicationReceipt } from '../lib/doohGuidedRepublicationContract';
 
 const minuteLabel=(value:number|null|undefined)=>value==null?'—':`${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
 const WEEKDAYS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
@@ -59,28 +61,37 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [advanced,setAdvanced]=useState(false);
   const [linkedSchedule,setLinkedSchedule]=useState<DoohScheduleSummary|null>(null);
   const [prepared,setPrepared]=useState(false);
+  const [replaceEnabled,setReplaceEnabled]=useState(false);
+  const [replacePlayer,setReplacePlayer]=useState<DoohPlayerDetailView|null>(null);
+  const [replaceEnd,setReplaceEnd]=useState('');
+  const [replaceDays,setReplaceDays]=useState<number[]>([]);
+  const [replaceDaily,setReplaceDaily]=useState(false);
+  const [replaceFirst,setReplaceFirst]=useState(480);
+  const [replaceLast,setReplaceLast]=useState(1200);
+  const replaceRevision=useRef('');
   useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
   useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
-    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);onPublishingChange?.(false);},[contextKey]);
+    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
     if(!allowed||!show){setLoaded(true);return;}
     const ctl=new AbortController(),key=contextKey;
-    setLoaded(false);
+    setLoaded(false);setReplaceEnabled(false);setReplacePlayer(null);
     const read=async()=>{
       const c=await apiClient.get<unknown>('/dooh/operational-screens/schedule-capabilities',{signal:ctl.signal});
       if(ctl.signal.aborted||activeKey.current!==key)return;
       const enabled=parseGuidedScheduleCapability(c.data);
       if(enabled===null)throw Error('Invalid schedule capability');
       if(!enabled){setCaps(DENIED);setSingle(false);setLink(null);setPlaylist(null);return;}
-      const [p,s,pl,sc,m,initial]=await Promise.all([
+      const [p,s,pl,sc,m,initial,republication]=await Promise.all([
         apiClient.get<unknown>('/dooh/playlists/publish-capabilities',{signal:ctl.signal}),
         apiClient.get<unknown>('/dooh/schedules/publish-capabilities',{signal:ctl.signal}),
         apiClient.get<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/content-schedule`,{signal:ctl.signal}),
         apiClient.get<unknown>('/dooh/manifests/publish-capabilities',{signal:ctl.signal}),
         draft?.playlistId?apiClient.get<unknown>(`/dooh/playlists/${encodeURIComponent(draft.playlistId)}`,{signal:ctl.signal}):Promise.resolve({data:null as unknown}),
         apiClient.get<unknown>('/dooh/operational-screens/initial-publication-capabilities',{signal:ctl.signal}).catch(()=>({data:null as unknown})),
+        apiClient.get<unknown>('/dooh/operational-screens/republication-capabilities',{signal:ctl.signal}).catch(()=>({data:null as unknown})),
       ]);
       if(ctl.signal.aborted||activeKey.current!==key)return;
       const pp=parseSimpleBooleanCapability(p.data,'publishEnabled'),ss=parseSchedulePublishCapability(s.data),
@@ -90,12 +101,30 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       setCaps({guided:true,playlist:pp,schedule:ss.enabled,qaOnly:ss.qaOnly,manifest:mm.enabled,mode:mm.mode});
       let saved:DoohScheduleSummary|null=null;
       const initialEnabled=initialPublicationEnabled(initial.data);
-      if(initialEnabled&&ll.scheduleId){
+      const replaceCapability=republicationEnabled(republication.data);
+      if((initialEnabled||replaceCapability)&&ll.scheduleId){
         const result=await apiClient.get<unknown>(`/dooh/schedules/${encodeURIComponent(ll.scheduleId)}`,{signal:ctl.signal});
         saved=parseDoohSchedule(result.data,companyId);
         if(!saved||saved.id!==ll.scheduleId||saved.playlistVersionId!==ll.playlistVersionId||saved.status!==ll.status)throw Error('Schedule changed');
       }
       if(ctl.signal.aborted||activeKey.current!==key)return;
+      let player:DoohPlayerDetailView|null=null;
+      if(replaceCapability&&saved?.status==='PUBLISHED'&&screen.playerId){
+        const result=await apiClient.get<unknown>(`/dooh/players/${encodeURIComponent(screen.playerId)}`,{signal:ctl.signal});
+        player=parseDoohPlayerDetail(result.data,screen.playerId);
+        if(!player)throw Error('Invalid player revision');
+      }
+      if(ctl.signal.aborted||activeKey.current!==key)return;
+      if(saved&&replaceCapability&&saved.status==='PUBLISHED'){
+        const revision=JSON.stringify([contextKey,saved.id,saved.updatedAt,player?.desiredManifestVersion]);
+        if(replaceRevision.current!==revision){
+          replaceRevision.current=revision;
+          setReplaceEnd(saved.endsAt&&Date.parse(saved.endsAt)>Date.now()?localInputFor(Date.parse(saved.endsAt)):'');
+          setReplaceDays(saved.weekdays);setReplaceDaily(saved.dailyStartMinute!==null);
+          setReplaceFirst(saved.dailyStartMinute??480);setReplaceLast(saved.dailyEndMinute??1200);
+        }
+      }
+      setReplaceEnabled(replaceCapability);setReplacePlayer(player);
       setSingle(initialEnabled);setLinkedSchedule(saved);setLink(ll);setPlaylist(detail);
     };
     void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setSingle(false);setError(guidedPublishError(cause));}})
@@ -118,6 +147,9 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const initialBody=buildInitialPublication(draft,screen.playerId,initialPlan);
   const singleAllowed=single&&!!link&&link.playerId===screen.playerId&&!screen.commercialUnit&&screen.player?.lifecycleStatus==='ACTIVE'&&
     caps.playlist&&scheduleAllowed&&manifestAllowed;
+  const replacing=replaceEnabled&&link?.status==='PUBLISHED';
+  const replaceAllowed=replacing&&!screen.commercialUnit&&!!draft?.playlistId&&draft.playlistId===screen.contentPlaylistId&&caps.playlist&&scheduleAllowed&&manifestAllowed&&canReviewRepublication(link,linkedSchedule,replacePlayer,screen.id,screen.playerId);
+  const replacementBody=(now:number)=>buildRepublication(draft,link,linkedSchedule,replacePlayer,screen.id,screen.playerId,replaceEnd,linkedSchedule?.timezone??timezone,replaceDays,replaceDaily?replaceFirst:null,replaceDaily?replaceLast:null,now);
   const canPublishPlaylist=Boolean(allowed&&caps.playlist&&draft?.playlistId&&!link?.scheduleId&&
     playlist&&draft&&publishReviewReady(guidedSnapshotToCas(draft))&&draft.items.every(i=>i.mediaStatus==='READY'));
 
@@ -129,6 +161,16 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     try{const message=await action(ctl,key);if(valid()){if(message)setNotice(message);setRefresh(v=>v+1);onChanged();}}
     catch(cause:unknown){if(valid()){setError(action===publishInitial?initialPublicationError(cause):guidedPublishError(cause));setRefresh(v=>v+1);onChanged();}}
     finally{if(pending.current===ctl)pending.current=null;if(valid()){setBusy(false);onPublishingChange?.(false);setConsent(false);}}
+  }
+
+  async function publishReplacement(ctl:AbortController,key:string){
+    const body=replacementBody(Date.now());
+    if(!replaceAllowed||!body)throw Error('Replacement unavailable');
+    const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/republication`,body,{signal:ctl.signal});
+    if(ctl.signal.aborted||activeKey.current!==key)return;
+    if(!parseRepublicationReceipt(result.data,screen.id,body.expectedPlayerId,body.expectedScheduleId,body.playlistVersionId,body.expectedManifestVersion))throw Error('Unconfirmed replacement');
+    setPrepared(true);
+    return 'Nova programação publicada. A atualização do aparelho ainda não confirma exibição.';
   }
 
   async function publishInitial(ctl:AbortController,key:string){
@@ -243,7 +285,22 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       {notice&&<p role="status" className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
       {!caps.guided&&loaded&&<p className="text-sm text-amber-800">A publicação guiada ainda não está disponível para esta empresa. Seu rascunho foi preservado.</p>}
       {caps.guided&&<>
-        {single&&<div className="rounded-lg border p-3 space-y-3 text-sm">
+        {replacing&&<div className="rounded-lg border p-3 space-y-3 text-sm">
+          <strong>Atualizar programação</strong>
+          <p>Revise a sequência de {screen.name}. A substituição começa agora; a programação anterior permanece no aparelho enquanto autorizada e até a atualização segura.</p>
+          {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{item.mediaName} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
+          <label className="block">Terminar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={replaceEnd} disabled={isBusy} onChange={e=>setReplaceEnd(e.target.value)}/></label>
+          <p className="text-xs text-gray-600">Fuso dos horários de exibição: {linkedSchedule?.timezone}. Máximo de 30 dias. O fim não é prorrogado automaticamente nesta operação.</p>
+          <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex gap-1 items-center"><input type="checkbox" checked={replaceDays.includes(i+1)} disabled={isBusy} onChange={e=>setReplaceDays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div>
+          <p className="text-xs">Nenhum dia selecionado = todos os dias.</p>
+          <label className="flex gap-2"><input type="checkbox" checked={replaceDaily} disabled={isBusy} onChange={e=>setReplaceDaily(e.target.checked)}/>Limitar horário diário</label>
+          {replaceDaily&&<div className="grid grid-cols-2 gap-2"><label>De (HH:mm)<input className="w-full rounded border p-2" type="time" value={Number.isFinite(replaceFirst)?minuteLabel(replaceFirst):''} disabled={isBusy} onChange={e=>{const [h,m]=e.target.value.split(':').map(Number);setReplaceFirst(e.target.value?h*60+m:NaN);}}/></label><label>Até (HH:mm)<input className="w-full rounded border p-2" type="time" value={replaceLast===1440?'00:00':Number.isFinite(replaceLast)?minuteLabel(replaceLast):''} disabled={isBusy} onChange={e=>{const [h,m]=e.target.value.split(':').map(Number);setReplaceLast(e.target.value?(h*60+m||1440):NaN);}}/></label><p className="col-span-2 text-xs">Fim às 00:00 significa fim do dia (24:00).</p></div>}
+          {!replaceAllowed&&<p role="status" className="text-amber-800">Aguarde a versão publicada ser reportada pelo aparelho e confira o vínculo e as permissões. O servidor ainda verificará a programação anterior.</p>}
+          {replaceAllowed&&!replacementBody(Date.now())&&<p className="text-amber-800">Confira a sequência salva, a data final e os horários.</p>}
+          <Button type="button" disabled={isBusy||!replaceAllowed||!replacementBody(Date.now())||prepared} onClick={()=>void run(publishReplacement)}>{busy?'Preparando atualização…':prepared?'Atualização preparada':'Confirmar e atualizar programação'}</Button>
+          <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
+        </div>}
+        {single&&!replacing&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Publicar programação</strong>
           <p>Confira a tela, a sequência e o período. Uma confirmação prepara a atualização do aparelho.</p>
           <p><strong>{screen.name}</strong>{screen.player?` · ${screen.player.name}`:''}</p>
@@ -265,8 +322,8 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           <p className="text-xs text-gray-600">Publicar não comprova exibição. Caso alguma etapa não conclua, a próxima confirmação consulta os dados salvos; nenhum conteúdo diferente será reaproveitado. A renovação automática depende da autorização do servidor.</p>
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
         </div>}
-        {single&&<Button type="button" variant="outline" size="sm" disabled={isBusy} aria-expanded={advanced} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}
-        {(!single||advanced)&&<>
+        {single&&!replacing&&<Button type="button" variant="outline" size="sm" disabled={isBusy} aria-expanded={advanced} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}
+        {!replacing&&(!single||advanced)&&<>
         {!single&&<p className="text-sm text-gray-600">A confirmação única não está disponível. Use as etapas de publicação separadas abaixo.</p>}
         <div className="rounded-lg border p-3 space-y-2 text-sm">
           <strong>Etapa A — Publicar suas mídias</strong>
