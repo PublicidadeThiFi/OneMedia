@@ -22,7 +22,7 @@ test('UX02: pareamento e associação são etapas separadas, API e idempotência
 test('UX03: mídia usa capabilities, URL assinada sem credenciais, init/finalize e aprovação de processamento', () => {
   const lib=read('components/DoohMediaLibraryReadOnly.tsx');
   const up=read('components/DoohMediaUpload.tsx'), proc=read('components/DoohMediaProcessing.tsx');
-  assert.match(lib,/Adicionar mídia/); assert.match(lib,/Usar em lista/); assert.match(lib,/preferredMediaId/);
+  assert.match(lib,/Adicionar mídia/); assert.match(lib,/Usar nesta tela/); assert.match(lib,/preferredMediaId/);
   for(const file of [up,proc]) assert.match(file,/useDoohMediaPilotCapabilities/);
   for(const endpoint of ['/dooh/media/uploads/init','/finalize']) assert.ok(up.includes(endpoint));
   assert.match(up,/credentials: 'omit'/); assert.match(up,/redirect: 'error'/);

@@ -79,7 +79,7 @@ test('B05-09 backend obrigatório apenas com gate QA default deny', (t) => {
 });
 test('B05-10 D15A1 se mantém, módulo novo só na seção screens', () => {
   const page = fs.readFileSync(path.join(root, 'src/components/DoohFoundationPage.tsx'), 'utf8');
-  assert.match(page, /section === 'screens' && <DoohPlayerRestartQa \/>/);
+  assert.match(page, /screenTask === 'technical'[\s\S]*?<DoohPlayerRestartQa \/>/);
   assert.match(page, /<DoohGroupMembersSafeEditor \/>/);
   assert.match(page, /<DoohPlayerAuditReadOnly \/>/);
 });

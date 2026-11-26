@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {confirmedPair,bindConfirmedPlayer} from '../src/lib/doohContextualPairing.ts';
+import {safePairingError} from '../src/lib/doohPlayerPairingContract.ts';
+const screenId='11111111-1111-4111-8111-111111111111',playerId='22222222-2222-4222-8222-222222222222',other='33333333-3333-4333-8333-333333333333';
+const raw={status:'PAIRED',player:{id:playerId,name:'TV',lifecycleStatus:'ACTIVE'},idempotentReplay:false};
+const screen={id:screenId,name:'Recepção',orientation:'LANDSCAPE',fitMode:'CONTAIN',locationLabel:null,playerId,player:{id:playerId,name:'TV',lifecycleStatus:'ACTIVE',lastSeenAt:null},commercialUnit:null,status:'NO_RECENT_CONTACT'};
+test('links the exact confirmed device to the exact operational screen without inventory',async()=>{const calls=[];const pair=confirmedPair(raw,'TV');const receipt=await bindConfirmedPlayer(screenId,pair,async(s,p)=>{calls.push([s,p]);return screen});assert.deepEqual(calls,[[screenId,playerId]]);assert.equal(receipt.playerId,playerId);assert.equal(receipt.commercialUnit,null)});
+test('failed binding can be retried using same confirmed player, no second pairing',async()=>{const pair=confirmedPair(raw,'TV');await assert.rejects(bindConfirmedPlayer(screenId,pair,async()=>{throw new Error('network')}));const receipt=await bindConfirmedPlayer(screenId,pair,async()=>screen);assert.equal(receipt.id,screenId)});
+test('rejects invalid pairing, inactive device and mismatched binding receipt',async()=>{assert.throws(()=>confirmedPair(raw,'Other'));assert.throws(()=>confirmedPair({},'TV'));let calls=0;await assert.rejects(bindConfirmedPlayer(screenId,{...confirmedPair(raw,'TV'),lifecycle:'INACTIVE'},async()=>{calls++;return screen}));assert.equal(calls,0);await assert.rejects(bindConfirmedPlayer(screenId,confirmedPair(raw,'TV'),async()=>({...screen,id:other})));});
+test('pairing component never calls commercial assignment or invents an inventory unit',()=>{const s=readFileSync('src/components/DoohContextualPairing.tsx','utf8');assert.match(s,/Idempotency-Key/);assert.match(s,/setPaired\(result\)/);assert.match(s,/\/dooh\/operational-screens\/.*\/player/);assert.doesNotMatch(s,/\/media-points|\/media-units|\/assignment/);});
+test('known commercial conflict has a specific message',()=>{assert.match(safePairingError({response:{status:409,data:{code:'DOOH_SCREEN_ALREADY_ASSIGNED'}}}),/já tem um aparelho/)});

@@ -54,7 +54,7 @@ test('09 manifest mismatch remains a technical difference, not proof-of-play', (
 test('10 screen route embeds authenticated read-only component, not placeholder', () => {
   const s = readFileSync(join(root,'src/components/DoohFoundationPage.tsx'),'utf8');
   assert.match(s,/section === 'screens'/);
-  assert.match(s,/screenTask === 'my-screens' && <DoohPlayerInventoryReadOnly \/>/);
+  assert.match(s,/screenTask === 'my-screens'.*disabledFallback=\{<DoohPlayerInventoryReadOnly \/>\}/);
 });
 test('11 UI never sends writes, commands or manifest publication', () => {
   const s = readFileSync(join(root,'src/components/DoohPlayerInventoryReadOnly.tsx'),'utf8');
