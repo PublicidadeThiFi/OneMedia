@@ -69,7 +69,8 @@ test('FIX02-05: intenção e recibo usam contrato real e recusam outro tenant', 
     createdAt:now,updatedAt:now,widthPx:null,heightPx:null,durationMs:null};
   assert.equal(confirmDoohUploadFinalized(media, company, null, 'Foto', file, folders).id, mediaId);
   assert.equal(confirmDoohUploadFinalized({...media,companyId:other}, company, null, 'Foto', file, folders),null);
-  assert.match(doohUploadError(null,'put'),/S3/);
+  assert.match(doohUploadError(null,'put'),/Confira sua conexão/);
+  assert.doesNotMatch(doohUploadError(null,'put'),/S3|CORS/);
 });
 
 test('FIX02-06: após upload, filtro Pronta e pasta não escondem PENDING novo', () => {

@@ -101,7 +101,8 @@ test('D15B04-11: codigos de erro fixos nao vazam secrets ou URLs', () => {
     const label = doohUploadError({response:{status,data:{secret:'MY_SECRET'}}}, 'init');
     assert.ok(!label.includes('MY_SECRET'));
   }
-  assert.match(doohUploadError({}, 'put'), /S3/);
+  assert.match(doohUploadError({}, 'put'), /Confira sua conexão/);
+  assert.doesNotMatch(doohUploadError({}, 'put'), /S3|CORS/);
 });
 test('D15B04-12: upload nao manda auth ao S3 nem segue redirecionamento', () => {
   const source = readFileSync(join(process.cwd(), 'src/components/DoohMediaUpload.tsx'), 'utf8');

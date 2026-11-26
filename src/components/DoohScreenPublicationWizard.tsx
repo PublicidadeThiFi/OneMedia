@@ -22,12 +22,12 @@ import { initialPublicationEnabled, buildInitialPublication, existingGuidedPlan,
 
 const minuteLabel=(value:number|null|undefined)=>value==null?'—':`${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
 const WEEKDAYS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
-interface Props { screen: OperationalScreen; draft: GuidedContentDraft|null; onChanged: () => void; editorBlocked?: boolean; onPublishingChange?: (value:boolean)=>void; }
+interface Props { screen: OperationalScreen; draft: GuidedContentDraft|null; onChanged: () => void; editorBlocked?: boolean; recommendPublication?: boolean; onPublishingChange?: (value:boolean)=>void; }
 type Caps = {guided:boolean;playlist:boolean;schedule:boolean;qaOnly:boolean;manifest:boolean;mode:'PILOT'|'QA'|'DISABLED'};
 const DENIED: Caps = {guided:false,playlist:false,schedule:false,qaOnly:true,manifest:false,mode:'DISABLED'};
 
 /** UX10/F3B: explicit, independently confirmable CAS stages. No automatic retries or background publication. */
-export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocked=false,onPublishingChange}:Props) {
+export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocked=false,recommendPublication=false,onPublishingChange}:Props) {
   const {user}=useAuth();const {snapshot}=useProductAccess();
   const companyId=user?.companyId??'';
   const roles=user?.roles??[];
@@ -236,12 +236,12 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
 
   if(!allowed)return <p className="text-sm text-gray-600">Publicar requer permissão de administrador e acesso DOOH completo.</p>;
   return <div className="rounded-lg border border-indigo-200 bg-white p-4 space-y-3" aria-label={`Publicação guiada da tela ${screen.name}`}>
-    <div className="flex justify-between gap-2 items-center"><h5 className="font-semibold">3. Horários e publicação</h5><Button type="button" variant="outline" size="sm" disabled={busy} onClick={()=>setShow(v=>!v)}>{show?'Recolher':'Configurar exibição'}</Button></div>
+    <div className="flex justify-between gap-2 items-center"><h5 className="font-semibold">3. Horários e publicação</h5><Button type="button" variant={recommendPublication && !show ? "default" : "outline"} size="sm" disabled={busy||editorBlocked} aria-expanded={show} onClick={()=>setShow(v=>!v)}>{show?'Recolher':'Configurar exibição'}</Button></div>
     {!show?<p className="text-xs text-gray-600">Depois de organizar suas mídias, abra esta etapa para escolher horários e preparar a atualização do aparelho.</p>:<>
-      {!loaded&&<p role="status" className="text-sm">Conferindo permissões e versões…</p>}
+      {!loaded&&<p role="status" className="text-sm">Conferindo se a programação pode ser publicada…</p>}
       {error&&<p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">{error}</p>}
       {notice&&<p role="status" className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
-      {!caps.guided&&loaded&&<p className="text-sm text-amber-800">Programação guiada aguardando ativação segura no servidor. Seu rascunho foi preservado.</p>}
+      {!caps.guided&&loaded&&<p className="text-sm text-amber-800">A publicação guiada ainda não está disponível para esta empresa. Seu rascunho foi preservado.</p>}
       {caps.guided&&<>
         {single&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Publicar programação</strong>
@@ -251,22 +251,23 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           {link?.scheduleId?<div className="space-y-1"><p>Período já salvo: {linkedSchedule?.startsAt?new Date(linkedSchedule.startsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} até {linkedSchedule?.endsAt?new Date(linkedSchedule.endsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} ({linkedSchedule?.timezone}).</p>
             <p>{linkedSchedule?.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(linkedSchedule?.dailyStartMinute)}–${minuteLabel(linkedSchedule?.dailyEndMinute)}`} · {linkedSchedule?.weekdays.length?linkedSchedule.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'}</p>
             <p className="text-xs text-gray-600">A retomada só reutiliza a agenda e o conteúdo idênticos; não substitui uma programação existente.</p></div>:<>
-            <div className="grid sm:grid-cols-2 gap-3"><label>Começar em<input aria-label="Início da publicação guiada" type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
-            <label>Terminar em<input aria-label="Fim da publicação guiada" type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label></div>
-            <p className="text-xs text-gray-600">Fuso: {timezone}. Janela máxima de 30 dias.</p>
+            <div className="grid sm:grid-cols-2 gap-3"><label>Começar em<input aria-label="Início da publicação guiada" aria-invalid={!start} type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
+            <label>Terminar em<input aria-label="Fim da publicação guiada" aria-invalid={!end || end <= start} type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label></div>
+            <p className="text-xs text-gray-600">Fuso: {timezone}. Período máximo de 30 dias.</p>
             <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>setLimitedHours(e.target.checked)}/>Definir dias e horários</label>
             {!limitedHours&&<p className="text-xs text-gray-600">Exibir continuamente durante o período escolhido.</p>}
             {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" value={startHour} disabled={isBusy} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" value={endHour} disabled={isBusy} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
             <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div><p className="text-xs">Nenhum dia selecionado = todos os dias.</p></>}
           </>}
           {!singleAllowed&&<p className="text-amber-800">Conecte um aparelho ativo independente e confirme as permissões de publicação. Telas comerciais permanecem no fluxo avançado.</p>}
-          {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias prontas, a ordem salva e o período de exibição.</p>}
+          {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias prontas, a ordem salva e o período de exibição (início em até 7 dias, fim após o início, máximo de 30 dias).</p>}
           <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Preparando programação…':prepared?'Atualização preparada':link?.scheduleId?'Confirmar e retomar publicação':'Confirmar e publicar'}</Button>
           <p className="text-xs text-gray-600">Publicar não comprova exibição. Caso alguma etapa não conclua, a próxima confirmação consulta os dados salvos; nenhum conteúdo diferente será reaproveitado. A renovação automática depende da autorização do servidor.</p>
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
         </div>}
-        {single&&<Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}
+        {single&&<Button type="button" variant="outline" size="sm" disabled={isBusy} aria-expanded={advanced} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}
         {(!single||advanced)&&<>
+        {!single&&<p className="text-sm text-gray-600">A confirmação única não está disponível. Use as etapas de publicação separadas abaixo.</p>}
         <div className="rounded-lg border p-3 space-y-2 text-sm">
           <strong>Etapa A — Publicar suas mídias</strong>
           <p>{unreviewed>0?`${unreviewed} arquivo(s) ainda na sequência em edição.`:chosen?`Lista publicada (versão ${chosen.version}).`:'Adicione mídia à sequência antes de publicar.'}</p>
@@ -277,12 +278,12 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           <strong>Etapa B — Definir quando mostrar</strong>
           {!screen.playerId&&<p className="text-amber-800">Conecte um aparelho em “Minhas telas” antes de publicar. A edição das mídias pode ser feita sem aparelho.</p>}
           {link?.scheduleId?<p>Agenda vinculada: <strong>{link.status==='DRAFT'?'Salva, aguardando publicação':link.status==='PUBLISHED'?'Publicada':'Indisponível'}</strong>. Uma agenda existente não é substituída automaticamente.</p>:<>
-            <div className="grid sm:grid-cols-2 gap-3"><label className="space-y-1 block">Começar em<input aria-label="Início da programação" type="datetime-local" className="w-full rounded border p-2" value={start} disabled={busy} onChange={e=>setStart(e.target.value)}/></label>
-              <label className="space-y-1 block">Terminar em<input aria-label="Fim da programação" type="datetime-local" className="w-full rounded border p-2" value={end} disabled={busy} onChange={e=>setEnd(e.target.value)}/></label></div>
+            <div className="grid sm:grid-cols-2 gap-3"><label className="space-y-1 block">Começar em<input aria-label="Início da programação" type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
+              <label className="space-y-1 block">Terminar em<input aria-label="Fim da programação" type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label></div>
             <p className="text-xs text-gray-600">Horários no seu fuso ({timezone}). Período máximo: 30 dias; renovação não é automática nesta etapa.</p>
-            <label className="flex gap-2 items-center"><input aria-label="Limitar horário diário" type="checkbox" checked={limitedHours} disabled={busy} onChange={e=>setLimitedHours(e.target.checked)}/>Exibir somente em horários específicos</label>
-            {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" aria-label="Horário diário inicial" value={startHour} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" aria-label="Horário diário final" value={endHour} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
-              <p className="text-xs">Dias: nenhum selecionado significa todos os dias.</p><div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div></>}
+            <label className="flex gap-2 items-center"><input aria-label="Limitar horário diário" type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>setLimitedHours(e.target.checked)}/>Exibir somente em horários específicos</label>
+            {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" aria-label="Horário diário inicial" disabled={isBusy} value={startHour} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" aria-label="Horário diário final" disabled={isBusy} value={endHour} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
+              <p className="text-xs">Dias: nenhum selecionado significa todos os dias.</p><div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div></>}
             {!plan&&chosen&&<p className="text-xs text-amber-800">Confira início, fim e horários: o período deve começar em até 7 dias, durar no máximo 30 dias e terminar após o início.</p>}
             <Button type="button" size="sm" disabled={isBusy||!chosen||!screen.playerId||!plan||!scheduleAllowed||!consent} onClick={()=>void run(createSchedule)}>Salvar horários</Button>
           </>}

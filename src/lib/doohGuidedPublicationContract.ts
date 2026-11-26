@@ -60,8 +60,8 @@ export function preflightWindow(startsAt:string,endsAt:string,now:number):{from:
   return {from:new Date(start).toISOString(),to:new Date(end).toISOString()};
 }
 export function guidedPublishError(error:unknown):string {
-  const response=obj(obj(error)?.response),code=obj(response?.data)?.code,status=response?.status;
-  if(status===409)return `Há um conflito de versão, horário ou associação (${typeof code==='string'?code:'atualização concorrente'}). Atualize e revise antes de continuar.`;
+  const response=obj(obj(error)?.response),status=response?.status;
+  if(status===409)return 'O conteúdo, os horários ou o aparelho mudaram. Atualize e revise antes de continuar.';
   if(status===403||status===402)return 'Operação não liberada para esta empresa ou permissão.';
   if(status===503)return 'A programação guiada ainda não foi habilitada no servidor.';
   if(status===401)return 'Sessão expirada; entre novamente.';
