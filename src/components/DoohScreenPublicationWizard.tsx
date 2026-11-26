@@ -21,6 +21,22 @@ import { buildGuidedSchedulePlan, localInputFor, preflightWindow, parseGuidedSch
 import { initialPublicationEnabled, buildInitialPublication, existingGuidedPlan, parseInitialPublicationReceipt, initialPublicationError } from '../lib/doohGuidedInitialPublicationContract';
 
 import { republicationEnabled, canReviewRepublication, buildRepublication, parseRepublicationReceipt } from '../lib/doohGuidedRepublicationContract';
+import { NO_RENEWAL, parseRenewalCapability, reviewedRenewalMode, technicalRenewalEnd, parseRenewalStatus, renewalRevoked, type RenewalCapability, type RenewalChoice, type RenewalGrantView } from '../lib/doohGuidedRenewalContract';
+
+function RenewalPolicy({cap,choice,scheduled,disabled,onChange}:{cap:RenewalCapability;choice:RenewalChoice;scheduled:boolean;disabled:boolean;onChange:(v:RenewalChoice)=>void}) {
+  if(!cap.enabled)return null;
+  return <div className="space-y-2 rounded border bg-gray-50 p-3">
+    <label className="block font-medium">Atualizações automáticas da programação
+      <select className="block w-full rounded border bg-white p-2" value={choice} disabled={disabled} onChange={e=>onChange(e.target.value as RenewalChoice)}>
+        <option value="NONE">Sem renovação automática</option>
+        <option value="BOUNDED" disabled={scheduled&&!cap.recurring}>Manter atualizada até a data final</option>
+        <option value="CONTINUOUS" disabled={scheduled}>Exibir continuamente até eu interromper</option>
+      </select>
+    </label>
+    <p className="text-xs">{choice==='CONTINUOUS'?'A data técnica é renovada pelo sistema. Você não está definindo uma data final. O acesso e a autorização precisam permanecer válidos.':choice==='BOUNDED'?'O sistema pode atualizar a programação automaticamente, mas nunca prorrogará a data final escolhida.':'Sem novo consentimento, esta publicação não delega renovações. A autorização registrada anteriormente é encerrada quando você republicar.'}</p>
+    {scheduled&&!cap.recurring&&<p className="text-xs text-amber-800">A renovação de horários específicos ainda não foi liberada pelo servidor.</p>}
+  </div>;
+}
 
 const minuteLabel=(value:number|null|undefined)=>value==null?'—':`${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
 const WEEKDAYS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
@@ -69,15 +85,19 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [replaceFirst,setReplaceFirst]=useState(480);
   const [replaceLast,setReplaceLast]=useState(1200);
   const replaceRevision=useRef('');
+  const [initialRenewal,setInitialRenewal]=useState<RenewalCapability>(NO_RENEWAL);
+  const [replaceRenewal,setReplaceRenewal]=useState<RenewalCapability>(NO_RENEWAL);
+  const [renewalChoice,setRenewalChoice]=useState<RenewalChoice>('NONE');
+  const [renewalGrant,setRenewalGrant]=useState<RenewalGrantView|null>(null);
   useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
   useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
-    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');onPublishingChange?.(false);},[contextKey]);
+    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
     if(!allowed||!show){setLoaded(true);return;}
     const ctl=new AbortController(),key=contextKey;
-    setLoaded(false);setReplaceEnabled(false);setReplacePlayer(null);
+    setLoaded(false);setReplaceEnabled(false);setReplacePlayer(null);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalGrant(null);setRenewalChoice('NONE');
     const read=async()=>{
       const c=await apiClient.get<unknown>('/dooh/operational-screens/schedule-capabilities',{signal:ctl.signal});
       if(ctl.signal.aborted||activeKey.current!==key)return;
@@ -102,6 +122,14 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       let saved:DoohScheduleSummary|null=null;
       const initialEnabled=initialPublicationEnabled(initial.data);
       const replaceCapability=republicationEnabled(republication.data);
+      const initialRenewalCap=parseRenewalCapability(initial.data), replaceRenewalCap=parseRenewalCapability(republication.data);
+      let activeGrant:RenewalGrantView|null=null;
+      if(initialRenewalCap.enabled||replaceRenewalCap.enabled){
+        const result=await apiClient.get<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/renewal`,{signal:ctl.signal});
+        const status=parseRenewalStatus(result.data,screen.id);
+        if(!status)throw Error('Invalid renewal status');
+        activeGrant=status.grant;
+      }
       if((initialEnabled||replaceCapability)&&ll.scheduleId){
         const result=await apiClient.get<unknown>(`/dooh/schedules/${encodeURIComponent(ll.scheduleId)}`,{signal:ctl.signal});
         saved=parseDoohSchedule(result.data,companyId);
@@ -124,7 +152,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           setReplaceFirst(saved.dailyStartMinute??480);setReplaceLast(saved.dailyEndMinute??1200);
         }
       }
-      setReplaceEnabled(replaceCapability);setReplacePlayer(player);
+      setReplaceEnabled(replaceCapability);setReplacePlayer(player);setInitialRenewal(initialRenewalCap);setReplaceRenewal(replaceRenewalCap);setRenewalGrant(activeGrant);
       setSingle(initialEnabled);setLinkedSchedule(saved);setLink(ll);setPlaylist(detail);
     };
     void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setSingle(false);setError(guidedPublishError(cause));}})
@@ -142,14 +170,22 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const plan=chosen?buildGuidedSchedulePlan(chosen.id,start,end,timezone,weekdays,
     limitedHours?startHour:null,limitedHours?endHour:null,Date.now()):null;
   const isBusy=busy||!loaded||editorBlocked;
+  const initialScheduled=link?.scheduleId?!!(linkedSchedule&&(linkedSchedule.weekdays.length||linkedSchedule.dailyStartMinute!==null||linkedSchedule.dailyEndMinute!==null)):limitedHours;
+  const initialMode=reviewedRenewalMode(renewalChoice,initialRenewal,initialScheduled);
   const initialPlan=draft?.draftId ? (link?.scheduleId ? existingGuidedPlan(linkedSchedule,draft.draftId) :
-    buildGuidedSchedulePlan(draft.draftId,start,end,timezone,limitedHours?weekdays:[],limitedHours?startHour:null,limitedHours?endHour:null,Date.now())) : null;
-  const initialBody=buildInitialPublication(draft,screen.playerId,initialPlan);
+    buildGuidedSchedulePlan(draft.draftId,start,initialMode==='CONTINUOUS'?technicalRenewalEnd(Date.parse(start)):end,timezone,limitedHours?weekdays:[],limitedHours?startHour:null,limitedHours?endHour:null,Date.now())) : null;
+  const initialBase=buildInitialPublication(draft,screen.playerId,initialPlan);
+  const initialBody=initialBase&&initialMode?{...initialBase,...(initialRenewal.enabled?{renewalMode:initialMode}:{})}:null;
   const singleAllowed=single&&!!link&&link.playerId===screen.playerId&&!screen.commercialUnit&&screen.player?.lifecycleStatus==='ACTIVE'&&
     caps.playlist&&scheduleAllowed&&manifestAllowed;
   const replacing=replaceEnabled&&link?.status==='PUBLISHED';
   const replaceAllowed=replacing&&!screen.commercialUnit&&!!draft?.playlistId&&draft.playlistId===screen.contentPlaylistId&&caps.playlist&&scheduleAllowed&&manifestAllowed&&canReviewRepublication(link,linkedSchedule,replacePlayer,screen.id,screen.playerId);
-  const replacementBody=(now:number)=>buildRepublication(draft,link,linkedSchedule,replacePlayer,screen.id,screen.playerId,replaceEnd,linkedSchedule?.timezone??timezone,replaceDays,replaceDaily?replaceFirst:null,replaceDaily?replaceLast:null,now);
+  const replacementMode=reviewedRenewalMode(renewalChoice,replaceRenewal,replaceDays.length>0||replaceDaily);
+  const replacementBody=(now:number)=>{
+    if(!replacementMode)return null;
+    const body=buildRepublication(draft,link,linkedSchedule,replacePlayer,screen.id,screen.playerId,replacementMode==='CONTINUOUS'?technicalRenewalEnd(now):replaceEnd,linkedSchedule?.timezone??timezone,replaceDays,replaceDaily?replaceFirst:null,replaceDaily?replaceLast:null,now);
+    return body?{...body,...(replaceRenewal.enabled?{renewalMode:replacementMode}:{})}:null;
+  };
   const canPublishPlaylist=Boolean(allowed&&caps.playlist&&draft?.playlistId&&!link?.scheduleId&&
     playlist&&draft&&publishReviewReady(guidedSnapshotToCas(draft))&&draft.items.every(i=>i.mediaStatus==='READY'));
 
@@ -161,6 +197,16 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     try{const message=await action(ctl,key);if(valid()){if(message)setNotice(message);setRefresh(v=>v+1);onChanged();}}
     catch(cause:unknown){if(valid()){setError(action===publishInitial?initialPublicationError(cause):guidedPublishError(cause));setRefresh(v=>v+1);onChanged();}}
     finally{if(pending.current===ctl)pending.current=null;if(valid()){setBusy(false);onPublishingChange?.(false);setConsent(false);}}
+  }
+
+  async function revokeRenewal(ctl:AbortController,key:string){
+    const grant=renewalGrant;
+    if(!grant||!window.confirm('Revogar a renovação automática? Isso interrompe novas renovações, mas não interrompe imediatamente uma programação já autorizada.'))return;
+    const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/renewal/${encodeURIComponent(grant.id)}/revoke`,undefined,{signal:ctl.signal});
+    if(ctl.signal.aborted||activeKey.current!==key)return;
+    if(!renewalRevoked(result.data,screen.id,grant.id))throw Error('Renewal revocation not confirmed');
+    setRenewalGrant(null);
+    return 'Renovação automática revogada. A programação já autorizada pode continuar até sua validade.';
   }
 
   async function publishReplacement(ctl:AbortController,key:string){
@@ -285,16 +331,22 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       {notice&&<p role="status" className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
       {!caps.guided&&loaded&&<p className="text-sm text-amber-800">A publicação guiada ainda não está disponível para esta empresa. Seu rascunho foi preservado.</p>}
       {caps.guided&&<>
+        {renewalGrant&&<div className="rounded border p-3 space-y-2 text-sm"><strong>Autorização de renovação registrada</strong>
+          <p>{renewalGrant.mode==='CONTINUOUS'?'Contínua, sujeita às permissões e ao licenciamento.':`Até ${new Date(renewalGrant.authorizedEndAt!).toLocaleString('pt-BR')}.`}</p>
+          <p className="text-xs">O registro não comprova que a renovação está em execução. Uma republicação encerra esta autorização e utiliza a nova escolha.</p>
+          <Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={()=>void run(revokeRenewal)}>Revogar renovação automática</Button>
+        </div>}
         {replacing&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Atualizar programação</strong>
           <p>Revise a sequência de {screen.name}. A substituição começa agora; a programação anterior permanece no aparelho enquanto autorizada e até a atualização segura.</p>
           {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{item.mediaName} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
-          <label className="block">Terminar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={replaceEnd} disabled={isBusy} onChange={e=>setReplaceEnd(e.target.value)}/></label>
-          <p className="text-xs text-gray-600">Fuso dos horários de exibição: {linkedSchedule?.timezone}. Máximo de 30 dias. O fim não é prorrogado automaticamente nesta operação.</p>
-          <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex gap-1 items-center"><input type="checkbox" checked={replaceDays.includes(i+1)} disabled={isBusy} onChange={e=>setReplaceDays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div>
+          {replacementMode!=='CONTINUOUS'&&<label className="block">Terminar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={replaceEnd} disabled={isBusy} onChange={e=>setReplaceEnd(e.target.value)}/></label>}
+          <p className="text-xs text-gray-600">Fuso dos horários de exibição: {linkedSchedule?.timezone}. Período técnico máximo de 30 dias.</p>
+          <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex gap-1 items-center"><input type="checkbox" checked={replaceDays.includes(i+1)} disabled={isBusy||replacementMode==='CONTINUOUS'} onChange={e=>setReplaceDays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div>
           <p className="text-xs">Nenhum dia selecionado = todos os dias.</p>
-          <label className="flex gap-2"><input type="checkbox" checked={replaceDaily} disabled={isBusy} onChange={e=>setReplaceDaily(e.target.checked)}/>Limitar horário diário</label>
+          <label className="flex gap-2"><input type="checkbox" checked={replaceDaily} disabled={isBusy||replacementMode==='CONTINUOUS'} onChange={e=>setReplaceDaily(e.target.checked)}/>Limitar horário diário</label>
           {replaceDaily&&<div className="grid grid-cols-2 gap-2"><label>De (HH:mm)<input className="w-full rounded border p-2" type="time" value={Number.isFinite(replaceFirst)?minuteLabel(replaceFirst):''} disabled={isBusy} onChange={e=>{const [h,m]=e.target.value.split(':').map(Number);setReplaceFirst(e.target.value?h*60+m:NaN);}}/></label><label>Até (HH:mm)<input className="w-full rounded border p-2" type="time" value={replaceLast===1440?'00:00':Number.isFinite(replaceLast)?minuteLabel(replaceLast):''} disabled={isBusy} onChange={e=>{const [h,m]=e.target.value.split(':').map(Number);setReplaceLast(e.target.value?(h*60+m||1440):NaN);}}/></label><p className="col-span-2 text-xs">Fim às 00:00 significa fim do dia (24:00).</p></div>}
+          <RenewalPolicy cap={replaceRenewal} choice={renewalChoice} scheduled={replaceDays.length>0||replaceDaily} disabled={isBusy} onChange={setRenewalChoice}/>
           {!replaceAllowed&&<p role="status" className="text-amber-800">Aguarde a versão publicada ser reportada pelo aparelho e confira o vínculo e as permissões. O servidor ainda verificará a programação anterior.</p>}
           {replaceAllowed&&!replacementBody(Date.now())&&<p className="text-amber-800">Confira a sequência salva, a data final e os horários.</p>}
           <Button type="button" disabled={isBusy||!replaceAllowed||!replacementBody(Date.now())||prepared} onClick={()=>void run(publishReplacement)}>{busy?'Preparando atualização…':prepared?'Atualização preparada':'Confirmar e atualizar programação'}</Button>
@@ -309,13 +361,14 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
             <p>{linkedSchedule?.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(linkedSchedule?.dailyStartMinute)}–${minuteLabel(linkedSchedule?.dailyEndMinute)}`} · {linkedSchedule?.weekdays.length?linkedSchedule.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'}</p>
             <p className="text-xs text-gray-600">A retomada só reutiliza a agenda e o conteúdo idênticos; não substitui uma programação existente.</p></div>:<>
             <div className="grid sm:grid-cols-2 gap-3"><label>Começar em<input aria-label="Início da publicação guiada" aria-invalid={!start} type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
-            <label>Terminar em<input aria-label="Fim da publicação guiada" aria-invalid={!end || end <= start} type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label></div>
+            {initialMode!=='CONTINUOUS'&&<label>Terminar em<input aria-label="Fim da publicação guiada" aria-invalid={!end || end <= start} type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label>}</div>
             <p className="text-xs text-gray-600">Fuso: {timezone}. Período máximo de 30 dias.</p>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>setLimitedHours(e.target.checked)}/>Definir dias e horários</label>
-            {!limitedHours&&<p className="text-xs text-gray-600">Exibir continuamente durante o período escolhido.</p>}
+            <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy||initialMode==='CONTINUOUS'} onChange={e=>setLimitedHours(e.target.checked)}/>Definir dias e horários</label>
+            {!limitedHours&&initialMode!=='CONTINUOUS'&&<p className="text-xs text-gray-600">Exibir continuamente durante o período escolhido.</p>}
             {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" value={startHour} disabled={isBusy} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" value={endHour} disabled={isBusy} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
             <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div><p className="text-xs">Nenhum dia selecionado = todos os dias.</p></>}
           </>}
+          <RenewalPolicy cap={initialRenewal} choice={renewalChoice} scheduled={initialScheduled} disabled={isBusy} onChange={setRenewalChoice}/>
           {!singleAllowed&&<p className="text-amber-800">Conecte um aparelho ativo independente e confirme as permissões de publicação. Telas comerciais permanecem no fluxo avançado.</p>}
           {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias prontas, a ordem salva e o período de exibição (início em até 7 dias, fim após o início, máximo de 30 dias).</p>}
           <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Preparando programação…':prepared?'Atualização preparada':link?.scheduleId?'Confirmar e retomar publicação':'Confirmar e publicar'}</Button>
