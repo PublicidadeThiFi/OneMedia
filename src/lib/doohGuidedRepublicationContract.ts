@@ -11,19 +11,37 @@ export const republicationEnabled = (v:unknown) => record(v)?.enabled===true;
 export function canReviewRepublication(link:GuidedScheduleLink|null,schedule:DoohScheduleSummary|null,player:DoohPlayerDetailView|null,screenId:string,playerId:string|null) {
   return !!(link && schedule && player && playerId && link.screenId===screenId && link.playerId===playerId && player.id===playerId && player.lifecycleStatus==='ACTIVE' && player.credentialActive && !player.screen && version(player.desiredManifestVersion) && player.currentManifestVersion===player.desiredManifestVersion && link.scheduleId===schedule.id && link.playlistVersionId===schedule.playlistVersionId && link.status==='PUBLISHED' && schedule.status==='PUBLISHED' && schedule.priority==='STANDARD' && schedule.targetCount===1 && schedule.startsAt && schedule.endsAt && schedule.publishedAt);
 }
-export function buildRepublication(draft:GuidedContentDraft|null,link:GuidedScheduleLink|null,schedule:DoohScheduleSummary|null,player:DoohPlayerDetailView|null,screenId:string,playerId:string|null,endLocal:string,timezone:string,weekdays:readonly number[],dailyStartMinute:number|null,dailyEndMinute:number|null,now:number) {
+export function buildRepublication(draft:GuidedContentDraft|null,link:GuidedScheduleLink|null,schedule:DoohScheduleSummary|null,player:DoohPlayerDetailView|null,screenId:string,playerId:string|null,endLocal:string,timezone:string,weekdays:readonly number[],dailyStartMinute:number|null,dailyEndMinute:number|null,now:number,startLocal?:string) {
   if(!draft || draft.screenId!==screenId || !draft.draftId || !schedule || !player || !canReviewRepublication(link,schedule,player,screenId,playerId))return null;
   if(!Number.isFinite(now) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(endLocal))return null;
+  const start=startLocal===undefined?now:Date.parse(startLocal);
+  if(startLocal!==undefined&&(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(startLocal)||!Number.isFinite(start)||localInputFor(start)!==startLocal||start<=now+60_000||start>now+7*86_400_000))return null;
   const end=Date.parse(endLocal);
-  if(!Number.isFinite(end)||localInputFor(end)!==endLocal||end-now<60_000||end-now>30*86_400_000)return null;
+  if(!Number.isFinite(end)||localInputFor(end)!==endLocal||end-start<60_000||end-start>30*86_400_000)return null;
   if(!timezone||timezone.length>64)return null;
   try{new Intl.DateTimeFormat('en-US',{timeZone:timezone});}catch{return null;}
   if(weekdays.length>7||new Set(weekdays).size!==weekdays.length||weekdays.some(d=>!Number.isInteger(d)||d<1||d>7))return null;
   if((dailyStartMinute===null)!==(dailyEndMinute===null) || (dailyStartMinute!==null && (!Number.isInteger(dailyStartMinute)||!Number.isInteger(dailyEndMinute)||dailyStartMinute<0||dailyEndMinute!>1440||dailyStartMinute>=dailyEndMinute!)))return null;
-  const body=buildInitialPublication(draft,playerId,{playlistVersionId:draft.draftId,timezone,startsAt:new Date(now).toISOString(),endsAt:new Date(end).toISOString(),weekdays:[...weekdays].sort((a,b)=>a-b),dailyStartMinute,dailyEndMinute});
+  const body=buildInitialPublication(draft,playerId,{playlistVersionId:draft.draftId,timezone,startsAt:new Date(start).toISOString(),endsAt:new Date(end).toISOString(),weekdays:[...weekdays].sort((a,b)=>a-b),dailyStartMinute,dailyEndMinute});
   return body?{...body,expectedScheduleId:schedule.id,expectedScheduleUpdatedAt:schedule.updatedAt,expectedManifestVersion:player.desiredManifestVersion}:null;
 }
 export function parseRepublicationReceipt(raw:unknown,screenId:string,playerId:string,previousScheduleId:string,playlistVersionId:string,previousManifestVersion:string) {
   const v=record(raw);
   return !!(v && v.screenId===screenId && v.playerId===playerId && v.previousScheduleId===previousScheduleId && typeof v.scheduleId==='string' && playlistUuid.test(v.scheduleId) && v.scheduleId!==previousScheduleId && v.playlistVersionId===playlistVersionId && v.status==='UPDATE_PREPARED' && version(v.manifestVersion) && version(previousManifestVersion) && BigInt(v.manifestVersion)>BigInt(previousManifestVersion));
 }
+
+export const futureRepublicationEnabled=(raw:unknown)=>republicationEnabled(raw)&&record(raw)?.futureEnabled===true;
+export type FutureRepublicationView={id:string;status:'PENDING'|'ACTIVATED'|'CANCELLED'|'FAILED';startsAt:string;endsAt:string;finishedAt:string|null};
+const iso=(v:unknown):v is string=>typeof v==='string'&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString()===v;
+export function parseFutureRepublication(raw:unknown,screenId:string):{intent:FutureRepublicationView|null}|null {
+  const envelope=record(raw);if(!envelope||envelope.screenId!==screenId)return null;
+  if(envelope.intent===null)return {intent:null};
+  const v=record(envelope.intent);if(!v||typeof v.id!=='string'||!playlistUuid.test(v.id)||!iso(v.startsAt)||!iso(v.endsAt)||Date.parse(v.endsAt)<=Date.parse(v.startsAt))return null;
+  const status=v.status;if(status!=='PENDING'&&status!=='ACTIVATED'&&status!=='CANCELLED'&&status!=='FAILED')return null;
+  if(status==='PENDING'?v.finishedAt!==null:!iso(v.finishedAt))return null;
+  return {intent:{id:v.id,status,startsAt:v.startsAt,endsAt:v.endsAt,finishedAt:v.finishedAt as string|null}};
+}
+export function futureRepublicationReceipt(raw:unknown,screenId:string,startsAt:string,endsAt:string){
+  const v=record(raw);return !!(v&&v.screenId===screenId&&v.status==='PENDING'&&typeof v.intentId==='string'&&playlistUuid.test(v.intentId)&&v.startsAt===startsAt&&v.endsAt===endsAt);
+}
+export function futureRepublicationCancelled(raw:unknown,screenId:string,intentId:string){const v=record(raw);return !!(v&&v.screenId===screenId&&v.intentId===intentId&&v.cancelled===true);}
