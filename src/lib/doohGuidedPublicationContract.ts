@@ -62,6 +62,9 @@ export function preflightWindow(startsAt:string,endsAt:string,now:number):{from:
 export function guidedPublishError(error:unknown):string {
   const response=obj(obj(error)?.response),status=response?.status;
   const code=obj(response?.data)?.code;
+  if(code==='DOOH_GUIDED_RESTORE_DRAFT_CHANGED')return 'Há alterações no rascunho. Preserve ou conclua essas alterações antes de restaurar uma programação anterior.';
+  if(code==='DOOH_GUIDED_RESTORE_MEDIA_UNAVAILABLE')return 'Uma mídia da publicação anterior não está mais disponível para exibição.';
+  if(code==='DOOH_GUIDED_RESTORE_SOURCE_INVALID')return 'A publicação anterior não está mais elegível. Atualize o histórico e escolha outra.';
   if(code==='DOOH_GUIDED_FUTURE_PREVIOUS_WINDOW_TOO_SHORT')return 'A programação atual não tem autorização suficiente até a data escolhida. Antecipe o início ou revise a autorização de renovação.';
   if(code==='DOOH_GUIDED_FUTURE_ALREADY_PENDING')return 'Já existe uma alteração agendada. Atualize a situação e cancele a anterior antes de substituir.';
   if(code==='DOOH_GUIDED_FUTURE_WINDOW_INVALID')return 'Escolha uma data futura válida, entre um minuto e sete dias à frente.';

@@ -21,7 +21,7 @@ import { buildGuidedSchedulePlan, localInputFor, preflightWindow, parseGuidedSch
 import { initialPublicationEnabled, buildInitialPublication, existingGuidedPlan, parseInitialPublicationReceipt, initialPublicationError } from '../lib/doohGuidedInitialPublicationContract';
 
 import { republicationEnabled, canReviewRepublication, buildRepublication, parseRepublicationReceipt, futureRepublicationEnabled, parseFutureRepublication, futureRepublicationReceipt, futureRepublicationCancelled, type FutureRepublicationView } from '../lib/doohGuidedRepublicationContract';
-import { pausePublicationEnabled, buildPausePublication, parsePausePublicationReceipt, buildResumePublication } from '../lib/doohGuidedRepublicationContract';
+import { restorationEnabled, parsePublicationHistory, buildRestorePublication, parseRestoreReceipt, type RestorationEntry, pausePublicationEnabled, buildPausePublication, parsePausePublicationReceipt, buildResumePublication } from '../lib/doohGuidedRepublicationContract';
 import { parseInspectedPublishedVersion, type InspectedPublishedPlaylist } from '../lib/doohPublishedVersionInspectionContract';
 import { NO_RENEWAL, parseRenewalCapability, reviewedRenewalMode, technicalRenewalEnd, parseRenewalStatus, renewalRevoked, type RenewalCapability, type RenewalChoice, type RenewalGrantView } from '../lib/doohGuidedRenewalContract';
 
@@ -81,6 +81,10 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [prepared,setPrepared]=useState(false);
   const [replaceEnabled,setReplaceEnabled]=useState(false);
   const [pauseEnabled,setPauseEnabled]=useState(false);
+  const [history,setHistory]=useState<{entries:RestorationEntry[];truncated:boolean}|null>(null);
+  const [historyId,setHistoryId]=useState('');
+  const [restoreEnd,setRestoreEnd]=useState('');
+  const [restoreChoice,setRestoreChoice]=useState<RenewalChoice>('NONE');
   const [resumeSnapshot,setResumeSnapshot]=useState<InspectedPublishedPlaylist|null>(null);
   const [replacePlayer,setReplacePlayer]=useState<DoohPlayerDetailView|null>(null);
   const [replaceEnd,setReplaceEnd]=useState('');
@@ -100,12 +104,12 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
   useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
-    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
+    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
     if(!allowed||!show){setLoaded(true);return;}
     const ctl=new AbortController(),key=contextKey;
-    setLoaded(false);setReplaceEnabled(false);setPauseEnabled(false);setResumeSnapshot(null);setReplacePlayer(null);setFutureEnabled(false);setFutureIntent(null);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalGrant(null);setRenewalChoice('NONE');
+    setLoaded(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);setFutureEnabled(false);setFutureIntent(null);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalGrant(null);setRenewalChoice('NONE');
     const read=async()=>{
       const c=await apiClient.get<unknown>('/dooh/operational-screens/schedule-capabilities',{signal:ctl.signal});
       if(ctl.signal.aborted||activeKey.current!==key)return;
@@ -176,6 +180,13 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           setReplaceFirst(saved.dailyStartMinute??480);setReplaceLast(saved.dailyEndMinute??1200);
         }
       }
+      let historyResult:ReturnType<typeof parsePublicationHistory>=null;
+      if(restorationEnabled(republication.data)&&(saved?.status==='PUBLISHED'||(pauseCapability&&saved?.status==='PAUSED'))&&screen.playerId&&detail){
+        const response=await apiClient.get<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/publication-history`,{signal:ctl.signal}).catch(()=>({data:null}));
+        historyResult=parsePublicationHistory(response.data,screen.id,detail.id,screen.playerId);
+      }
+      if(ctl.signal.aborted||activeKey.current!==key)return;
+      setHistory(historyResult);
       setPauseEnabled(pauseCapability);setResumeSnapshot(publishedSnapshot);setReplaceEnabled(replaceCapability);setFutureEnabled(futureCap);setFutureIntent(future);if(!futureCap)setScheduleFuture(false);setReplacePlayer(player);setInitialRenewal(initialRenewalCap);setReplaceRenewal(replaceRenewalCap);setRenewalGrant(activeGrant);
       setSingle(initialEnabled);setLinkedSchedule(saved);setLink(ll);setPlaylist(detail);
     };
@@ -220,6 +231,14 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     const body=buildRepublication(draft,link,linkedSchedule,replacePlayer,screen.id,screen.playerId,replacementMode==='CONTINUOUS'?continuousEnd:replaceEnd,linkedSchedule?.timezone??timezone,replaceDays,replaceDaily?replaceFirst:null,replaceDaily?replaceLast:null,now,scheduleFuture?futureStart:undefined);
     return body?{...body,...(replaceRenewal.enabled?{renewalMode:replacementMode}:{})}:null;
   };
+  const historical=history?.entries.find(e=>e.scheduleId===historyId)??null;
+  const historicalScheduled=!!(historical&&(historical.weekdays.length||historical.dailyStartMinute!==null));
+  const restoreMode=reviewedRenewalMode(restoreChoice,replaceRenewal,historicalScheduled);
+  const restoreBody=(now:number)=>{
+    if(!restoreMode||!(replaceAllowed||(paused&&pauseEnabled&&!screen.commercialUnit&&caps.playlist&&scheduleAllowed&&manifestAllowed))||draft?.playlistId!==screen.contentPlaylistId)return null;
+    const body=buildRestorePublication(historical,draft,link,linkedSchedule,replacePlayer,screen.id,screen.playerId,restoreMode==='CONTINUOUS'?technicalRenewalEnd(now):restoreEnd,now);
+    return body?{...body,renewalMode:restoreMode}:null;
+  };
   const canPublishPlaylist=Boolean(allowed&&caps.playlist&&draft?.playlistId&&!link?.scheduleId&&
     playlist&&draft&&publishReviewReady(guidedSnapshotToCas(draft))&&draft.items.every(i=>i.mediaStatus==='READY'));
 
@@ -261,6 +280,17 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(!parseRepublicationReceipt(result.data,screen.id,body.expectedPlayerId,body.expectedScheduleId,body.playlistVersionId,body.expectedManifestVersion))throw Error('Unconfirmed resume');
     setPrepared(true);
     return 'Retomada preparada. A programação será exibida nos horários escolhidos após instalação e autorização da tela.';
+  }
+
+  async function restorePublication(ctl:AbortController,key:string){
+    const body=restoreBody(Date.now());
+    if(!body||futureIntent?.status==='PENDING')throw Error('Restore unavailable');
+    if(!window.confirm('Restaurar esta programação anterior em uma nova publicação? Os horários serão preservados, o período será novo e a renovação automática anterior será revogada. Somente a nova autorização escolhida poderá ser registrada. Rascunhos alterados não serão sobrescritos.'))return;
+    const response=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/restore-publication`,body,{signal:ctl.signal});
+    if(ctl.signal.aborted||activeKey.current!==key)return;
+    if(!parseRestoreReceipt(response.data,screen.id,body))throw Error('Unconfirmed restoration');
+    setPrepared(true);setHistoryId('');setRestoreEnd('');
+    return 'Programação anterior restaurada em uma nova publicação. Aguarde a instalação no aparelho.';
   }
 
   async function publishReplacement(ctl:AbortController,key:string){
@@ -393,6 +423,16 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     return 'Atualização preparada pelo servidor. O dispositivo deve sincronizar; confirme a versão instalada antes de declarar exibição.';
   }
 
+  const historyPanel=history&&<details className="rounded border p-3 space-y-2"><summary className="font-medium cursor-pointer">Restaurar programação anterior</summary>
+            <p>Selecione uma publicação anterior desta tela. A sequência e os horários serão preservados; escolha uma nova data final. A renovação automática não será transferida; escolha uma nova autorização, se disponível.</p>
+            {history.truncated&&<p>Exibindo até 50 publicações arquivadas recentes elegíveis.</p>}
+            {!history.entries.length?<p>Nenhuma publicação anterior elegível para restauração.</p>:<>
+              <label className="block">Publicação anterior<select className="block w-full rounded border p-2" value={historyId} disabled={isBusy} onChange={e=>{setHistoryId(e.target.value);setRestoreChoice('NONE');}}><option value="">Selecione</option>{history.entries.map(e=><option key={e.scheduleId} value={e.scheduleId}>{new Date(e.publishedAt).toLocaleString('pt-BR')} · versão {e.version} · {e.items.length} mídia(s)</option>)}</select></label>
+              {historical&&<><ol className="list-decimal pl-5">{historical.items.map(i=><li key={i.id}>{i.name} · {i.durationMs/1000}s</li>)}</ol><p>{historical.weekdays.length?historical.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'} · {historical.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(historical.dailyStartMinute)}–${minuteLabel(historical.dailyEndMinute)}`} · {historical.timezone}</p>{restoreMode!=='CONTINUOUS'&&<label className="block">Nova data final (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={restoreEnd} disabled={isBusy} onChange={e=>setRestoreEnd(e.target.value)}/></label>}<RenewalPolicy cap={replaceRenewal} choice={restoreChoice} scheduled={historicalScheduled} disabled={isBusy} onChange={setRestoreChoice}/></>}
+              <p className="text-xs">Se houver alterações salvas no rascunho, a restauração será recusada para preservá-las. Aguarde a instalação da versão atual e cancele eventuais alterações futuras.</p>
+              <Button type="button" variant="outline" disabled={isBusy||prepared||!restoreBody(Date.now())||futureIntent?.status==='PENDING'} onClick={()=>void run(restorePublication)}>Confirmar e restaurar programação</Button>
+            </>}
+          </details>;
   if(!allowed)return <p className="text-sm text-gray-600">Publicar requer permissão de administrador e acesso DOOH completo.</p>;
   return <div className="rounded-lg border border-indigo-200 bg-white p-4 space-y-3" aria-label={`Publicação guiada da tela ${screen.name}`}>
     <div className="flex justify-between gap-2 items-center"><h5 className="font-semibold">3. Horários e publicação</h5><Button type="button" variant={recommendPublication && !show ? "default" : "outline"} size="sm" disabled={busy||editorBlocked} aria-expanded={show} onClick={()=>setShow(v=>!v)}>{show?'Recolher':'Configurar exibição'}</Button></div>
@@ -409,6 +449,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
         </div>}
         {paused&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Programação pausada no servidor</strong>
+          {historyPanel}
           <p>A versão anterior pode continuar numa tela sem contato enquanto estiver autorizada. O pareamento e as mídias foram preservados.</p>
           {!pauseEnabled?<p>O servidor ainda não liberou a retomada guiada.</p>:<>
             <p>Retomar o conteúdo publicado antes da pausa, sem incluir alterações do rascunho.</p>
@@ -423,6 +464,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
         </div>}
         {replacing&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Atualizar programação</strong>
+          {historyPanel}
           {pauseEnabled&&<div className="rounded border p-2 space-y-2"><p>Interrompa a programação desta tela sem excluir mídias nem desvincular o aparelho. A renovação automática será revogada.</p><Button type="button" variant="outline" disabled={isBusy||!pauseBody||futureIntent?.status==='PENDING'} onClick={()=>void run(pausePublication)}>Pausar programação</Button></div>}
           <p>Revise a sequência de {screen.name}. {scheduleFuture?'A alteração será tentada no horário escolhido, sem substituir a programação agora.':'A substituição começa agora; a programação anterior permanece no aparelho enquanto autorizada e até a atualização segura.'}</p>
           {futureIntent&&<div className="rounded border p-2 space-y-2" role="status"><strong>{futureIntent.status==='PENDING'?'Alteração agendada':futureIntent.status==='ACTIVATED'?'Atualização preparada pelo servidor':futureIntent.status==='CANCELLED'?'Alteração cancelada':'Alteração não aplicada'}</strong><p>Início solicitado: {new Date(futureIntent.startsAt).toLocaleString('pt-BR')}.</p>{futureIntent.status==='PENDING'&&<Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>void run(cancelFuture)}>Cancelar alteração agendada</Button>}<p className="text-xs">A situação não comprova exibição física.</p></div>}
