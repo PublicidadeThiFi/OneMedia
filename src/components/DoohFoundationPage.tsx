@@ -4,6 +4,7 @@ import { DoohMarketplaceCampaignSelection } from './campaigns/DoohMarketplaceCam
 import { DoohGettingStarted } from './DoohGettingStarted';
 import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohPlayerInventoryReadOnly } from './DoohPlayerInventoryReadOnly';
+import { DoohOperationalScreensPanel } from './DoohOperationalScreensPanel';
 import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
 import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
@@ -17,8 +18,8 @@ import { DOOH_SECTION_LABELS, type DoohFoundationSection } from '../lib/productN
 type ScreensTask = 'my-screens' | 'connect' | 'manage' | 'technical';
 type ProgrammingTask = 'playlists' | 'schedules' | 'marketplace';
 const screenTasks = [
-  { id: 'my-screens', label: 'Minhas telas', description: 'Veja suas telas, o último contato e o que falta para receber uma programação.' },
-  { id: 'connect', label: 'Conectar uma tela', description: 'Gere um código no navegador da tela, confirme o vínculo e escolha o local de instalação.' },
+  { id: 'my-screens', label: 'Minhas telas', description: 'Crie uma tela pelo nome, conecte um aparelho e veja o que falta para exibir conteúdo.' },
+  { id: 'connect', label: 'Conectar uma tela', description: 'Gere um código no Player Web e confirme o pareamento. O vínculo com um ponto comercial é opcional.' },
   { id: 'manage', label: 'Gerenciar dispositivos', description: 'Altere nomes e organize grupos quando tiver permissão.' },
   { id: 'technical', label: 'Detalhes técnicos', description: 'Histórico, grupos, comandos e diagnósticos para suporte autorizado.' },
 ] as const;
@@ -61,8 +62,8 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
     {section === 'home' && <DoohGettingStarted />}
     {section === 'screens' && <>
       <DoohWorkspaceTabs tabs={screenTasks} selected={screenTask} onSelect={setScreenTask} label="Tarefas de telas e dispositivos" />
-      {screenTask === 'my-screens' && <DoohPlayerInventoryReadOnly />}
-      {screenTask === 'connect' && <DoohPlayerPairingAndAssignment />}
+      {screenTask === 'my-screens' && <div className="space-y-5"><DoohOperationalScreensPanel onConnect={() => setScreenTask('connect')} /><DoohPlayerInventoryReadOnly /></div>}
+      {screenTask === 'connect' && <div className="space-y-4"><p className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-900">Abra o Player Web no aparelho, gere o código e confirme o pareamento abaixo. Depois volte a <strong>Minhas telas</strong> para escolher a tela pelo nome e conectar o aparelho. Você não precisa cadastrar um ponto DOOH comercial.</p><DoohPlayerPairingAndAssignment /></div>}
       {screenTask === 'manage' && <DoohPlayerOperations />}
       {screenTask === 'technical' && <div className="space-y-4">
         <DoohPlayerAuditReadOnly /><DoohGroupMembersSafeEditor /><DoohPlayerRestartQa />
