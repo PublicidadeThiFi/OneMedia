@@ -18,19 +18,22 @@ import { buildGuidedSchedulePlan, localInputFor, preflightWindow, parseGuidedSch
   parseSchedulePublishCapability, parseManifestCapability, guidedPublishError,
   type GuidedScheduleLink } from '../lib/doohGuidedPublicationContract';
 
+import { initialPublicationEnabled, buildInitialPublication, existingGuidedPlan, parseInitialPublicationReceipt, initialPublicationError } from '../lib/doohGuidedInitialPublicationContract';
+
+const minuteLabel=(value:number|null|undefined)=>value==null?'—':`${String(Math.floor(value/60)).padStart(2,'0')}:${String(value%60).padStart(2,'0')}`;
 const WEEKDAYS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
-interface Props { screen: OperationalScreen; draft: GuidedContentDraft|null; onChanged: () => void; }
+interface Props { screen: OperationalScreen; draft: GuidedContentDraft|null; onChanged: () => void; editorBlocked?: boolean; onPublishingChange?: (value:boolean)=>void; }
 type Caps = {guided:boolean;playlist:boolean;schedule:boolean;qaOnly:boolean;manifest:boolean;mode:'PILOT'|'QA'|'DISABLED'};
 const DENIED: Caps = {guided:false,playlist:false,schedule:false,qaOnly:true,manifest:false,mode:'DISABLED'};
 
 /** UX10/F3B: explicit, independently confirmable CAS stages. No automatic retries or background publication. */
-export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
+export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocked=false,onPublishingChange}:Props) {
   const {user}=useAuth();const {snapshot}=useProductAccess();
   const companyId=user?.companyId??'';
   const roles=user?.roles??[];
   const allowed=!!companyId&&snapshot?.companyId===companyId&&snapshot.modules.DOOH.granted&&snapshot.modules.DOOH.accessMode==='FULL'&&
     roles.some(r=>r==='ADMINISTRATIVO'||r==='TI');
-  const contextKey=JSON.stringify([user?.id,companyId,snapshot?.companyId,snapshot?.modules.DOOH.accessMode,[...roles].sort(),screen.id,screen.playerId]);
+  const contextKey=JSON.stringify([user?.id,companyId,snapshot?.companyId,snapshot?.modules.DOOH.accessMode,snapshot?.modules.DOOH.granted,screen.commercialUnit?.id,[...roles].sort(),screen.id,screen.playerId]);
   const activeKey=useRef(contextKey);activeKey.current=contextKey;
   const pending=useRef<AbortController|null>(null);
   const [refresh,setRefresh]=useState(0);
@@ -52,9 +55,14 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
   const [review,setReview]=useState<ManifestPreflightView|null>(null);
   const [manifestWindow,setManifestWindow]=useState<{from:string;to:string}|null>(null);
   const [show,setShow]=useState(false);
+  const [single,setSingle]=useState(false);
+  const [advanced,setAdvanced]=useState(false);
+  const [linkedSchedule,setLinkedSchedule]=useState<DoohScheduleSummary|null>(null);
+  const [prepared,setPrepared]=useState(false);
+  useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
   useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
-    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);},[contextKey]);
+    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
     if(!allowed||!show){setLoaded(true);return;}
@@ -65,13 +73,14 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
       if(ctl.signal.aborted||activeKey.current!==key)return;
       const enabled=parseGuidedScheduleCapability(c.data);
       if(enabled===null)throw Error('Invalid schedule capability');
-      if(!enabled){setCaps(DENIED);setLink(null);setPlaylist(null);return;}
-      const [p,s,pl,sc,m]=await Promise.all([
+      if(!enabled){setCaps(DENIED);setSingle(false);setLink(null);setPlaylist(null);return;}
+      const [p,s,pl,sc,m,initial]=await Promise.all([
         apiClient.get<unknown>('/dooh/playlists/publish-capabilities',{signal:ctl.signal}),
         apiClient.get<unknown>('/dooh/schedules/publish-capabilities',{signal:ctl.signal}),
         apiClient.get<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/content-schedule`,{signal:ctl.signal}),
         apiClient.get<unknown>('/dooh/manifests/publish-capabilities',{signal:ctl.signal}),
         draft?.playlistId?apiClient.get<unknown>(`/dooh/playlists/${encodeURIComponent(draft.playlistId)}`,{signal:ctl.signal}):Promise.resolve({data:null as unknown}),
+        apiClient.get<unknown>('/dooh/operational-screens/initial-publication-capabilities',{signal:ctl.signal}).catch(()=>({data:null as unknown})),
       ]);
       if(ctl.signal.aborted||activeKey.current!==key)return;
       const pp=parseSimpleBooleanCapability(p.data,'publishEnabled'),ss=parseSchedulePublishCapability(s.data),
@@ -79,9 +88,17 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
       const detail=draft?.playlistId?parseDoohPlaylistDetail(m.data,companyId,draft.playlistId):null;
       if(pp===null||!ss||!mm||!ll||(draft?.playlistId&&!detail))throw Error('Invalid publication contract');
       setCaps({guided:true,playlist:pp,schedule:ss.enabled,qaOnly:ss.qaOnly,manifest:mm.enabled,mode:mm.mode});
-      setLink(ll);setPlaylist(detail);
+      let saved:DoohScheduleSummary|null=null;
+      const initialEnabled=initialPublicationEnabled(initial.data);
+      if(initialEnabled&&ll.scheduleId){
+        const result=await apiClient.get<unknown>(`/dooh/schedules/${encodeURIComponent(ll.scheduleId)}`,{signal:ctl.signal});
+        saved=parseDoohSchedule(result.data,companyId);
+        if(!saved||saved.id!==ll.scheduleId||saved.playlistVersionId!==ll.playlistVersionId||saved.status!==ll.status)throw Error('Schedule changed');
+      }
+      if(ctl.signal.aborted||activeKey.current!==key)return;
+      setSingle(initialEnabled);setLinkedSchedule(saved);setLink(ll);setPlaylist(detail);
     };
-    void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setError(guidedPublishError(cause));}})
+    void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setSingle(false);setError(guidedPublishError(cause));}})
       .finally(()=>{if(!ctl.signal.aborted&&activeKey.current===key)setLoaded(true);});
     return()=>ctl.abort();
   },[allowed,show,contextKey,screen.id,draft?.playlistId,refresh,companyId]);
@@ -95,18 +112,36 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
     (caps.mode==='QA'&&import.meta.env.VITE_DOOH_MANIFEST_PUBLISH_QA_UI_ENABLED==='true'));
   const plan=chosen?buildGuidedSchedulePlan(chosen.id,start,end,timezone,weekdays,
     limitedHours?startHour:null,limitedHours?endHour:null,Date.now()):null;
-  const isBusy=busy||!loaded;
+  const isBusy=busy||!loaded||editorBlocked;
+  const initialPlan=draft?.draftId ? (link?.scheduleId ? existingGuidedPlan(linkedSchedule,draft.draftId) :
+    buildGuidedSchedulePlan(draft.draftId,start,end,timezone,limitedHours?weekdays:[],limitedHours?startHour:null,limitedHours?endHour:null,Date.now())) : null;
+  const initialBody=buildInitialPublication(draft,screen.playerId,initialPlan);
+  const singleAllowed=single&&!!link&&link.playerId===screen.playerId&&!screen.commercialUnit&&screen.player?.lifecycleStatus==='ACTIVE'&&
+    caps.playlist&&scheduleAllowed&&manifestAllowed;
   const canPublishPlaylist=Boolean(allowed&&caps.playlist&&draft?.playlistId&&!link?.scheduleId&&
     playlist&&draft&&publishReviewReady(guidedSnapshotToCas(draft))&&draft.items.every(i=>i.mediaStatus==='READY'));
 
   async function run(action:(ctl:AbortController,key:string)=>Promise<string|void>) {
-    if(busy||!allowed)return;
+    if(busy||pending.current||!allowed||editorBlocked)return;
     const ctl=new AbortController();pending.current?.abort();pending.current=ctl;
     const key=contextKey,valid=()=>!ctl.signal.aborted&&activeKey.current===key;
-    setBusy(true);setError('');setNotice('');
+    setBusy(true);onPublishingChange?.(true);setError('');setNotice('');
     try{const message=await action(ctl,key);if(valid()){if(message)setNotice(message);setRefresh(v=>v+1);onChanged();}}
-    catch(cause:unknown){if(valid())setError(guidedPublishError(cause));}
-    finally{if(pending.current===ctl)pending.current=null;if(valid()){setBusy(false);setConsent(false);}}
+    catch(cause:unknown){if(valid()){setError(action===publishInitial?initialPublicationError(cause):guidedPublishError(cause));setRefresh(v=>v+1);onChanged();}}
+    finally{if(pending.current===ctl)pending.current=null;if(valid()){setBusy(false);onPublishingChange?.(false);setConsent(false);}}
+  }
+
+  async function publishInitial(ctl:AbortController,key:string){
+    if(!singleAllowed||!initialBody||!draft||!screen.playerId)throw Error('Initial publication unavailable');
+    const body=initialBody;
+    // One explicit confirmation; server owns all CAS steps. No automatic mutation retry here.
+    const response=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/initial-publication`,body,{signal:ctl.signal});
+    if(ctl.signal.aborted||activeKey.current!==key)return;
+    const receipt=parseInitialPublicationReceipt(response.data,screen.id,body.expectedPlayerId,[body.playlistVersionId,...(latestPublished?[latestPublished.id]:[])],link?.scheduleId??null);
+    if(!receipt)throw Error('Unconfirmed initial publication');
+    setPrepared(true);
+    return receipt.alreadyPrepared?'A atualização desta programação já foi preparada. Confira a situação do aparelho.':
+      'Programação publicada e atualização preparada. O aparelho receberá quando sincronizar; a exibição ainda não foi confirmada.';
   }
 
   async function publishPlaylist(ctl:AbortController,key:string){
@@ -208,6 +243,30 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
       {notice&&<p role="status" className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
       {!caps.guided&&loaded&&<p className="text-sm text-amber-800">Programação guiada aguardando ativação segura no servidor. Seu rascunho foi preservado.</p>}
       {caps.guided&&<>
+        {single&&<div className="rounded-lg border p-3 space-y-3 text-sm">
+          <strong>Publicar programação</strong>
+          <p>Confira a tela, a sequência e o período. Uma confirmação prepara a atualização do aparelho.</p>
+          <p><strong>{screen.name}</strong>{screen.player?` · ${screen.player.name}`:''}</p>
+          {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{item.mediaName} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
+          {link?.scheduleId?<div className="space-y-1"><p>Período já salvo: {linkedSchedule?.startsAt?new Date(linkedSchedule.startsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} até {linkedSchedule?.endsAt?new Date(linkedSchedule.endsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} ({linkedSchedule?.timezone}).</p>
+            <p>{linkedSchedule?.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(linkedSchedule?.dailyStartMinute)}–${minuteLabel(linkedSchedule?.dailyEndMinute)}`} · {linkedSchedule?.weekdays.length?linkedSchedule.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'}</p>
+            <p className="text-xs text-gray-600">A retomada só reutiliza a agenda e o conteúdo idênticos; não substitui uma programação existente.</p></div>:<>
+            <div className="grid sm:grid-cols-2 gap-3"><label>Começar em<input aria-label="Início da publicação guiada" type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
+            <label>Terminar em<input aria-label="Fim da publicação guiada" type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label></div>
+            <p className="text-xs text-gray-600">Fuso: {timezone}. Janela máxima de 30 dias.</p>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>setLimitedHours(e.target.checked)}/>Definir dias e horários</label>
+            {!limitedHours&&<p className="text-xs text-gray-600">Exibir continuamente durante o período escolhido.</p>}
+            {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" value={startHour} disabled={isBusy} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" value={endHour} disabled={isBusy} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
+            <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div><p className="text-xs">Nenhum dia selecionado = todos os dias.</p></>}
+          </>}
+          {!singleAllowed&&<p className="text-amber-800">Conecte um aparelho ativo independente e confirme as permissões de publicação. Telas comerciais permanecem no fluxo avançado.</p>}
+          {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias prontas, a ordem salva e o período de exibição.</p>}
+          <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Preparando programação…':prepared?'Atualização preparada':link?.scheduleId?'Confirmar e retomar publicação':'Confirmar e publicar'}</Button>
+          <p className="text-xs text-gray-600">Publicar não comprova exibição. Caso alguma etapa não conclua, a próxima confirmação consulta os dados salvos; nenhum conteúdo diferente será reaproveitado. A renovação automática depende da autorização do servidor.</p>
+          <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
+        </div>}
+        {single&&<Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}
+        {(!single||advanced)&&<>
         <div className="rounded-lg border p-3 space-y-2 text-sm">
           <strong>Etapa A — Publicar suas mídias</strong>
           <p>{unreviewed>0?`${unreviewed} arquivo(s) ainda na sequência em edição.`:chosen?`Lista publicada (versão ${chosen.version}).`:'Adicione mídia à sequência antes de publicar.'}</p>
@@ -241,6 +300,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged}:Props) {
         </div>
         <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} disabled={busy} onChange={e=>setConsent(e.target.checked)}/><span>Conferi a tela, os arquivos e o período. Autorizo a ação selecionada; cada etapa exige confirmação separada.</span></label>
         <Button variant="outline" type="button" size="sm" disabled={busy} onClick={()=>{setReview(null);setManifestWindow(null);setRefresh(v=>v+1);}}>Atualizar situação</Button>
+        </>}
       </>}
     </>}
   </div>;
