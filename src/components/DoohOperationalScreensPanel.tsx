@@ -3,10 +3,12 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { screenNextStep } from '../lib/doohJourneyGuidance';
+import { screenOperationalSummary } from '../lib/doohScreenDiagnosticContract';
+import { DoohScreenDiagnostic } from './DoohScreenDiagnostic';
 import { Button } from './ui/button';
 import { DoohScreenContentWizard } from './DoohScreenContentWizard';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
-import { friendlyOperationalScreenError, operationalScreenStatusText, parseOperationalScreen, parseOperationalScreenPage,
+import { friendlyOperationalScreenError, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
 
 /** UX09: opt-in, tenant-scoped operational registry. Legacy inventory remains below. */
@@ -25,6 +27,8 @@ function OperationalScreensForContext({ onConnect }: { onConnect: () => void }) 
     snapshot.modules.DOOH.granted && snapshot.modules.DOOH.accessMode !== 'NONE' &&
     roles.some(role => role === 'ADMINISTRATIVO' || role === 'TI'));
   const writable = available && snapshot?.modules.DOOH.accessMode === 'FULL';
+  const [diagnosticId, setDiagnosticId] = useState('');
+  const [onlyAttention, setOnlyAttention] = useState(false);
   const [reload, setReload] = useState(0);
   const [page, setPage] = useState(1);
   const [playerQueryInput, setPlayerQueryInput] = useState('');
@@ -43,7 +47,7 @@ function OperationalScreensForContext({ onConnect }: { onConnect: () => void }) 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
-    setScreenList(null); setError('');
+    setScreenList(null); setDiagnosticId(''); setError('');
     if (!available) { setMode('disabled'); return; }
     const controller = new AbortController();
     setMode('loading');
@@ -120,10 +124,24 @@ function OperationalScreensForContext({ onConnect }: { onConnect: () => void }) 
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="text-sm text-green-700">{message}</p>}
       {screenList?.total === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-gray-600">{writable ? 'Nenhuma tela cadastrada. Comece pelo nome no formulário acima.' : 'Nenhuma tela cadastrada nesta empresa.'}</p>}
-      <div className="grid gap-3 md:grid-cols-2">{screenList?.items.map(screen => { const next = screenNextStep(screen, writable); return <article key={screen.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
-        <div><h3 className="font-semibold text-gray-900">{screen.name}</h3><p className="text-sm text-gray-600">{operationalScreenStatusText[screen.status]}</p></div>
+      {screenList && screenList.items.length > 0 && <div className="rounded-lg border p-3 text-sm space-y-2">
+        <p><strong>{screenList.items.filter(s => screenOperationalSummary(s).attention).length}</strong> de {screenList.items.length} tela(s) desta página precisam de atenção ou conferência.</p>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={onlyAttention} disabled={busy || editorOpen} onChange={e=>{setOnlyAttention(e.target.checked);setDiagnosticId('');}} /> Mostrar somente telas que precisam de atenção</label>
+        <p className="text-xs text-gray-600">Dados da última consulta; use Atualizar para conferir novamente. Sem contato recente, a exibição atual não pode ser confirmada.</p>
+      </div>}
+      {onlyAttention && screenList?.items.length && !screenList.items.some(s=>screenOperationalSummary(s).attention) ? <p className="text-sm text-gray-600">Nenhuma tela desta página sinalizada.</p> : null}
+      <div className="grid gap-3 md:grid-cols-2">{screenList?.items.filter(s=>!onlyAttention || screenOperationalSummary(s).attention || s.id===contentScreenId).map(screen => { const next = screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); return <article key={screen.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
+        <div><h3 className="font-semibold text-gray-900">{screen.name}</h3><p className="text-sm text-gray-600">{summary.connection}</p></div>
         <p className="text-xs text-gray-600">{screen.orientation === 'LANDSCAPE' ? 'Horizontal' : 'Vertical'} · {screen.fitMode === 'CONTAIN' ? 'Mostrar inteira' : 'Preencher a tela'}</p>
+        <div className="rounded-md bg-gray-50 p-2 text-sm space-y-1">
+          <p className="font-medium">{summary.programming}</p>
+          {screen.player && <><p className="text-xs text-gray-600">Última comunicação: {screen.player.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : 'Não informada'}</p>
+          <p className="text-xs text-gray-600">Desejada: {screen.player.desiredManifestVersion === undefined ? 'Indisponível' : screen.player.desiredManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.desiredManifestVersion}`} · Reportada: {screen.player.currentManifestVersion === undefined ? 'Indisponível' : screen.player.currentManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.currentManifestVersion}`}</p></>}
+        </div>
         <p className="text-sm text-indigo-900">{next.text}</p>
+        {screen.player && !editorOpen && <Button type="button" variant="outline" aria-expanded={diagnosticId===screen.id} onClick={()=>setDiagnosticId(v=>v===screen.id?'':screen.id)}>{diagnosticId===screen.id?'Fechar diagnóstico':'Diagnóstico avançado'}</Button>}
+        {diagnosticId===screen.id && companyId && !editorOpen && <DoohScreenDiagnostic key={`${companyId}:${screen.id}:${screen.playerId}`} companyId={companyId} screen={screen} />}
+
         {writable && !editorOpen && next.action === 'attention' && <Button type="button" disabled={busy} onClick={() => setReload(v => v + 1)}>Verificar situação</Button>}
         {writable && !editorOpen && <Button type="button" variant={next.action === 'content' ? 'default' : 'outline'} disabled={busy || mode !== 'enabled'} onClick={() => setContentScreenId(screen.id)}>{screen.status === 'WAITING_FOR_PROGRAMMING' ? 'Adicionar conteúdo' : 'Gerenciar conteúdo'}</Button>}
         {screen.player ? <p className="text-sm text-gray-700">Aparelho: <strong>{screen.player.name}</strong>{screen.commercialUnit ? ` · Inventário: ${screen.commercialUnit.label}` : ''}</p> : writable && !editorOpen ? <div className="space-y-2">

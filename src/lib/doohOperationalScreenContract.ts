@@ -9,7 +9,7 @@ export type OperationalScreen = {
   contentPlaylistId: string | null;
   commercialUnit: { id: string; label: string } | null;
   status: 'WAITING_FOR_PLAYER' | 'PLAYER_INACTIVE' | 'NO_RECENT_CONTACT' | 'UPDATE_PENDING' | 'WAITING_FOR_PROGRAMMING' | 'VERSION_REPORTED';
-  player: { id: string; name: string; lifecycleStatus: string; lastSeenAt: string | null } | null;
+  player: { id: string; name: string; lifecycleStatus: string; lastSeenAt: string | null; currentManifestVersion?: string; desiredManifestVersion?: string; credentialActive?: boolean } | null;
 };
 const states = new Set(['WAITING_FOR_PLAYER', 'PLAYER_INACTIVE', 'NO_RECENT_CONTACT', 'UPDATE_PENDING', 'WAITING_FOR_PROGRAMMING', 'VERSION_REPORTED']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -29,12 +29,17 @@ export function parseOperationalScreen(input: unknown): OperationalScreen | null
   if (player && (!uuid.test(String(player.id)) || typeof player.name !== 'string' ||
       typeof player.lifecycleStatus !== 'string' ||
       (player.lastSeenAt !== null && typeof player.lastSeenAt !== 'string'))) return null;
+  if ((player === null) !== (input.playerId === null) || (player && player.id !== input.playerId)) return null;
+  const version = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9]\d{0,18})$/.test(value) && BigInt(value) <= 9223372036854775807n;
+  if (player && (player.currentManifestVersion !== undefined || player.desiredManifestVersion !== undefined) &&
+      (!version(player.currentManifestVersion) || !version(player.desiredManifestVersion))) return null;
+  if (player && player.credentialActive !== undefined && typeof player.credentialActive !== 'boolean') return null;
   const unit = input.commercialUnit;
   if (unit && (!uuid.test(String(unit.id)) || typeof unit.label !== 'string')) return null;
   return {
     id: input.id, name: input.name, orientation: input.orientation, fitMode: input.fitMode,
     locationLabel: input.locationLabel, playerId: input.playerId, contentPlaylistId: (input.contentPlaylistId as string | null | undefined) ?? null, status: input.status as OperationalScreen['status'],
-    player: player ? { id: String(player.id), name: String(player.name), lifecycleStatus: String(player.lifecycleStatus), lastSeenAt: player.lastSeenAt as string | null } : null,
+    player: player ? { id: String(player.id), name: String(player.name), lifecycleStatus: String(player.lifecycleStatus), lastSeenAt: player.lastSeenAt as string | null, ...(version(player.currentManifestVersion) && version(player.desiredManifestVersion) ? { currentManifestVersion: player.currentManifestVersion, desiredManifestVersion: player.desiredManifestVersion } : {}), ...(typeof player.credentialActive === 'boolean' ? { credentialActive: player.credentialActive } : {}) } : null,
     commercialUnit: unit ? { id: String(unit.id), label: String(unit.label) } : null,
   };
 }
