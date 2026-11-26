@@ -9,11 +9,12 @@ test('F9 home reuses the operational panel and preserves the legacy fallback',()
  assert.doesNotMatch(page,/section === 'home' && <DoohGettingStarted/);
  assert.match(page,/screenTask === 'my-screens'.*DoohPlayerInventoryReadOnly/);
 });
-test('F9 connect action opens the existing pairing tab',()=>{
+test('F9 connect action preserves the operational screen context',()=>{
  const page=read('DoohFoundationPage.tsx');
- assert.match(page,/window\.location\.assign\(`\$\{DOOH_SECTION_PATHS\.screens\}\?ux=connect`\)/);
+ assert.match(read('DoohOperationalScreensPanel.tsx'),/setPairScreenId\(screen.id\)/);
+ assert.match(read('DoohOperationalScreensPanel.tsx'),/DoohContextualPairing key=\{screen.id\}/);
  assert.match(page,/get\('ux'\) === 'connect'\s*\? 'connect' : 'my-screens'/);
- assert.match(page,/screenTask === 'connect'.*DoohPlayerPairingAndAssignment/);
+ assert.match(page,/screenTask === 'connect'.*DoohOperationalScreensPanel.*disabledFallback/);
 });
 test('F9 fallback is gated, not used while loading or on unexpected errors',()=>{
  const panel=read('DoohOperationalScreensPanel.tsx');

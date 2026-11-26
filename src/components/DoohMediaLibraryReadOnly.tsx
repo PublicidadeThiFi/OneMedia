@@ -3,6 +3,8 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { parseGuidedContentCapabilities } from '../lib/doohGuidedScreenContentContract';
+import { useDoohMediaPilotCapabilities } from '../lib/useDoohMediaPilotCapabilities';
 import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohFolderOperations } from './DoohFolderOperations';
 import { DoohMediaOrganizeCas } from './DoohMediaOrganizeCas';
@@ -36,6 +38,15 @@ export function DoohMediaLibraryReadOnly() {
     user?.roles?.some((role) => role === 'ADMINISTRATIVO' || role === 'TI'));
   const contextKey = JSON.stringify([user?.id, companyId, snapshot?.companyId,
     snapshot?.modules.DOOH.granted, accessMode, roleKey]);
+  const pilot = useDoohMediaPilotCapabilities(companyId ?? '', contextKey, authorized && accessMode === 'FULL');
+  const [guided,setGuided]=useState<{key:string;enabled:boolean}|null>(null);
+  useEffect(()=>{
+    setGuided(null);if(!authorized||accessMode!=='FULL')return;
+    const controller=new AbortController();
+    void apiClient.get<unknown>('/dooh/operational-screens/content-capabilities',{signal:controller.signal}).then(({data})=>{if(!controller.signal.aborted)setGuided({key:contextKey,enabled:parseGuidedContentCapabilities(data)===true});}).catch(()=>{if(!controller.signal.aborted)setGuided({key:contextKey,enabled:false});});
+    return ()=>controller.abort();
+  },[authorized,accessMode,contextKey]);
+  const guidedEnabled=guided?.key===contextKey&&guided.enabled;
   const [folderFilter, setFolderFilter] = useState<DoohLibraryFolderFilter>('all');
   const [statusFilter, setStatusFilter] = useState<'' | DoohLibraryStatus>('');
   const [typedSearch, setTypedSearch] = useState('');
@@ -93,8 +104,8 @@ export function DoohMediaLibraryReadOnly() {
   const recent = visible?.media.find((item) => item.id === recentMediaId);
   // UX08: bounded read-only refresh after upload; no automatic POST, no extra worker.
   useEffect(() => {
-    if (!authorized || !recentAuto || !recentMediaId || !recent || recentChecks >= 60 ||
-        recent.status === 'READY' || recent.status === 'ERROR') return;
+    if (!authorized || !recentAuto || !recentMediaId || recentChecks >= 60 ||
+        recent?.status === 'READY' || recent?.status === 'ERROR') return;
     const timer = window.setTimeout(() => {
       setRecentChecks((value) => value + 1);
       setReload((value) => value + 1);
@@ -115,19 +126,19 @@ export function DoohMediaLibraryReadOnly() {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
         <h2 className="text-lg font-bold text-gray-900">Minhas mídias</h2>
-        <p className="text-sm text-gray-600">Envie imagens e vídeos, prepare os arquivos e adicione-os a uma lista de exibição.</p>
+        <p className="text-sm text-gray-600">Envie imagens e vídeos e escolha a tela onde deseja exibir.</p>
         
       </div>
-      <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setView('upload')}>Adicionar mídia</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}>Atualizar</Button></div>
+      <div className="flex flex-wrap gap-2">{accessMode === 'FULL' && <Button type="button" onClick={() => setView('upload')}>Adicionar mídia</Button>}<Button type="button" variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}>Atualizar</Button></div>
     </div>
     <DoohWorkspaceTabs label="Ações de mídia" selected={view} onSelect={setView} tabs={[
       { id: 'media', label: 'Minhas mídias', description: 'Consulte os arquivos carregados nesta pasta.' },
       { id: 'upload', label: 'Adicionar mídia', description: 'Escolha arquivo, nome e pasta opcional. O envio não publica conteúdo.' },
-      { id: 'processing', label: 'Preparar mídia', description: 'Solicite o processamento quando autorizado e acompanhe o resultado.' },
+      ...(!pilot.autoProcessingEnabled || view === 'processing' ? [{ id: 'processing' as const, label: 'Preparação e recuperação', description: 'Acompanhe o resultado ou recupere um arquivo quando autorizado.' }] : []),
       { id: 'organize', label: 'Organizar · mais opções', description: 'Pastas, renomeação, movimentação, versões e histórico.' },
     ]} />
     {view === 'media' && <div className="grid gap-3 md:grid-cols-3">
-      <label className="space-y-1 text-sm"><span className="block">Pasta (filtro na API)</span>
+      <label className="space-y-1 text-sm"><span className="block">Pasta</span>
         <select aria-label="Pasta DOOH" className="w-full rounded-md border border-gray-300 p-2" value={folderFilter}
           onChange={(event) => { setFolderFilter(event.target.value); setStatusFilter(''); setTypedSearch(''); }}>
           <option value="all">Todas as pastas — últimas mídias</option>
@@ -137,14 +148,14 @@ export function DoohMediaLibraryReadOnly() {
           </option>)}
         </select>
       </label>
-      <label className="space-y-1 text-sm"><span className="block">Estado (filtro local)</span>
+      <label className="space-y-1 text-sm"><span className="block">Situação</span>
         <select aria-label="Estado da mídia DOOH" className="w-full rounded-md border border-gray-300 p-2" value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value as '' | DoohLibraryStatus)}>
           <option value="">Todos os estados</option>
           {Object.entries(statusLabels).map(([status, label]) => <option key={status} value={status}>{label}</option>)}
         </select>
       </label>
-      <label className="space-y-1 text-sm"><span className="block">Nome (filtro local)</span>
+      <label className="space-y-1 text-sm"><span className="block">Nome do arquivo</span>
         <input aria-label="Buscar nome de mídia DOOH" className="w-full rounded-md border border-gray-300 p-2"
           value={typedSearch} maxLength={160} placeholder="Buscar entre os resultados carregados"
           onChange={(event) => setTypedSearch(event.target.value)} />
@@ -153,7 +164,7 @@ export function DoohMediaLibraryReadOnly() {
     {view === 'media' && recent && <p role="status" className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
       {recent.status === 'READY' ? `“${recent.name}” está pronta para usar na programação.` :
         recent.status === 'ERROR' ? `Não foi possível preparar “${recent.name}”. Abra os detalhes para corrigir.` :
-        !recentAuto ? `Arquivo “${recent.name}” recebido. Selecione Preparar mídia para disponibilizá-lo.` :
+        !recentAuto ? `Arquivo “${recent.name}” recebido. Abra a preparação para disponibilizá-lo.` :
         recentChecks >= 60 ? 'A preparação ainda não foi concluída. Use Atualizar para consultar novamente.' :
         `Preparando “${recent.name}”. Você pode continuar navegando; atualizaremos esta lista automaticamente.`}
     </p>}
@@ -179,17 +190,17 @@ export function DoohMediaLibraryReadOnly() {
             {filtered.map((item) => <li key={item.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{item.name}</p>
-                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{item.id === recentMediaId && recentAuto && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
+                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{(item.id === recentMediaId && recentAuto) && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
               </div>
               <p className="text-sm text-gray-600">{item.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'} · {displayDoohMediaSize(item.bytes)}</p>
-              {item.status === 'PENDING' && <p className="text-sm text-gray-700">{item.id === recentMediaId && recentAuto ? 'Arquivo enviado. A preparação automática está na fila.' : 'Arquivo enviado. Falta preparar para usar na programação.'}</p>}
+              {item.status === 'PENDING' && <p className="text-sm text-gray-700">{(pilot.autoProcessingEnabled || (item.id === recentMediaId && recentAuto)) ? 'Arquivo recebido. Acompanhe a preparação.' : 'Arquivo enviado. Falta preparar para usar na programação.'}</p>}
               {item.status === 'PROCESSING' && <p className="text-sm text-gray-700">O arquivo está sendo preparado.</p>}
-              {item.status === 'READY' && <p className="text-sm text-gray-700">Pronta para usar em uma lista de exibição.</p>}
+              {item.status === 'READY' && <p className="text-sm text-gray-700">Pronta para adicionar à programação de uma tela.</p>}
               {item.status === 'ERROR' && <p className="text-sm text-gray-700">O processamento não foi concluído. Consulte o histórico antes de tentar novamente.</p>}
               <div className="mt-auto flex flex-wrap items-center gap-2">
-                {item.status === 'READY' ? <a href="/app/dooh/scheduling" className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-indigo-600">Usar em lista</a> :
+                {item.status === 'READY' ? (accessMode === 'FULL' && <a href={guidedEnabled && ['IMAGE','VIDEO'].includes(item.kind)?`/app/dooh/screens?media=${encodeURIComponent(item.id)}`:'/app/dooh/scheduling?ux=listas'} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-indigo-600">{guidedEnabled && ['IMAGE','VIDEO'].includes(item.kind)?'Usar nesta tela':'Usar em lista'}</a>) :
                   <Button type="button" variant="outline" onClick={() => { setPreferredMediaId(item.id); setView('processing'); }}>
-                    {item.status === 'PENDING' && !(item.id === recentMediaId && recentAuto) ? 'Preparar mídia' : item.status === 'ERROR' ? 'Ver motivo / tentar novamente' : 'Acompanhar situação'}
+                    {item.status === 'PENDING' && !pilot.autoProcessingEnabled && !(item.id === recentMediaId && recentAuto) ? 'Preparar mídia' : item.status === 'ERROR' ? 'Ver motivo / tentar novamente' : 'Acompanhar situação'}
                   </Button>}
                 <details className="text-xs text-gray-500"><summary className="cursor-pointer focus-visible:outline-indigo-600">Detalhes do arquivo</summary>
                   <p className="mt-1">{item.mimeType} · {item.versionCount} versão(ões)</p>

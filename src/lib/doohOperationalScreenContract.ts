@@ -65,6 +65,8 @@ export const operationalScreenStatusText: Record<OperationalScreen['status'], st
 export function friendlyOperationalScreenError(error: unknown): string {
   if (!record(error) || !record(error.response)) return 'Não foi possível concluir. Confira sua conexão e tente novamente.';
   const code = record(error.response.data) ? error.response.data.code : undefined;
+  if (code === 'DOOH_OPERATIONAL_LEGACY_ASSIGNMENT_CONFLICT' || code === 'DOOH_OPERATIONAL_COMMERCIAL_UNIT_OCCUPIED') return 'O vínculo comercial está ocupado ou é incompatível. Preserve a associação existente e escolha outro aparelho.';
+  if (code === 'DOOH_OPERATIONAL_SCREEN_NOT_FOUND' || code === 'DOOH_PLAYER_NOT_FOUND') return 'A tela ou aparelho não foi encontrado nesta empresa. Atualize a lista.';
   if (code === 'DOOH_PLAYER_LINKED_TO_OTHER_SCREEN') return 'Esse dispositivo já está conectado a outra tela.';
   if (code === 'DOOH_OPERATIONAL_SCREEN_ALREADY_PAIRED') return 'Desconecte o aparelho atual antes de escolher outro.';
   if (code === 'DOOH_PLAYER_NOT_ACTIVE') return 'O dispositivo precisa estar ativo para ser conectado.';

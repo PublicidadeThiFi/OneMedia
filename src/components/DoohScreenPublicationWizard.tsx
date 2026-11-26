@@ -65,6 +65,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const [start,setStart]=useState(()=>localInputFor(Date.now()+10*60_000));
+  const [startNow,setStartNow]=useState(true);
   const [end,setEnd]=useState(()=>localInputFor(Date.now()+14*86_400_000));
   const [timezone,setTimezone]=useState(()=>Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC');
   const [limitedHours,setLimitedHours]=useState(false);
@@ -100,16 +101,17 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [initialRenewal,setInitialRenewal]=useState<RenewalCapability>(NO_RENEWAL);
   const [replaceRenewal,setReplaceRenewal]=useState<RenewalCapability>(NO_RENEWAL);
   const [renewalChoice,setRenewalChoice]=useState<RenewalChoice>('NONE');
+  const initialChoiceInitialized=useRef(false);
   const [renewalGrant,setRenewalGrant]=useState<RenewalGrantView|null>(null);
   useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
   useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
-    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
+    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');initialChoiceInitialized.current=false;setStartNow(true);setLimitedHours(false);setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
     if(!allowed||!show){setLoaded(true);return;}
     const ctl=new AbortController(),key=contextKey;
-    setLoaded(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);setFutureEnabled(false);setFutureIntent(null);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalGrant(null);setRenewalChoice('NONE');
+    setLoaded(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);setFutureEnabled(false);setFutureIntent(null);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalGrant(null);
     const read=async()=>{
       const c=await apiClient.get<unknown>('/dooh/operational-screens/schedule-capabilities',{signal:ctl.signal});
       if(ctl.signal.aborted||activeKey.current!==key)return;
@@ -189,6 +191,8 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       setHistory(historyResult);
       setPauseEnabled(pauseCapability);setResumeSnapshot(publishedSnapshot);setReplaceEnabled(replaceCapability);setFutureEnabled(futureCap);setFutureIntent(future);if(!futureCap)setScheduleFuture(false);setReplacePlayer(player);setInitialRenewal(initialRenewalCap);setReplaceRenewal(replaceRenewalCap);setRenewalGrant(activeGrant);
       setSingle(initialEnabled);setLinkedSchedule(saved);setLink(ll);setPlaylist(detail);
+      if(!initialChoiceInitialized.current){initialChoiceInitialized.current=true;if(initialEnabled && initialRenewalCap.enabled && !ll.scheduleId)setRenewalChoice('CONTINUOUS');}
+      if(!initialRenewalCap.enabled && !replaceRenewalCap.enabled)setRenewalChoice('NONE');
     };
     void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setSingle(false);setError(guidedPublishError(cause));}})
       .finally(()=>{if(!ctl.signal.aborted&&activeKey.current===key)setLoaded(true);});
@@ -207,10 +211,14 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const isBusy=busy||!loaded||editorBlocked;
   const initialScheduled=link?.scheduleId?!!(linkedSchedule&&(linkedSchedule.weekdays.length||linkedSchedule.dailyStartMinute!==null||linkedSchedule.dailyEndMinute!==null)):limitedHours;
   const initialMode=reviewedRenewalMode(renewalChoice,initialRenewal,initialScheduled);
-  const initialPlan=draft?.draftId ? (link?.scheduleId ? existingGuidedPlan(linkedSchedule,draft.draftId) :
-    buildGuidedSchedulePlan(draft.draftId,start,initialMode==='CONTINUOUS'?technicalRenewalEnd(Date.parse(start)):end,timezone,limitedHours?weekdays:[],limitedHours?startHour:null,limitedHours?endHour:null,Date.now())) : null;
-  const initialBase=buildInitialPublication(draft,screen.playerId,initialPlan);
-  const initialBody=initialBase&&initialMode?{...initialBase,...(initialRenewal.enabled?{renewalMode:initialMode}:{})}:null;
+  const currentInitialBody=(now:number)=>{
+    const from=startNow?localInputFor(now+30_000):start;
+    const initialPlan=draft?.draftId ? (link?.scheduleId ? existingGuidedPlan(linkedSchedule,draft.draftId) :
+      buildGuidedSchedulePlan(draft.draftId,from,initialMode==='CONTINUOUS'?technicalRenewalEnd(Date.parse(from)):end,timezone,limitedHours?weekdays:[],limitedHours?startHour:null,limitedHours?endHour:null,now)) : null;
+    const initialBase=buildInitialPublication(draft,screen.playerId,initialPlan);
+    return initialBase&&initialMode?{...initialBase,...(initialRenewal.enabled?{renewalMode:initialMode}:{})}:null;
+  };
+  const initialBody=currentInitialBody(Date.now());
   const singleAllowed=single&&!!link&&link.playerId===screen.playerId&&!screen.commercialUnit&&screen.player?.lifecycleStatus==='ACTIVE'&&
     caps.playlist&&scheduleAllowed&&manifestAllowed;
   const replacing=replaceEnabled&&link?.status==='PUBLISHED';
@@ -321,8 +329,8 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   }
 
   async function publishInitial(ctl:AbortController,key:string){
-    if(!singleAllowed||!initialBody||!draft||!screen.playerId)throw Error('Initial publication unavailable');
-    const body=initialBody;
+    const body=currentInitialBody(Date.now());
+    if(!singleAllowed||!body||!draft||!screen.playerId)throw Error('Initial publication unavailable');
     // One explicit confirmation; server owns all CAS steps. No automatic mutation retry here.
     const response=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/initial-publication`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
@@ -490,10 +498,11 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           {link?.scheduleId?<div className="space-y-1"><p>Período já salvo: {linkedSchedule?.startsAt?new Date(linkedSchedule.startsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} até {linkedSchedule?.endsAt?new Date(linkedSchedule.endsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} ({linkedSchedule?.timezone}).</p>
             <p>{linkedSchedule?.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(linkedSchedule?.dailyStartMinute)}–${minuteLabel(linkedSchedule?.dailyEndMinute)}`} · {linkedSchedule?.weekdays.length?linkedSchedule.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'}</p>
             <p className="text-xs text-gray-600">A retomada só reutiliza a agenda e o conteúdo idênticos; não substitui uma programação existente.</p></div>:<>
-            <div className="grid sm:grid-cols-2 gap-3"><label>Começar em<input aria-label="Início da publicação guiada" aria-invalid={!start} type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
-            {initialMode!=='CONTINUOUS'&&<label>Terminar em<input aria-label="Fim da publicação guiada" aria-invalid={!end || end <= start} type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label>}</div>
-            <p className="text-xs text-gray-600">Fuso: {timezone}. Período máximo de 30 dias.</p>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy||initialMode==='CONTINUOUS'} onChange={e=>setLimitedHours(e.target.checked)}/>Definir dias e horários</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={startNow} disabled={isBusy} onChange={e=>{setStartNow(e.target.checked);if(!e.target.checked)setStart(localInputFor(Date.now()+10*60_000));}}/>Começar assim que a programação chegar ao aparelho</label>
+            <div className="grid sm:grid-cols-2 gap-3">{!startNow&&<label>Começar em<input aria-label="Início da publicação guiada" aria-invalid={!start} type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>}
+            {initialMode!=='CONTINUOUS'&&<label>Terminar em<input aria-label="Fim da publicação guiada" aria-invalid={!end || end <= (startNow?localInputFor(Date.now()):start)} type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label>}</div>
+            <p className="text-xs text-gray-600">Fuso: {timezone}.{initialMode==='CONTINUOUS'?' O sistema renova os períodos técnicos enquanto autorizado.':' Período máximo de 30 dias.'}</p>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>{setLimitedHours(e.target.checked);if(e.target.checked&&renewalChoice==='CONTINUOUS')setRenewalChoice(initialRenewal.recurring?'BOUNDED':'NONE');}}/>Definir dias e horários</label>
             {!limitedHours&&initialMode!=='CONTINUOUS'&&<p className="text-xs text-gray-600">Exibir continuamente durante o período escolhido.</p>}
             {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" value={startHour} disabled={isBusy} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" value={endHour} disabled={isBusy} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
             <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div><p className="text-xs">Nenhum dia selecionado = todos os dias.</p></>}
@@ -501,8 +510,8 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           <RenewalPolicy cap={initialRenewal} choice={renewalChoice} scheduled={initialScheduled} disabled={isBusy} onChange={setRenewalChoice}/>
           {!singleAllowed&&<p className="text-amber-800">Conecte um aparelho ativo independente e confirme as permissões de publicação. Telas comerciais permanecem no fluxo avançado.</p>}
           {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias prontas, a ordem salva e o período de exibição (início em até 7 dias, fim após o início, máximo de 30 dias).</p>}
-          <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Preparando programação…':prepared?'Atualização preparada':link?.scheduleId?'Confirmar e retomar publicação':'Confirmar e publicar'}</Button>
-          <p className="text-xs text-gray-600">Publicar não comprova exibição. Caso alguma etapa não conclua, a próxima confirmação consulta os dados salvos; nenhum conteúdo diferente será reaproveitado. A renovação automática depende da autorização do servidor.</p>
+          <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Preparando programação…':prepared?'Atualização preparada':link?.scheduleId?'Confirmar e retomar publicação':initialMode==='CONTINUOUS'?'Confirmar exibição contínua e publicar':initialMode==='FINITE'||initialMode==='RECURRING'?'Confirmar publicação e renovação até a data final':'Confirmar e publicar'}</Button>
+          <p className="text-xs text-gray-600">Ao confirmar, você autoriza a opção de atualização escolhida acima. Publicar não comprova exibição. Caso alguma etapa não conclua, a próxima confirmação consulta os dados salvos; nenhum conteúdo diferente será reaproveitado. A renovação automática depende da autorização do servidor.</p>
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
         </div>}
         {single&&!replacing&&!paused&&<Button type="button" variant="outline" size="sm" disabled={isBusy} aria-expanded={advanced} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}

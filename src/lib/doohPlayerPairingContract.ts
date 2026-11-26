@@ -34,6 +34,14 @@ export function parseAssignmentResult(value: unknown, playerId: string, screenId
 /** No secrets or raw backend error text leave this contract. */
 export function safePairingError(error: unknown): string {
   const response = object(error) && object(error.response) ? error.response : null;
+  const code = object(response?.data) ? response.data.code : undefined;
+  if (code === 'DOOH_SCREEN_ALREADY_ASSIGNED') return 'Esta unidade comercial já tem um aparelho. Escolha outra unidade ou mantenha a tela independente.';
+  if (code === 'DOOH_PAIRING_ALREADY_CLAIMED' || code === 'DOOH_PAIRING_ALREADY_COMPLETED') return 'Este código já foi utilizado. Procure o aparelho em Minhas telas antes de gerar outro código.';
+  if (code === 'DOOH_INSTALLATION_ALREADY_OWNED') return 'Este aparelho já pertence a outra empresa. Não é possível vinculá-lo aqui.';
+  if (code === 'DOOH_PLAYER_ACTIVATION_PAUSED') return 'Novas ativações estão temporariamente suspensas. Tente mais tarde.';
+  if (code === 'DOOH_LICENSE_UPGRADE_REQUIRED') return 'O limite de aparelhos ativos do seu plano foi atingido. Faça upgrade antes de ativar outro aparelho.';
+  if (code === 'DOOH_LICENSE_QUOTA_NOT_CONFIGURED') return 'O plano não possui limite de aparelhos configurado. Consulte o responsável pela assinatura.';
+  if (code === 'DOOH_PLAYER_RETIRED') return 'Este aparelho foi retirado de operação. Consulte Gerenciar dispositivos.';
   switch (response?.status) {
     case 400: return 'Código ou dados de pareamento inválidos.';
     case 401: return 'Sessão expirada. Autentique-se novamente.';

@@ -72,6 +72,6 @@ test('D15A1-07 componente separado do D13J/K não executa ações críticas', ()
 });
 test('D15A1-08 tela de consulta D13K permanece intocada e D15A1 é adicional', () => {
   const foundation = source('src/components/DoohFoundationPage.tsx');
-  assert.match(foundation, /section === 'screens'\s*\?\s*\(\s*<DoohPlayerInventoryReadOnly\s*\/>/);
-  assert.match(foundation, /section === 'screens' && <DoohPlayerOperations \/>/);
+  assert.match(foundation, /screenTask === 'my-screens'.*disabledFallback=\{<DoohPlayerInventoryReadOnly \/>\}/);
+  assert.match(foundation, /screenTask === 'manage'.*<DoohPlayerOperations \/>/);
 });

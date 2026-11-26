@@ -98,6 +98,6 @@ test('D15B06-12: backend exige tenant e retorna projeção sem keys, sem migrati
   assert.match(ctrl, /return this\.media\.listVersions\(req\.user\.companyId, id\)/);
   assert.match(service,/where: \{ mediaId: id, media: \{ companyId \} \}/);
   assert.match(service,/take: 50/);
-  assert.match(service,/processedAsset: \{ select: \{ mimeType: true, bytes: true, deletedAt: true \} \}/);
+  assert.match(service,/processedAsset:\s*\{\s*select:\s*\{\s*mimeType:\s*true,\s*bytes:\s*true,\s*deletedAt:\s*true\s*,?\s*\}\s*,?\s*\}/);
   assert.doesNotMatch(service.slice(service.indexOf('async listVersions('),service.indexOf('async organizeCas(')), /s3Key|metadata: true|process\.env|uploadUrl/);
 });
