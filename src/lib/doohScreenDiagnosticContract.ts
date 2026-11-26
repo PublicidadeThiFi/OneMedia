@@ -3,6 +3,21 @@ const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v ===
 const version = (v: unknown): v is string => typeof v === 'string' && /^(0|[1-9]\d{0,18})$/.test(v) && BigInt(v) <= 9223372036854775807n;
 const date = (v: unknown): v is string => typeof v === 'string' && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
 const nullableDate = (v: unknown): v is string | null => v === null || date(v);
+export type ScreenLicenseDiagnostic = {
+  granted: boolean; accessMode: 'FULL' | 'READ_ONLY' | 'NONE'; reason: string;
+  commercialDeadline: 'DATED' | 'EXEMPT' | 'UNKNOWN'; commercialValidUntil: string | null;
+  offlineMaximumSeconds: 86400; offlineConfiguredSeconds: number | null; offlineAuthorizationState: 'UNKNOWN';
+};
+const licenseReasons = ['ACTIVE_SUBSCRIPTION','TRIAL_ACTIVE','TRIAL_EXEMPT','GRACE_PERIOD','CANCELED_ACCESS_UNTIL_END','TRIAL_EXPIRED','PAST_DUE','CANCELED','NO_SUBSCRIPTION','MODULE_NOT_GRANTED','ENTITLEMENT_CONFLICT','LEGACY_COMPATIBILITY'];
+export function parseScreenLicense(raw: unknown): ScreenLicenseDiagnostic | null {
+  if (!object(raw) || typeof raw.granted !== 'boolean' || typeof raw.accessMode !== 'string' || !['FULL','READ_ONLY','NONE'].includes(raw.accessMode) || typeof raw.reason !== 'string' || !licenseReasons.includes(raw.reason) || typeof raw.commercialDeadline !== 'string' || !['DATED','EXEMPT','UNKNOWN'].includes(raw.commercialDeadline) || !nullableDate(raw.commercialValidUntil) || raw.offlineMaximumSeconds !== 86400 || raw.offlineAuthorizationState !== 'UNKNOWN') return null;
+  const seconds = raw.offlineConfiguredSeconds;
+  if (seconds !== null && (typeof seconds !== 'number' || !Number.isSafeInteger(seconds) || seconds < 1 || seconds > 86400)) return null;
+  if ((raw.commercialDeadline === 'DATED') !== (raw.commercialValidUntil !== null)) return null;
+  if (raw.commercialDeadline !== 'UNKNOWN' && (!raw.granted || raw.accessMode !== 'FULL')) return null;
+  if (raw.commercialDeadline === 'EXEMPT' && raw.reason !== 'TRIAL_EXEMPT') return null;
+  return { granted:raw.granted, accessMode:raw.accessMode as ScreenLicenseDiagnostic['accessMode'], reason:raw.reason, commercialDeadline:raw.commercialDeadline as ScreenLicenseDiagnostic['commercialDeadline'], commercialValidUntil:raw.commercialValidUntil, offlineMaximumSeconds:86400, offlineConfiguredSeconds:seconds, offlineAuthorizationState:'UNKNOWN' };
+}
 export type ScreenDiagnostic = {
   observedAt: string;
   player: null | {
@@ -11,6 +26,7 @@ export type ScreenDiagnostic = {
     scheduleState: 'UNKNOWN' | 'OUTSIDE_WINDOW' | 'NO_MATCH' | 'READY';
     integrity: 'NOT_AVAILABLE' | 'INVALID' | 'VERIFIED_SERVER_PAYLOAD';
     window: { from: string; to: string } | null; manifestPublishedAt: string | null;
+    license: ScreenLicenseDiagnostic | null;
     lastEvent: { result: 'PLAYED' | 'FAILED' | 'INTERRUPTED' | 'OTHER'; receivedAt: string; startedAt: string } | null;
   };
 };
@@ -40,7 +56,7 @@ export function parseScreenDiagnostic(raw: unknown, companyId: string, screen: O
   type Player = NonNullable<ScreenDiagnostic['player']>;
   return { observedAt: raw.observedAt, player: { lifecycleStatus: p.lifecycleStatus as Player['lifecycleStatus'], lastSeenAt:p.lastSeenAt,
     currentManifestVersion:p.currentManifestVersion, desiredManifestVersion:p.desiredManifestVersion, credentialActive:p.credentialActive,
-    scheduleState:p.scheduleState as Player['scheduleState'], integrity:p.integrity as Player['integrity'], window, manifestPublishedAt:p.manifestPublishedAt,lastEvent } };
+    scheduleState:p.scheduleState as Player['scheduleState'], integrity:p.integrity as Player['integrity'], window, manifestPublishedAt:p.manifestPublishedAt,license:parseScreenLicense(p.license),lastEvent } };
 }
 export function screenOperationalSummary(screen: OperationalScreen) {
   const p = screen.player;
