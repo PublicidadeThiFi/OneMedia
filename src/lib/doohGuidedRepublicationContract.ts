@@ -65,3 +65,27 @@ export function buildResumePublication(snapshot:InspectedPublishedPlaylist|null,
   if(!Number.isFinite(end)||localInputFor(end)!==endLocal||end-now<60_000||end-now>30*86_400_000)return null;
   return {...base,confirmation:'PUBLICAR_PROGRAMACAO_GUIADA' as const,playlistVersionId:snapshot.versionId,expectedItems:snapshot.items,startsAt:new Date(now).toISOString(),endsAt:new Date(end).toISOString(),timezone:schedule.timezone,weekdays:[...schedule.weekdays].sort((a,b)=>a-b),dailyStartMinute:schedule.dailyStartMinute,dailyEndMinute:schedule.dailyEndMinute};
 }
+
+export const restorationEnabled=(raw:unknown)=>republicationEnabled(raw)&&record(raw)?.restoreEnabled===true;
+export type RestorationEntry={scheduleId:string;scheduleUpdatedAt:string;playlistVersionId:string;version:number;checksum:string;publishedAt:string;timezone:string;weekdays:number[];dailyStartMinute:number|null;dailyEndMinute:number|null;items:{id:string;position:number;mediaVersionId:string;durationMs:number;name:string}[]};
+const uuid=(v:unknown):v is string=>typeof v==='string'&&playlistUuid.test(v);
+export function parsePublicationHistory(raw:unknown,screenId:string,playlistId:string,playerId:string):{entries:RestorationEntry[];truncated:boolean}|null{
+  const root=record(raw);if(!root||root.screenId!==screenId||root.playlistId!==playlistId||root.playerId!==playerId||typeof root.truncated!=='boolean'||!Array.isArray(root.entries)||root.entries.length>50)return null;
+  const entries:RestorationEntry[]=[];
+  for(const value of root.entries){
+    const v=record(value);if(!v||!uuid(v.scheduleId)||!uuid(v.playlistVersionId)||!iso(v.scheduleUpdatedAt)||!iso(v.publishedAt)||typeof v.version!=='number'||!Number.isSafeInteger(v.version)||v.version<1||typeof v.checksum!=='string'||!/^[a-f0-9]{64}$/i.test(v.checksum)||typeof v.timezone!=='string'||!v.timezone||v.timezone.length>64||!Array.isArray(v.weekdays)||v.weekdays.length>7||new Set(v.weekdays).size!==v.weekdays.length||v.weekdays.some(d=>!Number.isInteger(d)||d<1||d>7)||!Array.isArray(v.items)||!v.items.length||v.items.length>200||entries.some(e=>e.scheduleId===v.scheduleId))return null;
+    try{new Intl.DateTimeFormat('en-US',{timeZone:v.timezone});}catch{return null;}
+    const first=v.dailyStartMinute,last=v.dailyEndMinute;
+    if(!((first===null&&last===null)||(typeof first==='number'&&typeof last==='number'&&Number.isInteger(first)&&Number.isInteger(last)&&first>=0&&last<=1440&&first<last)))return null;
+    const items:RestorationEntry['items']=[];
+    for(const rawItem of v.items){const i=record(rawItem);if(!i||!uuid(i.id)||!uuid(i.mediaVersionId)||i.position!==items.length||typeof i.durationMs!=='number'||!Number.isInteger(i.durationMs)||i.durationMs<1||i.durationMs>86400000||typeof i.name!=='string'||!i.name.trim()||items.some(x=>x.id===i.id))return null;items.push({id:i.id,mediaVersionId:i.mediaVersionId,position:i.position,durationMs:i.durationMs,name:i.name});}
+    entries.push({scheduleId:v.scheduleId,scheduleUpdatedAt:v.scheduleUpdatedAt,playlistVersionId:v.playlistVersionId,version:v.version,checksum:v.checksum,publishedAt:v.publishedAt,timezone:v.timezone,weekdays:v.weekdays,dailyStartMinute:first as number|null,dailyEndMinute:last as number|null,items});
+  }
+  return {entries,truncated:root.truncated};
+}
+export function buildRestorePublication(entry:RestorationEntry|null,draft:GuidedContentDraft|null,link:GuidedScheduleLink|null,schedule:DoohScheduleSummary|null,player:DoohPlayerDetailView|null,screenId:string,playerId:string|null,endLocal:string,now:number){
+  if(!entry||!draft?.draftId||draft.screenId!==screenId||!uuid(draft.draftId)||!uuid(draft.playlistId)||!schedule||entry.scheduleId===schedule.id||!player||!link||!((link.status==='PAUSED'&&schedule.status==='PAUSED')?canReviewRepublication({...link,status:'PUBLISHED'},{...schedule,status:'PUBLISHED'},player,screenId,playerId):canReviewRepublication(link,schedule,player,screenId,playerId))||!Number.isFinite(now)||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(endLocal))return null;
+  const end=Date.parse(endLocal);if(!Number.isFinite(end)||localInputFor(end)!==endLocal||end-now<60000||end-now>30*86400000)return null;
+  return {expectedPlayerId:playerId!,expectedPlaylistId:draft.playlistId,expectedScheduleId:schedule.id,expectedScheduleUpdatedAt:schedule.updatedAt,expectedManifestVersion:player.desiredManifestVersion,expectedPaused:link.status==='PAUSED',sourceScheduleId:entry.scheduleId,sourceScheduleUpdatedAt:entry.scheduleUpdatedAt,sourceChecksum:entry.checksum,expectedRestoreDraftId:draft.draftId,playlistVersionId:entry.playlistVersionId,expectedItems:entry.items.map(({id,position,mediaVersionId,durationMs})=>({id,position,mediaVersionId,durationMs})),startsAt:new Date(now).toISOString(),endsAt:new Date(end).toISOString(),timezone:entry.timezone,weekdays:[...entry.weekdays].sort((a,b)=>a-b),dailyStartMinute:entry.dailyStartMinute,dailyEndMinute:entry.dailyEndMinute,confirmation:'PUBLICAR_PROGRAMACAO_GUIADA' as const,renewalMode:'NONE' as const};
+}
+export function parseRestoreReceipt(raw:unknown,screenId:string,body:NonNullable<ReturnType<typeof buildRestorePublication>>){const v=record(raw);return !!(v&&v.restoredScheduleId===body.sourceScheduleId&&v.restoredPlaylistVersionId===body.playlistVersionId&&parseRepublicationReceipt(v,screenId,body.expectedPlayerId,body.expectedScheduleId,body.expectedRestoreDraftId,body.expectedManifestVersion));}

@@ -1,0 +1,3 @@
+# F7 — Histórico e restauração por tela
+
+Capability explícita `restoreEnabled`; GET de histórico somente no editor de tela publicada/pausada, com abort e validação de tela/playlist/player, revisão, checksum, sequência e horários. Exibe até 50 agendas arquivadas recentes elegíveis (sem comprovar reprodução). O operador seleciona uma publicação, revisa mídias e horários, escolhe novo período e eventual novo consentimento (padrão NONE). Uma confirmação chama `restore-publication`; recibo exige fonte histórica e nova versão exatas. Não transfere consentimento antigo. O backend recusa rascunho modificado, mídia indisponível, mudança futura pendente e aparelho sem revisão instalada. Sem mutação automática ou alteração de Player. Deploy/homologação ainda pendentes.
