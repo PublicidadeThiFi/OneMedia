@@ -216,7 +216,7 @@ export function Sidebar({
           <div className="rounded-lg bg-indigo-50 p-4">
             <p className="text-sm font-medium text-indigo-900">Módulo DOOH</p>
             <p className="mt-1 text-xs leading-5 text-indigo-700">
-              Navegação e controle de acesso habilitados. Operação de Digital Signage entra nas próximas fases.
+              Gerencie telas, mídias e programação conforme as permissões da sua empresa.
             </p>
           </div>
         )}

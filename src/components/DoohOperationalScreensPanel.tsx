@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -12,13 +12,15 @@ import { friendlyOperationalScreenError, parseOperationalScreen, parseOperationa
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
 
 /** UX09: opt-in, tenant-scoped operational registry. Legacy inventory remains below. */
-export function DoohOperationalScreensPanel({ onConnect }: { onConnect: () => void }) {
+type OperationalScreensProps = { onConnect: () => void; disabledFallback?: ReactNode };
+
+export function DoohOperationalScreensPanel({ onConnect, disabledFallback }: OperationalScreensProps) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const key = JSON.stringify([user?.id, user?.companyId, snapshot?.companyId, snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, [...(user?.roles ?? [])].sort()]);
-  return <OperationalScreensForContext key={key} onConnect={onConnect} />;
+  return <OperationalScreensForContext key={key} onConnect={onConnect} disabledFallback={disabledFallback} />;
 }
-function OperationalScreensForContext({ onConnect }: { onConnect: () => void }) {
+function OperationalScreensForContext({ onConnect, disabledFallback }: OperationalScreensProps) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const companyId = user?.companyId ?? null;
@@ -66,12 +68,12 @@ function OperationalScreensForContext({ onConnect }: { onConnect: () => void }) 
       if (controller.signal.aborted) return;
       const response = cause && typeof cause === 'object' && 'response' in cause ? (cause as {response?: {status?: number}}).response : undefined;
       if (response?.status === 403 || response?.status === 404 || response?.status === 503) setMode('disabled');
-      else { setMode('error'); setError('Não foi possível carregar as telas. Use a área de inventário abaixo ou tente novamente.'); }
+      else { setMode('error'); setError('Não foi possível carregar as telas. Tente novamente ou consulte o inventário em Telas e dispositivos.'); }
     });
     return () => controller.abort();
   }, [available, page, reload, playerQuery]);
-  if (!available) return null;
-  if (mode === 'disabled') return <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+  if (!available) return disabledFallback ?? null;
+  if (mode === 'disabled') return disabledFallback ?? <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
     Cadastro simplificado de telas ainda não habilitado nesta empresa. As telas e dispositivos existentes continuam disponíveis abaixo.
   </section>;
   async function createScreen(e: FormEvent) {
