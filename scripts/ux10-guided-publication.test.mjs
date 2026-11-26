@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parseGuidedScheduleLink,parseGuidedScheduleReceipt,parseGuidedScheduleCapability,
+  parseManifestCapability,buildGuidedSchedulePlan,preflightWindow,localInputFor} from '../src/lib/doohGuidedPublicationContract.ts';
+const a='11111111-1111-4111-8111-111111111111',b='22222222-2222-4222-8222-222222222222',c='33333333-3333-4333-8333-333333333333';
+test('empty association is safe',()=>{assert.deepEqual(parseGuidedScheduleLink({screenId:a,scheduleId:null,status:null,playerId:b,playlistVersionId:null},a),{screenId:a,scheduleId:null,status:null,playerId:b,playlistVersionId:null});});
+test('foreign schedule link rejected',()=>assert.equal(parseGuidedScheduleLink({screenId:b,scheduleId:c,status:'DRAFT',playerId:b,playlistVersionId:a},a),null));
+test('schedule receipt validates screen/player/content',()=>{const r={screenId:a,scheduleId:c,status:'DRAFT',playerId:b,playlistVersionId:a,created:true};assert.ok(parseGuidedScheduleReceipt(r,a,b,a));assert.equal(parseGuidedScheduleReceipt(r,a,c,a),null);});
+test('capability fail closed on malformed DTO',()=>{assert.equal(parseGuidedScheduleCapability({}),null);assert.equal(parseManifestCapability({materializeEnabled:true,mode:'DISABLED'}),null);});
+test('30 day finite plan with UTC conversion',()=>{const now=Date.now();const from=localInputFor(now+300000);const to=localInputFor(now+2*86400000);const p=buildGuidedSchedulePlan(b,from,to,'UTC',[],null,null,now);assert.ok(p);assert.equal(p?.dailyStartMinute,null);});
+test('window over 30d fails',()=>{const n=Date.now();assert.equal(buildGuidedSchedulePlan(b,localInputFor(n+300000),localInputFor(n+31*86400000),'UTC',[],null,null,n),null);});
+test('empty player does not become valid',()=>assert.equal(buildGuidedSchedulePlan('BAD','2026-11-26T12:00','2026-11-27T12:00','UTC',[],null,null,Date.now()),null));
+test('weekday and daily interval validated',()=>{const n=Date.now(),s=localInputFor(n+300000),e=localInputFor(n+2*86400000);assert.equal(buildGuidedSchedulePlan(b,s,e,'UTC',[1,1],'08:00','20:00',n),null);assert.equal(buildGuidedSchedulePlan(b,s,e,'UTC',[1,2],'21:00','09:00',n),null);assert.ok(buildGuidedSchedulePlan(b,s,e,'UTC',[1,2],'08:00','20:00',n));});
+test('preflight is bounded to schedule and seven days',()=>{const n=Date.now(),w=preflightWindow(new Date(n+300000).toISOString(),new Date(n+86400000).toISOString(),n);assert.ok(w);assert.equal(Date.parse(w.to)-Date.parse(w.from),86400000-300000);assert.equal(preflightWindow(new Date(n+8*86400000).toISOString(),new Date(n+9*86400000).toISOString(),n),null);});

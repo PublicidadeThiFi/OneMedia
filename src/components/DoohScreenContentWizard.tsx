@@ -12,6 +12,7 @@ import { draftOrderChanged, parseReorderConfirmation, reorderCasRequest, shiftDr
 import { guidedContentError, guidedSnapshotToCas, parseGuidedContentCapabilities, parseGuidedContentDraft,
   parseGuidedDraftCreation, type GuidedContentDraft } from '../lib/doohGuidedScreenContentContract';
 import type { OperationalScreen } from '../lib/doohOperationalScreenContract';
+import { DoohScreenPublicationWizard } from './DoohScreenPublicationWizard';
 
 interface Props { screen: OperationalScreen; onClose: () => void }
 
@@ -227,9 +228,7 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
         {draft && (() => { const snapshot = guidedSnapshotToCas(draft); return snapshot && draftOrderChanged(snapshot, plannedOrder) ? <Button type="button" disabled={busy} onClick={() => void saveOrder()}>Salvar nova ordem</Button> : null; })()}
         <p className="text-xs text-gray-600">O rascunho é salvo na empresa e permanece ligado a esta tela. Não modifica listas já publicadas.</p>
       </div>
-      <div className="rounded-lg border border-dashed border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-900">
-        <strong>Próxima etapa: escolher os horários e publicar.</strong> A sequência acima ainda não é uma programação ativa; o agendamento guiado será integrado na continuação do UX10.
-      </div>
+      <DoohScreenPublicationWizard screen={screen} draft={draft} onChanged={() => setRefresh(n => n + 1)} />
     </>}
   </section>;
 }
