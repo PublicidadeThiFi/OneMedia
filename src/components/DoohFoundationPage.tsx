@@ -13,7 +13,7 @@ import { DoohPlayerRestartQa } from './DoohPlayerRestartQa';
 import { DoohMediaLibraryReadOnly } from './DoohMediaLibraryReadOnly';
 import { DoohPlaylistCatalogReadOnly } from './DoohPlaylistCatalogReadOnly';
 import { DoohScheduleCatalogReadOnly } from './DoohScheduleCatalogReadOnly';
-import { DOOH_SECTION_LABELS, type DoohFoundationSection } from '../lib/productNavigation';
+import { DOOH_SECTION_LABELS, DOOH_SECTION_PATHS, type DoohFoundationSection } from '../lib/productNavigation';
 
 type ScreensTask = 'my-screens' | 'connect' | 'manage' | 'technical';
 type ProgrammingTask = 'playlists' | 'schedules' | 'marketplace';
@@ -29,7 +29,7 @@ const programmingTasks = [
   { id: 'marketplace', label: 'Campanhas do Marketplace', description: 'Vincule campanhas aprovadas somente conforme as regras atuais da plataforma.' },
 ] as const;
 const explanations: Record<DoohFoundationSection, string> = {
-  home: 'Siga a próxima etapa para colocar sua tela em funcionamento.',
+  home: 'Conecte suas telas, escolha o conteúdo e acompanhe a programação.',
   screens: 'Conecte um dispositivo e escolha onde ele ficará instalado.',
   library: 'Envie imagens e vídeos e prepare-os para usar na programação.',
   scheduling: 'Monte listas de exibição e defina quando e onde cada uma aparece.',
@@ -38,11 +38,14 @@ const explanations: Record<DoohFoundationSection, string> = {
 
 export function DoohFoundationPage({ section }: { section: DoohFoundationSection }) {
   const { snapshot } = useProductAccess();
-  const [screenTask, setScreenTask] = useState<ScreensTask>('my-screens');
+  const [screenTask, setScreenTask] = useState<ScreensTask>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ux') === 'connect'
+      ? 'connect' : 'my-screens');
   const [programmingTask, setProgrammingTask] = useState<ProgrammingTask>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ux') === 'agendas'
       ? 'schedules' : 'playlists');
   useEffect(() => {
+    if (section === 'screens') setScreenTask(new URLSearchParams(window.location.search).get('ux') === 'connect' ? 'connect' : 'my-screens');
     if (section === 'scheduling' && new URLSearchParams(window.location.search).get('ux') === 'agendas') setProgrammingTask('schedules');
   }, [section]);
   const mode = snapshot?.modules.DOOH.accessMode;
@@ -59,7 +62,10 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
         </p>
       </div>
     </header>
-    {section === 'home' && <DoohGettingStarted />}
+    {section === 'home' && <DoohOperationalScreensPanel
+      onConnect={() => window.location.assign(`${DOOH_SECTION_PATHS.screens}?ux=connect`)}
+      disabledFallback={<DoohGettingStarted />}
+    />}
     {section === 'screens' && <>
       <DoohWorkspaceTabs tabs={screenTasks} selected={screenTask} onSelect={setScreenTask} label="Tarefas de telas e dispositivos" />
       {screenTask === 'my-screens' && <div className="space-y-5"><DoohOperationalScreensPanel onConnect={() => setScreenTask('connect')} /><DoohPlayerInventoryReadOnly /></div>}

@@ -1,0 +1,3 @@
+# F9 — Visão geral orientada por telas
+
+Base: e4e6d4db76669c9369de19f8d484d288d8cb75ea. A home reutiliza o painel operacional existente, com cadastro e editor sujeitos às permissões e capabilities atuais. O assistente anterior só é montado como fallback para acesso indisponível, preservando as empresas fora do piloto. A ação de pareamento abre a aba existente em Telas e dispositivos. Rodapé DOOH atualizado; OOH, contratos, flags, licenças, cobrança e infraestrutura não alterados. A disponibilidade depende da habilitação do backend; a correção não ativa piloto nem publica Player Web. Testes de integração estática e regressões; build/CI e homologação no ambiente de destino permanecem obrigatórios.
