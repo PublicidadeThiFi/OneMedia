@@ -65,6 +65,8 @@ export function guidedPublishError(error:unknown):string {
   if(code==='DOOH_GUIDED_FUTURE_PREVIOUS_WINDOW_TOO_SHORT')return 'A programação atual não tem autorização suficiente até a data escolhida. Antecipe o início ou revise a autorização de renovação.';
   if(code==='DOOH_GUIDED_FUTURE_ALREADY_PENDING')return 'Já existe uma alteração agendada. Atualize a situação e cancele a anterior antes de substituir.';
   if(code==='DOOH_GUIDED_FUTURE_WINDOW_INVALID')return 'Escolha uma data futura válida, entre um minuto e sete dias à frente.';
+  if(code==='DOOH_MANIFEST_PAUSE_SCOPE')return 'Outra programação também se aplica a este aparelho. Revise os vínculos e as agendas antes de pausar; nenhuma programação foi substituída.';
+  if(code==='DOOH_GUIDED_PAUSE_STALE'||code==='DOOH_GUIDED_PAUSE_SCHEDULE_CHANGED')return 'A programação pausada ou a revisão do aparelho mudou. Atualize e confira o conteúdo publicado e os horários antes de retomar.';
   if(status===409)return 'O conteúdo, os horários ou o aparelho mudaram. Atualize e revise antes de continuar.';
   if(status===403||status===402)return 'Operação não liberada para esta empresa ou permissão.';
   if(status===503)return 'A programação guiada ainda não foi habilitada no servidor.';
