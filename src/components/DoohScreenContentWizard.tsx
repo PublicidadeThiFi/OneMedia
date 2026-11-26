@@ -34,7 +34,9 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
   const [folders, setFolders] = useState<DoohLibraryFolder[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [editingBusy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const busy=editingBusy||publishing;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [selectedMedia, setSelectedMedia] = useState('');
@@ -228,7 +230,7 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
         {draft && (() => { const snapshot = guidedSnapshotToCas(draft); return snapshot && draftOrderChanged(snapshot, plannedOrder) ? <Button type="button" disabled={busy} onClick={() => void saveOrder()}>Salvar nova ordem</Button> : null; })()}
         <p className="text-xs text-gray-600">O rascunho é salvo na empresa e permanece ligado a esta tela. Não modifica listas já publicadas.</p>
       </div>
-      <DoohScreenPublicationWizard screen={screen} draft={draft} onChanged={() => setRefresh(n => n + 1)} />
+      <DoohScreenPublicationWizard screen={screen} draft={draft} editorBlocked={editingBusy||loadingList||Boolean(draft&&draft.playlistId&&draft.draftId&&draftOrderChanged(guidedSnapshotToCas(draft)!,plannedOrder))} onPublishingChange={setPublishing} onChanged={() => setRefresh(n => n + 1)} />
     </>}
   </section>;
 }
