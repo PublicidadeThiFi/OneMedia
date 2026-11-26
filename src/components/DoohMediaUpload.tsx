@@ -80,7 +80,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       onChanged(media.id, pilot.autoProcessingEnabled);
     } catch (e: unknown) {
       if (abort.signal.aborted || contextRef.current !== pending.contextKey) return;
-      setError(`${doohUploadError(e, 'finalize')} Se o S3 recebeu o arquivo, use “Repetir finalização”, sem reenviar o binário.`);
+      setError(`${doohUploadError(e, 'finalize')} Se o arquivo já foi enviado, use “Repetir finalização” sem enviá-lo novamente.`);
       setNeedsFinalize(true);
     } finally {
       if (contextRef.current === pending.contextKey) setPhase('idle');
@@ -135,10 +135,10 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
     if (controller.current === abort) controller.current = null;
   }
 
-  if (!eligible) return <p className="text-xs text-gray-600">Upload exige DOOH FULL e função ADMINISTRATIVO ou TI.</p>;
-  if (!pilot.uploadEnabled) return <p className="text-xs text-amber-800">Upload indisponível nesta conta. Verifique a autorização do piloto, o armazenamento e a conexão com a API.</p>;
+  if (!eligible) return <p className="text-xs text-gray-600">Sua conta não tem permissão para enviar arquivos. Solicite acesso a um administrador.</p>;
+  if (!pilot.uploadEnabled) return <p className="text-xs text-amber-800">O envio não está disponível nesta conta. Confira sua conexão ou solicite ajuda ao administrador.</p>;
 
-  return <section aria-label="Upload de mídia DOOH D15B-04" className="space-y-3 rounded-xl border border-indigo-200 p-4">
+  return <section aria-label="Enviar imagem ou vídeo" className="space-y-3 rounded-xl border border-indigo-200 p-4">
     <div>
       <h4 className="font-semibold text-gray-900">Enviar mídia</h4>
       <p className="text-xs text-gray-600">Escolha um arquivo. A plataforma verifica e prepara a mídia para uso. O envio não inicia a exibição na tela.</p>
@@ -166,7 +166,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       <div className="flex flex-wrap gap-3 items-center md:col-span-3">
         <Button type="submit" disabled={!canStart}>{isBusy ? 'Enviando arquivo…' : 'Enviar mídia'}</Button>
         {needsFinalize && <Button type="button" variant="outline" onClick={() => void retryFinalize()}>Repetir finalização (sem reenviar)</Button>}
-        <span className="text-xs text-gray-600">PUT único até 5 GiB; sem upload multipart ou processamento automático.</span>
+        <span className="text-xs text-gray-600">{pilot.autoProcessingEnabled ? 'Após o envio, a preparação começa automaticamente.' : 'Após o envio, inicie a preparação na Biblioteca.'}</span>
       </div>
     </form>
     {file && !validFile && <p role="alert" className="text-sm text-amber-800">Arquivo não permitido, MIME incompatível ou tamanho fora do limite.</p>}

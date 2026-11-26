@@ -88,16 +88,16 @@ export function confirmDoohUploadFinalized(
 }
 
 export function doohUploadError(error: unknown, phase: 'init' | 'put' | 'finalize'): string {
-  if (phase === 'put') return 'Falha no envio ao storage S3. Verifique a conexão e a política CORS do bucket. Nenhuma mídia foi confirmada.';
+  if (phase === 'put') return 'Não foi possível enviar o arquivo. Confira sua conexão e tente novamente. Nenhuma mídia foi confirmada.';
   const status = object(object(error)?.response)?.status;
   if (status === 401) return 'Sessão expirada; autentique-se novamente.';
   if (status === 402) return 'Cota de armazenamento indisponível ou insuficiente para a empresa.';
-  if (status === 403) return 'A operação exige acesso DOOH FULL e função técnica.';
-  if (status === 404) return 'Pasta ou intenção de upload não encontrada.';
-  if (status === 409) return 'Intenção expirada, consumida ou alterada. Atualize a Biblioteca.';
-  if (status === 413) return 'Arquivo excede o limite técnico de envio único.';
+  if (status === 403) return 'Sua conta não tem permissão para enviar arquivos. Solicite acesso a um administrador.';
+  if (status === 404) return 'A pasta ou o envio não foi encontrado. Atualize a Biblioteca.';
+  if (status === 409) return 'O envio expirou ou foi alterado. Atualize a Biblioteca antes de repetir.';
+  if (status === 413) return 'O arquivo excede o limite de tamanho permitido.';
   if (status === 429) return 'Envios limitados temporariamente. Aguarde.';
-  if (status === 503) return 'Upload DOOH desabilitado ou storage S3 indisponível neste ambiente.';
+  if (status === 503) return 'O envio está indisponível neste momento. Tente novamente ou solicite ajuda ao administrador.';
   if (typeof status === 'number' && status >= 500) return 'O serviço de mídia está temporariamente indisponível.';
   return 'Não foi possível concluir a operação de upload. Atualize antes de repetir.';
 }

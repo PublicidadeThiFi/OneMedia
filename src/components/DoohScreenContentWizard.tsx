@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
+import { contentNextStep } from '../lib/doohJourneyGuidance';
 import { Button } from './ui/button';
 import { DoohMediaUpload } from './DoohMediaUpload';
 import { parseDoohLibraryFolders, parseDoohLibraryMedia, type DoohLibraryFolder, type DoohLibraryMedia } from '../lib/doohMediaLibraryContract';
@@ -46,6 +47,10 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
   const [plannedOrder, setPlannedOrder] = useState<string[]>([]);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadedId, setUploadedId] = useState('');
+  const [autoProcessing, setAutoProcessing] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { heading.current?.focus(); return () => inFlight.current?.abort(); }, []);
+  const autoSelectedUpload = useRef('');
   const [checks, setChecks] = useState(0);
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
@@ -53,7 +58,7 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
   useEffect(() => {
     inFlight.current?.abort(); setDraft(null); setMedia([]); setFolders([]); setEnabled(false); setLoaded(false);
     setSelectedMedia(''); setVersions([]); setVersionId(''); setDuration('10'); setPlannedOrder([]);
-    setError(''); setNotice(''); setBusy(false); setUploadOpen(false); setUploadedId(''); setChecks(0);
+    setError(''); setNotice(''); setBusy(false); setUploadOpen(false); setUploadedId(''); setAutoProcessing(false); autoSelectedUpload.current = ''; setChecks(0);
   }, [contextKey]);
 
   useEffect(() => {
@@ -86,9 +91,11 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
     return () => controller.abort();
   }, [writable, screen.id, companyId, contextKey, refresh]);
 
+  const selectedKind = media.find(m => m.id === selectedMedia)?.kind;
+  const selectedReady = media.some(m => m.id === selectedMedia && m.status === 'READY');
   useEffect(() => {
-    setVersions([]); setVersionId('');
-    if (!writable || !enabled || !selectedMedia || !media.some(m => m.id === selectedMedia && m.status === 'READY')) return;
+    setVersions([]); setVersionId(''); setLoadingVersions(false);
+    if (!writable || !enabled || !selectedMedia || !selectedReady) return;
     const controller = new AbortController();
     const key = contextKey;
     setLoadingVersions(true);
@@ -100,8 +107,7 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
         const available = parsed.versions.filter(v => v.status === 'READY' && v.verification === 'READY_METADATA_OK');
         setVersions(available);
         setVersionId(available[0]?.id ?? '');
-        const chosen = media.find(m => m.id === selectedMedia);
-        if (chosen?.kind === 'VIDEO' && available[0]?.durationMs && available[0].durationMs > 0) {
+        if (selectedKind === 'VIDEO' && available[0]?.durationMs && available[0].durationMs > 0) {
           setDuration(String(available[0].durationMs / 1000));
         } else setDuration('10');
       }).catch((cause: unknown) => {
@@ -110,23 +116,32 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
         if (!controller.signal.aborted && contextRef.current === key) setLoadingVersions(false);
       });
     return () => controller.abort();
-  }, [writable, enabled, selectedMedia, contextKey, media]);
+  }, [writable, enabled, selectedMedia, contextKey, selectedKind, selectedReady]);
 
+  const currentSnapshot = draft && guidedSnapshotToCas(draft);
+  const orderDirty = Boolean(currentSnapshot && draftOrderChanged(currentSnapshot, plannedOrder));
   const lastUploaded = media.find(m => m.id === uploadedId);
   useEffect(() => {
-    if (!uploadedId || !lastUploaded || lastUploaded.status === 'READY' || lastUploaded.status === 'ERROR' || checks >= 60 || !enabled) return;
+    if (!autoProcessing || orderDirty || busy || loadingList || uploadOpen || !uploadedId || lastUploaded?.status === 'READY' || lastUploaded?.status === 'ERROR' || checks >= 60 || !enabled) return;
     const timer = window.setTimeout(() => { setChecks(n => n + 1); setRefresh(n => n + 1); }, 5000);
     return () => window.clearTimeout(timer);
-  }, [uploadedId, lastUploaded?.status, checks, enabled]);
+  }, [uploadedId, lastUploaded?.status, checks, enabled, orderDirty, busy, loadingList, autoProcessing, uploadOpen]);
 
+  useEffect(() => {
+    if (lastUploaded?.status !== 'READY' || autoSelectedUpload.current === uploadedId) return;
+    autoSelectedUpload.current = uploadedId;
+    if (!selectedMedia) setSelectedMedia(uploadedId);
+  }, [uploadedId, lastUploaded?.status, selectedMedia]);
   const items = draft?.items ?? [];
   const seconds = doohUxMillisecondsFromSeconds(duration);
   const chosenVersion = versions.find(v => v.id === versionId);
   const readyMedia = media.filter(item => item.status === 'READY' && (item.kind === 'IMAGE' || item.kind === 'VIDEO'));
-  const canAdd = Boolean(writable && enabled && !busy && !loadingList && !loadingVersions && chosenVersion && seconds && items.length < 200);
+  const canAdd = Boolean(writable && enabled && !busy && !orderDirty && !uploadOpen && !loadingList && selectedReady && !loadingVersions && chosenVersion && seconds && items.length < 200);
+
+  const guidance = contentNextStep({uploadOpen, uploadedStatus: lastUploaded?.status, trackingUpload: Boolean(autoProcessing && uploadedId && checks < 60), readyCount: readyMedia.length, itemCount: items.length, unavailableItems: items.some(i=>i.mediaStatus!=='READY'), orderDirty, selectedMedia: Boolean(selectedMedia), canAdd, busy: busy || loadingList});
 
   async function mutate(kind: 'add' | 'remove', itemId?: string) {
-    if (!writable || !enabled || busy || loadingList || !draft || (kind === 'add' && !canAdd)) return;
+    if (!writable || !enabled || busy || orderDirty || uploadOpen || loadingList || !draft || (kind === 'add' && !canAdd)) return;
     const startKey = contextRef.current;
     const controller = new AbortController(); inFlight.current = controller;
     const valid = () => !controller.signal.aborted && contextRef.current === startKey;
@@ -163,6 +178,7 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
       const ok = kind === 'add' ? parseAddedDraftItem(response.data, original, versionId, seconds!)
         : parseRemovedDraftItem(response.data, original, itemId!);
       if (!ok) throw Error('Unexpected update receipt');
+      if (kind === 'add') { setSelectedMedia(''); setVersions([]); setVersionId(''); }
       setNotice(kind === 'add' ? 'Mídia adicionada à sequência. Ela ainda não foi publicada.' : 'Mídia removida da sequência em edição.');
       setRefresh(n => n + 1);
     } catch (cause: unknown) { if (valid()) setError(guidedContentError(cause)); }
@@ -171,12 +187,12 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
 
   function shift(id: string, direction: -1 | 1) {
     const snapshot = draft && guidedSnapshotToCas(draft);
-    if (!snapshot || busy) return;
+    if (!snapshot || busy || loadingList || uploadOpen) return;
     setPlannedOrder(current => shiftDraftItem(snapshot, current, id, direction) ?? current);
   }
   async function saveOrder() {
     const before = draft && guidedSnapshotToCas(draft);
-    if (!before || !enabled || !writable || busy || !draftOrderChanged(before, plannedOrder)) return;
+    if (!before || !enabled || !writable || busy || loadingList || uploadOpen || !draftOrderChanged(before, plannedOrder)) return;
     const body = reorderCasRequest(before, plannedOrder);
     if (!body) return;
     const controller = new AbortController(); inFlight.current = controller;
@@ -201,8 +217,8 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
 
   return <section aria-label={`Conteúdo de ${screen.name}`} className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div><h4 className="font-semibold text-gray-900">Conteúdo de {screen.name}</h4><p className="text-xs text-gray-600">Escolha os arquivos e organize a sequência. Nada começa a tocar ao salvar.</p></div>
-      <Button variant="outline" type="button" onClick={onClose} disabled={busy}>Fechar</Button>
+      <div><h4 ref={heading} tabIndex={-1} className="font-semibold text-gray-900">Conteúdo de {screen.name}</h4><p className="text-xs text-gray-600">Escolha os arquivos e organize a sequência. Nada começa a tocar ao salvar.</p></div>
+      <Button variant="outline" type="button" onClick={() => { if (!orderDirty || window.confirm('Descartar a ordem ainda não salva?')) onClose(); }} disabled={busy || uploadOpen}>Fechar</Button>
     </div>
     {!writable && <p className="text-sm text-amber-800">Sua conta permite consultar esta tela, mas não editar o conteúdo.</p>}
     {loadingList && <p role="status" className="text-sm text-gray-600">Buscando arquivos e sequência…</p>}
@@ -210,14 +226,16 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {enabled && loaded && writable && <>
-      <div className="flex flex-wrap gap-2"><Button variant="outline" type="button" disabled={busy || loadingList} onClick={() => setRefresh(n => n + 1)}>Atualizar arquivos</Button><Button type="button" variant="outline" disabled={busy} onClick={() => setUploadOpen(value => !value)}>{uploadOpen ? 'Ocultar envio' : 'Enviar nova mídia'}</Button></div>
-      {uploadOpen && <DoohMediaUpload companyId={companyId} folders={folders} onChanged={(mediaId) => { setUploadedId(mediaId); setChecks(0); setUploadOpen(false); setRefresh(n => n + 1); }} />}
-      {uploadedId && <p className="text-sm text-gray-700">{lastUploaded?.status === 'READY' ? 'Seu arquivo está pronto. Selecione-o abaixo.' : lastUploaded?.status === 'ERROR' ? 'O arquivo precisa ser corrigido antes de usá-lo.' : 'Arquivo recebido. Aguarde a preparação; a lista será atualizada automaticamente.'}</p>}
+      <p role="status" className="rounded-lg bg-indigo-100 p-3 text-sm text-indigo-950"><strong>Próximo passo:</strong> {guidance.text}</p>
+      <div className="flex flex-wrap gap-2"><Button variant="outline" type="button" disabled={busy || loadingList || orderDirty || uploadOpen} onClick={() => setRefresh(n => n + 1)}>Atualizar arquivos</Button><Button type="button" variant={guidance.action === 'upload' && !uploadOpen ? 'default' : 'outline'} disabled={busy || orderDirty || loadingList} onClick={() => setUploadOpen(value => !value)}>{uploadOpen ? 'Ocultar envio' : 'Enviar nova mídia'}</Button></div>
+      {uploadOpen && <DoohMediaUpload companyId={companyId} folders={folders} onChanged={(mediaId, auto) => { setUploadedId(mediaId); setAutoProcessing(auto); setChecks(0); setUploadOpen(false); setRefresh(n => n + 1); }} />}
+      {uploadedId && <p className="text-sm text-gray-700">{lastUploaded?.status === 'READY' ? 'Seu arquivo está pronto para adicionar à sequência.' : lastUploaded?.status === 'ERROR' ? 'O arquivo precisa ser corrigido antes de usá-lo.' : !autoProcessing ? 'Arquivo recebido. Abra a Biblioteca para iniciar a preparação manual, se ainda necessária.' : checks >= 60 ? 'O preparo ainda não foi confirmado. Use Atualizar arquivos para consultar novamente.' : 'Arquivo recebido. Aguarde a preparação; a lista será atualizada automaticamente.'}</p>}
       <div className="space-y-3 rounded-lg border bg-white p-4">
         <h5 className="font-semibold">1. Escolha a mídia</h5>
-        <label className="block space-y-1 text-sm"><span>Imagem ou vídeo pronto</span><select aria-label="Mídia para a tela" className="w-full rounded-md border p-2" value={selectedMedia} disabled={busy} onChange={e => { setSelectedMedia(e.target.value); setError(''); }}><option value="">Selecione um arquivo</option>{readyMedia.map(m => <option key={m.id} value={m.id}>{m.name} · {m.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'}</option>)}</select></label>
-        {selectedMedia && <div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-1 text-sm"><span>Versão preparada</span><select className="w-full rounded-md border p-2" aria-label="Versão de mídia preparada" value={versionId} disabled={busy || loadingVersions} onChange={e => { setVersionId(e.target.value); const found = versions.find(v => v.id === e.target.value); setDuration(found?.durationMs && found.durationMs > 0 ? String(found.durationMs / 1000) : '10'); }}><option value="">{loadingVersions ? 'Buscando versões…' : 'Selecione a versão'}</option>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label><label className="block space-y-1 text-sm"><span>Tempo na tela (segundos)</span><input className="w-full rounded-md border p-2" aria-label="Tempo da mídia em segundos" inputMode="decimal" value={duration} disabled={busy} onChange={e => setDuration(e.target.value)} /></label></div>}
-        <Button type="button" disabled={!canAdd} onClick={() => void mutate('add')}>{busy ? 'Salvando…' : 'Adicionar à sequência'}</Button>
+        <label className="block space-y-1 text-sm"><span>Imagem ou vídeo pronto</span><select aria-label="Mídia para a tela" className="w-full rounded-md border p-2" value={selectedMedia} disabled={busy} onChange={e => { setSelectedMedia(e.target.value); setVersions([]); setVersionId(''); setError(''); }}><option value="">Selecione um arquivo</option>{readyMedia.map(m => <option key={m.id} value={m.id}>{m.name} · {m.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'}</option>)}</select></label>
+        {selectedMedia && <div className="grid gap-3 sm:grid-cols-2"><label className="block space-y-1 text-sm"><span>Versão preparada</span><select className="w-full rounded-md border p-2" aria-label="Versão de mídia preparada" value={versionId} disabled={busy || loadingVersions} onChange={e => { setVersionId(e.target.value); const found = versions.find(v => v.id === e.target.value); setDuration(found?.durationMs && found.durationMs > 0 ? String(found.durationMs / 1000) : '10'); }}><option value="">{loadingVersions ? 'Buscando versões…' : 'Selecione a versão'}</option>{versions.map(v => <option key={v.id} value={v.id}>Versão {v.version}</option>)}</select></label><label className="block space-y-1 text-sm"><span>Tempo na tela (segundos)</span><input className="w-full rounded-md border p-2" aria-label="Tempo da mídia em segundos" aria-invalid={seconds === null} aria-describedby={seconds === null ? "ux12-duration-help" : undefined} inputMode="decimal" value={duration} disabled={busy} onChange={e => setDuration(e.target.value)} /></label></div>}
+        {selectedMedia && !seconds && <p id="ux12-duration-help" className="text-xs text-red-700">Informe um tempo positivo de até 86400 segundos, com até três casas decimais (use ponto).</p>}
+        <Button type="button" variant={guidance.action === 'add' ? 'default' : 'outline'} disabled={!canAdd} onClick={() => void mutate('add')}>{busy ? 'Salvando…' : 'Adicionar à sequência'}</Button>
         {readyMedia.length === 0 && <p className="text-sm text-gray-600">Ainda não há arquivos prontos. Use “Enviar nova mídia” acima e aguarde a preparação.</p>}
       </div>
       <div className="space-y-3 rounded-lg border bg-white p-4">
@@ -225,12 +243,13 @@ export function DoohScreenContentWizard({ screen, onClose }: Props) {
         {items.length === 0 ? <p className="text-sm text-gray-600">Sua sequência está vazia. Você pode deixar a tela cadastrada sem conteúdo.</p> : <ol className="space-y-2">{plannedOrder.map((id, index) => {
           const item = items.find(v => v.id === id);
           if (!item) return null;
-          return <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><div className="min-w-0"><strong className="break-words">{index + 1}. {item.mediaName}</strong><p className="text-xs text-gray-600">{(item.durationMs / 1000).toLocaleString('pt-BR')} segundos {item.mediaStatus !== 'READY' ? '· arquivo indisponível para publicação' : ''}</p></div><div className="flex flex-wrap gap-1"><Button type="button" size="sm" variant="outline" disabled={busy || index === 0} onClick={() => shift(id, -1)}>Subir</Button><Button type="button" size="sm" variant="outline" disabled={busy || index === items.length - 1} onClick={() => shift(id, 1)}>Descer</Button><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { if (window.confirm(`Remover “${item.mediaName}” da sequência em edição?`)) void mutate('remove', item.id); }}>Remover</Button></div></li>;
+          return <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><div className="min-w-0"><strong className="break-words">{index + 1}. {item.mediaName}</strong><p className="text-xs text-gray-600">{(item.durationMs / 1000).toLocaleString('pt-BR')} segundos {item.mediaStatus !== 'READY' ? '· arquivo indisponível para publicação' : ''}</p></div><div className="flex flex-wrap gap-1"><Button type="button" size="sm" variant="outline" disabled={busy || loadingList || uploadOpen || index === 0} onClick={() => shift(id, -1)}>Subir</Button><Button type="button" size="sm" variant="outline" disabled={busy || loadingList || uploadOpen || index === items.length - 1} onClick={() => shift(id, 1)}>Descer</Button><Button type="button" size="sm" variant="outline" disabled={busy || orderDirty || uploadOpen || loadingList} onClick={() => { if (window.confirm(`Remover “${item.mediaName}” da sequência em edição?`)) void mutate('remove', item.id); }}>Remover</Button></div></li>;
         })}</ol>}
-        {draft && (() => { const snapshot = guidedSnapshotToCas(draft); return snapshot && draftOrderChanged(snapshot, plannedOrder) ? <Button type="button" disabled={busy} onClick={() => void saveOrder()}>Salvar nova ordem</Button> : null; })()}
+        {draft && (() => { const snapshot = guidedSnapshotToCas(draft); return snapshot && draftOrderChanged(snapshot, plannedOrder) ? <Button type="button" disabled={busy || loadingList || uploadOpen} onClick={() => void saveOrder()}>Salvar nova ordem</Button> : null; })()}
+        {orderDirty && <Button type="button" variant="outline" disabled={busy || loadingList} onClick={() => { if (window.confirm('Descartar a ordem ainda não salva?')) { setPlannedOrder(items.map(item => item.id)); setRefresh(n => n + 1); } }}>Descartar alteração de ordem</Button>}
         <p className="text-xs text-gray-600">O rascunho é salvo na empresa e permanece ligado a esta tela. Não modifica listas já publicadas.</p>
       </div>
-      <DoohScreenPublicationWizard screen={screen} draft={draft} editorBlocked={editingBusy||loadingList||Boolean(draft&&draft.playlistId&&draft.draftId&&draftOrderChanged(guidedSnapshotToCas(draft)!,plannedOrder))} onPublishingChange={setPublishing} onChanged={() => setRefresh(n => n + 1)} />
+      <DoohScreenPublicationWizard screen={screen} draft={draft} editorBlocked={editingBusy||loadingList||orderDirty||uploadOpen} recommendPublication={guidance.action === 'publish'} onPublishingChange={setPublishing} onChanged={() => setRefresh(n => n + 1)} />
     </>}
   </section>;
 }
