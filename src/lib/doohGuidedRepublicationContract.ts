@@ -4,6 +4,7 @@ import type { GuidedContentDraft } from './doohGuidedScreenContentContract.ts';
 import type { GuidedScheduleLink } from './doohGuidedPublicationContract.ts';
 import { localInputFor } from './doohGuidedPublicationContract.ts';
 import type { DoohScheduleSummary } from './doohScheduleCatalogContract.ts';
+import type { InspectedPublishedPlaylist } from './doohPublishedVersionInspectionContract.ts';
 import type { DoohPlayerDetailView } from './doohPlayerDetailContract.ts';
 const record = (v:unknown):Record<string,unknown>|null => v && typeof v==='object' && !Array.isArray(v) ? v as Record<string,unknown>:null;
 const version = (v:unknown):v is string => typeof v==='string' && /^[1-9]\d{0,18}$/.test(v) && BigInt(v)<=9223372036854775807n;
@@ -45,3 +46,22 @@ export function futureRepublicationReceipt(raw:unknown,screenId:string,startsAt:
   const v=record(raw);return !!(v&&v.screenId===screenId&&v.status==='PENDING'&&typeof v.intentId==='string'&&playlistUuid.test(v.intentId)&&v.startsAt===startsAt&&v.endsAt===endsAt);
 }
 export function futureRepublicationCancelled(raw:unknown,screenId:string,intentId:string){const v=record(raw);return !!(v&&v.screenId===screenId&&v.intentId===intentId&&v.cancelled===true);}
+
+
+export const pausePublicationEnabled=(raw:unknown)=>republicationEnabled(raw)&&record(raw)?.pauseEnabled===true;
+export function buildPausePublication(link:GuidedScheduleLink|null,schedule:DoohScheduleSummary|null,player:DoohPlayerDetailView|null,screenId:string,playerId:string|null,playlistId:string|null) {
+  if(!playlistId||!playlistUuid.test(playlistId)||!schedule||!player||!playerId||!canReviewRepublication(link,schedule,player,screenId,playerId))return null;
+  return {expectedPlayerId:playerId,expectedPlaylistId:playlistId,expectedScheduleId:schedule.id,expectedScheduleUpdatedAt:schedule.updatedAt,expectedManifestVersion:player.desiredManifestVersion,confirmation:'PAUSAR_PROGRAMACAO_GUIADA' as const};
+}
+export function parsePausePublicationReceipt(raw:unknown,screenId:string,body:NonNullable<ReturnType<typeof buildPausePublication>>){
+  const v=record(raw);return !!(v&&v.screenId===screenId&&v.playerId===body.expectedPlayerId&&v.scheduleId===body.expectedScheduleId&&v.status==='PAUSE_PREPARED'&&version(v.manifestVersion)&&BigInt(v.manifestVersion)===BigInt(body.expectedManifestVersion)+1n);
+}
+export function buildResumePublication(snapshot:InspectedPublishedPlaylist|null,link:GuidedScheduleLink|null,schedule:DoohScheduleSummary|null,player:DoohPlayerDetailView|null,screenId:string,playerId:string|null,playlistId:string|null,endLocal:string,now:number){
+  if(!snapshot||!link||!schedule||link.status!=='PAUSED'||schedule.status!=='PAUSED'||snapshot.playlistId!==playlistId||snapshot.versionId!==schedule.playlistVersionId||!snapshot.items.length||snapshot.items.length>200)return null;
+  // The existing reviewer verifies all scope and version invariants. Only the status is normalized for the paused path.
+  const base=buildPausePublication({...link,status:'PUBLISHED'},{...schedule,status:'PUBLISHED'},player,screenId,playerId,playlistId);
+  if(!base||!Number.isFinite(now)||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(endLocal))return null;
+  const end=Date.parse(endLocal);
+  if(!Number.isFinite(end)||localInputFor(end)!==endLocal||end-now<60_000||end-now>30*86_400_000)return null;
+  return {...base,confirmation:'PUBLICAR_PROGRAMACAO_GUIADA' as const,playlistVersionId:snapshot.versionId,expectedItems:snapshot.items,startsAt:new Date(now).toISOString(),endsAt:new Date(end).toISOString(),timezone:schedule.timezone,weekdays:[...schedule.weekdays].sort((a,b)=>a-b),dailyStartMinute:schedule.dailyStartMinute,dailyEndMinute:schedule.dailyEndMinute};
+}
