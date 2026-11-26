@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {futureRepublicationEnabled,parseFutureRepublication,futureRepublicationReceipt,futureRepublicationCancelled} from '../src/lib/doohGuidedRepublicationContract.ts';
+const screen='00000001-1111-4111-8111-111111111111',id='00000002-1111-4111-8111-111111111111',startsAt='2026-11-26T13:00:00.000Z',endsAt='2026-11-27T13:00:00.000Z';
+test('requires explicit future capability',()=>{assert.equal(futureRepublicationEnabled({enabled:true,futureEnabled:true}),true);assert.equal(futureRepublicationEnabled({enabled:false,futureEnabled:true}),false);assert.equal(futureRepublicationEnabled({enabled:true}),false);});
+test('pending receipt must match exact screen and reviewed dates',()=>{const v={screenId:screen,intentId:id,startsAt,endsAt,status:'PENDING'};assert.equal(futureRepublicationReceipt(v,screen,startsAt,endsAt),true);assert.equal(futureRepublicationReceipt({...v,status:'ACTIVATED'},screen,startsAt,endsAt),false);assert.equal(futureRepublicationReceipt({...v,screenId:id},screen,startsAt,endsAt),false);});
+test('status parsing distinguishes activation and failure from pending',()=>{const row={id,startsAt,endsAt,status:'PENDING',finishedAt:null};assert.equal(parseFutureRepublication({screenId:screen,intent:row},screen).intent.status,'PENDING');assert.equal(parseFutureRepublication({screenId:screen,intent:{...row,status:'ACTIVATED'}},screen),null);assert.equal(parseFutureRepublication({screenId:screen,intent:{...row,status:'FAILED',finishedAt:endsAt}},screen).intent.status,'FAILED');assert.equal(parseFutureRepublication({screenId:id,intent:row},screen),null);});
+test('cancellation receipt is scoped',()=>{assert.equal(futureRepublicationCancelled({screenId:screen,intentId:id,cancelled:true},screen,id),true);assert.equal(futureRepublicationCancelled({screenId:screen,intentId:screen,cancelled:true},screen,id),false);});
+
+import {guidedPublishError} from "../src/lib/doohGuidedPublicationContract.ts";
+test("future conflicts have actionable messages",()=>{assert.match(guidedPublishError({response:{status:409,data:{code:"DOOH_GUIDED_FUTURE_PREVIOUS_WINDOW_TOO_SHORT"}}}),/autorização suficiente/);assert.match(guidedPublishError({response:{status:409,data:{code:"DOOH_GUIDED_FUTURE_ALREADY_PENDING"}}}),/cancele a anterior/);});
