@@ -3,6 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
+import { DoohScreenContentWizard } from './DoohScreenContentWizard';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
 import { friendlyOperationalScreenError, operationalScreenStatusText, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
@@ -25,6 +26,7 @@ export function DoohOperationalScreensPanel({ onConnect }: { onConnect: () => vo
   const [players, setPlayers] = useState<DoohPlayerInventoryItem[]>([]);
   const [mode, setMode] = useState<'loading' | 'enabled' | 'disabled' | 'error'>('loading');
   const [busy, setBusy] = useState(false);
+  const [contentScreenId, setContentScreenId] = useState('');
   const [name, setName] = useState('');
   const [orientation, setOrientation] = useState<'LANDSCAPE' | 'PORTRAIT'>('LANDSCAPE');
   const [fitMode, setFitMode] = useState<'CONTAIN' | 'COVER'>('CONTAIN');
@@ -110,6 +112,7 @@ export function DoohOperationalScreensPanel({ onConnect }: { onConnect: () => vo
       <div className="grid gap-3 md:grid-cols-2">{screenList?.items.map(screen => <article key={screen.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
         <div><h3 className="font-semibold text-gray-900">{screen.name}</h3><p className="text-sm text-gray-600">{operationalScreenStatusText[screen.status]}</p></div>
         <p className="text-xs text-gray-600">{screen.orientation === 'LANDSCAPE' ? 'Horizontal' : 'Vertical'} · {screen.fitMode === 'CONTAIN' ? 'Mostrar inteira' : 'Preencher a tela'}</p>
+        <Button type="button" variant="outline" disabled={busy || mode !== 'enabled'} onClick={() => setContentScreenId(current => current === screen.id ? '' : screen.id)}>{contentScreenId === screen.id ? 'Fechar conteúdo' : 'Gerenciar conteúdo'}</Button>
         {screen.player ? <p className="text-sm text-gray-700">Aparelho: <strong>{screen.player.name}</strong>{screen.commercialUnit ? ` · Inventário: ${screen.commercialUnit.label}` : ''}</p> : <div className="space-y-2">
           <p className="text-sm text-gray-700">A tela ainda não tem um aparelho vinculado.</p>
           <button type="button" onClick={onConnect} className="text-sm font-semibold text-indigo-700 underline underline-offset-2">Gerar código no aparelho e parear</button>
@@ -123,6 +126,7 @@ export function DoohOperationalScreensPanel({ onConnect }: { onConnect: () => vo
           <Button type="button" disabled={!writable || busy || !deviceChoice[screen.id]} onClick={() => void bindPlayer(screen)}>Conectar aparelho à tela</Button>
         </div>}
       </article>)}</div>
+      {contentScreenId && screenList?.items.some(screen => screen.id === contentScreenId) && <DoohScreenContentWizard key={contentScreenId} screen={screenList.items.find(screen => screen.id === contentScreenId)!} onClose={() => setContentScreenId('')} />}
       {screenList && <div className="flex items-center justify-between text-sm"><span>{screenList.total} tela(s) cadastrada(s) · página {screenList.page}</span><div className="flex gap-2"><Button type="button" variant="outline" disabled={busy || page <= 1} onClick={() => setPage(n => Math.max(n - 1, 1))}>Anterior</Button><Button type="button" variant="outline" disabled={busy || page * 20 >= screenList.total} onClick={() => setPage(n => n + 1)}>Próxima</Button></div></div>}
       {!writable && <p className="text-xs text-gray-600">Somente leitura: sua permissão não permite cadastrar ou conectar aparelhos.</p>}
     </>}

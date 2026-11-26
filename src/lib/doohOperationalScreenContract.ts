@@ -6,6 +6,7 @@ export type OperationalScreen = {
   fitMode: 'CONTAIN' | 'COVER';
   locationLabel: string | null;
   playerId: string | null;
+  contentPlaylistId: string | null;
   commercialUnit: { id: string; label: string } | null;
   status: 'WAITING_FOR_PLAYER' | 'PLAYER_INACTIVE' | 'NO_RECENT_CONTACT' | 'UPDATE_PENDING' | 'WAITING_FOR_PROGRAMMING' | 'VERSION_REPORTED';
   player: { id: string; name: string; lifecycleStatus: string; lastSeenAt: string | null } | null;
@@ -21,6 +22,7 @@ export function parseOperationalScreen(input: unknown): OperationalScreen | null
       typeof input.status !== 'string' || !states.has(input.status) ||
       (input.locationLabel !== null && typeof input.locationLabel !== 'string') ||
       (input.playerId !== null && (typeof input.playerId !== 'string' || !uuid.test(input.playerId))) ||
+      (input.contentPlaylistId !== undefined && input.contentPlaylistId !== null && (typeof input.contentPlaylistId !== 'string' || !uuid.test(input.contentPlaylistId))) ||
       (input.commercialUnit !== null && !record(input.commercialUnit)) ||
       (input.player !== null && !record(input.player))) return null;
   const player = input.player;
@@ -31,7 +33,7 @@ export function parseOperationalScreen(input: unknown): OperationalScreen | null
   if (unit && (!uuid.test(String(unit.id)) || typeof unit.label !== 'string')) return null;
   return {
     id: input.id, name: input.name, orientation: input.orientation, fitMode: input.fitMode,
-    locationLabel: input.locationLabel, playerId: input.playerId, status: input.status as OperationalScreen['status'],
+    locationLabel: input.locationLabel, playerId: input.playerId, contentPlaylistId: (input.contentPlaylistId as string | null | undefined) ?? null, status: input.status as OperationalScreen['status'],
     player: player ? { id: String(player.id), name: String(player.name), lifecycleStatus: String(player.lifecycleStatus), lastSeenAt: player.lastSeenAt as string | null } : null,
     commercialUnit: unit ? { id: String(unit.id), label: String(unit.label) } : null,
   };
