@@ -42,7 +42,11 @@ export function DoohMediaLibraryReadOnly() {
   const [reload, setReload] = useState(0);
   const [view, setView] = useState<'media' | 'upload' | 'processing' | 'organize'>('media');
   const [preferredMediaId, setPreferredMediaId] = useState('');
-  const onUploaded = () => {
+  const [recentMediaId, setRecentMediaId] = useState('');
+  const [recentAuto, setRecentAuto] = useState(false);
+  const [recentChecks, setRecentChecks] = useState(0);
+  const onUploaded = (mediaId: string, autoProcessing: boolean) => {
+    setRecentMediaId(mediaId); setRecentChecks(0); setRecentAuto(autoProcessing);
     // Upload cria PENDING; filtros antigos como READY/raiz ocultariam a nova mídia.
     setFolderFilter('all'); setStatusFilter(''); setTypedSearch('');
     setView('media'); setPreferredMediaId('');
@@ -57,6 +61,7 @@ export function DoohMediaLibraryReadOnly() {
 
   useEffect(() => {
     setFolderFilter('all'); setStatusFilter(''); setTypedSearch(''); setView('media'); setPreferredMediaId('');
+    setRecentMediaId(''); setRecentChecks(0); setRecentAuto(false);
     setState(null); setError('');
   }, [contextKey]);
 
@@ -85,6 +90,18 @@ export function DoohMediaLibraryReadOnly() {
   }, [authorized, companyId, requestKey, folderFilter]);
 
   const visible = state?.contextKey === contextKey && state.folderFilter === folderFilter ? state : null;
+  const recent = visible?.media.find((item) => item.id === recentMediaId);
+  // UX08: bounded read-only refresh after upload; no automatic POST, no extra worker.
+  useEffect(() => {
+    if (!authorized || !recentAuto || !recentMediaId || !recent || recentChecks >= 60 ||
+        recent.status === 'READY' || recent.status === 'ERROR') return;
+    const timer = window.setTimeout(() => {
+      setRecentChecks((value) => value + 1);
+      setReload((value) => value + 1);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [authorized, recentAuto, recentMediaId, recent?.status, recentChecks]);
+
   const filtered = useMemo(() => (visible?.media ?? []).filter((item) =>
     (!statusFilter || item.status === statusFilter) &&
     (!typedSearch.trim() || item.name.toLocaleLowerCase('pt-BR').includes(typedSearch.trim().toLocaleLowerCase('pt-BR'))),
@@ -133,6 +150,13 @@ export function DoohMediaLibraryReadOnly() {
           onChange={(event) => setTypedSearch(event.target.value)} />
       </label>
     </div>}
+    {view === 'media' && recent && <p role="status" className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
+      {recent.status === 'READY' ? `“${recent.name}” está pronta para usar na programação.` :
+        recent.status === 'ERROR' ? `Não foi possível preparar “${recent.name}”. Abra os detalhes para corrigir.` :
+        !recentAuto ? `Arquivo “${recent.name}” recebido. Selecione Preparar mídia para disponibilizá-lo.` :
+        recentChecks >= 60 ? 'A preparação ainda não foi concluída. Use Atualizar para consultar novamente.' :
+        `Preparando “${recent.name}”. Você pode continuar navegando; atualizaremos esta lista automaticamente.`}
+    </p>}
     {view === 'media' && <p className="text-xs text-gray-600">Busca apenas nos 100 resultados recentes por pasta; não é uma pesquisa global.</p>}
     {loading && <p role="status" className="text-sm text-gray-600">Carregando biblioteca…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
@@ -155,17 +179,17 @@ export function DoohMediaLibraryReadOnly() {
             {filtered.map((item) => <li key={item.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{item.name}</p>
-                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{statusLabels[item.status]}</span>
+                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{item.id === recentMediaId && recentAuto && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
               </div>
               <p className="text-sm text-gray-600">{item.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'} · {displayDoohMediaSize(item.bytes)}</p>
-              {item.status === 'PENDING' && <p className="text-sm text-gray-700">Arquivo enviado. Falta preparar para usar na programação.</p>}
+              {item.status === 'PENDING' && <p className="text-sm text-gray-700">{item.id === recentMediaId && recentAuto ? 'Arquivo enviado. A preparação automática está na fila.' : 'Arquivo enviado. Falta preparar para usar na programação.'}</p>}
               {item.status === 'PROCESSING' && <p className="text-sm text-gray-700">O arquivo está sendo preparado.</p>}
               {item.status === 'READY' && <p className="text-sm text-gray-700">Pronta para usar em uma lista de exibição.</p>}
               {item.status === 'ERROR' && <p className="text-sm text-gray-700">O processamento não foi concluído. Consulte o histórico antes de tentar novamente.</p>}
               <div className="mt-auto flex flex-wrap items-center gap-2">
                 {item.status === 'READY' ? <a href="/app/dooh/scheduling" className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-indigo-600">Usar em lista</a> :
                   <Button type="button" variant="outline" onClick={() => { setPreferredMediaId(item.id); setView('processing'); }}>
-                    {item.status === 'PENDING' ? 'Preparar mídia' : item.status === 'ERROR' ? 'Ver motivo / tentar novamente' : 'Acompanhar situação'}
+                    {item.status === 'PENDING' && !(item.id === recentMediaId && recentAuto) ? 'Preparar mídia' : item.status === 'ERROR' ? 'Ver motivo / tentar novamente' : 'Acompanhar situação'}
                   </Button>}
                 <details className="text-xs text-gray-500"><summary className="cursor-pointer focus-visible:outline-indigo-600">Detalhes do arquivo</summary>
                   <p className="mt-1">{item.mimeType} · {item.versionCount} versão(ões)</p>

@@ -11,13 +11,13 @@ import {
   validDoohUploadFolder,
 } from '../lib/doohMediaUploadContract';
 
-interface Props { companyId: string; folders: readonly DoohLibraryFolder[]; onChanged: () => void; }
+interface Props { companyId: string; folders: readonly DoohLibraryFolder[]; onChanged: (mediaId: string, autoProcessing: boolean) => void; }
 type PendingFinalize = {
   intentId: string; companyId: string; contextKey: string; name: string;
   folderId: string | null; file: { mimeType: string; size: number };
 };
 
-/** D15B-04 — direct S3 signed PUT; no publish/process/delete or credentials exposed. */
+/** UX08 — direct S3 signed PUT; backend optionally queues safe processing. No publish/delete or credentials exposed. */
 export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
@@ -65,7 +65,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       );
       if (abort.signal.aborted || contextRef.current !== pending.contextKey) return;
       const media = confirmDoohUploadFinalized(response.data, pending.companyId,
-        pending.folderId, pending.name, pending.file, folders);
+        pending.folderId, pending.name, pending.file, folders, pilot.autoProcessingEnabled);
       if (!media) {
         setError('Finalização retornou resultado incompatível. Consulte a Biblioteca antes de repetir o upload.');
         setNeedsFinalize(false); pendingFinalize.current = null;
@@ -74,8 +74,10 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       pendingFinalize.current = null; setNeedsFinalize(false);
       setFile(null); setNameInput(''); setFolderId('root');
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setNotice('Upload confirmado. Mídia registrada como PENDING; o processamento e a publicação são etapas separadas.');
-      onChanged();
+      setNotice(pilot.autoProcessingEnabled
+        ? 'Arquivo recebido. Preparação iniciada automaticamente; a Biblioteca acompanhará o resultado.'
+        : 'Arquivo recebido. Para utilizá-lo, é necessário iniciar a preparação.');
+      onChanged(media.id, pilot.autoProcessingEnabled);
     } catch (e: unknown) {
       if (abort.signal.aborted || contextRef.current !== pending.contextKey) return;
       setError(`${doohUploadError(e, 'finalize')} Se o S3 recebeu o arquivo, use “Repetir finalização”, sem reenviar o binário.`);
@@ -89,7 +91,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
     event.preventDefault();
     if (!canStart || !file || !normalizedName || !validFile || !writable) return;
     const thisKey = contextKey;
-    if (!window.confirm(`Enviar “${normalizedName}” (${file.name}) ao armazenamento da Biblioteca DOOH? O conteúdo ficará PENDING até processamento posterior.`)) return;
+    if (!window.confirm(`Enviar “${normalizedName}” (${file.name}) para a Biblioteca? O arquivo será validado antes de ficar disponível para exibição.`)) return;
     const abort = new AbortController(); controller.current = abort;
     pendingFinalize.current = null; setError(''); setNotice(''); setPhase('init');
     let stage: 'init' | 'put' = 'init';
@@ -139,7 +141,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   return <section aria-label="Upload de mídia DOOH D15B-04" className="space-y-3 rounded-xl border border-indigo-200 p-4">
     <div>
       <h4 className="font-semibold text-gray-900">Enviar mídia</h4>
-      <p className="text-xs text-gray-600">Envio direto ao S3 usando URL temporária. O servidor valida cota e objeto antes de registrar a mídia como PENDING. Nada é publicado automaticamente.</p>
+      <p className="text-xs text-gray-600">Escolha um arquivo. A plataforma verifica e prepara a mídia para uso. O envio não inicia a exibição na tela.</p>
     </div>
     <form onSubmit={(e) => void submit(e)} className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Arquivo (PNG, JPEG ou MP4; outros formatos conforme plano)</span>
@@ -162,7 +164,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
         </select>
       </label>
       <div className="flex flex-wrap gap-3 items-center md:col-span-3">
-        <Button type="submit" disabled={!canStart}>{isBusy ? 'Enviando…' : 'Autorizar e enviar'}</Button>
+        <Button type="submit" disabled={!canStart}>{isBusy ? 'Enviando arquivo…' : 'Enviar mídia'}</Button>
         {needsFinalize && <Button type="button" variant="outline" onClick={() => void retryFinalize()}>Repetir finalização (sem reenviar)</Button>}
         <span className="text-xs text-gray-600">PUT único até 5 GiB; sem upload multipart ou processamento automático.</span>
       </div>

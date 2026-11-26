@@ -72,11 +72,17 @@ export function parseDoohUploadIntent(value: unknown, expected: { size: number; 
 export function confirmDoohUploadFinalized(
   value: unknown, companyId: string, folderId: string | null,
   name: string, file: { mimeType: string; size: number }, folders: readonly DoohLibraryFolder[],
+  autoProcessingEnabled = false,
 ): DoohLibraryMedia | null {
   const parsed = parseDoohLibraryMedia([value], companyId, 'all', folders);
   const media = parsed?.[0];
+  // Auto-queued finalize may be replayed after the worker advanced the version.
+  // Legacy/manual finalize remains strict; both paths require identical tenant,
+  // folder, name, MIME and byte count from the trusted API response.
   if (!media || media.name !== name || media.folderId !== folderId ||
-      media.status !== 'PENDING' || media.versionCount !== 0 ||
+      (!autoProcessingEnabled && (media.status !== 'PENDING' || media.versionCount !== 0)) ||
+      (autoProcessingEnabled && !(media.status === 'PENDING' && media.versionCount <= 1 ||
+        media.versionCount >= 1 && (media.status === 'PROCESSING' || media.status === 'READY' || media.status === 'ERROR'))) ||
       media.mimeType !== file.mimeType || media.bytes !== String(file.size)) return null;
   return media;
 }
