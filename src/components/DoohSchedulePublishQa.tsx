@@ -43,7 +43,7 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
     if (!ready || !body) return;
     if (!window.confirm(`Publicar a agenda "${summary.name}"?\n` +
       `${summary.targetCount} destino(s), prioridade ${summary.priority}, janela ${summary.startsAt} — ${summary.endsAt}.\n` +
-      'Esta operação grava PUBLISHED no banco. NÃO distribui manifest ou ativa players.')) return;
+      'Publicar os horários e as telas desta programação?')) return;
     const controller = new AbortController(); pending.current = controller;
     const key = contextKey;
     const valid = () => !controller.signal.aborted && latestKey.current === key;
@@ -53,13 +53,13 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
       if (!valid()) return;
       const freshSchedule = parseDoohSchedule(detail.data, companyId);
       if (!freshSchedule || freshSchedule.id !== summary.id || JSON.stringify(freshSchedule) !== JSON.stringify(summary)) {
-        setError('Agenda alterada desde a revisão. Atualize o catálogo.'); return;
+        setError('Esta programação mudou. Atualize e confira de novo.'); return;
       }
       const links = await apiClient.get<unknown>(`/dooh/schedules/${encodeURIComponent(summary.id)}/targets`, { signal: controller.signal });
       if (!valid()) return;
       const freshTargets = parseDoohScheduleTargets(links.data, companyId, freshSchedule);
       if (!freshTargets || !publishSnapshotMatches(summary, freshSchedule, inventory, freshTargets)) {
-        setError('Destinos alterados desde a revisão. Atualize o catálogo.'); return;
+        setError('As telas mudaram. Atualize e confira de novo.'); return;
       }
       const response = await apiClient.post<unknown>(`/dooh/schedules/${encodeURIComponent(summary.id)}/publish-cas`, body,
         { signal: controller.signal });
@@ -74,11 +74,11 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
     finally { if (pending.current === controller) pending.current = null; if (valid()) setBusy(false); }
   }
 
-  if (!allowed) return <p className="text-xs text-gray-600">Publicar agenda exige DOOH FULL, empresa correta e papel técnico.</p>;
+  if (!allowed) return <p className="text-xs text-gray-600">Só administradores com acesso completo podem publicar.</p>;
   if (summary.status !== 'DRAFT') return null;
   return <section aria-label="Publicação controlada de agenda" className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
-    <h4 className="text-sm font-semibold text-gray-900">Revisão e publicação da agenda</h4>
-    <p className="text-xs text-amber-900">Publicar registra a agenda e seus destinos no banco, após revisão. Não gera manifest, não envia programação ao player e não comprova reprodução.</p>
+    <h4 className="text-sm font-semibold text-gray-900">Publicar horários e telas</h4>
+    <p className="text-xs text-amber-900">Publicar confirma os horários e as telas. Depois, envie para cada TV em Minhas telas.</p>
     <div className="grid gap-1 text-xs text-gray-700">
       <p><strong>Agenda:</strong> {summary.name} · {shortId(summary.id)}</p>
       <p><strong>Playlist:</strong> {shortId(summary.playlistVersionId)} · <strong>Prioridade:</strong> {summary.priority}</p>
@@ -89,8 +89,8 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
     <ul className="max-h-36 overflow-auto space-y-1 text-xs text-gray-700">
       {inventory.targets.map((target) => <li key={target.id}>{targetNames[target.targetType]} · {shortId(target.targetId)}</li>)}
     </ul>
-    {!body && <p role="status" className="text-xs text-amber-900">Publicação indisponível: agenda deve ter janela finita e destinos consistentes. Recarregue antes de revisar.</p>}
-    {!publishUiEnabled && <p className="text-xs text-amber-900">Publicação indisponível: o servidor ainda não autorizou esta empresa e operação.</p>}
+    {!body && <p role="status" className="text-xs text-amber-900">Confira o período (com data final) e as telas, e atualize antes de publicar.</p>}
+    {!publishUiEnabled && <p className="text-xs text-amber-900">A publicação não está liberada para a sua empresa.</p>}
     <label className="block text-xs text-gray-800">Digite PUBLICAR AGENDA para confirmar
       <input aria-label="Confirmação textual de publicação de agenda" value={confirmation} maxLength={20}
         onChange={(event) => setConfirmation(event.target.value)} disabled={busy || !publishUiEnabled || !body}

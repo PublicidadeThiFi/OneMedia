@@ -1,3 +1,4 @@
+import { doohMediaDisplayName } from '../lib/doohMediaDisplayName';
 import { useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -64,7 +65,7 @@ export function DoohReportsPanel() {
         await Promise.all(media.map(async m => {
           const res = await apiClient.get<unknown>(`/dooh/media/${encodeURIComponent(m.id)}/versions`, { signal: controller.signal }).catch(() => null);
           for (const v of parseDoohVersions(res?.data, m.id)?.versions ?? []) {
-            if (wanted.has(v.id.toLowerCase())) next[v.id.toLowerCase()] = v.version > 1 ? `${m.name} (versão ${v.version})` : m.name;
+            if (wanted.has(v.id.toLowerCase())) next[v.id.toLowerCase()] = v.version > 1 ? `${doohMediaDisplayName(m.name)} (versão ${v.version})` : doohMediaDisplayName(m.name);
           }
         }));
       }

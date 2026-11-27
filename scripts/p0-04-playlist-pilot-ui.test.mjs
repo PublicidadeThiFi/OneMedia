@@ -24,5 +24,5 @@ test('P0-04 CAS rechecks exact draft and confirmation; no schedule or manifest w
 test('P0-04 API network errors deny publication and secrets stay server-side',()=>{
  assert.match(hook,/enabled: false/);
  assert.doesNotMatch(hook,/DATABASE_URL|COMPANY_IDS|ACK|Bearer/);
- assert.match(ui,/A liberação é controlada pelo servidor/);
+ assert.match(ui,/A publicação não está liberada para a sua empresa/);
 });

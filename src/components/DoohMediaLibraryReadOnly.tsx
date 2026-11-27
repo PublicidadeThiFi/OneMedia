@@ -1,3 +1,4 @@
+import { doohMediaDisplayName } from '../lib/doohMediaDisplayName';
 import { useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -207,9 +208,9 @@ export function DoohMediaLibraryReadOnly() {
         {filtered.length === 0 ? <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">Nenhuma mídia encontrada. Ajuste o filtro ou adicione um arquivo.</p> :
           <ul aria-label="Resultados de mídias DOOH" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((item) => <li key={item.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <MediaThumbnail preview={previews[item.id]} kind={item.kind} name={item.name} />
+              <MediaThumbnail preview={previews[item.id]} kind={item.kind} name={doohMediaDisplayName(item.name, item.kind)} />
               <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{item.name}</p>
+                <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{doohMediaDisplayName(item.name, item.kind)}</p>
                 <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{(item.id === recentMediaId && recentAuto) && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
               </div>
               <p className="text-sm text-gray-600">{item.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'} · {displayDoohMediaSize(item.bytes)}</p>

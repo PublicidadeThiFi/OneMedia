@@ -81,6 +81,6 @@ test('D15C05-11 servidor confere itens completos dentro de SERIALIZABLE',(t)=>{
 });
 test('D15C05-12 nenhuma flag é ativada por patch e publicação permanece independente da distribuição',()=>{
  const code=src('src/components/DoohPlaylistPublishQa.tsx');
- assert.match(code,/NÃO configura agendamento, manifest, distribuição/);
+ assert.match(code,/Ela ainda não vai para as TVs/); // F12 plain wording
  assert.doesNotMatch(code,/apiClient\.(put|delete)\(/);
 });

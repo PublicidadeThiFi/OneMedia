@@ -62,7 +62,7 @@ export function DoohScheduleCatalogReadOnly() {
       .then(({ data }) => {
         if (controller.signal.aborted) return;
         const result = parseDoohScheduleCatalog(data, companyId);
-        if (!result) { setError('Resposta do catálogo de agendas incompatível com a API.'); return; }
+        if (!result) { setError('Não foi possível carregar os horários. Tente novamente.'); return; }
         setListing({ key: listKey, items: result });
       }).catch((err: unknown) => { if (!controller.signal.aborted) setError(doohScheduleReadError(err)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -81,7 +81,7 @@ export function DoohScheduleCatalogReadOnly() {
         if (controller.signal.aborted || latestDetailKey.current !== detailKey) return;
         const result = parseDoohSchedule(data, companyId);
         if (!result || result.id !== selectedId || JSON.stringify(result) !== JSON.stringify(selectedSummary)) {
-          setDetailError('Agenda modificada ou incompatível com o catálogo. Atualize a lista.'); return;
+          setDetailError('Esta programação mudou. Atualize a lista.'); return;
         }
         setDetail({ key: detailKey, item: result });
       }).catch((err: unknown) => {
@@ -105,7 +105,7 @@ export function DoohScheduleCatalogReadOnly() {
       .then(({ data }) => {
         if (controller.signal.aborted || latestTargetsKey.current !== targetsKey) return;
         const result = parseDoohScheduleTargets(data, companyId, current);
-        if (!result) { setTargetsError('Destinos alterados ou resposta incompatível. Atualize o catálogo.'); return; }
+        if (!result) { setTargetsError('As telas desta programação mudaram. Atualize a lista.'); return; }
         setTargets({ key: targetsKey, items: result });
       }).catch((err: unknown) => {
         if (!controller.signal.aborted && latestTargetsKey.current === targetsKey) setTargetsError(doohScheduleReadError(err));
@@ -123,22 +123,22 @@ export function DoohScheduleCatalogReadOnly() {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
         <h3 className="font-semibold text-gray-900">Minhas agendas</h3>
-        <p className="text-sm text-gray-600">Escolha quando e onde cada lista publicada será exibida.</p>
+        <p className="text-sm text-gray-600">Escolha quando e em quais telas cada sequência publicada será exibida.</p>
         
       </div>
       <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => { setShowCreate(value => !value); setSelectedId(''); }}>{showCreate ? 'Ver agendas' : 'Criar agenda'}</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar</Button></div>
     </div>
-    <p className="text-xs text-gray-600">Mostrando até 100 agendas recentes; este resultado pode ser parcial.</p>
-    <details className="text-xs text-gray-600"><summary className="cursor-pointer">Sobre a publicação e a exibição</summary>
-      <p className="mt-1">Agenda publicada não comprova distribuição, manifest atualizado, reprodução ou audiência. Preparar e sincronizar são passos posteriores.</p>
+    <p className="text-xs text-gray-600">Mostrando as 100 programações mais recentes.</p>
+    <details className="text-xs text-gray-600"><summary className="cursor-pointer">Como funciona</summary>
+      <p className="mt-1">Depois de publicar os horários, envie para cada TV em Minhas telas. A TV recebe em até 1 minuto.</p>
     </details>
     {showCreate && companyId && entries && <DoohScheduleDetailsCasEditor companyId={companyId} mode="create"
       existingIds={entries.map(s => s.id)} onChanged={() => setRefresh(n => n + 1)} />}
-    {loading && <p role="status" className="text-sm text-gray-600">Carregando agendas…</p>}
+    {loading && <p role="status" className="text-sm text-gray-600">Carregando…</p>}
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {entries && <>
       {!showCreate && <p className="text-xs text-gray-600">{entries.length} agenda(s) encontradas.</p>}
-      {showCreate ? null : entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma agenda cadastrada. Crie uma para definir quando e onde exibir.</p> :
+      {showCreate ? null : entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma programação ainda. Crie uma para definir quando e onde exibir.</p> :
       <><ul className="grid gap-3 md:hidden">{entries.map(item => <li key={item.id} className="rounded-xl border bg-gray-50 p-4 text-sm">
         <p className="font-semibold text-gray-900">{item.name}</p><p className="mt-1">{statusText[item.status]} · {priorityText[item.priority]} · {item.targetCount} destino(s)</p>
         <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(item.id); setSelectedAction('details'); setShowCreate(false); }}>Ver agenda</Button>
@@ -170,7 +170,7 @@ export function DoohScheduleCatalogReadOnly() {
           { id: 'edit', label: 'Horários', description: 'Ajuste datas, horários e a lista enquanto a agenda estiver em edição.' },
           { id: 'targets', label: 'Onde exibir', description: 'Escolha as telas de destino antes de publicar.' },
           { id: 'publish', label: 'Publicar agenda', description: 'Revise tudo antes de confirmar a publicação.' },
-          { id: 'advanced', label: 'Detalhes técnicos', description: 'Histórico, IDs e evidências de alterações.' },
+          { id: 'advanced', label: 'Detalhes técnicos', description: 'Histórico de alterações.' },
         ]} />
         {selectedAction === 'details' && <div className="grid gap-2 text-sm text-gray-700 md:grid-cols-2">
           <p><strong>Nome:</strong> {current.name}</p><p><strong>Estado:</strong> {statusText[current.status]}</p>
@@ -189,8 +189,8 @@ export function DoohScheduleCatalogReadOnly() {
           {targetsLoading && <p role="status" className="text-xs text-gray-600">Consultando destinos…</p>}
           {targetsError && <p role="alert" className="text-xs text-red-800">{targetsError}</p>}
           {targetInventory && <>
-            {targetInventory.capped && <p className="text-xs text-amber-800">Limite de 100 destinos da API atingido. Não presumir lista completa.</p>}
-            {targetInventory.targets.length === 0 ? <p className="text-xs text-gray-600">Nenhum destino associado.</p> :
+            {targetInventory.capped && <p className="text-xs text-amber-800">Mostrando as primeiras 100 telas.</p>}
+            {targetInventory.targets.length === 0 ? <p className="text-xs text-gray-600">Nenhuma tela escolhida.</p> :
               <ul className="mt-2 space-y-1 text-xs text-gray-700">{targetInventory.targets.map((t) => <li key={t.id}>
                 {targetText[t.targetType]} · {shortId(t.targetId)} · associado em {stamp(t.createdAt)}
               </li>)}</ul>}
@@ -205,9 +205,9 @@ export function DoohScheduleCatalogReadOnly() {
         {selectedAction === 'advanced' && companyId && <DoohSchedulePublicationAudit companyId={companyId} summary={current} />}
         {selectedAction === 'advanced' && <p className="text-xs text-gray-600">Identificador da versão da lista: {current.playlistVersionId}. Os destinos são vínculos registrados, não prova de exibição.</p>}
         {selectedAction === 'details' && current.status === 'PUBLISHED' && <div className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-950">
-          <p className="font-semibold">Agenda publicada. Próximo passo: preparar a atualização da tela.</p>
+          <p className="font-semibold">Horários publicados. Agora envie para cada TV em Minhas telas.</p>
           <a href="/app/dooh/screens" className="mt-2 inline-flex font-semibold underline">Abrir minhas telas</a>
-          <p className="mt-2 text-xs">Publicar uma agenda não sincroniza o dispositivo automaticamente.</p>
+          <p className="mt-2 text-xs">A TV só recebe depois do envio em Minhas telas.</p>
         </div>}
       </>}
     </div>}
