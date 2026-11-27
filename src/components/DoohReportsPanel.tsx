@@ -7,11 +7,11 @@ import { Button } from './ui/button';
 import { parseOperationalScreenPage } from '../lib/doohOperationalScreenContract';
 import { parseDoohVersions } from '../lib/doohMediaVersionsContract';
 import {
-  doohReportDayLabel, doohReportErrorText, doohReportParams, doohReportResultLabel, parseDoohReportSummary,
+  doohReportCsv, doohReportDayLabel, doohReportErrorText, doohReportParams, doohReportResultLabel, parseDoohReportSummary,
   type DoohReportGroup, type DoohReportPeriod, type DoohReportSummary,
 } from '../lib/doohReportsContract';
 
-const periods: { id: DoohReportPeriod; label: string }[] = [{ id: 'today', label: 'Hoje' }, { id: '7d', label: 'Últimos 7 dias' }];
+const periods: { id: DoohReportPeriod; label: string }[] = [{ id: 'today', label: 'Hoje' }, { id: 'yesterday', label: 'Ontem' }, { id: '7d', label: 'Últimos 7 dias' }];
 const groupings: { id: DoohReportGroup; label: string }[] = [
   { id: 'PLAYER', label: 'Por tela' }, { id: 'MEDIA_VERSION', label: 'Por mídia' }, { id: 'DAY_UTC', label: 'Por dia' },
 ];
@@ -81,6 +81,15 @@ export function DoohReportsPanel() {
     return names[key.toLowerCase()] ?? (groupBy === 'PLAYER' ? 'Aparelho desvinculado' : 'Mídia removida ou de outra pasta');
   }, [groupBy, names]);
 
+  function downloadCsv() {
+    if (!summary) return;
+    const url = URL.createObjectURL(new Blob([doohReportCsv(summary, label)], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = `exibicoes-${period}-${summary.groupBy.toLowerCase()}.csv`;
+    document.body.appendChild(link); link.click(); link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   if (!allowed) return null;
   const max = Math.max(1, ...(summary?.groups.map(g => g.total) ?? [1]));
   return <section aria-label="Relatórios de exibição" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6">
@@ -89,7 +98,10 @@ export function DoohReportsPanel() {
         <h2 className="text-lg font-semibold text-gray-900">Exibições</h2>
         <p className="text-sm text-gray-600">Cada exibição é registrada pelo próprio aparelho e enviada quando ele tem internet. É o relato do aparelho, não uma verificação física da tela.</p>
       </div>
-      <Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh(n => n + 1)}>Atualizar</Button>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" disabled={loading || !summary || summary.total === 0} onClick={downloadCsv}>Baixar CSV</Button>
+        <Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh(n => n + 1)}>Atualizar</Button>
+      </div>
     </div>
     <div className="flex flex-wrap gap-2" role="group" aria-label="Período">
       {periods.map(p => <Button key={p.id} type="button" size="sm" variant={period === p.id ? 'default' : 'outline'} aria-pressed={period === p.id} onClick={() => setPeriod(p.id)}>{p.label}</Button>)}
