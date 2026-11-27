@@ -81,3 +81,27 @@ export function diagnosticScheduleText(p: NonNullable<ScreenDiagnostic['player']
   if (p.scheduleState === 'READY') return 'Conteúdo previsto para este horário na versão reportada.';
   return 'Horário de exibição não confirmado.';
 }
+
+/** F11d — numbers for the DOOH home. Derived only from what the API reported; nothing inferred. */
+export type DoohScreensOverview = { total: number; playing: number; attention: number; connecting: number; withoutDevice: number };
+
+export function summarizeDoohScreens(screens: readonly OperationalScreen[]): DoohScreensOverview {
+  let playing = 0, attention = 0, connecting = 0, withoutDevice = 0;
+  for (const screen of screens) {
+    if (!screen.player) withoutDevice++;
+    else if (screenAwaitingDeviceConnection(screen)) connecting++;
+    else if (screen.status === 'PLAYING') playing++;
+    if (screen.player && screenOperationalSummary(screen).attention) attention++;
+  }
+  return { total: screens.length, playing, attention, connecting, withoutDevice };
+}
+
+/** One sentence for the top of the home: what matters right now. */
+export function doohOverviewHeadline(o: DoohScreensOverview): string {
+  if (o.total === 0) return 'Crie sua primeira tela e conecte um aparelho para começar.';
+  if (o.attention > 0) return o.attention === 1 ? '1 tela precisa de atenção.' : `${o.attention} telas precisam de atenção.`;
+  if (o.connecting > 0) return 'Concluindo a conexão de um aparelho.';
+  if (o.playing === o.total) return o.total === 1 ? 'Sua tela está exibindo.' : 'Todas as telas estão exibindo.';
+  if (o.withoutDevice > 0) return o.withoutDevice === 1 ? '1 tela ainda não tem aparelho conectado.' : `${o.withoutDevice} telas ainda não têm aparelho conectado.`;
+  return 'Tudo certo com as suas telas.';
+}

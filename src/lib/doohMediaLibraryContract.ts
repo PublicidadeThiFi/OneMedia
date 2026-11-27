@@ -148,3 +148,25 @@ export function displayDoohMediaSize(bytes: string): string {
   if (mb < 1) return `${(Number(integer) / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} KiB`;
   return `${mb.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MiB`;
 }
+
+/** F11d — thumbnails. Only https URLs for media that were asked for; anything else is dropped. */
+export type DoohMediaPreview = { url: string; contentType: 'image/jpeg' | 'image/png' | 'image/webp' | 'video/mp4' };
+const PREVIEW_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'video/mp4']);
+export const DOOH_PREVIEW_BATCH = 50;
+export function parseDoohMediaPreviews(raw: unknown, requested: readonly string[]): Record<string, DoohMediaPreview> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const list = (raw as { previews?: unknown }).previews;
+  if (!Array.isArray(list)) return null;
+  const wanted = new Set(requested);
+  const out: Record<string, DoohMediaPreview> = {};
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const { mediaId, url, contentType } = item as Record<string, unknown>;
+    if (typeof mediaId !== 'string' || !wanted.has(mediaId) || typeof url !== 'string' || typeof contentType !== 'string' || !PREVIEW_TYPES.has(contentType)) continue;
+    let parsed: URL;
+    try { parsed = new URL(url); } catch { continue; }
+    if (parsed.protocol !== 'https:') continue;
+    out[mediaId] = { url: parsed.toString(), contentType: contentType as DoohMediaPreview['contentType'] };
+  }
+  return out;
+}
