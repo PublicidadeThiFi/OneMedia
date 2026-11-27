@@ -31,13 +31,11 @@ test('P0-07: public link only for published profile and enabled marketplace', ()
   assert.equal(publicMarketplacePointPath('ponto-central','PUBLISHED',false),null);
   for (const slug of ['','../abc','foo/bar','foo?x=1','foo#x',' space']) assert.equal(publicMarketplacePointPath(slug,'PUBLISHED',true),null);
 });
-test('P0-07: overview links to real routes; dashboard performs GET only', () => {
-  const ui=readFileSync(new URL('../src/components/DoohGettingStarted.tsx',import.meta.url),'utf8');
+// F12: the pilot step-by-step guide was removed; the home shows the overview and the screens.
+test('P0-07: pilot guide removed from the home', () => {
   const foundation=readFileSync(new URL('../src/components/DoohFoundationPage.tsx',import.meta.url),'utf8');
-  assert.match(ui,/DoohGettingStarted/);assert.match(foundation,/<DoohGettingStarted\s*\/>/);
-  for(const route of ['\/dooh\/players','\/dooh\/folders','\/dooh\/media','\/dooh\/playlists','\/dooh\/schedules']) assert.ok(ui.includes(route));
-  assert.doesNotMatch(ui,/apiClient\.(post|patch|put|delete)\s*\(/);
-  assert.match(ui,/navigator|window|Player Web público/);
+  assert.doesNotMatch(foundation,/DoohGettingStarted/);
+  assert.match(foundation,/section === 'home' && <>[\s\S]*?<DoohOverview \/>/);
 });
 test('P0-07: published point share link is based on API profile status', () => {
   const source=readFileSync(new URL('../src/components/MarketplaceManagement.tsx',import.meta.url),'utf8');

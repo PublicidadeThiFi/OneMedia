@@ -124,11 +124,11 @@ export function DoohPlayerOperations() {
     finally { setBusy(false); }
   }
 
-  return <section aria-label="Operações administrativas DOOH D15A1" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
+  return <section aria-label="Nomes de aparelhos e grupos" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
     <div>
-      <h3 className="font-semibold text-gray-900">Gerenciamento administrativo — D15A1</h3>
-      <p className="mt-1 text-sm text-gray-600">Edição de nome de player e criação/renomeação de grupos. Não ativa licenças, não pareia equipamentos, não altera telas, não apaga registros e não envia restart.</p>
-      <p className="mt-1 text-xs text-amber-800">A ativação DOOH permanece pausada. Apenas usuários técnicos com acesso FULL podem gravar alterações; READ_ONLY mantém consulta.</p>
+      <h3 className="font-semibold text-gray-900">Nomes de aparelhos e grupos</h3>
+      <p className="mt-1 text-sm text-gray-600">Renomeie aparelhos e organize grupos usados no Modo avançado. Nada aqui muda licenças, conexões ou o que está passando.</p>
+      <p className="mt-1 text-xs text-gray-600">Só perfis com acesso completo podem gravar alterações. O acesso de consulta só visualiza.</p>
     </div>
     <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(queryInput.trim().slice(0, 160)); }}>
       <label className="flex-1 space-y-1 text-sm min-w-[180px]"><span>Filtrar players para editar</span>

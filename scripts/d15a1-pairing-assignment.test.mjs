@@ -94,7 +94,8 @@ test('D15A1-02-12 GET SCREEN validada pela empresa, role ADMIN, antes de PUT', (
 });
 test('D15A1-02-13 inventário read only anterior e módulo D15A1-01 preservados', () => {
  const f=source('src/components/DoohFoundationPage.tsx');
- assert.match(f, /screenTask === 'my-screens'.*disabledFallback=\{<DoohPlayerInventoryReadOnly \/>\}/);
- assert.match(f, /screenTask === 'manage'.*<DoohPlayerOperations \/>/);
- assert.match(f, /screenTask === 'connect'.*disabledFallback=\{<DoohPlayerPairingAndAssignment \/>\}/);
+ // F12: inventory and operations are TI-only; the OOH link stays reachable from Minhas telas.
+ assert.match(f, /screenTask === 'technical' && isTechnical[\s\S]*?<DoohPlayerInventoryReadOnly \/>/);
+ assert.match(f, /screenTask === 'technical'[\s\S]*?<DoohPlayerOperations \/>/);
+ assert.match(f, /screenTask === 'my-screens'[\s\S]*?inventário OOH \(Marketplace\)[\s\S]*?<DoohPlayerPairingAndAssignment \/>/);
 });
