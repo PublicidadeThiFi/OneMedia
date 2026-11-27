@@ -63,14 +63,23 @@ export function screenAwaitingDeviceConnection(screen: OperationalScreen): boole
   const p = screen.player;
   return !!p && p.lifecycleStatus === 'ACTIVE' && p.credentialActive === false && !p.lastSeenAt;
 }
+function sinceText(lastSeenAt: string | null | undefined): string {
+  const t = lastSeenAt ? Date.parse(lastSeenAt) : NaN;
+  if (!Number.isFinite(t)) return '';
+  const minutes = Math.max(1, Math.round((Date.now() - t) / 60000));
+  if (minutes < 60) return ` há ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  return hours < 48 ? ` há ${hours} h` : ` há ${Math.round(hours / 24)} dias`;
+}
 export function screenOperationalSummary(screen: OperationalScreen) {
   const p = screen.player;
   const current = p?.currentManifestVersion, desired = p?.desiredManifestVersion;
   const connecting = screenAwaitingDeviceConnection(screen);
   const silent = screen.status === 'NO_RECENT_CONTACT';
-  const connection = !p ? 'Sem aparelho vinculado' : p.lifecycleStatus !== 'ACTIVE' ? 'Dispositivo inativo' : connecting ? 'Concluindo a conexão do aparelho' : p.credentialActive === false ? 'Autorização do aparelho indisponível' : silent ? 'Sem contato recente' : 'Contato recente na última consulta';
+  // F12: plain words. "Sem conexão há X" uses the device's last contact reported by the server.
+  const connection = !p ? 'Sem aparelho' : p.lifecycleStatus !== 'ACTIVE' ? 'Aparelho desativado' : connecting ? 'Concluindo a conexão do aparelho' : p.credentialActive === false ? 'O aparelho precisa ser conectado de novo' : silent ? `Sem conexão${sinceText(p.lastSeenAt)}` : 'Conectada';
   // Without recent contact nothing is "being installed": the new version waits for the device to come back.
-  const programming = !p ? 'Sem aparelho' : connecting ? 'Aguardando o aparelho' : screen.status === 'PLAYING' ? 'Em exibição' : screen.status === 'INSTALL_FAILED' ? 'Falha ao instalar a programação' : current === undefined || desired === undefined ? 'Versões indisponíveis' : BigInt(current) > BigInt(desired) ? 'Divergência de versões' : current !== desired ? (silent ? 'Nova programação aguardando o aparelho voltar' : 'Instalando a nova programação') : current === '0' ? 'Aguardando programação' : silent ? 'Última programação instalada (sem contato agora)' : 'Programação instalada';
+  const programming = !p ? 'Sem aparelho' : connecting ? 'Aguardando o aparelho' : screen.status === 'PLAYING' ? 'Em exibição' : screen.status === 'INSTALL_FAILED' ? 'Falha ao instalar a programação' : current === undefined || desired === undefined ? 'Situação indisponível' : BigInt(current) > BigInt(desired) ? 'Precisa de suporte: versões divergentes' : current !== desired ? (silent ? 'Nova programação aguardando a TV voltar' : 'Instalando a nova programação') : current === '0' ? 'Sem conteúdo publicado' : silent ? 'Sem conexão agora; última programação instalada' : 'Programação instalada, fora de exibição';
   const attention = !connecting && (!p || p.lifecycleStatus !== 'ACTIVE' || p.credentialActive === false || silent || screen.status === 'INSTALL_FAILED' || current === undefined || desired === undefined || current === '0' || (current !== desired && screen.status !== 'UPDATE_PENDING'));
   return { connection, programming, attention };
 }

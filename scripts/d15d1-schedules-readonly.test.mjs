@@ -103,7 +103,7 @@ test('D15D01-13: seção Programação mantém playlists e Marketplace', () => {
 });
 test('D15D01-14: interface documenta limites e não presume exibição', () => {
   const fs = source('src/components/DoohScheduleCatalogReadOnly.tsx');
-  assert.match(fs,/até 100 agendas/);
-  assert.match(fs,/não comprova distribuição, manifest atualizado, reprodução ou audiência/);
+  assert.match(fs,/100 programações mais recentes/);
+  assert.match(fs,/envie para cada TV em Minhas telas/); // F12 plain wording
   assert.doesNotMatch(fs,/reprodução comprovada|impressões certificadas/);
 });

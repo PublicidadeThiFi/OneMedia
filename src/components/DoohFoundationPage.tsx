@@ -27,7 +27,7 @@ const technicalTask = { id: 'technical', label: 'Suporte técnico', description:
 const programmingTasks = [
   { id: 'screens', label: 'Por tela', description: 'Escolha uma tela e defina o conteúdo e os horários em um só lugar.' },
   { id: 'marketplace', label: 'Campanhas do Marketplace', description: 'Vincule campanhas aprovadas conforme as regras da plataforma.' },
-  { id: 'advanced', label: 'Modo avançado', description: 'Listas e agendas compartilhadas entre várias telas.' },
+  { id: 'advanced', label: 'Várias telas de uma vez', description: 'Monte uma sequência uma vez e exiba nas telas que escolher.' },
 ] as const;
 type AdvancedView = 'playlists' | 'schedules';
 const explanations: Record<DoohFoundationSection, string> = {
@@ -85,11 +85,11 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
       <DoohWorkspaceTabs tabs={programmingTasks} selected={programmingTask} onSelect={setProgrammingTask} label="Áreas de programação" />
       {programmingTask === 'screens' && <DoohOperationalScreensPanel contentOnly />}
       {programmingTask === 'advanced' && <div className="space-y-4">
-        <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700">Para a maioria dos casos, use “Por tela”. O modo avançado serve para reaproveitar a mesma lista ou agenda em várias telas.</p>
+        <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700">Use quando várias TVs exibem o mesmo conteúdo, como uma rede de lojas. Para uma TV só, “Por tela” é mais rápido.</p>
         <DoohWorkspaceTabs tabs={[
-          { id: 'playlists', label: 'Listas', description: 'Escolha as mídias prontas, defina a ordem e publique a lista.' },
-          { id: 'schedules', label: 'Agendas', description: 'Escolha a lista publicada, os horários e as telas.' },
-        ]} selected={advancedView} onSelect={setAdvancedView} label="Modo avançado" />
+          { id: 'playlists', label: '1. Sequências', description: 'Escolha as mídias, defina a ordem e publique a sequência.' },
+          { id: 'schedules', label: '2. Horários e telas', description: 'Escolha a sequência publicada, os horários e as telas que vão exibir.' },
+        ]} selected={advancedView} onSelect={setAdvancedView} label="Várias telas de uma vez" />
         {advancedView === 'playlists' ? <DoohPlaylistCatalogReadOnly /> : <DoohScheduleCatalogReadOnly />}
       </div>}
       {programmingTask === 'marketplace' && <DoohMarketplaceCampaignSelection />}

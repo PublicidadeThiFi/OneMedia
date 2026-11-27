@@ -107,6 +107,6 @@ test('D15C02-13: backend registra CAS atômico, sem excluir/arquivar',()=>{
 });
 test('D15C02-14: leitura de versões permanece separada de mutações',()=>{
   const ui=source('src/components/DoohPlaylistCatalogReadOnly.tsx');
-  assert.match(ui,/não comprova distribuição aos players, reprodução ou audiência/);
+  assert.match(ui,/Ela só vai para as TVs depois que você escolher horários e telas/); // F12 plain wording
   assert.match(ui,/parseDoohPlaylistDetail/);
 });

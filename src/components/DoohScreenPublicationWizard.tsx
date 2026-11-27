@@ -1,9 +1,11 @@
+import { doohMediaDisplayName } from '../lib/doohMediaDisplayName';
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
 import type { OperationalScreen } from '../lib/doohOperationalScreenContract';
+import { screenOperationalSummary } from '../lib/doohScreenDiagnosticContract';
 import type { GuidedContentDraft } from '../lib/doohGuidedScreenContentContract';
 import { guidedSnapshotToCas } from '../lib/doohGuidedScreenContentContract';
 import { draftStillCurrent, parsePlaylistDraft } from '../lib/doohPlaylistDraftEditorContract';
@@ -28,15 +30,15 @@ import { NO_RENEWAL, parseRenewalCapability, reviewedRenewalMode, technicalRenew
 function RenewalPolicy({cap,choice,scheduled,disabled,onChange}:{cap:RenewalCapability;choice:RenewalChoice;scheduled:boolean;disabled:boolean;onChange:(v:RenewalChoice)=>void}) {
   if(!cap.enabled)return null;
   return <div className="space-y-2 rounded border bg-gray-50 p-3">
-    <label className="block font-medium">Atualizações automáticas da programação
+    <label className="block font-medium">Por quanto tempo exibir
       <select className="block w-full rounded border bg-white p-2" value={choice} disabled={disabled} onChange={e=>onChange(e.target.value as RenewalChoice)}>
-        <option value="NONE">Sem renovação automática</option>
-        <option value="BOUNDED" disabled={scheduled&&!cap.recurring}>Manter atualizada até a data final</option>
-        <option value="CONTINUOUS" disabled={scheduled}>Exibir continuamente até eu interromper</option>
+        <option value="CONTINUOUS" disabled={scheduled}>Sempre, até eu pausar</option>
+        <option value="BOUNDED" disabled={scheduled&&!cap.recurring}>Até uma data que eu escolher</option>
+        <option value="NONE">Por um período curto (até 30 dias)</option>
       </select>
     </label>
-    <p className="text-xs">{choice==='CONTINUOUS'?'A data técnica é renovada pelo sistema. Você não está definindo uma data final. O acesso e a autorização precisam permanecer válidos.':choice==='BOUNDED'?'O sistema pode atualizar a programação automaticamente, mas nunca prorrogará a data final escolhida.':'Sem novo consentimento, esta publicação não delega renovações. A autorização registrada anteriormente é encerrada quando você republicar.'}</p>
-    {scheduled&&!cap.recurring&&<p className="text-xs text-amber-800">A renovação de horários específicos ainda não foi liberada pelo servidor.</p>}
+    <p className="text-xs">{choice==='CONTINUOUS'?'A TV exibe até você pausar ou publicar outra programação, enquanto a licença estiver ativa.':choice==='BOUNDED'?'A TV exibe até a data final escolhida e para sozinha nela.':'A TV exibe no período escolhido, de no máximo 30 dias.'}</p>
+    {scheduled&&!cap.recurring&&<p className="text-xs text-amber-800">Com dias e horários definidos, escolha um período de até 30 dias.</p>}
   </div>;
 }
 
@@ -77,7 +79,6 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [manifestWindow,setManifestWindow]=useState<{from:string;to:string}|null>(null);
   const [show,setShow]=useState(false);
   const [single,setSingle]=useState(false);
-  const [advanced,setAdvanced]=useState(false);
   const [linkedSchedule,setLinkedSchedule]=useState<DoohScheduleSummary|null>(null);
   const [prepared,setPrepared]=useState(false);
   const [replaceEnabled,setReplaceEnabled]=useState(false);
@@ -106,7 +107,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
   useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
-    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setAdvanced(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');initialChoiceInitialized.current=false;setStartNow(true);setLimitedHours(false);setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
+    setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');initialChoiceInitialized.current=false;setStartNow(true);setLimitedHours(false);setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
     if(!allowed||!show){setLoaded(true);return;}
@@ -267,7 +268,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!renewalRevoked(result.data,screen.id,grant.id))throw Error('Renewal revocation not confirmed');
     setRenewalGrant(null);
-    return 'Renovação automática revogada. A programação já autorizada pode continuar até sua validade.';
+    return 'Renovação desligada. A TV para no fim do período atual.';
   }
 
   async function pausePublication(ctl:AbortController,key:string){
@@ -277,7 +278,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parsePausePublicationReceipt(result.data,screen.id,pauseBody))throw Error('Unconfirmed pause');
     setPrepared(false);setRenewalChoice('NONE');
-    return 'Pausa preparada no servidor. A tela precisa receber a atualização; não é confirmação de interrupção física.';
+    return 'Pausa publicada. A TV para em até 1 minuto, com ela ligada.';
   }
   async function resumePublication(ctl:AbortController,key:string){
     const body=resumeBody(Date.now());
@@ -287,7 +288,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseRepublicationReceipt(result.data,screen.id,body.expectedPlayerId,body.expectedScheduleId,body.playlistVersionId,body.expectedManifestVersion))throw Error('Unconfirmed resume');
     setPrepared(true);
-    return 'Retomada preparada. A programação será exibida nos horários escolhidos após instalação e autorização da tela.';
+    return 'Programação retomada. A TV volta a exibir em até 1 minuto, nos horários escolhidos.';
   }
 
   async function restorePublication(ctl:AbortController,key:string){
@@ -298,7 +299,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseRestoreReceipt(response.data,screen.id,body))throw Error('Unconfirmed restoration');
     setPrepared(true);setHistoryId('');setRestoreEnd('');
-    return 'Programação anterior restaurada em uma nova publicação. Aguarde a instalação no aparelho.';
+    return 'Programação anterior restaurada. A TV recebe em até 1 minuto.';
   }
 
   async function publishReplacement(ctl:AbortController,key:string){
@@ -310,13 +311,13 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       if(ctl.signal.aborted||activeKey.current!==key)return;
       if(!futureRepublicationReceipt(result.data,screen.id,body.startsAt,body.endsAt))throw Error('Unconfirmed future publication');
       setScheduleFuture(false);setFutureStart('');
-      return 'Alteração agendada. A programação atual não foi substituída. Consulte a situação após o horário escolhido.';
+      return 'Alteração agendada. Até lá, a TV continua com a programação atual.';
     }
     const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/republication`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseRepublicationReceipt(result.data,screen.id,body.expectedPlayerId,body.expectedScheduleId,body.playlistVersionId,body.expectedManifestVersion))throw Error('Unconfirmed replacement');
     setPrepared(true);
-    return 'Nova programação publicada. A atualização do aparelho ainda não confirma exibição.';
+    return 'Publicado. A TV recebe a nova programação em até 1 minuto.';
   }
 
   async function cancelFuture(ctl:AbortController,key:string){
@@ -358,7 +359,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(ctl.signal.aborted||activeKey.current!==key)return;
     const receipt=parsePlaylistPublished(res.data,before,current.currentVersion);
     if(!receipt)throw Error('Unconfirmed playlist publication');
-    return `Lista publicada como versão ${receipt.publishedVersion}. Ainda faltam horários e atualização do aparelho.`;
+    return `Sequência publicada (versão ${receipt.publishedVersion}). Agora defina quando exibir.`;
   }
 
   async function createSchedule(ctl:AbortController,key:string){
@@ -387,7 +388,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     const receipt=await apiClient.post<unknown>(`/dooh/schedules/${id}/publish-cas`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseSchedulePublishReceipt(receipt.data,summary))throw Error('Unconfirmed schedule publication');
-    return 'Horários publicados. A atualização do aparelho ainda precisa ser preparada.';
+    return 'Horários publicados. Agora envie para a TV.';
   }
 
   async function inspectManifest(ctl:AbortController,key:string){
@@ -428,7 +429,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!manifestCasResult(receipt.data,latest))throw Error('Manifest publication not confirmed');
     setReview(null);setManifestWindow(null);
-    return 'Atualização preparada pelo servidor. O dispositivo deve sincronizar; confirme a versão instalada antes de declarar exibição.';
+    return 'Enviado. A TV recebe em até 1 minuto.';
   }
 
   const historyPanel=history&&<details className="rounded border p-3 space-y-2"><summary className="font-medium cursor-pointer">Restaurar programação anterior</summary>
@@ -441,114 +442,112 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
               <Button type="button" variant="outline" disabled={isBusy||prepared||!restoreBody(Date.now())||futureIntent?.status==='PENDING'} onClick={()=>void run(restorePublication)}>Confirmar e restaurar programação</Button>
             </>}
           </details>;
-  if(!allowed)return <p className="text-sm text-gray-600">Publicar requer permissão de administrador e acesso DOOH completo.</p>;
+  if(!allowed)return <p className="text-sm text-gray-600">Só administradores com acesso completo podem publicar.</p>;
   return <div className="rounded-lg border border-indigo-200 bg-white p-4 space-y-3" aria-label={`Publicação guiada da tela ${screen.name}`}>
     <div className="flex justify-between gap-2 items-center"><h5 className="font-semibold">3. Horários e publicação</h5><Button type="button" variant={recommendPublication && !show ? "default" : "outline"} size="sm" disabled={busy||editorBlocked} aria-expanded={show} onClick={()=>setShow(v=>!v)}>{show?'Recolher':'Configurar exibição'}</Button></div>
-    {!show?<p className="text-xs text-gray-600">Depois de organizar suas mídias, abra esta etapa para escolher horários e preparar a atualização do aparelho.</p>:<>
-      {!loaded&&<p role="status" className="text-sm">Conferindo se a programação pode ser publicada…</p>}
+    {!show?<p className="text-xs text-gray-600">Depois de organizar as mídias, escolha quando exibir e publique na TV.</p>:<>
+      {!loaded&&<p role="status" className="text-sm">Carregando…</p>}
       {error&&<p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">{error}</p>}
       {notice&&<p role="status" className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
-      {!caps.guided&&loaded&&<p className="text-sm text-amber-800">A publicação guiada ainda não está disponível para esta empresa. Seu rascunho foi preservado.</p>}
+      {prepared&&screen.player&&<p role="status" className="rounded border border-indigo-200 bg-indigo-50 p-2 text-sm text-indigo-900">Situação da TV: <strong>{screenOperationalSummary(screen).programming}</strong>. Atualiza sozinho a cada 20 segundos.</p>}
+      {!caps.guided&&loaded&&<p className="text-sm text-amber-800">A publicação ainda não está liberada para a sua empresa. Suas mídias e a sequência ficam salvas.</p>}
       {caps.guided&&<>
-        {renewalGrant&&<div className="rounded border p-3 space-y-2 text-sm"><strong>Autorização de renovação registrada</strong>
-          <p>{renewalGrant.mode==='CONTINUOUS'?'Contínua, sujeita às permissões e ao licenciamento.':`Até ${new Date(renewalGrant.authorizedEndAt!).toLocaleString('pt-BR')}.`}</p>
-          <p className="text-xs">O registro não comprova que a renovação está em execução. Uma republicação encerra esta autorização e utiliza a nova escolha.</p>
-          <Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={()=>void run(revokeRenewal)}>Revogar renovação automática</Button>
+        {renewalGrant&&<div className="rounded border p-3 space-y-2 text-sm"><strong>{renewalGrant.mode==='CONTINUOUS'?'Exibindo sempre, até você pausar':`Exibindo até ${new Date(renewalGrant.authorizedEndAt!).toLocaleString('pt-BR')}`}</strong>
+          <p className="text-xs">Para mudar, publique de novo com a nova escolha. "Não renovar mais" faz a TV parar no fim do período atual.</p>
+          <Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={()=>void run(revokeRenewal)}>Não renovar mais</Button>
         </div>}
         {paused&&<div className="rounded-lg border p-3 space-y-3 text-sm">
-          <strong>Programação pausada no servidor</strong>
+          <strong>Programação pausada</strong>
           {historyPanel}
-          <p>A versão anterior pode continuar numa tela sem contato enquanto estiver autorizada. O pareamento e as mídias foram preservados.</p>
-          {!pauseEnabled?<p>O servidor ainda não liberou a retomada guiada.</p>:<>
-            <p>Retomar o conteúdo publicado antes da pausa, sem incluir alterações do rascunho.</p>
+          <p>A TV não recebe nova programação enquanto estiver pausada. O aparelho e as mídias continuam salvos.</p>
+          {!pauseEnabled?<p>A retomada ainda não está liberada para a sua empresa.</p>:<>
+            <p>Retomar volta a exibir o que estava publicado antes da pausa. Mudanças ainda não publicadas não entram.</p>
             {resumeSnapshot&&<p>{playlist?.name} · {resumeSnapshot.items.length} mídia(s) · duração total {resumeSnapshot.totalDurationMs/1000}s.</p>}
             <p>Horários preservados: {linkedSchedule?.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(linkedSchedule?.dailyStartMinute)}–${minuteLabel(linkedSchedule?.dailyEndMinute)}`} · {linkedSchedule?.weekdays.length?linkedSchedule.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'} · {linkedSchedule?.timezone}.</p>
             {resumeMode!=='CONTINUOUS'&&<label className="block">Nova data final (horário local do navegador: {timezone})<input type="datetime-local" value={replaceEnd} disabled={isBusy} className="w-full rounded border p-2" onChange={e=>setReplaceEnd(e.target.value)}/></label>}
             <RenewalPolicy cap={replaceRenewal} choice={renewalChoice} scheduled={!!(linkedSchedule&&(linkedSchedule.weekdays.length||linkedSchedule.dailyStartMinute!==null))} disabled={isBusy} onChange={setRenewalChoice}/>
-            {!resumeBody(Date.now())&&<p role="status" className="text-amber-800">Aguarde a tela reportar a pausa, confira a programação publicada e escolha um período válido.</p>}
-            <Button type="button" disabled={isBusy||!resumeBody(Date.now())||futureIntent?.status==='PENDING'} onClick={()=>void run(resumePublication)}>Confirmar e retomar programação</Button>
+            {!resumeBody(Date.now())&&<p role="status" className="text-amber-800">Aguarde a TV confirmar a pausa (até 1 minuto com ela ligada) e escolha um período válido.</p>}
+            <Button type="button" disabled={isBusy||!resumeBody(Date.now())||futureIntent?.status==='PENDING'} onClick={()=>void run(resumePublication)}>Retomar programação</Button>
           </>}
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
         </div>}
         {replacing&&<div className="rounded-lg border p-3 space-y-3 text-sm">
-          <strong>Atualizar programação</strong>
+          <strong>Publicar alterações</strong>
           {historyPanel}
-          {pauseEnabled&&<div className="rounded border p-2 space-y-2"><p>Interrompa a programação desta tela sem excluir mídias nem desvincular o aparelho. A renovação automática será revogada.</p><Button type="button" variant="outline" disabled={isBusy||!pauseBody||futureIntent?.status==='PENDING'} onClick={()=>void run(pausePublication)}>Pausar programação</Button></div>}
-          <p>Revise a sequência de {screen.name}. {scheduleFuture?'A alteração será tentada no horário escolhido, sem substituir a programação agora.':'A substituição começa agora; a programação anterior permanece no aparelho enquanto autorizada e até a atualização segura.'}</p>
-          {futureIntent&&<div className="rounded border p-2 space-y-2" role="status"><strong>{futureIntent.status==='PENDING'?'Alteração agendada':futureIntent.status==='ACTIVATED'?'Atualização preparada pelo servidor':futureIntent.status==='CANCELLED'?'Alteração cancelada':'Alteração não aplicada'}</strong><p>Início solicitado: {new Date(futureIntent.startsAt).toLocaleString('pt-BR')}.</p>{futureIntent.status==='PENDING'&&<Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>void run(cancelFuture)}>Cancelar alteração agendada</Button>}<p className="text-xs">A situação não comprova exibição física.</p></div>}
-          {futureEnabled&&futureIntent?.status!=='PENDING'&&<><label className="flex gap-2"><input type="checkbox" checked={scheduleFuture} disabled={isBusy} onChange={e=>{setScheduleFuture(e.target.checked);if(e.target.checked&&!futureStart)setFutureStart(localInputFor(Date.now()+10*60_000));}}/>Iniciar em uma data futura</label>{scheduleFuture&&<label className="block">Começar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={futureStart} disabled={isBusy} onChange={e=>setFutureStart(e.target.value)}/><span className="text-xs">Até sete dias à frente; o aparelho precisa sincronizar. Não edite a sequência revisada antes da ativação.</span></label>}</>}
-          {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{item.mediaName} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
+          {pauseEnabled&&<div className="rounded border p-2 space-y-2"><p>Pausar para a programação desta tela sem apagar mídias nem desconectar o aparelho.</p><Button type="button" variant="outline" disabled={isBusy||!pauseBody||futureIntent?.status==='PENDING'} onClick={()=>void run(pausePublication)}>Pausar programação</Button></div>}
+          <p>Confira a sequência de {screen.name}. {scheduleFuture?'A mudança entra no horário escolhido; até lá, a TV continua com a programação atual.':'A mudança entra em até 1 minuto. Enquanto isso, a TV continua com a programação atual.'}</p>
+          {futureIntent&&<div className="rounded border p-2 space-y-2" role="status"><strong>{futureIntent.status==='PENDING'?'Alteração agendada':futureIntent.status==='ACTIVATED'?'Alteração aplicada':futureIntent.status==='CANCELLED'?'Alteração cancelada':'Alteração não aplicada'}</strong><p>Início solicitado: {new Date(futureIntent.startsAt).toLocaleString('pt-BR')}.</p>{futureIntent.status==='PENDING'&&<Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>void run(cancelFuture)}>Cancelar alteração agendada</Button>}</div>}
+          {futureEnabled&&futureIntent?.status!=='PENDING'&&<><label className="flex gap-2"><input type="checkbox" checked={scheduleFuture} disabled={isBusy} onChange={e=>{setScheduleFuture(e.target.checked);if(e.target.checked&&!futureStart)setFutureStart(localInputFor(Date.now()+10*60_000));}}/>Iniciar em uma data futura</label>{scheduleFuture&&<label className="block">Começar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={futureStart} disabled={isBusy} onChange={e=>setFutureStart(e.target.value)}/><span className="text-xs">Até 7 dias à frente. Não mude a sequência até a alteração entrar.</span></label>}</>}
+          {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{doohMediaDisplayName(item.mediaName)} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
           {replacementMode!=='CONTINUOUS'&&<label className="block">Terminar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={replaceEnd} disabled={isBusy} onChange={e=>setReplaceEnd(e.target.value)}/></label>}
-          <p className="text-xs text-gray-600">Fuso dos horários de exibição: {linkedSchedule?.timezone}. Período técnico máximo de 30 dias.</p>
+          <p className="text-xs text-gray-600">Fuso dos horários: {linkedSchedule?.timezone}.</p>
           <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex gap-1 items-center"><input type="checkbox" checked={replaceDays.includes(i+1)} disabled={isBusy||replacementMode==='CONTINUOUS'} onChange={e=>setReplaceDays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div>
           <p className="text-xs">Nenhum dia selecionado = todos os dias.</p>
           <label className="flex gap-2"><input type="checkbox" checked={replaceDaily} disabled={isBusy||replacementMode==='CONTINUOUS'} onChange={e=>setReplaceDaily(e.target.checked)}/>Limitar horário diário</label>
           {replaceDaily&&<div className="grid grid-cols-2 gap-2"><label>De (HH:mm)<input className="w-full rounded border p-2" type="time" value={Number.isFinite(replaceFirst)?minuteLabel(replaceFirst):''} disabled={isBusy} onChange={e=>{const [h,m]=e.target.value.split(':').map(Number);setReplaceFirst(e.target.value?h*60+m:NaN);}}/></label><label>Até (HH:mm)<input className="w-full rounded border p-2" type="time" value={replaceLast===1440?'00:00':Number.isFinite(replaceLast)?minuteLabel(replaceLast):''} disabled={isBusy} onChange={e=>{const [h,m]=e.target.value.split(':').map(Number);setReplaceLast(e.target.value?(h*60+m||1440):NaN);}}/></label><p className="col-span-2 text-xs">Fim às 00:00 significa fim do dia (24:00).</p></div>}
           <RenewalPolicy cap={replaceRenewal} choice={renewalChoice} scheduled={replaceDays.length>0||replaceDaily} disabled={isBusy} onChange={setRenewalChoice}/>
-          {!replaceAllowed&&<p role="status" className="text-amber-800">Aguarde a versão publicada ser reportada pelo aparelho e confira o vínculo e as permissões. O servidor ainda verificará a programação anterior.</p>}
+          {!replaceAllowed&&<p role="status" className="text-amber-800">Aguarde a TV confirmar a programação atual (até 1 minuto com ela ligada) para publicar alterações.</p>}
           {replaceAllowed&&!replacementBody(Date.now())&&<p className="text-amber-800">Confira a sequência salva, a data final e os horários.</p>}
-          <Button type="button" disabled={isBusy||!replaceAllowed||!replacementBody(Date.now())||prepared||futureIntent?.status==='PENDING'} onClick={()=>void run(publishReplacement)}>{busy?'Preparando atualização…':prepared?'Atualização preparada':scheduleFuture?'Confirmar e agendar alteração':'Confirmar e atualizar programação'}</Button>
+          <Button type="button" disabled={isBusy||!replaceAllowed||!replacementBody(Date.now())||prepared||futureIntent?.status==='PENDING'} onClick={()=>void run(publishReplacement)}>{busy?'Publicando…':prepared?'Publicado. Enviando para a TV…':scheduleFuture?'Agendar alteração':'Publicar alterações'}</Button>
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
         </div>}
         {single&&!replacing&&!paused&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Publicar programação</strong>
-          <p>Confira a tela, a sequência e o período. Uma confirmação prepara a atualização do aparelho.</p>
+          <p>Confira a tela, a sequência e o período. A TV recebe a programação em até 1 minuto.</p>
           <p><strong>{screen.name}</strong>{screen.player?` · ${screen.player.name}`:''}</p>
-          {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{item.mediaName} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
+          {draft?.items.length?<ol className="list-decimal pl-5">{draft.items.map(item=><li key={item.id}>{doohMediaDisplayName(item.mediaName)} · {item.durationMs/1000}s</li>)}</ol>:<p>Adicione mídia pronta à sequência.</p>}
           {link?.scheduleId?<div className="space-y-1"><p>Período já salvo: {linkedSchedule?.startsAt?new Date(linkedSchedule.startsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} até {linkedSchedule?.endsAt?new Date(linkedSchedule.endsAt).toLocaleString('pt-BR',{timeZone:linkedSchedule.timezone}):'—'} ({linkedSchedule?.timezone}).</p>
             <p>{linkedSchedule?.dailyStartMinute===null?'Dia inteiro':`${minuteLabel(linkedSchedule?.dailyStartMinute)}–${minuteLabel(linkedSchedule?.dailyEndMinute)}`} · {linkedSchedule?.weekdays.length?linkedSchedule.weekdays.map(d=>WEEKDAYS[d-1]).join(', '):'Todos os dias'}</p>
-            <p className="text-xs text-gray-600">A retomada só reutiliza a agenda e o conteúdo idênticos; não substitui uma programação existente.</p></div>:<>
+            </div>:<>
             <label className="flex items-center gap-2"><input type="checkbox" checked={startNow} disabled={isBusy} onChange={e=>{setStartNow(e.target.checked);if(!e.target.checked)setStart(localInputFor(Date.now()+10*60_000));}}/>Começar assim que a programação chegar ao aparelho</label>
             <div className="grid sm:grid-cols-2 gap-3">{!startNow&&<label>Começar em<input aria-label="Início da publicação guiada" aria-invalid={!start} type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>}
             {initialMode!=='CONTINUOUS'&&<label>Terminar em<input aria-label="Fim da publicação guiada" aria-invalid={!end || end <= (startNow?localInputFor(Date.now()):start)} type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label>}</div>
-            <p className="text-xs text-gray-600">Fuso: {timezone}.{initialMode==='CONTINUOUS'?' O sistema renova os períodos técnicos enquanto autorizado.':' Período máximo de 30 dias.'}</p>
+            <p className="text-xs text-gray-600">Fuso: {timezone}.</p>
             <label className="flex items-center gap-2"><input type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>{setLimitedHours(e.target.checked);if(e.target.checked&&renewalChoice==='CONTINUOUS')setRenewalChoice(initialRenewal.recurring?'BOUNDED':'NONE');}}/>Definir dias e horários</label>
             {!limitedHours&&initialMode!=='CONTINUOUS'&&<p className="text-xs text-gray-600">Exibir continuamente durante o período escolhido.</p>}
             {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" value={startHour} disabled={isBusy} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" value={endHour} disabled={isBusy} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
             <div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div><p className="text-xs">Nenhum dia selecionado = todos os dias.</p></>}
           </>}
           <RenewalPolicy cap={initialRenewal} choice={renewalChoice} scheduled={initialScheduled} disabled={isBusy} onChange={setRenewalChoice}/>
-          {!singleAllowed&&<p className="text-amber-800">Conecte um aparelho ativo independente e confirme as permissões de publicação. Telas comerciais permanecem no fluxo avançado.</p>}
-          {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias prontas, a ordem salva e o período de exibição (início em até 7 dias, fim após o início, máximo de 30 dias).</p>}
-          <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Preparando programação…':prepared?'Atualização preparada':link?.scheduleId?'Confirmar e retomar publicação':initialMode==='CONTINUOUS'?'Confirmar exibição contínua e publicar':initialMode==='FINITE'||initialMode==='RECURRING'?'Confirmar publicação e renovação até a data final':'Confirmar e publicar'}</Button>
-          <p className="text-xs text-gray-600">Ao confirmar, você autoriza a opção de atualização escolhida acima. Publicar não comprova exibição. Caso alguma etapa não conclua, a próxima confirmação consulta os dados salvos; nenhum conteúdo diferente será reaproveitado. A renovação automática depende da autorização do servidor.</p>
+          {!singleAllowed&&<p className="text-amber-800">{screen.commercialUnit?'Esta tela está ligada a um ponto do Marketplace. Publique pelas etapas abaixo.':'Conecte um aparelho a esta tela para publicar.'}</p>}
+          {!initialBody&&singleAllowed&&<p className="text-amber-800">Confira as mídias e o período: começa em até 7 dias e termina depois do início.</p>}
+          <Button type="button" disabled={isBusy||!singleAllowed||!initialBody||prepared} onClick={()=>void run(publishInitial)}>{busy?'Publicando…':prepared?'Publicado. Enviando para a TV…':link?.scheduleId?'Retomar publicação':'Publicar'}</Button>
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
         </div>}
-        {single&&!replacing&&!paused&&<Button type="button" variant="outline" size="sm" disabled={isBusy} aria-expanded={advanced} onClick={()=>setAdvanced(v=>!v)}>{advanced?'Ocultar operação avançada':'Operação avançada'}</Button>}
-        {!replacing&&!paused&&(!single||advanced)&&<>
-        {!single&&<p className="text-sm text-gray-600">A confirmação única não está disponível. Use as etapas de publicação separadas abaixo.</p>}
+        {/* F12: the separate steps are only for screens linked to a Marketplace point or when one-step publishing is off. */}
+        {!replacing&&!paused&&(!single||!!screen.commercialUnit)&&<>
+        <p className="text-sm text-gray-600">Publicação em etapas (telas do Marketplace).</p>
         <div className="rounded-lg border p-3 space-y-2 text-sm">
-          <strong>Etapa A — Publicar suas mídias</strong>
+          <strong>1. Publicar a sequência de mídias</strong>
           <p>{unreviewed>0?`${unreviewed} arquivo(s) ainda na sequência em edição.`:chosen?`Lista publicada (versão ${chosen.version}).`:'Adicione mídia à sequência antes de publicar.'}</p>
-          {!caps.playlist&&<p className="text-xs text-amber-800">O servidor não autorizou publicação de listas neste ambiente.</p>}
+          {!caps.playlist&&<p className="text-xs text-amber-800">A publicação de sequências não está liberada para a sua empresa.</p>}
           <Button size="sm" type="button" disabled={isBusy||!canPublishPlaylist||!consent} onClick={()=>void run(publishPlaylist)}>Publicar lista de mídias</Button>
         </div>
         <div className="rounded-lg border p-3 space-y-3 text-sm">
-          <strong>Etapa B — Definir quando mostrar</strong>
+          <strong>2. Definir quando exibir</strong>
           {!screen.playerId&&<p className="text-amber-800">Conecte um aparelho em “Minhas telas” antes de publicar. A edição das mídias pode ser feita sem aparelho.</p>}
           {link?.scheduleId?<p>Agenda vinculada: <strong>{link.status==='DRAFT'?'Salva, aguardando publicação':link.status==='PUBLISHED'?'Publicada':'Indisponível'}</strong>. Uma agenda existente não é substituída automaticamente.</p>:<>
             <div className="grid sm:grid-cols-2 gap-3"><label className="space-y-1 block">Começar em<input aria-label="Início da programação" type="datetime-local" className="w-full rounded border p-2" value={start} disabled={isBusy} onChange={e=>setStart(e.target.value)}/></label>
               <label className="space-y-1 block">Terminar em<input aria-label="Fim da programação" type="datetime-local" className="w-full rounded border p-2" value={end} disabled={isBusy} onChange={e=>setEnd(e.target.value)}/></label></div>
-            <p className="text-xs text-gray-600">Horários no seu fuso ({timezone}). Período máximo: 30 dias; renovação não é automática nesta etapa.</p>
+            <p className="text-xs text-gray-600">Horários no seu fuso ({timezone}). Período máximo de 30 dias.</p>
             <label className="flex gap-2 items-center"><input aria-label="Limitar horário diário" type="checkbox" checked={limitedHours} disabled={isBusy} onChange={e=>setLimitedHours(e.target.checked)}/>Exibir somente em horários específicos</label>
             {limitedHours&&<><div className="grid grid-cols-2 gap-3"><label>De<input type="time" aria-label="Horário diário inicial" disabled={isBusy} value={startHour} onChange={e=>setStartHour(e.target.value)} className="block w-full border rounded p-2"/></label><label>Até<input type="time" aria-label="Horário diário final" disabled={isBusy} value={endHour} onChange={e=>setEndHour(e.target.value)} className="block w-full border rounded p-2"/></label></div>
               <p className="text-xs">Dias: nenhum selecionado significa todos os dias.</p><div className="flex gap-2 flex-wrap">{WEEKDAYS.map((name,i)=><label key={i} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={weekdays.includes(i+1)} disabled={isBusy} onChange={e=>setWeekdays(old=>e.target.checked?[...old,i+1]:old.filter(d=>d!==i+1))}/>{name}</label>)}</div></>}
             {!plan&&chosen&&<p className="text-xs text-amber-800">Confira início, fim e horários: o período deve começar em até 7 dias, durar no máximo 30 dias e terminar após o início.</p>}
             <Button type="button" size="sm" disabled={isBusy||!chosen||!screen.playerId||!plan||!scheduleAllowed||!consent} onClick={()=>void run(createSchedule)}>Salvar horários</Button>
           </>}
-          {!scheduleAllowed&&<p className="text-xs text-amber-800">Publicação de agendas indisponível. O acesso é autorizado pelo servidor.</p>}
+          {!scheduleAllowed&&<p className="text-xs text-amber-800">A publicação de horários não está liberada para a sua empresa.</p>}
           {link?.status==='DRAFT'&&<Button type="button" size="sm" disabled={isBusy||!scheduleAllowed||!consent} onClick={()=>void run(publishSchedule)}>Publicar horários</Button>}
         </div>
         <div className="rounded-lg border p-3 space-y-2 text-sm">
-          <strong>Etapa C — Preparar atualização do aparelho</strong>
-          <p>Primeiro, confira se o período tem programação completa. Depois, confirme a atualização. O dispositivo precisará sincronizar.</p>
+          <strong>3. Enviar para a TV</strong>
+          <p>Confira se o período tem conteúdo e envie. A TV recebe em até 1 minuto.</p>
           <Button type="button" variant="outline" size="sm" disabled={isBusy||link?.status!=='PUBLISHED'||!screen.playerId} onClick={()=>void run(inspectManifest)}>Revisar atualização</Button>
           {review&&<p className={review.status==='READY'?'text-green-700':'text-amber-800'} role="status">{review.status==='READY'?`Conteúdo pronto para preparar (${review.assets} arquivo(s), ${review.segments} trecho(s)).`:`Ainda não pronto: ${review.issues.join(', ')}`}</p>}
-          {!manifestAllowed&&<p className="text-xs text-amber-800">O servidor ainda não autorizou a preparação de atualização nesta empresa.</p>}
-          <Button type="button" size="sm" disabled={isBusy||!manifestAllowed||review?.status!=='READY'||!consent} onClick={()=>void run(materialize)}>Preparar atualização</Button>
-          <p className="text-xs text-gray-600">Preparada ≠ instalada ≠ exibida. A confirmação de exibição será feita depois no equipamento.</p>
+          {!manifestAllowed&&<p className="text-xs text-amber-800">O envio para a TV não está liberado para a sua empresa.</p>}
+          <Button type="button" size="sm" disabled={isBusy||!manifestAllowed||review?.status!=='READY'||!consent} onClick={()=>void run(materialize)}>Enviar para a TV</Button>
         </div>
-        <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} disabled={busy} onChange={e=>setConsent(e.target.checked)}/><span>Conferi a tela, os arquivos e o período. Autorizo a ação selecionada; cada etapa exige confirmação separada.</span></label>
+        <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={consent} disabled={busy} onChange={e=>setConsent(e.target.checked)}/><span>Conferi a tela, as mídias e o período.</span></label>
         <Button variant="outline" type="button" size="sm" disabled={busy} onClick={()=>{setReview(null);setManifestWindow(null);setRefresh(v=>v+1);}}>Atualizar situação</Button>
         </>}
       </>}

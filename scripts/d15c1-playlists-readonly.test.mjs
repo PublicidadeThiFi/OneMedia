@@ -81,7 +81,7 @@ test('D15C01-10: checksum, datas e contadores inválidos falham fechados',()=>{
 });
 test('D15C01-11: versão publicada não vira prova de playback',()=>{
   const ui=source('src/components/DoohPlaylistCatalogReadOnly.tsx');
-  assert.match(ui,/não comprova distribuição aos players, reprodução ou audiência/);
+  assert.match(ui,/Ela só vai para as TVs depois que você escolher horários e telas/); // F12 plain wording
   assert.doesNotMatch(ui, /impressões certificadas|reprodução comprovada/);
 });
 test('D15C01-12: todas as operações são GET; sem publicação, edição ou exclusão',()=>{

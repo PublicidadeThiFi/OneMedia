@@ -15,15 +15,15 @@ test('logo após digitar o código, o aparelho ainda conectando não aparece com
   assert.equal(sum.connection,'Concluindo a conexão do aparelho');assert.equal(sum.programming,'Aguardando o aparelho');assert.equal(sum.attention,false);
   // a device that already talked to the server and lost its credential is still a real problem
   const revoked=screen('NO_RECENT_CONTACT',{credentialActive:false});
-  assert.equal(screenAwaitingDeviceConnection(revoked),false);assert.equal(screenOperationalSummary(revoked).connection,'Autorização do aparelho indisponível');assert.equal(screenOperationalSummary(revoked).attention,true);
+  assert.equal(screenAwaitingDeviceConnection(revoked),false);assert.equal(screenOperationalSummary(revoked).connection,'O aparelho precisa ser conectado de novo');assert.equal(screenOperationalSummary(revoked).attention,true);
 });
 
 test('sem contato, a tela não diz "Instalando": a nova versão espera o aparelho voltar', () => {
   const old=screen('NO_RECENT_CONTACT',{lastSeenAt:'2026-11-27T10:12:16.000Z',currentManifestVersion:'1',desiredManifestVersion:'2'});
-  assert.equal(screenOperationalSummary(old).programming,'Nova programação aguardando o aparelho voltar');assert.equal(screenOperationalSummary(old).attention,true);
+  assert.equal(screenOperationalSummary(old).programming,'Nova programação aguardando a TV voltar');assert.equal(screenOperationalSummary(old).attention,true);
   const live=screen('UPDATE_PENDING',{currentManifestVersion:'1',desiredManifestVersion:'2'});
   assert.equal(screenOperationalSummary(live).programming,'Instalando a nova programação');assert.equal(screenOperationalSummary(live).attention,false);
-  assert.equal(screenOperationalSummary(screen('NO_RECENT_CONTACT',{lastSeenAt:'2026-11-27T10:12:16.000Z'})).programming,'Última programação instalada (sem contato agora)');
+  assert.equal(screenOperationalSummary(screen('NO_RECENT_CONTACT',{lastSeenAt:'2026-11-27T10:12:16.000Z'})).programming,'Sem conexão agora; última programação instalada');
 });
 
 test('foto do iPhone com nome de código ganha um nome legível; nomes reais são mantidos', () => {

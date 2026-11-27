@@ -54,7 +54,7 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
       .then(({ data }) => {
         if (controller.signal.aborted || liveKey.current !== key) return;
         const next = parsePlaylistDraft(data, playlistId);
-        if (!next) { setError('Rascunho incompatível com o contrato.'); return; }
+        if (!next) { setError('Não foi possível conferir a sequência. Atualize e tente de novo.'); return; }
         setDraft(next);
       }).catch((err: unknown) => {
         if (!controller.signal.aborted && liveKey.current === key) setError(playlistDraftError(err));
@@ -64,7 +64,7 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     return () => controller.abort();
   }, [allowed, playlistId, requestKey]);
 
-  if (!allowed) return <p className="text-xs text-gray-600">Prévia de publicação exige DOOH FULL e papel técnico.</p>;
+  if (!allowed) return <p className="text-xs text-gray-600">Só administradores com acesso completo podem publicar.</p>;
   const selected = playlists.find((p) => p.id === playlistId && p.status === 'ACTIVE' && p.draftVersion !== null);
   const canPublish = publishUiEnabled && Boolean(selected && publishReviewReady(draft) && !busy && !loading && confirmation === 'PUBLICAR');
 
@@ -92,7 +92,7 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
       // Verify live summary without exposing raw API fields to the UI.
       const current = parseDoohPlaylistDetail(latestPlaylist.data, companyId, playlistId);
       if (!current || current.currentVersion !== selected.currentVersion || current.status !== 'ACTIVE' ||
-          current.name !== selected.name) { setError('Playlist alterada. Atualize o catálogo e revise a publicação.'); return; }
+          current.name !== selected.name) { setError('A sequência mudou. Atualize e confira de novo.'); return; }
       const { data } = await apiClient.post<unknown>(`/dooh/playlists/${encodeURIComponent(playlistId)}/publish-cas`, payload, { signal: controller.signal });
       if (!valid()) return;
       const receipt = parsePlaylistPublished(data, before, selected.currentVersion);
@@ -104,13 +104,13 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
   }
 
   return <section aria-label="Publicação controlada de playlist" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4">
-    <h4 className="font-semibold text-gray-900">Revisão e publicação da playlist</h4>
-    <p className="text-xs text-amber-900">Publicar cria uma versão imutável e outro rascunho no banco. NÃO configura agendamento, manifest, distribuição, reprodução ou Proof-of-Play.</p>
+    <h4 className="font-semibold text-gray-900">Publicar a sequência</h4>
+    <p className="text-xs text-amber-900">Publicar guarda esta versão da sequência. Ela ainda não vai para as TVs.</p>
     <div className="flex flex-wrap gap-2 items-end">
-      <label className="flex-1 min-w-[220px] space-y-1 text-sm"><span className="block">Playlist ativa com rascunho</span>
+      <label className="flex-1 min-w-[220px] space-y-1 text-sm"><span className="block">Sequência</span>
         <select aria-label="Playlist para revisão de publicação" className="w-full rounded-md border border-gray-300 bg-white p-2"
           value={playlistId} disabled={busy} onChange={(e) => { write.current?.abort(); setPlaylistId(e.target.value); }}>
-          <option value="">Selecione a playlist</option>
+          <option value="">Escolha a sequência</option>
           {playlists.filter((p) => p.status === 'ACTIVE' && p.draftVersion !== null).map((p) =>
             <option value={p.id} key={p.id}>{p.name}</option>)}
         </select>
@@ -120,7 +120,7 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     {loading && <p role="status" className="text-sm text-gray-600">Buscando rascunho…</p>}
     {draft && <div className="space-y-2">
       <p className="text-sm text-gray-700">{draft.items.length} item(ns) · versão candidata {selected ? selected.currentVersion + 1 : '—'}.</p>
-      {!publishReviewReady(draft) && <p className="text-sm text-amber-800">Rascunho vazio ou inválido para publicação.</p>}
+      {!publishReviewReady(draft) && <p className="text-sm text-amber-800">Adicione mídias prontas à sequência antes de publicar.</p>}
       <ol className="max-h-64 overflow-auto space-y-1">{draft.items.map((item) =>
         <li className="rounded-md border bg-white p-2 text-xs" key={item.id}>
           #{item.position + 1} · Mídia {item.mediaVersionId.slice(0, 8)}… · {item.durationMs} ms
@@ -131,7 +131,7 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
         onChange={(e) => setConfirmation(e.target.value)} placeholder="PUBLICAR" autoComplete="off" />
     </label>}
     <Button type="button" disabled={!canPublish} onClick={() => { void publish(); }}>{busy ? 'Registrando…' : 'Publicar versão'}</Button>
-    {!publishUiEnabled && <p className="text-xs text-amber-800">Publicação indisponível para esta empresa ou ambiente. A liberação é controlada pelo servidor.</p>}
+    {!publishUiEnabled && <p className="text-xs text-amber-800">A publicação não está liberada para a sua empresa.</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;
