@@ -3,7 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { screenNextStep } from '../lib/doohJourneyGuidance';
-import { screenOperationalSummary, screenAwaitingDeviceConnection } from '../lib/doohScreenDiagnosticContract';
+import { screenOperationalSummary, screenAwaitingDeviceConnection, screenStatusBadge, type ScreenBadgeTone } from '../lib/doohScreenDiagnosticContract';
 import { DoohScreenDiagnostic } from './DoohScreenDiagnostic';
 import { Button } from './ui/button';
 import { DoohContextualPairing } from './DoohContextualPairing';
@@ -14,6 +14,10 @@ import { DoohScreenTimeline } from './DoohScreenTimeline';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
 import { friendlyOperationalScreenError, playerErrorText, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
+
+const BADGE_CLASS: Record<ScreenBadgeTone, string> = { ok: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200', warn: 'bg-amber-50 text-amber-900 ring-1 ring-amber-200', error: 'bg-red-50 text-red-800 ring-1 ring-red-200', info: 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200', muted: 'bg-gray-100 text-gray-700 ring-1 ring-gray-200' };
+const BADGE_DOT: Record<ScreenBadgeTone, string> = { ok: 'bg-emerald-500', warn: 'bg-amber-500', error: 'bg-red-500', info: 'bg-indigo-500', muted: 'bg-gray-400' };
+const MENU_ITEM = 'block w-full rounded-md px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none';
 
 /** Tenant-scoped screens: create, connect, edit, disconnect and program each screen. */
 type OperationalScreensProps = { initialMediaId?: string; contentOnly?: boolean };
@@ -58,6 +62,18 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
   const [editDraft, setEditDraft] = useState<{ name: string; locationLabel: string; orientation: 'LANDSCAPE' | 'PORTRAIT'; fitMode: 'CONTAIN' | 'COVER' }>({ name: '', locationLabel: '', orientation: 'LANDSCAPE', fitMode: 'CONTAIN' });
   const [unbindId, setUnbindId] = useState('');
   const [archiveId, setArchiveId] = useState('');
+  const [menuId, setMenuId] = useState('');
+  // F13: the "Mais opções" menu closes on Escape or on any click outside it.
+  useEffect(() => {
+    if (!menuId) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+      if (event.type === 'mousedown' && event.target instanceof Element && event.target.closest('[data-screen-menu]')) return;
+      setMenuId('');
+    };
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
+  }, [menuId]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   // F11: keep installation/playback state current without manual reloads. Silent refresh of
@@ -175,17 +191,19 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
     } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
     finally { setBusy(false); }
   }
-  return <section aria-label="Telas operacionais" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
+  return <section aria-label="Telas operacionais" className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50/60 p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="text-lg font-bold text-gray-900">{contentOnly ? "Programação por tela" : "Minhas telas"}</h2>
-      <p className="mt-1 text-sm text-gray-600">Conecte suas TVs, monitores ou totens e escolha o que será exibido.</p></div>
-      <Button type="button" variant="outline" disabled={mode === 'loading' || busy || editorOpen} onClick={() => setReload(v => v + 1)}>Atualizar</Button>
+      <h2 className="text-lg font-bold text-gray-900">{contentOnly ? "Escolha a tela para programar" : "Minhas telas"}</h2>
+      <div className="flex flex-wrap gap-2">
+        {mode === 'enabled' && writable && !contentOnly && screenList?.total !== 0 && !createOpen && <Button type="button" disabled={busy || editorOpen} onClick={() => setCreateOpen(true)}>Adicionar tela</Button>}
+        <Button type="button" variant="outline" disabled={mode === 'loading' || busy || editorOpen} onClick={() => setReload(v => v + 1)}>Atualizar</Button>
+      </div>
     </div>
     {mode === 'loading' && <p role="status" className="text-sm text-gray-600">Carregando telas…</p>}
     {mode === 'error' && <p role="alert" className="text-sm text-red-700">{error}</p>}
     {mode === 'enabled' && <>
       {preferredMediaId && <p role="status" className="rounded-lg bg-indigo-50 p-3 text-sm">Escolha a tela onde deseja usar a mídia selecionada.</p>}
-      {writable && (screenList?.total !== 0 && !createOpen ? <Button type="button" variant="outline" disabled={busy || editorOpen} onClick={() => setCreateOpen(true)}>Adicionar outra tela</Button> : <form onSubmit={e => void createScreen(e)} className="space-y-3 rounded-lg bg-indigo-50 p-4">
+      {writable && (screenList?.total !== 0 && !createOpen ? null : <form onSubmit={e => void createScreen(e)} className="space-y-3 rounded-lg bg-indigo-50 p-4">
         <h3 className="font-semibold text-gray-900">Adicionar tela</h3>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="space-y-1 text-sm"><span>Nome da tela</span><input className="w-full rounded-md border border-gray-300 bg-white p-2" placeholder="Ex.: TV da recepção" value={name} required aria-describedby="ux12-screen-name-help" maxLength={120} onChange={e => setName(e.target.value)} disabled={!writable || busy || editorOpen} /></label>
@@ -201,34 +219,39 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="text-sm text-green-700">{message}</p>}
       {screenList?.total === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-gray-600">{writable ? 'Nenhuma tela cadastrada. Comece pelo nome no formulário acima.' : 'Nenhuma tela cadastrada nesta empresa.'}</p>}
-      {screenList && screenList.items.length > 0 && <div className="rounded-lg border p-3 text-sm space-y-2">
-        <p><strong>{screenList.items.filter(s => screenOperationalSummary(s).attention).length}</strong> de {screenList.items.length} tela(s) desta página precisam de atenção ou conferência.</p>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={onlyAttention} disabled={busy || editorOpen} onChange={e=>{setOnlyAttention(e.target.checked);setDiagnosticId('');}} /> Mostrar somente telas que precisam de atenção</label>
-        <p className="text-xs text-gray-600">A situação de cada tela atualiza sozinha a cada 20 segundos.</p>
-      </div>}
+      {screenList && screenList.items.length > 0 && (() => { const attentionCount = screenList.items.filter(s => screenOperationalSummary(s).attention).length; return <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <p className="text-gray-700">{attentionCount === 0 ? 'Nenhuma tela precisa de atenção.' : <><strong>{attentionCount}</strong> de {screenList.items.length} {screenList.items.length === 1 ? 'tela precisa' : 'telas precisam'} de atenção.</>} <span className="text-xs text-gray-500">Atualiza sozinho a cada 20 segundos.</span></p>
+        {attentionCount > 0 && <Button type="button" size="sm" variant={onlyAttention ? 'default' : 'outline'} aria-pressed={onlyAttention} disabled={busy || editorOpen} onClick={() => { setOnlyAttention(v => !v); setDiagnosticId(''); }}>{onlyAttention ? 'Mostrando só com atenção' : 'Mostrar só as que precisam de atenção'}</Button>}
+      </div>; })()}
       {onlyAttention && screenList?.items.length && !screenList.items.some(s=>screenOperationalSummary(s).attention) ? <p className="text-sm text-gray-600">Nenhuma tela desta página sinalizada.</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{screenList?.items.filter(s=>!onlyAttention || screenOperationalSummary(s).attention || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); return <article key={screen.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
-        <div><h3 className="font-semibold text-gray-900">{screen.name}</h3><p className="text-sm text-gray-600">{summary.connection}</p></div>
-        <p className="text-xs text-gray-600">{screen.orientation === 'LANDSCAPE' ? 'Horizontal' : 'Vertical'} · {screen.fitMode === 'CONTAIN' ? 'Mostrar inteira' : 'Preencher a tela'}</p>
-        <div className="rounded-md bg-gray-50 p-2 text-sm space-y-1">
-          <p className="font-medium">{summary.programming}</p>
-          {screen.player && <><p className="text-xs text-gray-600">Última comunicação: {screen.player.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : 'Não informada'}</p>
-          {screen.status === 'INSTALL_FAILED' && playerErrorText(screen.player.runtime?.lastErrorCode) && <p role="alert" className="text-xs text-red-700">{playerErrorText(screen.player.runtime?.lastErrorCode)}</p>}
-          <details className="text-xs text-gray-600"><summary>Versões da programação</summary><p>Desejada: {screen.player.desiredManifestVersion === undefined ? 'Indisponível' : screen.player.desiredManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.desiredManifestVersion}`} · Instalada no aparelho: {screen.player.currentManifestVersion === undefined ? 'Indisponível' : screen.player.currentManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.currentManifestVersion}`}</p>{screen.player.appVersion && <p>Versão do Player: {screen.player.appVersion}</p>}</details></>}
+      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{screenList?.items.filter(s=>!onlyAttention || screenOperationalSummary(s).attention || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); const badge = screenStatusBadge(screen); const showDevice = screen.player && (screen.player.name !== screen.name || screen.commercialUnit); const lastSeen = screen.player?.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : ''; return <article key={screen.id} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0"><h3 className="truncate font-semibold text-gray-900">{screen.name}</h3>
+            <p className="text-xs text-gray-500">{screen.orientation === 'LANDSCAPE' ? 'Horizontal' : 'Vertical'} · {screen.fitMode === 'CONTAIN' ? 'Mostrar inteira' : 'Preencher a tela'}{screen.locationLabel ? ` · ${screen.locationLabel}` : ''}</p></div>
+          <span data-tone={badge.tone} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${BADGE_CLASS[badge.tone]}`}><span aria-hidden="true" className={`size-2 rounded-full ${BADGE_DOT[badge.tone]}`} />{badge.label}</span>
         </div>
-        <p className="text-sm text-indigo-900">{next.text}</p>
-        {screen.player && !editorOpen && <DoohScreenTimeline screenId={screen.id} versionKey={`${screen.playerId}:${screen.player.currentManifestVersion ?? ''}`} />}
-        {screen.player && !editorOpen && <Button type="button" variant="outline" aria-expanded={diagnosticId===screen.id} onClick={()=>setDiagnosticId(v=>v===screen.id?'':screen.id)}>{diagnosticId===screen.id?'Fechar diagnóstico':'Diagnóstico avançado'}</Button>}
-        {diagnosticId===screen.id && companyId && !editorOpen && <DoohScreenDiagnostic key={`${companyId}:${screen.id}:${screen.playerId}`} companyId={companyId} screen={screen} />}
-
-        {writable && !editorOpen && next.action === 'attention' && <Button type="button" disabled={busy} onClick={() => setReload(v => v + 1)}>Verificar situação</Button>}
-        {writable && !editorOpen && <Button type="button" variant={next.action === 'content' ? 'default' : 'outline'} disabled={busy || mode !== 'enabled'} onClick={() => setContentScreenId(screen.id)}>{preferredMediaId ? 'Usar mídia nesta tela' : screen.status === 'WAITING_FOR_PROGRAMMING' ? 'Adicionar conteúdo' : 'Gerenciar conteúdo'}</Button>}
-        {pairScreenId === screen.id && <DoohContextualPairing key={screen.id} screen={screen} writable={writable} onClose={() => { setPairScreenId(''); setReload(v=>v+1); }} onLinked={linked => { setPairScreenId(''); setScreenList(prev => prev && ({...prev, items: prev.items.map(item => item.id === linked.id ? linked : item)})); setMessage(`Aparelho conectado à tela “${linked.name}”. Agora escolha o conteúdo.`); setContentScreenId(linked.id); }} />}
-        {writable && !editorOpen && editId !== screen.id && <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="ghost" disabled={busy} onClick={() => startEdit(screen)}>Editar tela</Button>
-          {screen.player && <Button type="button" variant="ghost" disabled={busy} aria-expanded={unbindId === screen.id} onClick={() => { setEditId(''); setArchiveId(''); setUnbindId(v => v === screen.id ? '' : screen.id); }}>Desconectar aparelho</Button>}
-          {!screen.player && !screen.commercialUnit && <Button type="button" variant="ghost" disabled={busy} aria-expanded={archiveId === screen.id} onClick={() => { setEditId(''); setUnbindId(''); setArchiveId(v => v === screen.id ? '' : screen.id); }}>Arquivar tela</Button>}
+        {screen.player && <div className="space-y-0.5 text-sm">
+          {summary.programming !== badge.label && <p className="text-gray-800">{summary.programming}</p>}
+          {lastSeen && <p className="text-xs text-gray-500">Última comunicação: {lastSeen}</p>}
+          {screen.status === 'INSTALL_FAILED' && playerErrorText(screen.player.runtime?.lastErrorCode) && <p role="alert" className="text-xs text-red-700">{playerErrorText(screen.player.runtime?.lastErrorCode)}</p>}
         </div>}
+        <p className={next.action === 'attention' ? 'rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900' : 'text-sm text-gray-600'}>{next.text}</p>
+        {screen.player && !editorOpen && <DoohScreenTimeline screenId={screen.id} versionKey={`${screen.playerId}:${screen.player.currentManifestVersion ?? ''}`} />}
+        {diagnosticId===screen.id && companyId && !editorOpen && <div className="space-y-2"><DoohScreenDiagnostic key={`${companyId}:${screen.id}:${screen.playerId}`} companyId={companyId} screen={screen} /><Button type="button" size="sm" variant="ghost" onClick={()=>setDiagnosticId('')}>Fechar diagnóstico</Button></div>}
+        {!editorOpen && <div className="flex flex-wrap items-center gap-2">
+          {writable && <Button type="button" variant={screen.player ? 'default' : 'outline'} disabled={busy || mode !== 'enabled'} onClick={() => setContentScreenId(screen.id)}>{preferredMediaId ? 'Usar mídia nesta tela' : screen.status === 'WAITING_FOR_PROGRAMMING' ? 'Adicionar conteúdo' : 'Gerenciar conteúdo'}</Button>}
+          {next.action === 'attention' && <Button type="button" variant="outline" disabled={busy} onClick={() => setReload(v => v + 1)}>Atualizar situação</Button>}
+          {(screen.player || (writable && editId !== screen.id)) && <div className="relative ml-auto" data-screen-menu>
+            <Button type="button" variant="ghost" aria-haspopup="menu" aria-expanded={menuId === screen.id} aria-label={`Mais opções de ${screen.name}`} disabled={busy} onClick={() => setMenuId(v => v === screen.id ? '' : screen.id)}>Mais opções ⋯</Button>
+            {menuId === screen.id && <div role="menu" className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+              {screen.player && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setDiagnosticId(v => v === screen.id ? '' : screen.id); }}>{diagnosticId === screen.id ? 'Fechar diagnóstico' : 'Diagnóstico avançado'}</button>}
+              {writable && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); startEdit(screen); }}>Editar tela</button>}
+              {writable && screen.player && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setEditId(''); setArchiveId(''); setUnbindId(screen.id); }}>Desconectar aparelho</button>}
+              {writable && !screen.player && !screen.commercialUnit && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setEditId(''); setUnbindId(''); setArchiveId(screen.id); }}>Arquivar tela</button>}
+            </div>}
+          </div>}
+        </div>}
+        {pairScreenId === screen.id && <DoohContextualPairing key={screen.id} screen={screen} writable={writable} onClose={() => { setPairScreenId(''); setReload(v=>v+1); }} onLinked={linked => { setPairScreenId(''); setScreenList(prev => prev && ({...prev, items: prev.items.map(item => item.id === linked.id ? linked : item)})); setMessage(`Aparelho conectado à tela “${linked.name}”. Agora escolha o conteúdo.`); setContentScreenId(linked.id); }} />}
         {writable && !editorOpen && archiveId === screen.id && !screen.player && !screen.commercialUnit && <div role="alertdialog" aria-label="Confirmar arquivamento" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
           <p>Arquivar <strong>{screen.name}</strong>? Ela sai desta lista e das contagens. O histórico é mantido e você pode restaurá-la em Telas arquivadas.</p>
           <div className="flex gap-2"><Button type="button" disabled={busy} onClick={() => void archiveScreen(screen)}>Arquivar</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setArchiveId('')}>Cancelar</Button></div>
@@ -246,10 +269,9 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
           <p>Desconectar <strong>{screen.player.name}</strong> desta tela? O aparelho continua pareado à empresa e pode ser conectado a outra tela. A programação desta tela não é apagada.</p>
           <div className="flex gap-2"><Button type="button" disabled={busy} onClick={() => void unbindPlayer(screen)}>Desconectar</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setUnbindId('')}>Cancelar</Button></div>
         </div>}
-        {screen.player ? <p className="text-sm text-gray-700">Aparelho: <strong>{screen.player.name}</strong>{screen.commercialUnit ? ` · Inventário: ${screen.commercialUnit.label}` : ''}</p> : writable && !editorOpen ? <div className="space-y-2">
-          <p className="text-sm text-gray-700">A tela ainda não tem um aparelho vinculado.</p>
+        {screen.player ? (showDevice && <p className="text-xs text-gray-500">Aparelho: <span className="font-medium text-gray-700">{screen.player.name}</span>{screen.commercialUnit ? ` · Inventário: ${screen.commercialUnit.label}` : ''}</p>) : writable && !editorOpen ? <div className="space-y-2 rounded-lg border border-dashed border-gray-300 p-3">
           <Button type="button" variant={deviceChoice[screen.id] ? "outline" : "default"} disabled={busy} onClick={() => setPairScreenId(screen.id)}>Conectar um novo aparelho</Button>
-          <p className="text-xs text-gray-600">Não encontrou o aparelho? Pesquise pelo nome; o pareamento feito anteriormente permanece válido.</p>
+          <details className="text-sm"><summary className="cursor-pointer text-gray-700">Usar um aparelho já pareado</summary><div className="mt-2 space-y-2">
           <form onSubmit={e => { e.preventDefault(); setPlayerQuery(playerQueryInput.trim()); }} className="flex gap-2">
             <input aria-label="Buscar aparelho pelo nome" placeholder="Nome do aparelho" className="min-w-0 flex-1 rounded-md border p-2 text-sm" value={playerQueryInput} maxLength={120} onChange={e => setPlayerQueryInput(e.target.value)} />
             <Button type="submit" variant="outline" disabled={busy}>Buscar</Button>
@@ -257,6 +279,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
           <label className="block space-y-1 text-sm"><span>Ou escolha um aparelho já pareado</span>
             <select className="w-full rounded-md border p-2" value={deviceChoice[screen.id] ?? ''} onChange={e => setDeviceChoice(v => ({...v,[screen.id]:e.target.value}))} disabled={!writable || busy || editorOpen}><option value="">Selecione o aparelho</option>{players.filter(player => player.lifecycleStatus === 'ACTIVE' && (!player.currentAssignment || screen.commercialUnit?.id === player.currentAssignment.mediaUnit.id) && !screenList?.items.some(other => other.id !== screen.id && other.playerId === player.id)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
           <Button type="button" variant={deviceChoice[screen.id] ? "default" : "outline"} disabled={!writable || busy || !deviceChoice[screen.id] || !players.some(p=>p.id===deviceChoice[screen.id])} onClick={() => void bindPlayer(screen)}>Conectar aparelho à tela</Button>
+          </div></details>
         </div> : null}
       </article>})}</div>
       {contentScreenId && screenList?.items.some(screen => screen.id === contentScreenId) && <DoohScreenContentWizard key={contentScreenId} screen={screenList.items.find(screen => screen.id === contentScreenId)!} initialMediaId={preferredMediaId} onClose={() => {setContentScreenId('');setPreferredMediaId('');setReload(v=>v+1);}} />}

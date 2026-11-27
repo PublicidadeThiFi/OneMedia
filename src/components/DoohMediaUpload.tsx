@@ -67,7 +67,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       const media = confirmDoohUploadFinalized(response.data, pending.companyId,
         pending.folderId, pending.name, pending.file, folders, pilot.autoProcessingEnabled);
       if (!media) {
-        setError('Finalização retornou resultado incompatível. Consulte a Biblioteca antes de repetir o upload.');
+        setError('Não conseguimos confirmar o envio. Confira na lista de mídias antes de enviar de novo.');
         setNeedsFinalize(false); pendingFinalize.current = null;
         return;
       }
@@ -91,7 +91,6 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
     event.preventDefault();
     if (!canStart || !file || !normalizedName || !validFile || !writable) return;
     const thisKey = contextKey;
-    if (!window.confirm(`Enviar “${normalizedName}” (${file.name}) para a Biblioteca? O arquivo será validado antes de ficar disponível para exibição.`)) return;
     const abort = new AbortController(); controller.current = abort;
     pendingFinalize.current = null; setError(''); setNotice(''); setPhase('init');
     let stage: 'init' | 'put' = 'init';
@@ -102,7 +101,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       }, { signal: abort.signal });
       if (abort.signal.aborted || contextRef.current !== thisKey) return;
       const intent = parseDoohUploadIntent(init.data, validFile);
-      if (!intent) { setError('A API retornou uma autorização S3 inválida; upload interrompido.'); return; }
+      if (!intent) { setError('Não foi possível iniciar o envio. Tente de novo em instantes.'); return; }
       stage = 'put'; setPhase('put');
       // Direct-to-S3, never use apiClient; it includes API authentication interceptors.
       // No redirects, credentials, response body, signed URL or headers are logged.
@@ -165,11 +164,11 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       </label>
       <div className="flex flex-wrap gap-3 items-center md:col-span-3">
         <Button type="submit" disabled={!canStart}>{isBusy ? 'Enviando arquivo…' : 'Enviar mídia'}</Button>
-        {needsFinalize && <Button type="button" variant="outline" onClick={() => void retryFinalize()}>Repetir finalização (sem reenviar)</Button>}
+        {needsFinalize && <Button type="button" variant="outline" onClick={() => void retryFinalize()}>Tentar concluir de novo</Button>}
         <span className="text-xs text-gray-600">{pilot.autoProcessingEnabled ? 'Após o envio, a preparação começa automaticamente.' : 'Após o envio, inicie a preparação na Biblioteca.'}</span>
       </div>
     </form>
-    {file && !validFile && <p role="alert" className="text-sm text-amber-800">Arquivo não permitido, MIME incompatível ou tamanho fora do limite.</p>}
+    {file && !validFile && <p role="alert" className="text-sm text-amber-800">Formato ou tamanho não aceito. Use imagem JPG ou PNG, ou vídeo MP4.</p>}
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;

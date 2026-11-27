@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -13,6 +14,7 @@ interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; 
 
 /** D15C-04 — ordena somente o DRAFT com CAS atômico. Nunca publica nem agenda. */
 export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const roles = user?.roles ?? [];
@@ -53,7 +55,7 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
       .then(({ data }) => {
         if (controller.signal.aborted || currentKey.current !== requestKey) return;
         const result = parsePlaylistDraft(data, playlistId);
-        if (!result) { setError('Rascunho incompatível com o contrato da API.'); return; }
+        if (!result) { setError('Não foi possível carregar a sequência. Tente de novo em instantes.'); return; }
         setDraft(result); setPlanned(draftOrder(result));
       }).catch((err: unknown) => {
         if (!controller.signal.aborted && currentKey.current === requestKey) setError(playlistDraftError(err));
@@ -81,7 +83,7 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
     if (!payload || !validDraftOrder(before, desired)) return;
     const summary = desired.slice(0, 12).map((id, index) => `${index + 1}. ${id.slice(0, 8)}`).join('\n') +
       (desired.length > 12 ? `\n… e mais ${desired.length - 12} item(ns), em sequência.` : '');
-    if (!window.confirm(`Salvar a nova ordem do rascunho de "${selected.name}"?\n${summary}\nNenhuma publicação ou programação ocorrerá.`)) return;
+    if (!await ask(`Salvar a nova ordem do rascunho de "${selected.name}"?\n${summary}\nNenhuma publicação ou programação ocorrerá.`)) return;
     const controller = new AbortController();
     writeRef.current = controller;
     const requestKey = currentKey.current;
@@ -110,14 +112,14 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
     }
   }
 
-  return <section aria-label="Ordenação de itens de playlist D15C-04" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+  return <section aria-label="Ordenar mídias da sequência" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <h4 className="font-semibold text-gray-900">Organizar a ordem de exibição</h4>
     <p className="text-xs text-gray-600">Use Subir/Descer para reorganizar até 200 itens. A ordem só será gravada após revisão e confirmação. Somente rascunhos podem ser alterados.</p>
     <div className="flex flex-wrap items-end gap-2">
       <label className="min-w-[220px] flex-1 space-y-1 text-sm"><span className="block">Lista em edição</span>
-        <select aria-label="Playlist para ordenar" className="w-full rounded-md border border-gray-300 bg-white p-2" value={playlistId} disabled={busy}
+        <select aria-label="Sequência" className="w-full rounded-md border border-gray-300 bg-white p-2" value={playlistId} disabled={busy}
           onChange={(e) => { writeRef.current?.abort(); setPlaylistId(e.target.value); }}>
-          <option value="">Selecione uma playlist</option>
+          <option value="">Selecione uma sequência</option>
           {playlists.filter((p) => p.status === 'ACTIVE' && p.draftVersion !== null).map((p) =>
             <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
@@ -145,6 +147,7 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
     </>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-xs text-green-800">{notice}</p>}
-    <p className="text-xs text-amber-800">Ordenar não publica playlist, não atualiza manifests e não altera a programação do Marketplace.</p>
+    <p className="text-xs text-amber-800">Mudar a ordem não altera o que já está nas telas até você publicar.</p>
+    {confirmUi}
   </section>;
 }

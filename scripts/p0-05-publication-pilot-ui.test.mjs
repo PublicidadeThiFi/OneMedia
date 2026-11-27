@@ -7,7 +7,7 @@ const ready = {status:'READY',playerId:'11111111-1111-4111-8111-111111111111',fr
 test('P0-05 UI: only server capability may unlock schedule publication',()=>{
  const ui=read('src/components/DoohSchedulePublishQa.tsx');const hook=read('src/lib/useDoohSchedulePublishCapabilities.ts');
  assert.match(ui,/useDoohSchedulePublishCapabilities/);assert.match(ui,/backend\.publishEnabled/);
- assert.match(ui,/publishSnapshotMatches/);assert.match(ui,/publish-cas/);assert.match(ui,/window\.confirm/);
+ assert.match(ui,/publishSnapshotMatches/);assert.match(ui,/publish-cas/);assert.match(ui,/await ask\(/);
  assert.match(hook,/\/dooh\/schedules\/publish-capabilities/);assert.match(hook,/AbortController/);
  assert.doesNotMatch(hook,/localStorage|sessionStorage/);
 });
@@ -15,7 +15,7 @@ test('P0-05 UI: only server capability and explicit pilot acknowledgment may mat
  const ui=read('src/components/DoohManifestPublishQa.tsx'); const hook=read('src/lib/useDoohManifestPublishCapabilities.ts');
  assert.match(ui,/useDoohManifestPublishCapabilities/);assert.match(ui,/server\.materializeEnabled/);
  assert.match(ui,/server\.mode === 'PILOT'/);assert.match(ui,/MATERIALIZAR PILOTO/);
- assert.match(ui,/await fetchPreflight\(\)/);assert.match(ui,/window\.confirm/);
+ assert.match(ui,/await fetchPreflight\(\)/);assert.match(ui,/await ask\(/);
  assert.match(hook,/\/dooh\/manifests\/publish-capabilities/); assert.match(hook,/AbortController/);
  assert.doesNotMatch(hook,/localStorage|sessionStorage/);
 });

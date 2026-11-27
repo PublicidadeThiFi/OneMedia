@@ -68,7 +68,7 @@ test('D15C04-10 preflight recusa ordem, versão e duração divergentes',()=>{
 });
 test('D15C04-11 componente usa GET preflight, apenas PUT order-cas e confirmação',()=>{
   const source=file('src/components/DoohPlaylistDraftReorder.tsx');
-  assert.match(source,/window\.confirm/);
+  assert.match(source,/await ask\(/);
   assert.match(source,/draftStillCurrent/);
   assert.match(source,/\/draft\/items\/order-cas/);
   assert.match(source,/apiClient\.put/);

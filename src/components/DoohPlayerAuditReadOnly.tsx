@@ -51,7 +51,7 @@ export function DoohPlayerAuditReadOnly() {
       const players = parseDoohPlayerInventoryResponse(playersResponse.data);
       const groups = parseDoohPlayerGroups(groupsResponse.data);
       if (!players || players.meta.page !== 1 || players.meta.pageSize !== 100 || !groups) {
-        setListError('Listagens incompatíveis com o contrato vigente. Nenhum resultado será exibido.'); return;
+        setListError('Não foi possível carregar. Tente de novo em instantes.'); return;
       }
       setLists({ key: listKey, players: players.items, total: players.meta.total, groups });
     }).catch((error: unknown) => { if (!controller.signal.aborted) setListError(safeAuditReadError(error)); })
@@ -72,7 +72,7 @@ export function DoohPlayerAuditReadOnly() {
       .then((response) => {
         if (controller.signal.aborted) return;
         const parsed = parsePlayerGroupDetail(response.data, selectedGroup.id);
-        if (!parsed) { setGroupError('Contrato de membros incompatível. Dados ocultados.'); return; }
+        if (!parsed) { setGroupError('Não foi possível carregar os membros. Tente de novo em instantes.'); return; }
         setGroupView({ key: groupKey, data: parsed });
       }).catch((error: unknown) => { if (!controller.signal.aborted) setGroupError(safeAuditReadError(error)); })
       .finally(() => { if (!controller.signal.aborted) setGroupLoading(false); });
@@ -100,9 +100,9 @@ export function DoohPlayerAuditReadOnly() {
   const commandHistory = historyView?.key === playerKey ? historyView.data : null;
   const displayDate = (v: string) => new Date(v).toLocaleString('pt-BR');
 
-  return <section aria-label="Auditoria de grupos e comandos DOOH D15A1-03" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
+  return <section aria-label="Grupos e histórico de comandos" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
     <div className="flex flex-wrap justify-between gap-3">
-      <div><h3 className="font-semibold text-gray-900">Membros de grupos e histórico de comandos — D15A1-03</h3>
+      <div><h3 className="font-semibold text-gray-900">Grupos e histórico de comandos</h3>
         <p className="mt-1 text-sm text-gray-600">Consulta operacional: não altera grupos, não envia reinicializações e não ativa players.</p>
         <p className="mt-1 text-xs text-amber-800">Status de comando não certifica execução física ou exibição de mídia.</p>
       </div>

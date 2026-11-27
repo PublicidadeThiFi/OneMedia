@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useDoohManifestPublishCapabilities } from '../lib/useDoohManifestPublishCapabilities';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -12,6 +13,7 @@ import { buildManifestCasRequest, canPublishManifestQa, manifestCasError, manife
 // Legacy QA UX switch; pilot authorization is always decided by the backend.
 const qaUiEnabled = import.meta.env.VITE_DOOH_MANIFEST_PUBLISH_QA_UI_ENABLED === 'true';
 export function DoohManifestPublishQa({ companyId, player }: { companyId: string; player: DoohPlayerDetailView }) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const moduleAccess = snapshot?.modules.DOOH;
@@ -81,7 +83,7 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
           latest.desired !== visible.desired || latest.current !== visible.current) {
         setReview(null); setError('A revisão do preflight mudou. Consulte novamente.'); return;
       }
-      if (!window.confirm('Gerar manifest para este player? Isso avança desiredManifestVersion e pode entregar a programação ao dispositivo. Confirme que a tela e o período são os autorizados.')) return;
+      if (!await ask('Gerar manifest para este player? Isso avança desiredManifestVersion e pode entregar a programação ao dispositivo. Confirme que a tela e o período são os autorizados.')) return;
       if (keyRef.current !== requestKey) return;
       const { data } = await apiClient.post<unknown>(
         `/dooh/manifests/players/${encodeURIComponent(player.id)}/publish-cas`, request);
@@ -137,5 +139,6 @@ export function DoohManifestPublishQa({ companyId, player }: { companyId: string
             confirmation !== (server.mode === 'PILOT' ? 'MATERIALIZAR PILOTO' : 'MATERIALIZAR QA') ||
             current?.status !== 'READY' || busy} onClick={() => void materialize()}>Preparar atualização</Button>
       </div>}
+    {confirmUi}
   </section>;
 }

@@ -83,7 +83,7 @@ test('D16A04-14 painel só usa POST CAS e reexecuta GET antes da mutação',()=>
  assert.match(src,/apiClient\.get<unknown>/); assert.match(src,/apiClient\.post<unknown>/);
  assert.match(src,/\/publish-cas/); assert.doesNotMatch(src,/\`[^`]*\/publish\`/);
  assert.match(src,/const latest = await fetchPreflight/); assert.match(src,/AbortController/);
- assert.match(src,/window\.confirm/); assert.match(src,/qaUiEnabled/);
+ assert.match(src,/await ask\(/); assert.match(src,/qaUiEnabled/);
 });
 test('D16A04-15 parent mantém inventário e registra QA independente',()=>{
  const src=fs.readFileSync(path.join(root,'src/components/DoohPlayerDetailReadOnly.tsx'),'utf8');

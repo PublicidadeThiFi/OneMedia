@@ -54,7 +54,7 @@ test('FIX02-04: init API, PUT assinado sem credenciais e finalize confirmada', (
   assert.match(upload, /method: 'PUT'/);
   assert.match(upload, /credentials: 'omit', redirect: 'error'/);
   assert.match(upload, /uploads\/\$\{encodeURIComponent\(pending\.intentId\)\}\/finalize/);
-  assert.match(upload, /Repetir finalização \(sem reenviar\)/);
+  assert.match(upload, /Tentar concluir de novo/);
   assert.doesNotMatch(upload, /apiClient\.put\(|console\.|localStorage|sessionStorage/);
 });
 
@@ -84,7 +84,7 @@ test('FIX02-07: processamento GET histórico, valida estado e enfileira por POST
   assert.match(processing, /apiClient\.get<unknown>\(`\/dooh\/media\/\$\{encodeURIComponent\(selectedId\)\}\/processing`/);
   assert.match(processing, /apiClient\.post<unknown>\(`\/dooh\/media\/\$\{encodeURIComponent\(selected.id\)\}\/process`/);
   assert.match(processing, /confirmation === 'PROCESSAR'/);
-  assert.match(processing, /window\.confirm/);
+  assert.match(processing, /await ask\(/);
   assert.equal(canEnqueueDoohProcessing({status:'PENDING'},[]),true);
   assert.equal(canEnqueueDoohProcessing({status:'READY'},[]),false);
   assert.equal(confirmDoohProcessingEnqueued({jobId:intentId,status:'QUEUED',version:1,alreadyQueued:false})?.status,'QUEUED');

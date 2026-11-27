@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -36,6 +37,7 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useInlineConfirm();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [confirmation, setConfirmation] = useState('');
@@ -69,7 +71,7 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
       .then(({ data }) => {
         if (controller.signal.aborted || activeKey.current !== requestKey) return;
         const parsed = parseDoohProcessingHistory(data, selectedId);
-        if (!parsed) { setError('Histórico de processamento incompatível com o contrato da API.'); return; }
+        if (!parsed) { setError('Não foi possível carregar o histórico. Tente de novo em instantes.'); return; }
         setHistory({ key: requestKey, items: parsed });
       })
       .catch((err: unknown) => {
@@ -119,14 +121,14 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
           !recent || !canEnqueueDoohProcessing(current, recent)) {
         setError('A mídia ou o processamento foi alterado. Atualize a Biblioteca antes de continuar.'); return;
       }
-      if (!window.confirm(`Enfileirar processamento da mídia “${selected.name}” para a fila de processamento? O status READY depende de um worker operacional.`) ||
+      if (!(await ask(`Preparar a mídia “${selected.name}”? Ela fica disponível para as telas quando a preparação terminar.`, 'Preparar')) ||
           activeKey.current !== stableKey) return;
       const queued = await apiClient.post<unknown>(`/dooh/media/${encodeURIComponent(selected.id)}/process`, {});
       if (activeKey.current !== stableKey) return;
       const receipt = confirmDoohProcessingEnqueued(queued.data);
-      if (!receipt) { setError('A API não confirmou um job válido. Consulte o histórico antes de repetir.'); return; }
-      setNotice(receipt.alreadyQueued ? 'Um job existente foi retornado. Consulte o histórico.' :
-        'Job enfileirado. Acompanhe o processamento até READY ou ERROR no histórico.');
+      if (!receipt) { setError('Não conseguimos confirmar se a preparação começou. Atualize o histórico para conferir.'); return; }
+      setNotice(receipt.alreadyQueued ? 'Esta mídia já está sendo preparada. Acompanhe abaixo.' :
+        'Preparação iniciada. Acompanhe abaixo.');
       setConfirmation(''); setAutoTracking(true); setRefreshAttempts(0);
       setRefresh((number) => number + 1); onChanged();
     } catch (err: unknown) {
@@ -135,10 +137,10 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
   }
 
   if (!canRead) return <p className="text-xs text-gray-600">Histórico DOOH disponível apenas para função técnica com permissão de leitura.</p>;
-  return <section aria-label="Processamento de mídias DOOH D15B-05" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+  return <section aria-label="Preparação de mídias" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div>
       <h4 className="font-semibold text-gray-900">Processar mídia e acompanhar resultado</h4>
-      <p className="text-xs text-gray-600">Histórico real dos últimos 50 jobs por mídia. Um job na fila não comprova conversão, publicação, reprodução ou proof-of-play.</p>
+      <p className="text-xs text-gray-600">Mostra as últimas 50 tentativas de preparação de cada mídia.</p>
     </div>
     <div className="flex flex-wrap items-end gap-3">
       <label className="min-w-60 flex-1 space-y-1 text-sm"><span className="block">Mídia</span>
@@ -153,14 +155,15 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
       <Button type="button" variant="outline" disabled={!selectedId || loading || busy}
         onClick={() => { setNotice(''); setRefresh((value) => value + 1); }}>Atualizar histórico</Button>
     </div>
-    {loading && <p role="status" className="text-sm text-gray-600">Consultando jobs…</p>}
+    {loading && <p role="status" className="text-sm text-gray-600">Carregando…</p>}
+    {confirmUi}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
     {autoTracking && visible && <p role="status" className="text-xs text-gray-600">
-      {selected?.status === 'READY' ? 'Mídia pronta para a playlist.' : selected?.status === 'ERROR' ? 'Processamento terminou com erro.' :
+      {selected?.status === 'READY' ? 'Mídia pronta para usar.' : selected?.status === 'ERROR' ? 'Processamento terminou com erro.' :
         refreshAttempts >= 60 ? 'Acompanhamento automático encerrado. Use Atualizar histórico.' : 'Acompanhando a cada 5 segundos, por até 5 minutos.'}
     </p>}
-    {visible && (visible.length === 0 ? <p className="text-sm text-gray-600">Nenhum job registrado para esta mídia.</p> :
+    {visible && (visible.length === 0 ? <p className="text-sm text-gray-600">Nenhuma preparação registrada para esta mídia.</p> :
       <ul aria-label="Jobs de processamento DOOH" className="space-y-2">
         {visible.map((job) => <li key={job.id} className="flex flex-wrap justify-between gap-2 rounded-md border border-gray-200 bg-white p-3 text-xs text-gray-700">
           <div><strong>Versão {job.version}</strong> · {statusLabels[job.status]} · tentativa(s) {job.attempts}
@@ -169,9 +172,9 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
           <span>Solicitado em {new Date(job.createdAt).toLocaleString('pt-BR')}</span>
         </li>)}
       </ul>)}
-    {!pilot.processingEnabled ? <p className="text-xs text-amber-800">Processamento não autorizado para esta empresa ou worker piloto desabilitado.</p> :
+    {!pilot.processingEnabled ? <p className="text-xs text-amber-800">A preparação de mídias não está disponível para a sua empresa agora.</p> :
       <form onSubmit={(event) => void enqueue(event)} className="space-y-2 border-t border-gray-200 pt-3">
-        <p className="text-xs text-amber-800">Enfileiramento autorizado pelo backend para esta empresa. O conteúdo fica disponível para programação somente após o processamento atingir READY.</p>
+        <p className="text-xs text-amber-800">A mídia fica disponível para as telas quando a preparação terminar.</p>
         <label className="block space-y-1 text-sm">Confirmação textual: PROCESSAR
           <input aria-label="Confirmação de processamento DOOH" value={confirmation} disabled={!canQueue || busy}
             onChange={(event) => setConfirmation(event.target.value)} maxLength={16}

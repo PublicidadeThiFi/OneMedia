@@ -64,7 +64,7 @@ test('D16A06-FE: a chave pública de UI só habilita QA por valor literal true',
   assert.match(view, /canPublishManifestQa\(/);
   assert.match(view, /confirmation\s*!==\s*'MATERIALIZAR QA'/);
   assert.match(view, /!ack/);
-  assert.match(view, /window\.confirm\(/);
+  assert.match(view, /await ask\(/);
   assert.match(view, /apiClient\.post<unknown>/);
   assert.match(view, /publish-cas/);
   assert.doesNotMatch(view, /apiClient\.(?:put|patch|delete)\(/);
@@ -84,7 +84,7 @@ test('D16A06-FE: materialização jamais ocorre antes de preflight novo e confir
   const src = source('src/components/DoohManifestPublishQa.tsx');
   const method = src.slice(src.indexOf('async function materialize()'));
   assert.ok(method.indexOf('await fetchPreflight()') < method.indexOf('apiClient.post<unknown>'));
-  assert.ok(method.indexOf('window.confirm(') < method.indexOf('apiClient.post<unknown>'));
+  assert.ok(method.indexOf('await ask(') < method.indexOf('apiClient.post<unknown>'));
   assert.match(method, /pending\.current/);
 });
 test('D16A06-FE: igualdade de versões nunca afirma distribuição ou PoP', () => {

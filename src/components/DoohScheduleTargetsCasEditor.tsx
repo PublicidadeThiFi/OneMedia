@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
 import { DoohSchedulePlayerPicker } from './DoohSchedulePlayerPicker';
+import { parseDoohPlayerInventoryResponse } from '../lib/doohPlayerInventoryContract';
 import { parseDoohSchedule, parseDoohScheduleTargets,
   type DoohScheduleSummary, type DoohScheduleTargetInventory,
   type DoohScheduleTargetType } from '../lib/doohScheduleCatalogContract';
@@ -12,9 +14,10 @@ import { buildScheduleTargetsCas, canWriteScheduleTargets, doohScheduleTargetWri
   type TargetEdit } from '../lib/doohScheduleTargetsCasContract';
 
 interface Props { companyId: string; summary: DoohScheduleSummary; inventory: DoohScheduleTargetInventory; onChanged: () => void; }
-const targetText = { PLAYER: 'Player', GROUP: 'Grupo', MEDIA_UNIT: 'Tela SCREEN', MEDIA_POINT: 'Ponto DOOH' } as const;
+const targetText = { PLAYER: 'Tela', GROUP: 'Grupo', MEDIA_UNIT: 'Tela do Marketplace', MEDIA_POINT: 'Ponto do Marketplace' } as const;
 /** D15D-02 — uma alteração confirmada por vez, integralmente conferida no servidor. */
 export function DoohScheduleTargetsCasEditor({ companyId, summary, inventory, onChanged }: Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const access = snapshot?.modules.DOOH;
@@ -27,6 +30,17 @@ export function DoohScheduleTargetsCasEditor({ companyId, summary, inventory, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // F13: only TI sees target types other than a screen and the raw identifier fields.
+  const isTechnical = (user?.roles ?? []).some(role => role === 'TI');
+  const [playerNames, setPlayerNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!inventory.targets.some(t => t.targetType === 'PLAYER')) return;
+    const controller = new AbortController();
+    void apiClient.get<unknown>('/dooh/players', { params: { page: 1, pageSize: 100 }, signal: controller.signal })
+      .then(({ data }) => { const parsed = parseDoohPlayerInventoryResponse(data); if (parsed && !controller.signal.aborted) setPlayerNames(Object.fromEntries(parsed.items.map(item => [item.id, item.name]))); })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [companyId, inventory]);
   const contextKey = JSON.stringify([user?.id, user?.companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...(user?.roles ?? [])].sort(), summary.id, summary.updatedAt]);
   const liveContext = useRef(contextKey);
@@ -41,7 +55,7 @@ export function DoohScheduleTargetsCasEditor({ companyId, summary, inventory, on
     const selected = inventory.targets.find((t) => t.id === associationId);
     const label = operation === 'add' ? `Adicionar ${targetText[type]} ${uuidInput.trim()} à agenda "${summary.name}"?` :
       `Remover ${selected ? targetText[selected.targetType] : 'destino'} ${selected?.targetId ?? ''} da agenda "${summary.name}"?`;
-    if (!window.confirm(`${label}\nEsta operação altera apenas os destinos do rascunho e não publica conteúdo.`)) return;
+    if (!await ask(`${label}\nEsta operação altera apenas os destinos do rascunho e não publica conteúdo.`)) return;
     setBusy(true); setError(''); setNotice('');
     try {
       const controller = new AbortController();
@@ -53,13 +67,13 @@ export function DoohScheduleTargetsCasEditor({ companyId, summary, inventory, on
       const fresh = current && parseDoohScheduleTargets(targetResponse.data, companyId, current);
       if (!current || JSON.stringify(current) !== JSON.stringify(summary) || !fresh ||
           !targetsSnapshotMatches(inventory, fresh)) {
-        setError('Agenda ou destinos modificados desde a consulta. Atualize o catálogo antes de editar.'); return;
+        setError('Alguém alterou esta agenda há pouco. Atualize e confira antes de salvar.'); return;
       }
       if (liveContext.current !== contextKey) { setError('Empresa, sessão ou acesso alterados. Atualize e tente novamente.'); return; }
       const response = await apiClient.put<unknown>(`/dooh/schedules/${encodeURIComponent(summary.id)}/targets/cas`, candidate);
       if (liveContext.current !== contextKey) return;
       if (!parseScheduleTargetsCasReceipt(response.data, summary.id, candidate.targets.length)) {
-        setError('A API não confirmou exatamente a edição solicitada. Atualize a agenda.'); return;
+        setError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.'); return;
       }
       setUuidInput(''); setAssociationId(''); setNotice('Edição confirmada. Recarregando o catálogo.');
       onChanged();
@@ -68,51 +82,52 @@ export function DoohScheduleTargetsCasEditor({ companyId, summary, inventory, on
     } finally { setBusy(false); }
   }
 
-  if (!writable) return <p className="mt-2 text-xs text-gray-600">Edição de destinos exige DOOH FULL e função técnica.</p>;
-  if (summary.status !== 'DRAFT') return <p className="mt-2 text-xs text-gray-600">Somente agendas em rascunho podem ter destinos alterados.</p>;
-  return <section aria-label="Edição CAS de destinos DOOH D15D-02" className="mt-3 space-y-3 rounded-lg border border-indigo-200 bg-indigo-50/30 p-3">
+  if (!writable) return <p className="mt-2 text-xs text-gray-600">Seu perfil não pode alterar as telas desta agenda.</p>;
+  if (summary.status !== 'DRAFT') return <p className="mt-2 text-xs text-gray-600">As telas só podem ser alteradas enquanto a agenda estiver em rascunho.</p>;
+  return <section aria-label="Onde exibir" className="mt-3 space-y-3 rounded-lg border border-indigo-200 bg-indigo-50/30 p-3">
     <h5 className="text-sm font-semibold text-gray-900">Onde essa agenda será exibida?</h5>
-    <p className="text-xs text-gray-600">Escolha uma tela cadastrada pelo nome. As outras opções de destino estão disponíveis para suporte técnico. Adicionar um destino não inicia a exibição.</p>
+    <p className="text-xs text-gray-600">Escolha as telas pelo nome. Adicionar uma tela aqui ainda não começa a exibição.</p>
     <form onSubmit={(event) => void submit(event)} className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Operação</span>
         <select aria-label="Operação de destino" className="w-full rounded-md border p-2" value={operation} disabled={busy}
           onChange={(event) => { setOperation(event.target.value as 'add' | 'remove'); setError(''); }}>
-          <option value="add">Adicionar uma tela</option><option value="remove">Remover vínculo</option>
+          <option value="add">Adicionar uma tela</option><option value="remove">Remover uma tela</option>
         </select>
       </label>
       {operation === 'add' ? <>
-        <label className="space-y-1 text-sm"><span className="block">Tipo de destino (mais opções)</span>
+        {isTechnical && <label className="space-y-1 text-sm"><span className="block">Tipo de destino</span>
           <select aria-label="Tipo de destino" className="w-full rounded-md border p-2" value={type} disabled={busy}
             onChange={(event) => { setType(event.target.value as DoohScheduleTargetType); setUuidInput(''); }}>
             {Object.entries(targetText).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
           </select>
-        </label>
+        </label>}
         {type === 'PLAYER' && <div className="md:col-span-2 space-y-2">
           <DoohSchedulePlayerPicker companyId={companyId} value={uuidInput} onChange={setUuidInput} disabled={busy} />
-          <details className="rounded-md bg-white p-2 text-xs text-gray-600"><summary className="cursor-pointer">Seleção avançada pelo identificador</summary>
+          {isTechnical && <details className="rounded-md bg-white p-2 text-xs text-gray-600"><summary className="cursor-pointer">Selecionar pelo identificador (suporte)</summary>
             <label className="mt-2 block">UUID do dispositivo
               <input aria-label="UUID do destino" className="mt-1 w-full rounded-md border p-2 font-mono" maxLength={36} value={uuidInput}
                 onChange={e => setUuidInput(e.target.value)} disabled={busy} />
             </label>
-          </details>
+          </details>}
         </div>}
-        {type !== 'PLAYER' && <label className="space-y-1 text-sm"><span className="block">Identificador do destino (avançado)</span>
+        {isTechnical && type !== 'PLAYER' && <label className="space-y-1 text-sm"><span className="block">Identificador do destino</span>
           <input aria-label="UUID do destino" className="w-full rounded-md border p-2" placeholder="UUID de grupo, tela ou ponto"
             value={uuidInput} maxLength={36} disabled={busy} onChange={(event) => setUuidInput(event.target.value)} />
         </label>}
-      </> : <label className="space-y-1 text-sm md:col-span-2"><span className="block">Vínculo a remover</span>
+      </> : <label className="space-y-1 text-sm md:col-span-2"><span className="block">Tela a remover</span>
         <select aria-label="Destino para remover" className="w-full rounded-md border p-2" value={associationId} disabled={busy}
           onChange={(event) => setAssociationId(event.target.value)}>
-          <option value="">Selecione um destino existente</option>
-          {inventory.targets.map((item) => <option key={item.id} value={item.id}>{targetText[item.targetType]} · {item.targetId}</option>)}
+          <option value="">Selecione</option>
+          {inventory.targets.map((item) => <option key={item.id} value={item.id}>{targetText[item.targetType]} · {playerNames[item.targetId] ?? `código ${item.targetId.slice(0, 8)}`}</option>)}
         </select>
       </label>}
       <div className="md:col-span-3 flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={!candidate || busy}>{busy ? 'Conferindo…' : operation === 'add' ? 'Adicionar com confirmação' : 'Remover com confirmação'}</Button>
-        <span className="text-xs text-gray-600">Limite: 100 destinos. Agenda comercial protegida, status não-DRAFT ou snapshot obsoleto são bloqueados pelo backend.</span>
+        <Button type="submit" disabled={!candidate || busy}>{busy ? 'Conferindo…' : operation === 'add' ? 'Adicionar' : 'Remover'}</Button>
+        <span className="text-xs text-gray-600">Até 100 telas por agenda. Só dá para mudar as telas enquanto a agenda estiver em rascunho.</span>
       </div>
     </form>
     {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
+    {confirmUi}
   </section>;
 }

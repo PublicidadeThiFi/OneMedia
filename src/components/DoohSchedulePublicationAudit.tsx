@@ -36,14 +36,14 @@ export function DoohSchedulePublicationAudit({ companyId, summary }: Props) {
       const { data } = await apiClient.get<unknown>(`/dooh/schedules/${encodeURIComponent(summary.id)}/publication-audit`, { signal: ctl.signal });
       if (!active()) return;
       const parsed = parsePublicationAudit(data, companyId, summary);
-      if (!parsed) { setError('Registro divergente ou incompleto. Atualize a agenda antes de consultar novamente.'); return; }
+      if (!parsed) { setError('Não foi possível conferir o histórico agora. Atualize a agenda e tente de novo.'); return; }
       setResult({ key: before, value: parsed });
     } catch (cause: unknown) { if (active()) setError(publicationAuditError(cause)); }
     finally { if (ongoing.current === ctl) ongoing.current = null; if (active()) setBusy(false); }
   }
   if (!allowed) return null;
   const current = result?.key === key ? result.value : null;
-  return <section aria-label="Verificação estrutural de publicação D15D-06" className="space-y-2 rounded-lg border border-gray-200 bg-white p-3">
+  return <section aria-label="Histórico de publicação" className="space-y-2 rounded-lg border border-gray-200 bg-white p-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h5 className="font-medium text-sm text-gray-900">Verificação do registro da publicação</h5>
       <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void inspect()}>

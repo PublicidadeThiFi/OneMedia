@@ -26,6 +26,10 @@ import {
   type DoohLibraryStatus,
 } from '../lib/doohMediaLibraryContract';
 
+const MEDIA_STATUS_CLASS: Record<DoohLibraryStatus, string> = {
+  PENDING: 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200', PROCESSING: 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200',
+  READY: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200', ERROR: 'bg-red-50 text-red-800 ring-1 ring-red-200',
+};
 const statusLabels: Record<DoohLibraryStatus, string> = {
   PENDING: 'Enviada · falta preparar', PROCESSING: 'Preparando arquivo', READY: 'Pronta para usar', ERROR: 'Não foi possível preparar',
 };
@@ -105,7 +109,7 @@ export function DoohMediaLibraryReadOnly() {
       const folders = parseDoohLibraryFolders(foldersResponse.data, companyId);
       const media = folders && parseDoohLibraryMedia(mediaResponse.data, companyId, folderFilter, folders);
       if (!folders || !media) {
-        setError('Contrato da Biblioteca DOOH incompatível com a API. Nenhum dado foi exibido.');
+        setError('Não foi possível carregar as mídias. Tente de novo em instantes.');
         return;
       }
       setState({ key: requestKey, contextKey, folderFilter, folders, media, fetchedAt: new Date().toLocaleString('pt-BR') });
@@ -150,23 +154,21 @@ export function DoohMediaLibraryReadOnly() {
   ), [visible, statusFilter, typedSearch]);
 
   if (!authorized) return <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600">
-    A Biblioteca exige acesso DOOH e função ADMINISTRATIVO ou TI. Nenhum dado foi solicitado.
+    Seu perfil não tem acesso às mídias. Peça acesso a um administrador.
   </div>;
 
   return <section aria-label="Minhas mídias DOOH" className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
         <h2 className="text-lg font-bold text-gray-900">Minhas mídias</h2>
-        <p className="text-sm text-gray-600">Envie imagens e vídeos e escolha a tela onde deseja exibir.</p>
-        
       </div>
       <div className="flex flex-wrap gap-2">{accessMode === 'FULL' && <Button type="button" onClick={() => setView('upload')}>Adicionar mídia</Button>}<Button type="button" variant="outline" disabled={loading} onClick={() => setReload((value) => value + 1)}>Atualizar</Button></div>
     </div>
     <DoohWorkspaceTabs label="Ações de mídia" selected={view} onSelect={setView} tabs={[
-      { id: 'media', label: 'Minhas mídias', description: 'Consulte os arquivos carregados nesta pasta.' },
-      { id: 'upload', label: 'Adicionar mídia', description: 'Escolha arquivo, nome e pasta opcional. O envio não publica conteúdo.' },
+      { id: 'media', label: 'Arquivos', description: 'Filtre por pasta, situação ou nome.' },
+      ...(view === 'upload' ? [{ id: 'upload' as const, label: 'Adicionar mídia', description: 'Escolha o arquivo, o nome e, se quiser, a pasta. Enviar não publica nada nas telas.' }] : []),
       ...(!pilot.autoProcessingEnabled || view === 'processing' ? [{ id: 'processing' as const, label: 'Preparação e recuperação', description: 'Acompanhe o resultado ou recupere um arquivo quando autorizado.' }] : []),
-      { id: 'organize', label: 'Organizar · mais opções', description: 'Pastas, renomeação, movimentação, versões e histórico.' },
+      { id: 'organize', label: 'Organizar', description: 'Crie pastas, renomeie ou mova arquivos e veja versões anteriores.' },
     ]} />
     {view === 'media' && <div className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Pasta</span>
@@ -222,13 +224,12 @@ export function DoohMediaLibraryReadOnly() {
               <MediaThumbnail preview={previews[item.id]} kind={item.kind} name={doohMediaDisplayName(item.name, item.kind)} />
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{doohMediaDisplayName(item.name, item.kind)}</p>
-                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{(item.id === recentMediaId && recentAuto) && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${MEDIA_STATUS_CLASS[item.status]}`}>{(item.id === recentMediaId && recentAuto) && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
               </div>
               <p className="text-sm text-gray-600">{item.kind === 'VIDEO' ? 'Vídeo' : 'Imagem'} · {displayDoohMediaSize(item.bytes)}</p>
               {item.status === 'PENDING' && <p className="text-sm text-gray-700">{(pilot.autoProcessingEnabled || (item.id === recentMediaId && recentAuto)) ? 'Arquivo recebido. Acompanhe a preparação.' : 'Arquivo enviado. Falta preparar para usar na programação.'}</p>}
               {item.status === 'PROCESSING' && <p className="text-sm text-gray-700">O arquivo está sendo preparado.</p>}
-              {item.status === 'READY' && <p className="text-sm text-gray-700">Pronta para adicionar à programação de uma tela.</p>}
-              {item.status === 'ERROR' && <p className="text-sm text-gray-700">O processamento não foi concluído. Consulte o histórico antes de tentar novamente.</p>}
+              {item.status === 'ERROR' && <p className="text-sm text-gray-700">Não foi possível preparar este arquivo. Veja o motivo antes de tentar de novo.</p>}
               <div className="mt-auto flex flex-wrap items-center gap-2">
                 {item.status === 'READY' ? (accessMode === 'FULL' && <a href={guidedEnabled && ['IMAGE','VIDEO'].includes(item.kind)?`/app/dooh/screens?media=${encodeURIComponent(item.id)}`:'/app/dooh/scheduling?ux=listas'} className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-indigo-600">{guidedEnabled && ['IMAGE','VIDEO'].includes(item.kind)?'Usar nesta tela':'Usar em lista'}</a>) :
                   <Button type="button" variant="outline" onClick={() => { setPreferredMediaId(item.id); setView('processing'); }}>
@@ -242,7 +243,6 @@ export function DoohMediaLibraryReadOnly() {
               </div>
             </li>)}
           </ul>}
-        <p className="text-xs text-gray-500">Arquivo pronto não significa programação publicada ou exibição comprovada.</p>
       </>}
     </>}
   </section>;

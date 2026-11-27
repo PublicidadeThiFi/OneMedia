@@ -46,7 +46,7 @@ export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
       .then(({ data }) => {
         if (controller.signal.aborted || latestKey.current !== key) return;
         const parsed = parseDoohVersions(data, selectedId);
-        if (!parsed) { setError('Versões incompatíveis com o contrato da API.'); return; }
+        if (!parsed) { setError('Não foi possível carregar as versões. Tente de novo em instantes.'); return; }
         setResponse({ key, value: parsed });
       })
       .catch((err: unknown) => {
@@ -61,9 +61,9 @@ export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
   if (!allowed) return <p className="text-xs text-gray-600">Consulta de versões disponível para funções técnicas com permissão DOOH.</p>;
   const inventory = response?.key === key ? response.value : null;
   const selected = media.find((item) => item.id === selectedId);
-  return <section aria-label="Versões processadas DOOH D15B-06" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+  return <section aria-label="Histórico de versões" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div>
-      <h4 className="font-semibold text-gray-900">Versões e validação técnica — D15B-06</h4>
+      <h4 className="font-semibold text-gray-900">Histórico de versões</h4>
       <p className="text-xs text-gray-600">Consulta das últimas 50 versões registradas. A verificação de metadados não atesta integridade real no S3, compatibilidade de codecs, publicação, reprodução ou proof-of-play.</p>
     </div>
     <div className="flex flex-wrap items-end gap-3">

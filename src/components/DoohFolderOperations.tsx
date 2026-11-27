@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -30,6 +31,7 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
   const [selectedId, setSelectedId] = useState('');
   const [nameInput, setNameInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useInlineConfirm();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -63,7 +65,7 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
     const confirmation = creating
       ? `Criar a pasta "${name}" ${parent === null ? 'na raiz' : `dentro de "${folders.find((f) => f.id === parent)?.name}"`}?`
       : `Renomear a pasta "${original?.name}" para "${name}"? O conteúdo não será movido.`;
-    if (!window.confirm(confirmation)) return;
+    if (!(await ask(confirmation, creating ? 'Criar pasta' : 'Renomear'))) return;
     setBusy(true); setError(''); setNotice('');
     try {
       if (!creating && original) {
@@ -74,7 +76,7 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
         }
       }
       if (liveContext.current !== contextKey) {
-        setError('O contexto da empresa ou acesso foi alterado. Atualize antes de tentar novamente.');
+        setError('Sua empresa ou seu acesso mudou. Atualize a página e tente de novo.');
         return;
       }
       const response = creating
@@ -84,11 +86,11 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
         creating ? 'create' : 'rename', { ...(creating ? {} : { id: original!.id }), name, parentId: parent }, folders);
       if (liveContext.current !== contextKey) return;
       if (!verified) {
-        setError('A API não confirmou a pasta esperada. Atualize o inventário antes de tentar novamente.');
+        setError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.');
         return;
       }
       setNameInput(''); setSelectedId(''); setMode('create');
-      setNotice('Alteração confirmada. Atualizando o inventário de pastas e mídias.');
+      setNotice('Pasta salva.');
       onChanged();
     } catch (requestError: unknown) {
       if (liveContext.current === contextKey) setError(doohFolderWriteError(requestError));
@@ -96,10 +98,10 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
     finally { setBusy(false); }
   }
 
-  return <section aria-label="Gestão de pastas DOOH D15B-02" className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
+  return <section aria-label="Pastas" className="rounded-xl border border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
     <div>
-      <h4 className="font-semibold text-gray-900">Organizar pastas — D15B-02</h4>
-      <p className="mt-1 text-xs text-gray-600">Criar pastas/subpastas e renomear pastas existentes. Não apaga pastas, move arquivos ou publica conteúdo.</p>
+      <h4 className="font-semibold text-gray-900">Pastas</h4>
+      <p className="mt-1 text-xs text-gray-600">Crie pastas e subpastas ou renomeie uma pasta. Nada é apagado.</p>
     </div>
     <form onSubmit={(event) => void submit(event)} className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Operação</span>
@@ -109,10 +111,10 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
           <option value="create">Criar pasta</option><option value="rename">Renomear pasta</option>
         </select>
       </label>
-      {mode === 'create' ? <label className="space-y-1 text-sm"><span className="block">Pasta pai</span>
+      {mode === 'create' ? <label className="space-y-1 text-sm"><span className="block">Dentro de</span>
         <select aria-label="Pasta pai DOOH" value={parentId} disabled={busy} className="w-full rounded-md border border-gray-300 bg-white p-2"
           onChange={(event) => setParentId(event.target.value)}>
-          <option value="root">Raiz da Biblioteca</option>
+          <option value="root">Nenhuma (pasta principal)</option>
           {folders.map((folder) => <option key={folder.id} value={folder.id}>{`${'— '.repeat(Math.min(folder.depth, 8))}${folder.name}`}</option>)}
         </select>
       </label> : <label className="space-y-1 text-sm"><span className="block">Pasta atual</span>
@@ -129,9 +131,10 @@ export function DoohFolderOperations({ companyId, folders, onChanged }: Props) {
       </label>
       <div className="md:col-span-3 flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={!canSubmit}>{busy ? 'Salvando…' : mode === 'create' ? 'Criar pasta' : 'Renomear pasta'}</Button>
-        <p className="text-xs text-gray-600">A renomeação confere o estado imediatamente antes da escrita, mas ainda não possui CAS atômico no backend.</p>
+        
       </div>
     </form>
+    {confirmUi}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;

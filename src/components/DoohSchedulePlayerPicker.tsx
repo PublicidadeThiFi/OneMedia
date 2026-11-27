@@ -20,7 +20,7 @@ export function DoohSchedulePlayerPicker({ companyId, value, onChange, disabled 
       if (controller.signal.aborted) return;
       const parsed = parseDoohPlayerInventoryResponse(data);
       if (!parsed || parsed.meta.page !== 1 || parsed.meta.pageSize !== 20) {
-        setError('Dados de telas incompatíveis. Atualize a consulta.'); return;
+        setError('Não foi possível carregar as telas. Tente de novo em instantes.'); return;
       }
       setResult({ items: parsed.items.filter(item => item.lifecycleStatus === 'ACTIVE'), total: parsed.meta.total });
     }).catch(() => { if (!controller.signal.aborted) setError('Não foi possível consultar as telas.'); })
@@ -36,18 +36,18 @@ export function DoohSchedulePlayerPicker({ companyId, value, onChange, disabled 
       </label>
       <button type="submit" className="min-h-10 rounded-lg border px-4 py-2 text-sm font-medium text-indigo-700" disabled={disabled || loading}>Buscar</button>
     </form>
-    <label className="block text-sm">Dispositivo de destino
+    <label className="block text-sm">Tela (aparelho)
       <select aria-label="Escolher dispositivo pelo nome" className="mt-1 w-full rounded-md border p-2" value={value} disabled={disabled || loading || !result}
         onChange={event => onChange(event.target.value)}>
         <option value="">Selecione a tela cadastrada</option>
         {(result?.items ?? []).map(item => <option key={item.id} value={item.id}>
-          {item.name || 'Dispositivo sem nome'} · {item.currentAssignment?.mediaUnit.label || 'Sem tela associada'} · {item.online ? 'Contato recente' : 'Sem contato recente'}
+          {item.name || 'Aparelho sem nome'}{item.currentAssignment?.mediaUnit.label ? ` · ${item.currentAssignment.mediaUnit.label}` : ''} · {item.online ? 'conectado' : 'sem conexão'}
         </option>)}
       </select>
     </label>
     {loading && <p role="status" className="text-xs text-gray-600">Carregando telas…</p>}
     {error && <p role="alert" className="text-xs text-red-800">{error}</p>}
-    {result && result.total > 20 && <p className="text-xs text-amber-800">Exibindo até 20 por busca; digite o nome para encontrar outros dispositivos.</p>}
-    {result && !result.items.length && <p className="text-xs text-gray-600">Nenhum dispositivo ativo encontrado. Conecte uma tela antes de agendar.</p>}
+    {result && result.total > 20 && <p className="text-xs text-amber-800">Mostrando 20. Busque pelo nome para encontrar outras.</p>}
+    {result && !result.items.length && <p className="text-xs text-gray-600">Nenhuma tela com aparelho ativo. Conecte um aparelho em Telas antes de agendar.</p>}
   </div>;
 }

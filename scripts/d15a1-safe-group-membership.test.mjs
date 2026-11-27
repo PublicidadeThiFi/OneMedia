@@ -62,7 +62,7 @@ test('D15A1-04-08 usa somente compare-and-set; não usa legacy PUT',()=>{
   assert.match(ui,/members\/compare-and-set/);
   assert.doesNotMatch(ui,/`\/dooh\/player-groups\/\$\{encodeURIComponent\(selectedGroup.id\)\}\/members`/);
   assert.match(ui,/isOperationalWriteAllowed/);
-  assert.match(ui,/window\.confirm/);
+  assert.match(ui,/await ask\(/);
 });
 test('D15A1-04-09 backend trava grupo e compara membros dentro do mesmo SERIALIZABLE',(t)=>{
   const backendFile = locateBackendService();

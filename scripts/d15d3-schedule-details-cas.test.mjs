@@ -99,7 +99,7 @@ test('D15D03-15: UI confirma escrita, apenas POST DRAFT e PATCH details-cas', ()
  const editor=source('src/components/DoohScheduleDetailsCasEditor.tsx');
  assert.match(page,/<DoohScheduleDetailsCasEditor/);
  assert.match(page,/<DoohScheduleTargetsCasEditor/);
- assert.match(editor,/window\.confirm/);
+ assert.match(editor,/await ask\(/);
  assert.match(editor,/apiClient\.get<unknown>/);
  assert.match(editor,/apiClient\.post<unknown>\('\/dooh\/schedules'/);
  assert.match(editor,/\/details-cas/);

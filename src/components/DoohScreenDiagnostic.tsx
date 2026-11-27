@@ -49,7 +49,7 @@ export function DoohScreenDiagnostic({ companyId, screen }: { companyId: string;
       <p>{diagnosticScheduleText(p)}</p>
       {p.window && <p className="text-xs text-gray-600">Janela registrada: {when(p.window.from)} — {when(p.window.to)}</p>}
       <p>{p.lastEvent ? `${events[p.lastEvent.result]} em ${when(p.lastEvent.startedAt)} (recebido em ${when(p.lastEvent.receivedAt)}).` : 'Nenhum evento de reprodução registrado.'}</p>
-      <p className="text-xs text-gray-600">Evento histórico não confirma a reprodução atual. A continuidade offline, os arquivos no aparelho e a audiência não são verificáveis por esta consulta.</p>
+      <p className="text-xs text-gray-600">Mostra o último registro enviado pelo aparelho. Para saber o que passou, veja Relatórios.</p>
     </>}
   </section>;
 }

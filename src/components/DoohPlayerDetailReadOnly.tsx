@@ -39,7 +39,7 @@ export function DoohPlayerDetailReadOnly({ companyId, playerId, onClose }: {
       if (controller.signal.aborted) return;
       const parsed = parseDoohPlayerDetail(result, playerId);
       if (!parsed) {
-        setError('Contrato do detalhe DOOH incompatível. Nenhum dado foi apresentado.');
+        setError('Não foi possível carregar o aparelho. Tente de novo em instantes.');
         return;
       }
       setData(parsed);
@@ -68,8 +68,8 @@ export function DoohPlayerDetailReadOnly({ companyId, playerId, onClose }: {
         <div><div className="text-xs text-gray-500">Player / plataforma</div><div className="font-medium">{data.name || 'Sem nome'} · {data.platform || 'Não informada'}</div></div>
         <div><div className="text-xs text-gray-500">Licença do dispositivo</div><div className="font-medium">{data.lifecycleStatus === 'ACTIVE' ? 'Ativa' : data.lifecycleStatus === 'INACTIVE' ? 'Inativa' : 'Encerrada'}</div></div>
         <div><div className="text-xs text-gray-500">Conexão</div><div className="font-medium">{data.lifecycleStatus !== 'ACTIVE' ? 'Sem operação autorizada' : data.online ? 'Contato recente' : 'Sem contato recente'}</div></div>
-        <div><div className="text-xs text-gray-500">Último heartbeat</div><div>{when(data.lastSeenAt)}</div></div>
-        <div><div className="text-xs text-gray-500">Janela de heartbeat</div><div>{data.offlineAfterSeconds} segundos</div></div>
+        <div><div className="text-xs text-gray-500">Última comunicação</div><div>{when(data.lastSeenAt)}</div></div>
+        <div><div className="text-xs text-gray-500">Intervalo de comunicação</div><div>{data.offlineAfterSeconds} segundos</div></div>
         <div><div className="text-xs text-gray-500">Versão do aplicativo</div><div>{data.appVersion || 'Não informada'}</div></div>
         <div><div className="text-xs text-gray-500">Tela associada</div><div>{data.screen ? `${data.screen.name}${data.screen.point ? ` · ${data.screen.point}` : ''}` : 'Não associada'}</div></div>
         <div><div className="text-xs text-gray-500">Atualização da programação</div>

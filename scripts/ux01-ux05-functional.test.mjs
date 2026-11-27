@@ -58,6 +58,6 @@ test('UX05: manifest não é gerado automaticamente; preflight/CAS e confirmaç�
  const detail=read('components/DoohPlayerDetailReadOnly.tsx'), publish=read('components/DoohManifestPublishQa.tsx');
  assert.match(detail,/Preparar atualização/);assert.match(detail,/DoohManifestSyncDiagnosticReadOnly/);
  assert.match(publish,/buildManifestCasRequest/);assert.match(publish,/fetchPreflight/);
- assert.match(publish,/window\.confirm/);assert.match(publish,/confirmation !== 'MATERIALIZAR PILOTO'/);
+ assert.match(publish,/await ask\(/);assert.match(publish,/confirmation !== 'MATERIALIZAR PILOTO'/);
  assert.match(publish,/ack/);
 });

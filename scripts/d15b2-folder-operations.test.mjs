@@ -83,7 +83,7 @@ test('D15B02-10 nenhum erro HTTP reflete token ou corpo do servidor', () => {
 test('D15B02-11 novo módulo usa somente create/rename e pré-validação autenticada', () => {
   const source = readFileSync(join(process.cwd(), 'src/components/DoohFolderOperations.tsx'), 'utf8');
   assert.match(source, /canWriteDoohFolders/);
-  assert.match(source, /window\.confirm/);
+  assert.match(source, /await ask\(/);
   assert.match(source, /apiClient\.get<unknown>\(`\/dooh\/folders\/\$\{/);
   assert.match(source, /apiClient\.post<unknown>\('\/dooh\/folders'/);
   assert.match(source, /apiClient\.patch<unknown>\(`\/dooh\/folders\/\$\{/);

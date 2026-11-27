@@ -118,7 +118,7 @@ test('D15B04-12: upload nao manda auth ao S3 nem segue redirecionamento', () => 
 test('D15B04-13: exige finalize confirmado; nao aciona processing nem publica', () => {
   const source = readFileSync(join(process.cwd(), 'src/components/DoohMediaUpload.tsx'), 'utf8');
   assert.match(source, /confirmDoohUploadFinalized/);
-  assert.match(source, /Repetir finalização \(sem reenviar\)/);
+  assert.match(source, /Tentar concluir de novo/);
   assert.doesNotMatch(source, /\/process['`]|\/publish['`]|\/manifest['`]/);
 });
 test('D15B04-14: Biblioteca anterior mantida; apenas componente adicional', () => {

@@ -83,6 +83,22 @@ export function screenOperationalSummary(screen: OperationalScreen) {
   const attention = !connecting && (!p || p.lifecycleStatus !== 'ACTIVE' || p.credentialActive === false || silent || screen.status === 'INSTALL_FAILED' || current === undefined || desired === undefined || current === '0' || (current !== desired && screen.status !== 'UPDATE_PENDING'));
   return { connection, programming, attention };
 }
+/** F13: one colored badge per screen card. Tone only reflects what the server reported. */
+export type ScreenBadgeTone = 'ok' | 'warn' | 'error' | 'info' | 'muted';
+export function screenStatusBadge(screen: OperationalScreen): { label: string; tone: ScreenBadgeTone } {
+  const p = screen.player;
+  const summary = screenOperationalSummary(screen);
+  if (!p) return { label: 'Sem aparelho', tone: 'muted' };
+  if (screenAwaitingDeviceConnection(screen)) return { label: 'Conectando', tone: 'info' };
+  if (p.lifecycleStatus !== 'ACTIVE') return { label: 'Aparelho desativado', tone: 'error' };
+  if (p.credentialActive === false) return { label: 'Reconectar aparelho', tone: 'error' };
+  if (screen.status === 'INSTALL_FAILED') return { label: 'Falha ao instalar', tone: 'error' };
+  if (screen.status === 'NO_RECENT_CONTACT') return { label: summary.connection, tone: 'warn' };
+  if (screen.status === 'PLAYING') return { label: 'Em exibição', tone: 'ok' };
+  if (screen.status === 'UPDATE_PENDING') return { label: 'Atualizando', tone: 'info' };
+  return { label: summary.attention ? summary.programming : 'Conectada', tone: summary.attention ? 'warn' : 'info' };
+}
+
 export function diagnosticScheduleText(p: NonNullable<ScreenDiagnostic['player']>) {
   if (p.integrity === 'INVALID') return 'Programação registrada inconsistente. Solicite suporte.';
   if (p.scheduleState === 'NO_MATCH') return 'Fora do horário de exibição na versão reportada.';

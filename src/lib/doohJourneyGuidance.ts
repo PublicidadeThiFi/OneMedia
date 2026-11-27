@@ -5,7 +5,7 @@ export function screenNextStep(screen: OperationalScreen, writable: boolean) {
   switch (screen.status) {
     case 'WAITING_FOR_PLAYER': return { action: 'connect', text: 'Conecte um aparelho para poder publicar. Você também pode preparar o conteúdo antes.' } as const;
     case 'PLAYER_INACTIVE': return { action: 'attention', text: 'O aparelho precisa estar ativo antes de receber programação.' } as const;
-    case 'NO_RECENT_CONTACT': return { action: 'attention', text: 'Confira se o aparelho está ligado e com o Player aberto. Se ele não for mais usado, desvincule-o em Gerenciar dispositivos.' } as const;
+    case 'NO_RECENT_CONTACT': return { action: 'attention', text: 'Confira se o aparelho está ligado e com o Player aberto. Se ele não for mais usado, desconecte-o em Mais opções.' } as const;
     case 'UPDATE_PENDING': return { action: 'wait', text: 'O aparelho está baixando a nova programação. Ela começa sozinha quando terminar.' } as const;
     case 'INSTALL_FAILED': return { action: 'attention', text: 'O aparelho tentou instalar e não conseguiu. Veja o motivo abaixo; ele tenta de novo automaticamente.' } as const;
     case 'WAITING_FOR_PROGRAMMING': return { action: 'content', text: 'Escolha imagens ou vídeos e defina quando devem aparecer.' } as const;
