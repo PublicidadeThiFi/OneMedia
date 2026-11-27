@@ -5,6 +5,7 @@ import { DoohGettingStarted } from './DoohGettingStarted';
 import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohPlayerInventoryReadOnly } from './DoohPlayerInventoryReadOnly';
 import { DoohOperationalScreensPanel } from './DoohOperationalScreensPanel';
+import { DoohReportsPanel } from './DoohReportsPanel';
 import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
 import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
@@ -83,9 +84,6 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
       {programmingTask === 'schedules' && <DoohScheduleCatalogReadOnly />}
       {programmingTask === 'marketplace' && <DoohMarketplaceCampaignSelection />}
     </>}
-    {section === 'reports' && <section className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center">
-      <h2 className="font-semibold text-gray-900">Relatórios de exibição em preparação</h2>
-      <p className="mt-2 text-sm text-gray-600">O cadastro de tela, o processamento de mídia e a programação não comprovam exibição. Nenhum relatório será simulado.</p>
-    </section>}
+    {section === 'reports' && <DoohReportsPanel />}
   </main>;
 }
