@@ -33,7 +33,7 @@ test('o resumo só é aceito se for da própria empresa e declarado como relato 
 
 test('a página de Relatórios usa os dados reais e não mostra mais "em preparação"', () => {
   const page=readFileSync(new URL('../src/components/DoohFoundationPage.tsx',import.meta.url),'utf8');
-  assert.match(page,/section === 'reports' && <DoohReportsPanel \/>/);assert.doesNotMatch(page,/em preparação/);
+  assert.match(page,/section === 'reports' && <DoohReportsPanel \/>/);assert.doesNotMatch(page,/em preparação/);assert.doesNotMatch(page,/ainda não estão disponíveis/);
   const panel=readFileSync(new URL('../src/components/DoohReportsPanel.tsx',import.meta.url),'utf8');
   assert.match(panel,/'\/dooh\/reports\/summary'/);assert.match(panel,/não uma verificação física/);
 });

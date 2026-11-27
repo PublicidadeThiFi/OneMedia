@@ -35,7 +35,7 @@ const explanations: Record<DoohFoundationSection, string> = {
   screens: 'Crie suas telas e conecte os aparelhos. Inventário comercial é opcional.',
   library: 'Envie imagens e vídeos e escolha onde exibir.',
   scheduling: 'Escolha o conteúdo e os horários de cada tela.',
-  reports: 'Relatórios de exibição ainda não estão disponíveis neste módulo.',
+  reports: 'Veja quantas vezes cada mídia foi exibida em cada tela.',
 };
 
 export function DoohFoundationPage({ section }: { section: DoohFoundationSection }) {
