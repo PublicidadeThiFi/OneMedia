@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { doohFriendlyDate, doohFullDate } from '../lib/doohFriendlyDate';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -86,7 +87,7 @@ export function DoohMediaVersionsReadOnly({ companyId, media, fixedMediaId }: Pr
         <ul aria-label="Inventário de versões DOOH" className="space-y-2">
           {inventory.versions.map((version) => <li key={version.id} className="space-y-1 rounded-md border border-gray-200 bg-white p-3 text-xs text-gray-700">
             <div className="flex flex-wrap justify-between gap-2"><strong>Versão {version.version} · {statusLabels[version.status]}</strong>
-              <span>{new Date(version.createdAt).toLocaleString('pt-BR')}</span></div>
+              <span title={doohFullDate(version.createdAt)}>{doohFriendlyDate(version.createdAt)}</span></div>
             <p>{version.verification === 'READY_METADATA_OK' ? 'Metadados de versão pronta presentes (verificação estrutural).' :
               version.verification === 'REVIEW_REQUIRED' ? 'Atenção: versão READY sem checksum ou asset disponível válido.' :
               'Versão não concluída. Não presumir conteúdo pronto.'}</p>

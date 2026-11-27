@@ -97,7 +97,7 @@ export function DoohPlayerOperations() {
         setActionError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.');
         return;
       }
-      setNotice('Nome do player atualizado. Recarregando dados da empresa.');
+      setNotice('Nome do aparelho atualizado.');
       setReload((value) => value + 1);
     } catch (error: unknown) { setActionError(doohOperationalError(error)); }
     finally { setBusy(false); }
@@ -133,7 +133,7 @@ export function DoohPlayerOperations() {
       <p className="mt-1 text-xs text-gray-600">Só perfis com acesso completo podem gravar alterações. O acesso de consulta só visualiza.</p>
     </div>
     <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); setQuery(queryInput.trim().slice(0, 160)); }}>
-      <label className="flex-1 space-y-1 text-sm min-w-[180px]"><span>Filtrar players para editar</span>
+      <label className="flex-1 space-y-1 text-sm min-w-[180px]"><span>Filtrar aparelhos para editar</span>
         <input className="w-full rounded-md border border-gray-300 p-2" maxLength={160} value={queryInput} onChange={(event) => setQueryInput(event.target.value)} placeholder="Nome ou plataforma" />
       </label>
       <Button type="submit" variant="outline" disabled={loading || busy}>Consultar</Button>
@@ -146,15 +146,15 @@ export function DoohPlayerOperations() {
     {notice && <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {shownPlayers && shownGroups && <div className="grid gap-6 lg:grid-cols-2">
       <form onSubmit={(event) => void savePlayer(event)} className="space-y-3 rounded-lg border p-4">
-        <h4 className="font-medium">Nome do player</h4>
-        <p className="text-xs text-gray-600">{shownPlayers.total} no filtro. {shownPlayers.total > 100 ? 'Exibindo os primeiros 100; filtre por nome para encontrar outros.' : 'Selecione um player existente.'}</p>
-        <label className="block space-y-1 text-sm"><span>Player</span>
+        <h4 className="font-medium">Nome do aparelho</h4>
+        <p className="text-xs text-gray-600">{shownPlayers.total} no filtro. {shownPlayers.total > 100 ? 'Exibindo os primeiros 100; filtre por nome para encontrar outros.' : 'Selecione um aparelho.'}</p>
+        <label className="block space-y-1 text-sm"><span>Aparelho</span>
           <select className="w-full rounded-md border p-2" value={playerId} onChange={(event) => {
             const next = shownPlayers.items.find((player) => player.id === event.target.value);
             setPlayerId(next?.id ?? ''); setPlayerName(next?.name ?? ''); setActionError('');
           }}>
             <option value="">Selecionar</option>
-            {shownPlayers.items.map((player) => <option key={player.id} value={player.id}>{player.name} · {player.lifecycleStatus}</option>)}
+            {shownPlayers.items.map((player) => <option key={player.id} value={player.id}>{player.name}{player.lifecycleStatus !== 'ACTIVE' ? ' · desativado' : ''}</option>)}
           </select>
         </label>
         <label className="block space-y-1 text-sm"><span>Novo nome (até 120 caracteres)</span>
@@ -163,7 +163,7 @@ export function DoohPlayerOperations() {
         <Button type="submit" disabled={!canSubmit || !selectedPlayer || !normalizedOperationalName(playerName) || playerName.trim() === selectedPlayer.name}>Salvar nome</Button>
       </form>
       <form onSubmit={(event) => void saveGroup(event)} className="space-y-3 rounded-lg border p-4">
-        <h4 className="font-medium">Grupos de players ({shownGroups.length})</h4>
+        <h4 className="font-medium">Grupos de aparelhos ({shownGroups.length})</h4>
         <label className="block space-y-1 text-sm"><span>Operação</span>
           <select className="w-full rounded-md border p-2" value={groupMode} onChange={(event) => { setGroupMode(event.target.value as 'create' | 'rename'); setGroupId(''); setGroupName(''); setActionError(''); }} disabled={!writable}>
             <option value="create">Criar grupo</option><option value="rename">Renomear grupo</option>
@@ -175,7 +175,7 @@ export function DoohPlayerOperations() {
             setGroupId(next?.id ?? ''); setGroupName(next?.name ?? ''); setActionError('');
           }} disabled={!writable}>
             <option value="">Selecionar</option>
-            {shownGroups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.memberCount} players)</option>)}
+            {shownGroups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.memberCount} aparelhos)</option>)}
           </select>
         </label>}
         <label className="block space-y-1 text-sm"><span>Nome do grupo (até 120 caracteres)</span>
@@ -185,7 +185,7 @@ export function DoohPlayerOperations() {
           {groupMode === 'create' ? 'Criar grupo' : 'Salvar nome do grupo'}
         </Button>
         <ul className="max-h-40 overflow-auto space-y-1 text-xs text-gray-600">{shownGroups.map((group) =>
-          <li key={group.id}>{group.name} · {group.memberCount} players · {group.scheduleTargetCount} programações</li>)}</ul>
+          <li key={group.id}>{group.name} · {group.memberCount} aparelhos · {group.scheduleTargetCount} programações</li>)}</ul>
         {shownGroups.length === 0 && <p className="text-xs text-gray-600">Nenhum grupo cadastrado nesta empresa.</p>}
       </form>
     </div>}

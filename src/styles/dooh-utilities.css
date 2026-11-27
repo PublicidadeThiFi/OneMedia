@@ -101,3 +101,10 @@
     .xl\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
 }
+
+/* F13: inside DOOH the main action of each area uses the module's indigo, the same color as the
+   selected tab and the "Usar nesta tela" link. Secondary actions stay outlined. Scoped to the module. */
+.dooh-ui {
+  --primary: oklch(0.511 0.262 276.966);
+  --primary-foreground: oklch(1 0 0);
+}

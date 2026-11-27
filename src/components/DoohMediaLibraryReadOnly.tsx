@@ -1,4 +1,5 @@
 import { doohMediaDisplayName } from '../lib/doohMediaDisplayName';
+import { doohFriendlyDate, doohFullDate } from '../lib/doohFriendlyDate';
 import { useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -125,7 +126,7 @@ export function DoohMediaLibraryReadOnly() {
         setError('Não foi possível carregar as mídias. Tente de novo em instantes.');
         return;
       }
-      setState({ key: requestKey, contextKey, folderFilter, folders, media, fetchedAt: new Date().toLocaleString('pt-BR') });
+      setState({ key: requestKey, contextKey, folderFilter, folders, media, fetchedAt: doohFriendlyDate(Date.now()) });
     }).catch((readError: unknown) => {
       if (!controller.signal.aborted) setError(doohLibraryReadError(readError));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -227,7 +228,7 @@ export function DoohMediaLibraryReadOnly() {
       {view === 'media' && <>
         <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
           <p>{filtered.length} de {visible.media.length} mídia(s) encontradas neste filtro · {visible.folders.length} pasta(s)</p>
-          <p>Consultado em {visible.fetchedAt}</p>
+          <p>Atualizado {visible.fetchedAt}</p>
         </div>
         {filtered.length === 0 ? <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">Nenhuma mídia encontrada. Ajuste o filtro ou adicione um arquivo.</p> :
           <ul aria-label="Resultados de mídias DOOH" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -255,7 +256,7 @@ export function DoohMediaLibraryReadOnly() {
                 <details className="w-full text-xs text-gray-500"><summary className="cursor-pointer focus-visible:outline-indigo-600">Detalhes do arquivo</summary>
                   <p className="mt-1">{item.mimeType} · {item.versionCount} versão(ões)</p>
                   <p>{item.widthPx && item.heightPx ? `${item.widthPx} × ${item.heightPx} px` : 'Dimensões não informadas'} · {item.durationMs === null ? 'Duração não informada' : `${(item.durationMs / 1000).toLocaleString('pt-BR')} s`}</p>
-                  <p>Enviado em {new Date(item.createdAt).toLocaleString('pt-BR')}</p>
+                  <p title={doohFullDate(item.createdAt)}>Enviado {doohFriendlyDate(item.createdAt)}</p>
                 </details>
               </div>
               {cardAction?.id === item.id && (cardAction.action === 'versions'

@@ -133,12 +133,12 @@ export function DoohPlayerAuditReadOnly() {
         </div>}
       </div>
       <div className="space-y-3 rounded-lg border p-4">
-        <h4 className="font-medium">Histórico de comandos do player</h4>
+        <h4 className="font-medium">Histórico de comandos do aparelho</h4>
         <p className="text-xs text-gray-600">Até 50 registros mais recentes. {visibleLists.total > 100 ? 'Para outros players, use a consulta filtrada do inventário.' : ''}</p>
-        <label className="block space-y-1 text-sm"><span>Player</span>
+        <label className="block space-y-1 text-sm"><span>Aparelho</span>
           <select value={playerId} onChange={(event) => setPlayerId(event.target.value)} className="w-full rounded-md border p-2">
             <option value="">Selecionar player</option>
-            {visibleLists.players.map((player) => <option key={player.id} value={player.id}>{player.name} ({player.lifecycleStatus})</option>)}
+            {visibleLists.players.map((player) => <option key={player.id} value={player.id}>{player.name}{player.lifecycleStatus !== 'ACTIVE' ? ' (desativado)' : ''}</option>)}
           </select>
         </label>
         {historyLoading && <p role="status" className="text-sm">Carregando histórico…</p>}

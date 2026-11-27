@@ -53,7 +53,7 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
     if (section === 'scheduling') {const view=urlView();setProgrammingTask(view==='agendas'||view==='listas'?'advanced':'screens');if(view==='agendas')setAdvancedView('schedules');else if(view==='listas')setAdvancedView('playlists');}
   }, [section]);
   const mode = snapshot?.modules.DOOH.accessMode;
-  return <main className="mx-auto max-w-[1440px] space-y-5 p-4 pb-12 md:p-7">
+  return <main className="dooh-ui mx-auto max-w-[1440px] space-y-5 p-4 pb-12 md:p-7">
     <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl space-y-2">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { doohFriendlyDate, doohFullDate } from '../lib/doohFriendlyDate';
 import apiClient from '../lib/apiClient';
 import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
@@ -169,7 +170,7 @@ export function DoohMediaProcessing({ companyId, media, folders, onChanged, pref
           <div><strong>Versão {job.version}</strong> · {statusLabels[job.status]} · tentativa(s) {job.attempts}
             {job.failed && <span className="ml-2 text-amber-800">Falha registrada; consulte suporte técnico para diagnóstico.</span>}
           </div>
-          <span>Solicitado em {new Date(job.createdAt).toLocaleString('pt-BR')}</span>
+          <span title={doohFullDate(job.createdAt)}>Solicitado {doohFriendlyDate(job.createdAt)}</span>
         </li>)}
       </ul>)}
     {!pilot.processingEnabled ? <p className="text-xs text-amber-800">A preparação de mídias não está disponível para a sua empresa agora.</p> :
