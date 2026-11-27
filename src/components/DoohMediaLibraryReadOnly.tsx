@@ -14,7 +14,10 @@ import { DoohMediaVersionsReadOnly } from './DoohMediaVersionsReadOnly';
 import {
   displayDoohMediaSize,
   doohLibraryReadError,
+  DOOH_PREVIEW_BATCH,
+  parseDoohMediaPreviews,
   parseDoohLibraryFolders,
+  type DoohMediaPreview,
   parseDoohLibraryMedia,
   type DoohLibraryFolder,
   type DoohLibraryFolderFilter,
@@ -113,6 +116,22 @@ export function DoohMediaLibraryReadOnly() {
     return () => window.clearTimeout(timer);
   }, [authorized, recentAuto, recentMediaId, recent?.status, recentChecks]);
 
+  // F11d: thumbnails of ready media (short-lived signed URLs, renewed before they expire).
+  const readyIds = useMemo(() => (visible?.media ?? []).filter(item => item.status === 'READY').slice(0, DOOH_PREVIEW_BATCH).map(item => item.id), [visible]);
+  const readyKey = readyIds.join(',');
+  const [previews, setPreviews] = useState<Record<string, DoohMediaPreview>>({});
+  const [previewRound, setPreviewRound] = useState(0);
+  useEffect(() => {
+    if (!authorized || !readyKey) { setPreviews({}); return; }
+    const controller = new AbortController();
+    const ids = readyKey.split(',');
+    void apiClient.get<unknown>('/dooh/media/previews', { params: { ids: readyKey }, signal: controller.signal })
+      .then(({ data }) => { if (!controller.signal.aborted) setPreviews(parseDoohMediaPreviews(data, ids) ?? {}); })
+      .catch(() => { if (!controller.signal.aborted) setPreviews({}); });
+    const renew = window.setTimeout(() => setPreviewRound(v => v + 1), 4 * 60 * 1000);
+    return () => { controller.abort(); window.clearTimeout(renew); };
+  }, [authorized, readyKey, previewRound]);
+
   const filtered = useMemo(() => (visible?.media ?? []).filter((item) =>
     (!statusFilter || item.status === statusFilter) &&
     (!typedSearch.trim() || item.name.toLocaleLowerCase('pt-BR').includes(typedSearch.trim().toLocaleLowerCase('pt-BR'))),
@@ -188,6 +207,7 @@ export function DoohMediaLibraryReadOnly() {
         {filtered.length === 0 ? <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">Nenhuma mídia encontrada. Ajuste o filtro ou adicione um arquivo.</p> :
           <ul aria-label="Resultados de mídias DOOH" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((item) => <li key={item.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <MediaThumbnail preview={previews[item.id]} kind={item.kind} name={item.name} />
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 break-words text-sm font-semibold text-gray-900">{item.name}</p>
                 <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-medium text-gray-700">{(item.id === recentMediaId && recentAuto) && item.status === 'PENDING' ? 'Na fila de preparação' : statusLabels[item.status]}</span>
@@ -214,4 +234,16 @@ export function DoohMediaLibraryReadOnly() {
       </>}
     </>}
   </section>;
+}
+
+function MediaThumbnail({ preview, kind, name }: { preview?: DoohMediaPreview; kind: string; name: string }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => setBroken(false), [preview?.url]);
+  const label = kind === 'VIDEO' ? 'Vídeo' : kind === 'IMAGE' ? 'Imagem' : 'Arquivo';
+  return <div className="flex aspect-video w-full items-center justify-center overflow-hidden rounded-lg bg-gray-200">
+    {preview && !broken ? (preview.contentType === 'video/mp4'
+      ? <video src={`${preview.url}#t=0.1`} muted playsInline preload="metadata" aria-label={`Prévia de ${name}`} className="h-full w-full object-contain" onError={() => setBroken(true)} />
+      : <img src={preview.url} alt={`Prévia de ${name}`} loading="lazy" className="h-full w-full object-contain" onError={() => setBroken(true)} />)
+      : <span className="text-xs font-medium text-gray-500">{label}</span>}
+  </div>;
 }

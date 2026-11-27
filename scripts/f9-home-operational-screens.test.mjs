@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const read = file => readFileSync(new URL(`../src/components/${file}`,import.meta.url),'utf8');
 test('F9 home reuses the operational panel and preserves the legacy fallback',()=>{
  const page=read('DoohFoundationPage.tsx');
- assert.match(page,/section === 'home' && <DoohOperationalScreensPanel/);
+ assert.match(page,/section === 'home' && <>[\s\S]*?<DoohOverview \/>[\s\S]*?<DoohOperationalScreensPanel/);
  assert.match(page,/disabledFallback=\{<DoohGettingStarted \/>\}/);
  assert.doesNotMatch(page,/section === 'home' && <DoohGettingStarted/);
  assert.match(page,/screenTask === 'my-screens'.*DoohPlayerInventoryReadOnly/);
