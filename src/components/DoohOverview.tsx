@@ -35,7 +35,7 @@ export function DoohOverview() {
       if (controller.signal.aborted) return;
       const page = screens.status === 'fulfilled' ? parseOperationalScreenPage(screens.value.data) : null;
       const summary = report.status === 'fulfilled' ? parseDoohReportSummary(report.value.data, companyId, 'PLAYER') : null;
-      setData({ screens: page ? summarizeDoohScreens(page.items) : null, plays: summary ? summary.byResult.PLAYED : null,
+      setData({ screens: page ? summarizeDoohScreens(page.items) : null, plays: summary ? summary.total : null,
         checkedAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) });
     });
     return () => controller.abort();

@@ -43,3 +43,8 @@ test('Telas e Programação: suporte técnico só para TI; listas e agendas no m
   assert.match(page,/programmingTask === 'advanced'/);
   assert.match(page,/urlView\(\) === 'agendas' \|\| urlView\(\) === 'listas' \? 'advanced'/);
 });
+
+test('Visão geral usa o mesmo total de Relatórios (exibições registradas)', () => {
+  const overview=read('components/DoohOverview.tsx');
+  assert.match(overview,/plays: summary \? summary\.total : null/);
+});
