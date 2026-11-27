@@ -63,7 +63,7 @@ export function DoohMediaLibraryReadOnly() {
   const onUploaded = (mediaId: string, autoProcessing: boolean) => {
     setRecentMediaId(mediaId); setRecentChecks(0); setRecentAuto(autoProcessing);
     // Upload cria PENDING; filtros antigos como READY/raiz ocultariam a nova mídia.
-    setFolderFilter('all'); setStatusFilter(''); setTypedSearch('');
+    setFolderFilter('all'); setStatusFilter(''); setTypedSearch(''); setServerSearch('');
     setView('media'); setPreferredMediaId('');
     setReload((value) => value + 1);
   };
@@ -72,10 +72,17 @@ export function DoohMediaLibraryReadOnly() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const requestKey = JSON.stringify([contextKey, folderFilter, reload]);
+  // F12 5c: name search runs on the server (debounced), across all media of the company.
+  const [serverSearch, setServerSearch] = useState('');
+  useEffect(() => {
+    const next = typedSearch.trim().slice(0, 120);
+    const timer = window.setTimeout(() => setServerSearch(next), 400);
+    return () => window.clearTimeout(timer);
+  }, [typedSearch]);
+  const requestKey = JSON.stringify([contextKey, folderFilter, serverSearch, reload]);
 
   useEffect(() => {
-    setFolderFilter('all'); setStatusFilter(''); setTypedSearch(''); setView('media'); setPreferredMediaId('');
+    setFolderFilter('all'); setStatusFilter(''); setTypedSearch(''); setServerSearch(''); setView('media'); setPreferredMediaId('');
     setRecentMediaId(''); setRecentChecks(0); setRecentAuto(false);
     setState(null); setError('');
   }, [contextKey]);
@@ -85,7 +92,11 @@ export function DoohMediaLibraryReadOnly() {
     if (!authorized || !companyId) { setLoading(false); return; }
     const controller = new AbortController();
     setLoading(true);
-    const headersParams = folderFilter === 'all' ? { take: 100 } : { take: 100, folderId: folderFilter };
+    const headersParams = {
+      take: 100,
+      ...(folderFilter === 'all' ? {} : { folderId: folderFilter }),
+      ...(serverSearch ? { q: serverSearch } : {}),
+    };
     void Promise.all([
       apiClient.get<unknown>('/dooh/folders', { signal: controller.signal }),
       apiClient.get<unknown>('/dooh/media', { params: headersParams, signal: controller.signal }),
@@ -102,7 +113,7 @@ export function DoohMediaLibraryReadOnly() {
       if (!controller.signal.aborted) setError(doohLibraryReadError(readError));
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [authorized, companyId, requestKey, folderFilter]);
+  }, [authorized, companyId, requestKey, folderFilter, serverSearch]);
 
   const visible = state?.contextKey === contextKey && state.folderFilter === folderFilter ? state : null;
   const recent = visible?.media.find((item) => item.id === recentMediaId);
@@ -160,7 +171,7 @@ export function DoohMediaLibraryReadOnly() {
     {view === 'media' && <div className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Pasta</span>
         <select aria-label="Pasta DOOH" className="w-full rounded-md border border-gray-300 p-2" value={folderFilter}
-          onChange={(event) => { setFolderFilter(event.target.value); setStatusFilter(''); setTypedSearch(''); }}>
+          onChange={(event) => { setFolderFilter(event.target.value); setStatusFilter(''); setTypedSearch(''); setServerSearch(''); }}>
           <option value="all">Todas as pastas — últimas mídias</option>
           <option value="root">Sem pasta (raiz)</option>
           {(visible?.folders ?? []).map((folder) => <option key={folder.id} value={folder.id}>
@@ -177,7 +188,7 @@ export function DoohMediaLibraryReadOnly() {
       </label>
       <label className="space-y-1 text-sm"><span className="block">Nome do arquivo</span>
         <input aria-label="Buscar nome de mídia DOOH" className="w-full rounded-md border border-gray-300 p-2"
-          value={typedSearch} maxLength={160} placeholder="Buscar entre os resultados carregados"
+          value={typedSearch} maxLength={120} placeholder="Buscar pelo nome em toda a biblioteca"
           onChange={(event) => setTypedSearch(event.target.value)} />
       </label>
     </div>}
@@ -188,7 +199,7 @@ export function DoohMediaLibraryReadOnly() {
         recentChecks >= 60 ? 'A preparação ainda não foi concluída. Use Atualizar para consultar novamente.' :
         `Preparando “${recent.name}”. Você pode continuar navegando; atualizaremos esta lista automaticamente.`}
     </p>}
-    {view === 'media' && <p className="text-xs text-gray-600">Busca apenas nos 100 resultados recentes por pasta; não é uma pesquisa global.</p>}
+    {view === 'media' && <p className="text-xs text-gray-600">A busca procura o nome em todas as mídias da pasta escolhida e mostra até 100 resultados.</p>}
     {loading && <p role="status" className="text-sm text-gray-600">Carregando biblioteca…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {visible && <>
