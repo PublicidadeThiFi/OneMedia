@@ -3,7 +3,7 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { screenNextStep } from '../lib/doohJourneyGuidance';
-import { screenOperationalSummary } from '../lib/doohScreenDiagnosticContract';
+import { screenOperationalSummary, screenAwaitingDeviceConnection } from '../lib/doohScreenDiagnosticContract';
 import { DoohScreenDiagnostic } from './DoohScreenDiagnostic';
 import { Button } from './ui/button';
 import { DoohContextualPairing } from './DoohContextualPairing';
@@ -54,9 +54,10 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   // F11: keep installation/playback state current without manual reloads. Silent refresh of
-  // the screen list only, paused while an editor is open or the tab is hidden.
+  // the screen list only, paused while the tab is hidden. It keeps running while the content
+  // editor is open (the editor is keyed by screen id), so the card right above it stays current.
   useEffect(() => {
-    if (!available || mode !== 'enabled' || editorOpen) return;
+    if (!available || mode !== 'enabled') return;
     const timer = window.setInterval(() => {
       if (document.hidden || busy) return;
       void apiClient.get<unknown>('/dooh/operational-screens', { params: { page, pageSize: 20 } }).then(screens => {
@@ -65,7 +66,7 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
       }).catch(() => undefined);
     }, 20000);
     return () => window.clearInterval(timer);
-  }, [available, mode, editorOpen, busy, page]);
+  }, [available, mode, busy, page]);
   useEffect(() => {
     setScreenList(null); setDiagnosticId(''); setError('');
     if (!available) { setMode('disabled'); return; }
@@ -153,7 +154,7 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
         <p className="text-xs text-gray-600">Dados da última consulta; use Atualizar para conferir novamente. Sem contato recente, a exibição atual não pode ser confirmada.</p>
       </div>}
       {onlyAttention && screenList?.items.length && !screenList.items.some(s=>screenOperationalSummary(s).attention) ? <p className="text-sm text-gray-600">Nenhuma tela desta página sinalizada.</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{screenList?.items.filter(s=>!onlyAttention || screenOperationalSummary(s).attention || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); return <article key={screen.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
+      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{screenList?.items.filter(s=>!onlyAttention || screenOperationalSummary(s).attention || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); return <article key={screen.id} className="rounded-lg border border-gray-200 p-4 space-y-3">
         <div><h3 className="font-semibold text-gray-900">{screen.name}</h3><p className="text-sm text-gray-600">{summary.connection}</p></div>
         <p className="text-xs text-gray-600">{screen.orientation === 'LANDSCAPE' ? 'Horizontal' : 'Vertical'} · {screen.fitMode === 'CONTAIN' ? 'Mostrar inteira' : 'Preencher a tela'}</p>
         <div className="rounded-md bg-gray-50 p-2 text-sm space-y-1">
