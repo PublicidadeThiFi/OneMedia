@@ -65,7 +65,7 @@ test('D15D05-08 erros nunca refletem tokens, URLs ou payload de servidor', () =>
 test('D15D05-09 componente possui duas confirmações e flag QA off por padrão', () => {
  const ui=source('src/components/DoohSchedulePublishQa.tsx');
  assert.match(ui,/import\.meta\.env\.MODE === 'qa'/);assert.match(ui,/VITE_DOOH_SCHEDULE_PUBLISH_QA_ENABLED/);
- assert.match(ui,/confirmation === 'PUBLICAR AGENDA'/);assert.match(ui,/await ask\(/);
+ assert.doesNotMatch(ui,/Digite PUBLICAR AGENDA/);assert.match(ui,/await ask\(/);
 });
 test('D15D05-10 preflight GET completo antes da única rota CAS de publicação', () => {
  const ui=source('src/components/DoohSchedulePublishQa.tsx');

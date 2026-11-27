@@ -44,7 +44,7 @@ test('D15C05-07 UI build QA off por padrão e confirmação dupla',()=>{
  const code=src('src/components/DoohPlaylistPublishQa.tsx');
  assert.match(code,/import\.meta\.env\.MODE === 'qa'/);
  assert.match(code,/VITE_DOOH_PLAYLIST_PUBLISH_QA_ENABLED/);
- assert.match(code,/confirmation === 'PUBLICAR'/);
+ assert.doesNotMatch(code,/Digite PUBLICAR/); // F13: decisão do usuário (27/11/2026): caixa de confirmação no lugar da digitação
  assert.match(code,/await ask\(/);
 });
 test('D15C05-08 UI compara estado antes de publicar e usa somente publish-cas',()=>{

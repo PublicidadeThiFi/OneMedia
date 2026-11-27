@@ -13,10 +13,10 @@ import {
   type PlaylistDraftSnapshot, type PlaylistMediaOption,
 } from '../lib/doohPlaylistDraftEditorContract';
 
-interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; onChanged: () => void }
+interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; onChanged: () => void; initialPlaylistId?: string }
 
 /** D15C-03 — só altera itens do draft via CAS. Publicação, reorder e agendas fora do escopo. */
-export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Props) {
+export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged, initialPlaylistId }: Props) {
   const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
@@ -26,7 +26,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
     access?.granted, access?.accessMode, roles);
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...roles].sort()]);
-  const [playlistId, setPlaylistId] = useState('');
+  const [playlistId, setPlaylistId] = useState(initialPlaylistId ?? '');
   const [mediaId, setMediaId] = useState('');
   const [versionId, setVersionId] = useState('');
   const [durationText, setDurationText] = useState('10');
@@ -45,7 +45,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
 
   useEffect(() => {
     writeControl.current?.abort();
-    setPlaylistId(''); setMediaId(''); setVersionId(''); setDraft(null); setMedia(null);
+    setPlaylistId(initialPlaylistId ?? ''); setMediaId(''); setVersionId(''); setDraft(null); setMedia(null);
     setVersions(null); setBusy(false); setError(''); setNotice('');
   }, [contextKey]);
   useEffect(() => {

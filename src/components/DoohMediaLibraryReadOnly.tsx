@@ -61,6 +61,19 @@ export function DoohMediaLibraryReadOnly() {
   const [reload, setReload] = useState(0);
   const [view, setView] = useState<'media' | 'upload' | 'processing' | 'organize'>('media');
   const [preferredMediaId, setPreferredMediaId] = useState('');
+  // F13: rename, move and versions live in a ⋯ menu on each card.
+  const [cardMenu, setCardMenu] = useState('');
+  const [cardAction, setCardAction] = useState<{ id: string; action: 'rename' | 'move' | 'versions' } | null>(null);
+  useEffect(() => {
+    if (!cardMenu) return;
+    const close = (event: Event) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+      if (event.type === 'mousedown' && event.target instanceof Element && event.target.closest('[data-media-menu]')) return;
+      setCardMenu('');
+    };
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
+  }, [cardMenu]);
   const [recentMediaId, setRecentMediaId] = useState('');
   const [recentAuto, setRecentAuto] = useState(false);
   const [recentChecks, setRecentChecks] = useState(0);
@@ -168,10 +181,10 @@ export function DoohMediaLibraryReadOnly() {
       { id: 'media', label: 'Arquivos', description: 'Filtre por pasta, situação ou nome.' },
       ...(view === 'upload' ? [{ id: 'upload' as const, label: 'Adicionar mídia', description: 'Escolha o arquivo, o nome e, se quiser, a pasta. Enviar não publica nada nas telas.' }] : []),
       ...(!pilot.autoProcessingEnabled || view === 'processing' ? [{ id: 'processing' as const, label: 'Preparação e recuperação', description: 'Acompanhe o resultado ou recupere um arquivo quando autorizado.' }] : []),
-      { id: 'organize', label: 'Organizar', description: 'Crie pastas, renomeie ou mova arquivos e veja versões anteriores.' },
+      { id: 'organize', label: 'Pastas', description: 'Crie, renomeie ou mova pastas. Para renomear ou mover um arquivo, use o menu ⋯ no próprio arquivo.' },
     ]} />
     {view === 'media' && <div className="grid gap-3 md:grid-cols-3">
-      <label className="space-y-1 text-sm"><span className="block">Pasta</span>
+      <label className="space-y-1 text-sm"><span className="flex items-center justify-between"><span>Pasta</span>{accessMode === 'FULL' && <button type="button" className="text-xs font-medium text-indigo-700 hover:underline" onClick={() => setView('organize')}>+ Nova pasta</button>}</span>
         <select aria-label="Pasta DOOH" className="w-full rounded-md border border-gray-300 p-2" value={folderFilter}
           onChange={(event) => { setFolderFilter(event.target.value); setStatusFilter(''); setTypedSearch(''); setServerSearch(''); }}>
           <option value="all">Todas as pastas — últimas mídias</option>
@@ -210,8 +223,6 @@ export function DoohMediaLibraryReadOnly() {
         media={visible.media} preferredMediaId={preferredMediaId} onChanged={() => setReload((value) => value + 1)} />}
       {view === 'organize' && <div className="space-y-4">
         <DoohFolderOperations companyId={companyId!} folders={visible.folders} onChanged={() => setReload((value) => value + 1)} />
-        <DoohMediaOrganizeCas companyId={companyId!} folders={visible.folders} media={visible.media} onChanged={() => setReload((value) => value + 1)} />
-        <DoohMediaVersionsReadOnly companyId={companyId!} media={visible.media} />
       </div>}
       {view === 'media' && <>
         <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-600">
@@ -235,12 +246,21 @@ export function DoohMediaLibraryReadOnly() {
                   <Button type="button" variant="outline" onClick={() => { setPreferredMediaId(item.id); setView('processing'); }}>
                     {item.status === 'PENDING' && !pilot.autoProcessingEnabled && !(item.id === recentMediaId && recentAuto) ? 'Preparar mídia' : item.status === 'ERROR' ? 'Ver motivo / tentar novamente' : 'Acompanhar situação'}
                   </Button>}
-                <details className="text-xs text-gray-500"><summary className="cursor-pointer focus-visible:outline-indigo-600">Detalhes do arquivo</summary>
+                {accessMode === 'FULL' && <div className="relative ml-auto" data-media-menu>
+                  <Button type="button" size="sm" variant="ghost" aria-haspopup="menu" aria-expanded={cardMenu === item.id} aria-label={`Mais opções de ${doohMediaDisplayName(item.name, item.kind)}`} onClick={() => setCardMenu(v => v === item.id ? '' : item.id)}>⋯</Button>
+                  {cardMenu === item.id && <div role="menu" className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+                    {(['rename', 'move', 'versions'] as const).map(action => <button key={action} type="button" role="menuitem" className="block w-full rounded-md px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none" onClick={() => { setCardMenu(''); setCardAction({ id: item.id, action }); }}>{action === 'rename' ? 'Renomear' : action === 'move' ? 'Mover para pasta' : 'Ver versões'}</button>)}
+                  </div>}
+                </div>}
+                <details className="w-full text-xs text-gray-500"><summary className="cursor-pointer focus-visible:outline-indigo-600">Detalhes do arquivo</summary>
                   <p className="mt-1">{item.mimeType} · {item.versionCount} versão(ões)</p>
                   <p>{item.widthPx && item.heightPx ? `${item.widthPx} × ${item.heightPx} px` : 'Dimensões não informadas'} · {item.durationMs === null ? 'Duração não informada' : `${(item.durationMs / 1000).toLocaleString('pt-BR')} s`}</p>
                   <p>Enviado em {new Date(item.createdAt).toLocaleString('pt-BR')}</p>
                 </details>
               </div>
+              {cardAction?.id === item.id && (cardAction.action === 'versions'
+                ? <div className="space-y-2"><DoohMediaVersionsReadOnly key={item.id} companyId={companyId!} media={visible.media} fixedMediaId={item.id} /><Button type="button" size="sm" variant="ghost" onClick={() => setCardAction(null)}>Fechar versões</Button></div>
+                : <DoohMediaOrganizeCas key={`${item.id}:${cardAction.action}`} companyId={companyId!} folders={visible.folders} media={visible.media} fixedMediaId={item.id} fixedOperation={cardAction.action} onCancel={() => setCardAction(null)} onChanged={() => { setCardAction(null); setReload((value) => value + 1); }} />)}
             </li>)}
           </ul>}
       </>}
@@ -248,7 +268,7 @@ export function DoohMediaLibraryReadOnly() {
   </section>;
 }
 
-function MediaThumbnail({ preview, kind, name }: { preview?: DoohMediaPreview; kind: string; name: string }) {
+export function MediaThumbnail({ preview, kind, name }: { preview?: DoohMediaPreview; kind: string; name: string }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [preview?.url]);
   const label = kind === 'VIDEO' ? 'Vídeo' : kind === 'IMAGE' ? 'Imagem' : 'Arquivo';

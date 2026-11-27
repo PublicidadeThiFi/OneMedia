@@ -16,7 +16,7 @@ test('P0-04 cache is tied to user and tenant, stale capability cannot unlock ano
 });
 test('P0-04 CAS rechecks exact draft and confirmation; no schedule or manifest writes',()=>{
  assert.match(ui,/draftStillCurrent\(before, fresh\)/);
- assert.match(ui,/confirmation === 'PUBLICAR'/);
+ assert.doesNotMatch(ui,/Digite PUBLICAR/);
  assert.match(ui,/await ask\(/);
  assert.match(ui,/\/publish-cas/);
  assert.doesNotMatch(ui,/apiClient\.(put|delete)\(/);

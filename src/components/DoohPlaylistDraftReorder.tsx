@@ -10,10 +10,10 @@ import { canEditPlaylistDraft, draftStillCurrent, parsePlaylistDraft, playlistDr
 import { draftOrder, draftOrderChanged, parseReorderConfirmation, reorderCasRequest,
   shiftDraftItem, validDraftOrder } from '../lib/doohPlaylistReorderContract';
 
-interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; onChanged: () => void }
+interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; onChanged: () => void; initialPlaylistId?: string }
 
 /** D15C-04 — ordena somente o DRAFT com CAS atômico. Nunca publica nem agenda. */
-export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Props) {
+export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged, initialPlaylistId }: Props) {
   const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
@@ -23,7 +23,7 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
     access?.granted, access?.accessMode, roles);
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...roles].sort()]);
-  const [playlistId, setPlaylistId] = useState('');
+  const [playlistId, setPlaylistId] = useState(initialPlaylistId ?? '');
   const [draft, setDraft] = useState<PlaylistDraftSnapshot | null>(null);
   const [planned, setPlanned] = useState<string[]>([]);
   const [refresh, setRefresh] = useState(0);
@@ -38,7 +38,7 @@ export function DoohPlaylistDraftReorder({ companyId, playlists, onChanged }: Pr
 
   useEffect(() => {
     writeRef.current?.abort();
-    setPlaylistId(''); setDraft(null); setPlanned([]); setError(''); setNotice(''); setBusy(false);
+    setPlaylistId(initialPlaylistId ?? ''); setDraft(null); setPlanned([]); setError(''); setNotice(''); setBusy(false);
   }, [contextKey]);
   useEffect(() => {
     if (playlistId && !playlists.some((p) => p.id === playlistId && p.status === 'ACTIVE' && p.draftVersion !== null)) {

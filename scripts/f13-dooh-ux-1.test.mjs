@@ -16,7 +16,7 @@ test('cartão da tela: uma ação principal e as demais em Mais opções', () =>
   const src = read('src/components/DoohOperationalScreensPanel.tsx');
   assert.match(src, /Mais opções ⋯/);
   assert.match(src, /role="menu"/);
-  for (const item of ['Diagnóstico avançado', 'Editar tela', 'Desconectar aparelho', 'Arquivar tela']) assert.ok(src.includes(item), item);
+  for (const item of ['Diagnóstico', 'Editar tela', 'Desconectar aparelho', 'Arquivar tela']) assert.ok(src.includes(item), item);
   assert.match(src, /summary\.programming !== badge\.label/);
   assert.match(src, /variant=\{screen\.player \? 'default' : 'outline'\}/);
 });

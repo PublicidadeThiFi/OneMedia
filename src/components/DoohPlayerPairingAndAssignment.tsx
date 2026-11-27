@@ -156,7 +156,7 @@ export function DoohPlayerPairingAndAssignment() {
     const normalizedCode = validPairingCode(code);
     const normalizedName = normalizedOperationalName(name);
     if (!pairAllowed || !normalizedCode || !normalizedName) return;
-    if (!await ask('Conectar este aparelho? Isso pode ocupar uma licença de player do seu plano.', 'Conectar')) return;
+    if (!await ask('Conectar este aparelho? Ele passa a usar uma licença do seu plano.', 'Conectar')) return;
     if (!globalThis.crypto?.randomUUID) {
       setFailure('Navegador sem geração segura de chave de idempotência. Operação bloqueada.'); return;
     }
@@ -194,12 +194,12 @@ export function DoohPlayerPairingAndAssignment() {
       const verifiedUnit = parseScreenCandidate(unitResponse.data, companyId, checkedScreen.id);
       const verifiedPlayer = parseDoohPlayerDetail(playerResponse.data, selectedPlayer.id);
       if (!verifiedUnit?.isActive || !verifiedPlayer || verifiedPlayer.lifecycleStatus === 'RETIRED') {
-        setFailure('A tela ou o player não atende mais às condições. Atualize e verifique novamente.'); return;
+        setFailure('A tela ou o aparelho mudou há pouco. Atualize e confira antes de repetir.'); return;
       }
       const response = await apiClient.put<unknown>(`/dooh/players/${encodeURIComponent(selectedPlayer.id)}/assignment`,
         { mediaUnitId: checkedScreen.id });
       if (!parseAssignmentResult(response.data, selectedPlayer.id, checkedScreen.id)) {
-        setFailure('O servidor não confirmou a associação esperada. Confira o player antes de repetir.'); return;
+        setFailure('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.'); return;
       }
       setNotice({ key: operationKey, message: 'Tela ligada ao ponto do Marketplace.' });
       setReload((v) => v + 1);
@@ -231,28 +231,28 @@ export function DoohPlayerPairingAndAssignment() {
       {step === 'pair' && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitPair(event)}>
         <h4 className="font-medium">1. Digite o código exibido na tela</h4>
         <label className="block space-y-1 text-sm"><span>Código da tela</span>
-          <input autoComplete="off" spellCheck={false} className="w-full rounded-md border p-2" maxLength={32} value={code} onChange={(e) => { setCode(e.target.value); attemptRef.current = null; }} placeholder="Código exibido no player" disabled={!writable || busy} />
+          <input autoComplete="off" spellCheck={false} autoCapitalize="characters" className="w-full rounded-lg border-2 border-indigo-200 p-3 text-center font-mono text-2xl uppercase tracking-widest" maxLength={32} value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); attemptRef.current = null; }} placeholder="ABC123" disabled={!writable || busy} />
         </label>
         <label className="block space-y-1 text-sm"><span>Nome para identificar esta tela</span>
           <input className="w-full rounded-md border p-2" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} disabled={!writable || busy} />
         </label>
         <label className="flex items-start gap-2 text-xs text-gray-700">
           <input type="checkbox" className="mt-1" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} disabled={!writable || busy} />
-          <span>Entendo que conectar este aparelho pode ocupar uma licença de player da empresa.</span>
+          <span>Entendo que conectar este aparelho passa a usar uma licença do plano da empresa.</span>
         </label>
         <Button type="submit" disabled={!pairAllowed}>Confirmar pareamento</Button>
-        {!writable && <p className="text-xs text-gray-600">Requer acesso FULL e papel técnico.</p>}
+        {!writable && <p className="text-xs text-gray-600">Seu perfil não pode conectar aparelhos.</p>}
       </form>}
       {step === 'associate' && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => void submitAssignment(event)}>
         <h4 className="font-medium">2. Escolha onde sua tela fica</h4>
-        <p className="text-xs text-gray-600">Escolha um ponto digital e a tela cadastrada. Se ainda não cadastrou uma tela, <a className="font-medium text-indigo-700 underline" href="/app/inventory">abra o Inventário</a>, crie o ponto DOOH e uma unidade SCREEN ativa.</p>
-        <label className="block space-y-1 text-sm"><span>Tela conectada</span>
+        <p className="text-xs text-gray-600">Escolha um ponto digital e a tela cadastrada. Se ainda não cadastrou uma tela, <a className="font-medium text-indigo-700 underline" href="/app/inventory">abra o Inventário</a>, crie o ponto digital e a tela dele.</p>
+        <label className="block space-y-1 text-sm"><span>Aparelho</span>
           <select className="w-full rounded-md border p-2" value={playerId} onChange={(e) => setPlayerId(e.target.value)} disabled={!canValidateScreen || busy}>
             <option value="">Selecionar</option>
-            {currentPlayers?.items.map((p) => <option value={p.id} key={p.id}>{p.name} · {p.lifecycleStatus}</option>)}
+            {currentPlayers?.items.map((p) => <option value={p.id} key={p.id}>{p.name}{p.lifecycleStatus !== 'ACTIVE' ? ' · desativado' : ''}</option>)}
           </select>
         </label>
-        {currentPlayers && currentPlayers.total > 100 && <p className="text-xs text-amber-800">Exibidos apenas 100 players. Seleção paginada será incorporada posteriormente.</p>}
+        {currentPlayers && currentPlayers.total > 100 && <p className="text-xs text-amber-800">Mostrando os 100 primeiros aparelhos.</p>}
         <div className="space-y-2">
           <label className="block space-y-1 text-sm"><span>Local de instalação (ponto digital)</span>
             <div className="flex gap-2">
@@ -278,12 +278,12 @@ export function DoohPlayerPairingAndAssignment() {
           {optionsLoading && <p role="status" className="text-xs text-gray-600">Carregando telas…</p>}
           {selectionError && <p role="alert" className="text-xs text-amber-800">{selectionError}</p>}
           {hasMorePoints && <p className="text-xs text-amber-800">Há mais pontos no inventário. Utilize a busca pelo nome para encontrar o local desejado.</p>}
-          {!pointsLoading && !pointOptions.length && !selectionError && <p className="text-xs text-gray-600">Nenhum ponto DOOH encontrado. Cadastre primeiro o ponto e a unidade SCREEN em Inventário.</p>}
-          {pointId && !optionsLoading && !screenOptions.length && !selectionError && <p className="text-xs text-gray-600">Este ponto ainda não tem tela SCREEN ativa. Cadastre ou ative uma unidade no Inventário.</p>}
+          {!pointsLoading && !pointOptions.length && !selectionError && <p className="text-xs text-gray-600">Nenhum ponto digital encontrado. Cadastre o ponto e a tela em Inventário.</p>}
+          {pointId && !optionsLoading && !screenOptions.length && !selectionError && <p className="text-xs text-gray-600">Este ponto ainda não tem tela ativa. Cadastre ou ative uma no Inventário.</p>}
         </div>
         {screenLoading && <p role="status" className="text-xs text-gray-600">Validando tela…</p>}
-        {checkedScreen && <p className="text-xs text-gray-700">Tela: {checkedScreen.label} · {checkedScreen.isActive ? 'Ativa' : 'Inativa'} · SCREEN validada nesta empresa.</p>}
-        {isUuidV4(screenId) && !screenLoading && !checkedScreen && <p className="text-xs text-amber-800">A tela não pôde ser validada para associação.</p>}
+        {checkedScreen && <p className="text-xs text-gray-700">Tela: {checkedScreen.label} · {checkedScreen.isActive ? 'Ativa' : 'Inativa'} · conferida.</p>}
+        {isUuidV4(screenId) && !screenLoading && !checkedScreen && <p className="text-xs text-amber-800">Não foi possível conferir esta tela. Escolha outra ou tente de novo.</p>}
         {selectedPlayer?.currentAssignment && <p className="text-xs text-gray-600">Associação atual: {selectedPlayer.currentAssignment.mediaUnit.label}.</p>}
         <Button type="submit" disabled={!assignAllowed}>Confirmar associação</Button>
         {!canValidateScreen && <p className="text-xs text-amber-800">Só administradores podem ligar telas a pontos do Marketplace.</p>}

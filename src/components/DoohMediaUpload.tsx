@@ -34,6 +34,8 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingFinalize = useRef<PendingFinalize | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const pick = (candidate: File | null) => { setFile(candidate); setNameInput(candidate ? suggestDoohMediaName(candidate.name, candidate.type) : ''); setError(''); };
   const [nameInput, setNameInput] = useState('');
   const [folderId, setFolderId] = useState('root');
   const [phase, setPhase] = useState<'idle' | 'init' | 'put' | 'finalize'>('idle');
@@ -143,12 +145,15 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       <p className="text-xs text-gray-600">Escolha um arquivo. A plataforma verifica e prepara a mídia para uso. O envio não inicia a exibição na tela.</p>
     </div>
     <form onSubmit={(e) => void submit(e)} className="grid gap-3 md:grid-cols-3">
-      <label className="space-y-1 text-sm"><span className="block">Arquivo (PNG, JPEG ou MP4; outros formatos conforme plano)</span>
+      <label onDragOver={(e) => { if (isBusy || needsFinalize) return; e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); if (isBusy || needsFinalize) return; const candidate = e.dataTransfer.files?.[0] ?? null; if (candidate) pick(candidate); }}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed p-6 text-center text-sm md:col-span-3 ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-gray-50 hover:border-indigo-300'}`}>
+        <span className="font-medium text-gray-900">{file ? file.name : 'Arraste o arquivo aqui ou clique para escolher'}</span>
+        <span className="text-xs text-gray-600">Imagem JPG ou PNG, ou vídeo MP4.</span>
         <input ref={fileInputRef} aria-label="Arquivo de mídia DOOH" type="file" disabled={isBusy || needsFinalize}
           accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,.webm,.mov,.m4v,.avi,.mkv,.pdf"
-          onChange={(e) => { const candidate = e.target.files?.[0] ?? null; setFile(candidate);
-            setNameInput(candidate ? suggestDoohMediaName(candidate.name, candidate.type) : ''); setError(''); }}
-          className="w-full rounded-md border border-gray-300 p-2" />
+          onChange={(e) => pick(e.target.files?.[0] ?? null)}
+          className="sr-only" />
       </label>
       <label className="space-y-1 text-sm"><span className="block">Nome na biblioteca</span>
         <input aria-label="Nome da mídia para upload" disabled={isBusy || needsFinalize} maxLength={160}
@@ -158,7 +163,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
       <label className="space-y-1 text-sm"><span className="block">Pasta de destino</span>
         <select aria-label="Pasta de destino do upload" disabled={isBusy || needsFinalize} value={folderId}
           onChange={(e) => setFolderId(e.target.value)} className="w-full rounded-md border border-gray-300 p-2">
-          <option value="root">Raiz</option>
+          <option value="root">Sem pasta</option>
           {folders.map((f) => <option key={f.id} value={f.id}>{`${'— '.repeat(Math.min(8, f.depth))}${f.name}`}</option>)}
         </select>
       </label>

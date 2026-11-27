@@ -446,7 +446,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           </details>;
   if(!allowed)return <p className="text-sm text-gray-600">Só administradores com acesso completo podem publicar.</p>;
   return <div className="rounded-lg border border-indigo-200 bg-white p-4 space-y-3" aria-label={`Publicação guiada da tela ${screen.name}`}>
-    <div className="flex justify-between gap-2 items-center"><h5 className="font-semibold">3. Horários e publicação</h5><Button type="button" variant={recommendPublication && !show ? "default" : "outline"} size="sm" disabled={busy||editorBlocked} aria-expanded={show} onClick={()=>setShow(v=>!v)}>{show?'Recolher':'Configurar exibição'}</Button></div>
+    <div className="flex justify-between gap-2 items-center"><h5 className="font-semibold">3. Quando exibir</h5><Button type="button" variant={recommendPublication && !show ? "default" : "outline"} size="sm" disabled={busy||editorBlocked} aria-expanded={show} onClick={()=>setShow(v=>!v)}>{show?'Recolher':'Escolher quando exibir e publicar'}</Button></div>
     {!show?<p className="text-xs text-gray-600">Depois de organizar as mídias, escolha quando exibir e publique na TV.</p>:<>
       {!loaded&&<p role="status" className="text-sm">Carregando…</p>}
       {error&&<p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">{error}</p>}
@@ -475,8 +475,6 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
         </div>}
         {replacing&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Publicar alterações</strong>
-          {historyPanel}
-          {pauseEnabled&&<div className="rounded border p-2 space-y-2"><p>Pausar para a programação desta tela sem apagar mídias nem desconectar o aparelho.</p><Button type="button" variant="outline" disabled={isBusy||!pauseBody||futureIntent?.status==='PENDING'} onClick={()=>void run(pausePublication)}>Pausar programação</Button></div>}
           <p>Confira a sequência de {screen.name}. {scheduleFuture?'A mudança entra no horário escolhido; até lá, a TV continua com a programação atual.':'A mudança entra em até 1 minuto. Enquanto isso, a TV continua com a programação atual.'}</p>
           {futureIntent&&<div className="rounded border p-2 space-y-2" role="status"><strong>{futureIntent.status==='PENDING'?'Alteração agendada':futureIntent.status==='ACTIVATED'?'Alteração aplicada':futureIntent.status==='CANCELLED'?'Alteração cancelada':'Alteração não aplicada'}</strong><p>Início solicitado: {new Date(futureIntent.startsAt).toLocaleString('pt-BR')}.</p>{futureIntent.status==='PENDING'&&<Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>void run(cancelFuture)}>Cancelar alteração agendada</Button>}</div>}
           {futureEnabled&&futureIntent?.status!=='PENDING'&&<><label className="flex gap-2"><input type="checkbox" checked={scheduleFuture} disabled={isBusy} onChange={e=>{setScheduleFuture(e.target.checked);if(e.target.checked&&!futureStart)setFutureStart(localInputFor(Date.now()+10*60_000));}}/>Iniciar em uma data futura</label>{scheduleFuture&&<label className="block">Começar em (horário local do navegador: {timezone})<input type="datetime-local" className="w-full rounded border p-2" value={futureStart} disabled={isBusy} onChange={e=>setFutureStart(e.target.value)}/><span className="text-xs">Até 7 dias à frente. Não mude a sequência até a alteração entrar.</span></label>}</>}
@@ -492,6 +490,10 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
           {replaceAllowed&&!replacementBody(Date.now())&&<p className="text-amber-800">Confira a sequência salva, a data final e os horários.</p>}
           <Button type="button" disabled={isBusy||!replaceAllowed||!replacementBody(Date.now())||prepared||futureIntent?.status==='PENDING'} onClick={()=>void run(publishReplacement)}>{busy?'Publicando…':prepared?'Publicado. Enviando para a TV…':scheduleFuture?'Agendar alteração':'Publicar alterações'}</Button>
           <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={()=>{setPrepared(false);setRefresh(v=>v+1);onChanged();}}>Atualizar situação</Button>
+          {(pauseEnabled||history)&&<details className="rounded border p-3 space-y-2"><summary className="cursor-pointer font-medium">Mais ações</summary>
+  {pauseEnabled&&<div className="rounded border p-2 space-y-2"><p>Pausar para a programação desta tela sem apagar mídias nem desconectar o aparelho.</p><Button type="button" variant="outline" disabled={isBusy||!pauseBody||futureIntent?.status==='PENDING'} onClick={()=>void run(pausePublication)}>Pausar programação</Button></div>}
+          {historyPanel}
+          </details>}
         </div>}
         {single&&!replacing&&!paused&&<div className="rounded-lg border p-3 space-y-3 text-sm">
           <strong>Publicar programação</strong>
