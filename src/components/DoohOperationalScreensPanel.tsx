@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { doohFriendlyDate, doohFullDate } from '../lib/doohFriendlyDate';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -208,7 +209,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly, attentionOn
       {mode === 'enabled' && screenList?.total !== 0 && needing.length === 0 && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Tudo certo: nenhuma tela precisa de atenção agora.</p>}
       {needing.length > 0 && <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
         {needing.map(screen => { const badge = screenStatusBadge(screen); const next = screenNextStep(screen, writable); return <li key={screen.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3">
-          <span className="min-w-0 flex-1"><span className="block truncate font-medium text-gray-900">{screen.name}</span><span className="block text-sm text-gray-600">{next.text}</span></span>
+          <span className="min-w-[220px] flex-1"><span className="block truncate font-medium text-gray-900">{screen.name}</span><span className="block text-sm text-gray-600">{next.text}</span></span>
           <span data-tone={badge.tone} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${BADGE_CLASS[badge.tone]}`}><span aria-hidden="true" className={`size-2 rounded-full ${BADGE_DOT[badge.tone]}`} />{badge.label}</span>
           <a href={DOOH_SECTION_PATHS.screens} className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50">Abrir</a>
         </li>; })}
@@ -245,14 +246,14 @@ function OperationalScreensForContext({ initialMediaId, contentOnly, attentionOn
       {screenList?.total === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-gray-600">{writable ? 'Nenhuma tela cadastrada. Comece pelo nome no formulário acima.' : 'Nenhuma tela cadastrada nesta empresa.'}</p>}
       {screenList && screenList.items.length > 0 && (() => { const attentionCount = screenList.items.filter(s => screenNeedsAttention(s)).length; return <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <p className="text-gray-700">{attentionCount === 0 ? 'Nenhuma tela precisa de atenção.' : <><strong>{attentionCount}</strong> de {screenList.items.length} {screenList.items.length === 1 ? 'tela precisa' : 'telas precisam'} de atenção.</>} <span className="text-xs text-gray-500">Atualiza sozinho a cada 20 segundos.</span></p>
-        {attentionCount > 0 && <Button type="button" size="sm" variant={onlyAttention ? 'default' : 'outline'} aria-pressed={onlyAttention} disabled={busy || editorOpen} onClick={() => { setOnlyAttention(v => !v); setDiagnosticId(''); }}>{onlyAttention ? 'Mostrando só com atenção' : 'Mostrar só as que precisam de atenção'}</Button>}
+        {attentionCount > 0 && <Button type="button" size="sm" variant={onlyAttention ? 'default' : 'outline'} aria-pressed={onlyAttention} disabled={busy || editorOpen} onClick={() => { setOnlyAttention(v => !v); setDiagnosticId(''); }}>{onlyAttention ? 'Mostrar todas' : 'Só com problema'}</Button>}
       </div>; })()}
       {onlyAttention && screenList?.items.length && !screenList.items.some(s=>screenNeedsAttention(s)) ? <p className="text-sm text-gray-600">Nenhuma tela desta página sinalizada.</p> : null}
-      <div className={contentOnly ? "grid gap-2" : "grid gap-3 lg:grid-cols-2 2xl:grid-cols-3"}>{screenList?.items.filter(s=>!onlyAttention || screenNeedsAttention(s) || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); const badge = screenStatusBadge(screen); const showDevice = screen.player && (screen.player.name !== screen.name || screen.commercialUnit); const lastSeen = screen.player?.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : '';
+      <div className={contentOnly ? "grid gap-2" : "grid gap-3 lg:grid-cols-2 2xl:grid-cols-3"}>{screenList?.items.filter(s=>!onlyAttention || screenNeedsAttention(s) || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); const badge = screenStatusBadge(screen); const showDevice = screen.player && (screen.player.name !== screen.name || screen.commercialUnit); const lastSeen = screen.player?.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? screen.player.lastSeenAt : '';
         // F13: Programação › Por tela is for programming only: one compact row per screen.
-        if (contentOnly) return <article key={screen.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-gray-900">{screen.name}</h3>
+        if (contentOnly) return <article key={screen.id} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+          <div className="min-w-[220px] flex-1">
+            <div className="flex flex-wrap items-center gap-2"><h3 className="min-w-0 truncate font-semibold text-gray-900">{screen.name}</h3>
               <span data-tone={badge.tone} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${BADGE_CLASS[badge.tone]}`}><span aria-hidden="true" className={`size-2 rounded-full ${BADGE_DOT[badge.tone]}`} />{badge.label}</span></div>
             {screen.player ? <DoohScreenNowLine screenId={screen.id} versionKey={`${screen.playerId}:${screen.player.currentManifestVersion ?? ''}`} /> : <p className="text-sm text-gray-600">Sem aparelho: você pode preparar o conteúdo agora.</p>}
           </div>
@@ -266,7 +267,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly, attentionOn
         </div>
         {screen.player && <div className="space-y-0.5 text-sm">
           {summary.programming !== badge.label && <p className="text-gray-800">{summary.programming}</p>}
-          {lastSeen && <p className="text-xs text-gray-500">Última comunicação: {lastSeen}</p>}
+          {lastSeen && <p className="text-xs text-gray-500">Última comunicação: <time dateTime={lastSeen} title={doohFullDate(lastSeen)}>{doohFriendlyDate(lastSeen)}</time></p>}
           {screen.status === 'INSTALL_FAILED' && playerErrorText(screen.player.runtime?.lastErrorCode) && <p role="alert" className="text-xs text-red-700">{playerErrorText(screen.player.runtime?.lastErrorCode)}</p>}
         </div>}
         <p className={next.action === 'attention' ? 'rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900' : 'text-sm text-gray-600'}>{next.text}</p>

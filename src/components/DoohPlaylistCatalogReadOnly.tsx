@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { doohFriendlyDate, doohFullDate } from '../lib/doohFriendlyDate';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -12,7 +13,7 @@ import { canReadDoohPlaylists, doohPlaylistReadError, parseDoohPlaylistCatalog,
   parseDoohPlaylistDetail, type DoohPlaylistDetail, type DoohPlaylistSummary,
 } from '../lib/doohPlaylistCatalogContract';
 
-const dateText = (value: string) => new Date(value).toLocaleString('pt-BR');
+const dateText = (value: string) => doohFriendlyDate(value);
 const versionStatusText = { DRAFT: 'Rascunho', PUBLISHED: 'Publicada', ARCHIVED: 'Arquivada' } as const;
 
 /** D15C-01 — catálogo e detalhe de playlists, estritamente GET. Não cria agendas nem publica manifest. */
@@ -107,7 +108,7 @@ export function DoohPlaylistCatalogReadOnly() {
           <tbody>{entries.map((playlist) => <tr key={playlist.id} className="border-b text-gray-700">
             <td className="p-3 break-words font-medium">{playlist.name}</td>
             <td className="p-3">{(() => { const st = playlist.status !== 'ACTIVE' ? { t: 'Arquivada', c: 'bg-gray-100 text-gray-700 ring-gray-200' } : playlist.currentVersion === 0 ? { t: 'Ainda não publicada', c: 'bg-gray-100 text-gray-700 ring-gray-200' } : { t: 'Publicada', c: 'bg-emerald-50 text-emerald-800 ring-emerald-200' }; return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${st.c}`}>{st.t}</span>; })()}</td>
-            <td className="p-3">{dateText(playlist.updatedAt)}</td>
+            <td className="p-3" title={doohFullDate(playlist.updatedAt)}>{dateText(playlist.updatedAt)}</td>
             <td className="p-3"><div className="flex flex-wrap justify-end gap-2">
               {playlist.status === 'ACTIVE' && <Button type="button" variant="outline" size="sm" aria-label={`Editar ${playlist.name}`} onClick={() => { setSelectedId(playlist.id); setAction('edit'); setSuccessMessage(''); }}>Editar</Button>}
               {playlist.status === 'ACTIVE' && playlist.draftVersion !== null && <Button type="button" variant="outline" size="sm" aria-label={`Publicar ${playlist.name}`} onClick={() => { setSelectedId(playlist.id); setAction('publish'); setSuccessMessage(''); }}>Publicar</Button>}

@@ -153,7 +153,7 @@ export function DoohGroupMembersSafeEditor() {
           </select>
         </label>
         <div className="flex items-end"><Button type="submit" disabled={!canSubmit}>{operation === 'add' ? 'Confirmar inclusão' : 'Confirmar remoção'}</Button></div>
-        <p className="col-span-full text-xs text-gray-600">Lista limitada à página consultada; busque pelo nome para localizar outro player. A API revalida tenant, status e concorrência.</p>
+        <p className="col-span-full text-xs text-gray-600">Mostra uma página por vez; busque pelo nome para achar outro aparelho.</p>
       </>}
       {!writable && <p className="col-span-full text-xs">Somente leitura: é necessário acesso FULL.</p>}
     </form>}

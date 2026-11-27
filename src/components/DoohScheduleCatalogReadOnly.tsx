@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { doohFriendlyDate } from '../lib/doohFriendlyDate';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -18,7 +19,7 @@ const statusText = { DRAFT: 'Rascunho', PUBLISHED: 'Publicada', PAUSED: 'Pausada
 const priorityText = { TAKEOVER: 'Prioritária', STANDARD: 'Padrão', FALLBACK: 'Reserva' } as const;
 const targetText = { PLAYER: 'Player', GROUP: 'Grupo', MEDIA_UNIT: 'Tela', MEDIA_POINT: 'Ponto' } as const;
 const dayText = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const stamp = (value: string | null) => value ? new Date(value).toLocaleString('pt-BR') : 'Sem limite definido';
+const stamp = (value: string | null) => value ? doohFriendlyDate(value) : 'Sem limite definido';
 const minute = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
 const shortId = (value: string) => `${value.slice(0, 8)}…`;
 
