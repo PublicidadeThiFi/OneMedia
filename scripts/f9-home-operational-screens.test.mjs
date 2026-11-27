@@ -2,25 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const read = file => readFileSync(new URL(`../src/components/${file}`,import.meta.url),'utf8');
-test('F9 home reuses the operational panel and preserves the legacy fallback',()=>{
+test('F9 home reuses the operational panel (F12: no legacy fallback)',()=>{
  const page=read('DoohFoundationPage.tsx');
  assert.match(page,/section === 'home' && <>[\s\S]*?<DoohOverview \/>[\s\S]*?<DoohOperationalScreensPanel/);
- assert.match(page,/disabledFallback=\{<DoohGettingStarted \/>\}/);
- assert.doesNotMatch(page,/section === 'home' && <DoohGettingStarted/);
- assert.match(page,/screenTask === 'my-screens'.*DoohPlayerInventoryReadOnly/);
+ assert.doesNotMatch(page,/DoohGettingStarted|disabledFallback/);
+ assert.match(page,/screenTask === 'my-screens' && <>[\s\S]*?<DoohOperationalScreensPanel/);
 });
 test('F9 connect action preserves the operational screen context',()=>{
  const page=read('DoohFoundationPage.tsx');
  assert.match(read('DoohOperationalScreensPanel.tsx'),/setPairScreenId\(screen.id\)/);
  assert.match(read('DoohOperationalScreensPanel.tsx'),/DoohContextualPairing key=\{screen.id\}/);
- assert.match(page,/get\('ux'\) === 'connect'\s*\? 'connect' : 'my-screens'/);
- assert.match(page,/screenTask === 'connect'.*DoohOperationalScreensPanel.*disabledFallback/);
+ // F12: no separate "Conectar" tab; connecting happens on the screen card.
+ assert.doesNotMatch(page,/'connect'/);
 });
-test('F9 fallback is gated, not used while loading or on unexpected errors',()=>{
+test('F9 unavailable module shows one plain sentence, not used while loading or on unexpected errors',()=>{
  const panel=read('DoohOperationalScreensPanel.tsx');
- assert.match(panel,/OperationalScreensForContext key=\{key\}.*disabledFallback=\{disabledFallback\}/);
- assert.match(panel,/if \(!available\) return disabledFallback \?\? null/);
- assert.match(panel,/if \(mode === 'disabled'\) return disabledFallback \?\?/);
+ assert.match(panel,/if \(!available \|\| mode === 'disabled'\) return <section/);
+ assert.match(panel,/ainda não estão liberadas para a sua empresa/);
  assert.match(panel,/mode === 'loading'.*Carregando telas/);
  assert.match(panel,/mode === 'error'.*role="alert"/);
  assert.match(panel,/const writable = available && snapshot\?\.modules\.DOOH\.accessMode === 'FULL'/);

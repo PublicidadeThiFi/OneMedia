@@ -57,16 +57,6 @@ test('B05-07 erros nunca refletem segredos', () => {
   assert.match(safeRestartError({ response: { status: 403, data: { token: 'secret' } } }), /backend/);
   assert.equal(safeRestartError({ message: 'jwt secret' }).includes('secret'), false);
 });
-test('B05-08 frontend exige dupla confirmação, chave estável e build flag', () => {
-  const ui = fs.readFileSync(path.join(root, 'src/components/DoohPlayerRestartQa.tsx'), 'utf8');
-  assert.match(ui, /VITE_DOOH_RESTART_QA_ENABLED === 'true'/);
-  assert.match(ui, /confirmation === 'REINICIAR'/);
-  assert.match(ui, /window\.confirm\(/);
-  assert.match(ui, /crypto\.randomUUID\(\)/);
-  assert.match(ui, /Idempotency-Key/);
-  assert.match(ui, /attempt\.current\?\.playerId !== capturedPlayer/);
-  assert.doesNotMatch(ui, /activation-controls|paused\s*:\s*false|\/runtime\/v1/);
-});
 test('B05-09 backend obrigatório apenas com gate QA default deny', (t) => {
   const backend = locateBackendRoot();
   if (!backend) { t.skip('Checkout do backend não disponível: validação separada via Jest obrigatória.'); return; }
@@ -77,9 +67,10 @@ test('B05-09 backend obrigatório apenas com gate QA default deny', (t) => {
   assert.match(gate, /DOOH_ADMIN_RESTART_QA_ENABLED !== 'true'/);
   assert.match(gate, /allowedIds\.includes\(company\)/);
 });
-test('B05-10 D15A1 se mantém, módulo novo só na seção screens', () => {
+
+// F12: the QA restart screen was removed from the panel (it never shipped in production builds).
+test('F12 restart QA UI is not part of the panel',()=>{
   const page = fs.readFileSync(path.join(root, 'src/components/DoohFoundationPage.tsx'), 'utf8');
-  assert.match(page, /screenTask === 'technical'[\s\S]*?<DoohPlayerRestartQa \/>/);
-  assert.match(page, /<DoohGroupMembersSafeEditor \/>/);
-  assert.match(page, /<DoohPlayerAuditReadOnly \/>/);
+  assert.doesNotMatch(page, /DoohPlayerRestartQa/);
+  assert.equal(fs.existsSync(path.join(root, 'src/components/DoohPlayerRestartQa.tsx')), false);
 });

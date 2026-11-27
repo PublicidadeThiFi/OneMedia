@@ -118,6 +118,6 @@ test('D15B01-11: Biblioteca substitui placeholder, D15A1 permanece intacto', () 
   const foundation = readFileSync(join(root,'src/components/DoohFoundationPage.tsx'),'utf8');
   assert.match(foundation, /section === 'library' && <DoohMediaLibraryReadOnly \/>/);
   assert.match(foundation, /<DoohMediaLibraryReadOnly \/>/);
-  for (const preserved of ['DoohPlayerInventoryReadOnly', 'DoohPlayerRestartQa', 'DoohGroupMembersSafeEditor'])
+  for (const preserved of ['DoohPlayerInventoryReadOnly', 'DoohGroupMembersSafeEditor'])
     assert.ok(foundation.includes(`<${preserved} />`), preserved);
 });

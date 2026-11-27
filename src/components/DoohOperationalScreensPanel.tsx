@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -13,16 +13,16 @@ import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '
 import { friendlyOperationalScreenError, playerErrorText, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
 
-/** UX09: opt-in, tenant-scoped operational registry. Legacy inventory remains below. */
-type OperationalScreensProps = { disabledFallback?: ReactNode; initialMediaId?: string; contentOnly?: boolean };
+/** Tenant-scoped screens: create, connect, edit, disconnect and program each screen. */
+type OperationalScreensProps = { initialMediaId?: string; contentOnly?: boolean };
 
-export function DoohOperationalScreensPanel({ disabledFallback, initialMediaId, contentOnly }: OperationalScreensProps) {
+export function DoohOperationalScreensPanel({ initialMediaId, contentOnly }: OperationalScreensProps) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const key = JSON.stringify([user?.id, user?.companyId, snapshot?.companyId, snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, [...(user?.roles ?? [])].sort()]);
-  return <OperationalScreensForContext key={key} disabledFallback={disabledFallback} initialMediaId={initialMediaId} contentOnly={contentOnly} />;
+  return <OperationalScreensForContext key={key} initialMediaId={initialMediaId} contentOnly={contentOnly} />;
 }
-function OperationalScreensForContext({ disabledFallback, initialMediaId, contentOnly }: OperationalScreensProps) {
+function OperationalScreensForContext({ initialMediaId, contentOnly }: OperationalScreensProps) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const companyId = user?.companyId ?? null;
@@ -51,6 +51,10 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
   const [orientation, setOrientation] = useState<'LANDSCAPE' | 'PORTRAIT'>('LANDSCAPE');
   const [fitMode, setFitMode] = useState<'CONTAIN' | 'COVER'>('CONTAIN');
   const [deviceChoice, setDeviceChoice] = useState<Record<string, string>>({});
+  // F12: rename and disconnect on the card itself (no separate "manage devices" area).
+  const [editId, setEditId] = useState('');
+  const [editDraft, setEditDraft] = useState<{ name: string; locationLabel: string; orientation: 'LANDSCAPE' | 'PORTRAIT'; fitMode: 'CONTAIN' | 'COVER' }>({ name: '', locationLabel: '', orientation: 'LANDSCAPE', fitMode: 'CONTAIN' });
+  const [unbindId, setUnbindId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   // F11: keep installation/playback state current without manual reloads. Silent refresh of
@@ -87,13 +91,13 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
       if (controller.signal.aborted) return;
       const response = cause && typeof cause === 'object' && 'response' in cause ? (cause as {response?: {status?: number}}).response : undefined;
       if (response?.status === 403 || response?.status === 404 || response?.status === 503) setMode('disabled');
-      else { setMode('error'); setError('Não foi possível carregar as telas. Tente novamente ou consulte o inventário em Telas e dispositivos.'); }
+      else { setMode('error'); setError('Não foi possível carregar as telas. Tente novamente em instantes.'); }
     });
     return () => controller.abort();
   }, [available, page, reload, playerQuery]);
-  if (!available) return disabledFallback ?? null;
-  if (mode === 'disabled') return disabledFallback ?? <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-    Cadastro simplificado de telas ainda não habilitado nesta empresa. As telas e dispositivos existentes continuam disponíveis abaixo.
+  // F12: the old pilot screens are gone; a company without the module sees one plain sentence.
+  if (!available || mode === 'disabled') return <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+    As telas digitais ainda não estão liberadas para a sua empresa ou para o seu perfil. Fale com a OneMedia.
   </section>;
   async function createScreen(e: FormEvent) {
     e.preventDefault();
@@ -105,6 +109,39 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
       if (!newScreen || newScreen.name !== name.trim()) throw Error('Unexpected API response');
       setName(''); setLocationLabel(''); setCreateOpen(false); setPage(1); setReload(v => v + 1);
       setMessage('Tela criada. Ela pode ficar vazia até você conectar um aparelho e adicionar conteúdo.');
+    } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
+    finally { setBusy(false); }
+  }
+  function startEdit(screen: OperationalScreen) {
+    setUnbindId(''); setError(''); setMessage('');
+    setEditDraft({ name: screen.name, locationLabel: screen.locationLabel ?? '', orientation: screen.orientation, fitMode: screen.fitMode });
+    setEditId(screen.id);
+  }
+  async function saveScreen(e: FormEvent, screen: OperationalScreen) {
+    e.preventDefault();
+    const nextName = editDraft.name.trim();
+    if (!writable || busy || !nextName || nextName.length > 120 || editDraft.locationLabel.length > 160) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const { data } = await apiClient.patch<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}`, {
+        name: nextName, orientation: editDraft.orientation, fitMode: editDraft.fitMode,
+        locationLabel: editDraft.locationLabel.trim() ? editDraft.locationLabel.trim() : null });
+      const result = parseOperationalScreen(data);
+      if (!result || result.id !== screen.id || result.name !== nextName) throw Error('Unexpected API response');
+      setScreenList(prev => prev && ({...prev, items: prev.items.map(item => item.id === result.id ? result : item)}));
+      setEditId(''); setMessage(`Tela “${result.name}” atualizada.`);
+    } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
+    finally { setBusy(false); }
+  }
+  async function unbindPlayer(screen: OperationalScreen) {
+    if (!writable || busy || !screen.playerId) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const { data } = await apiClient.delete<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/player`);
+      const result = parseOperationalScreen(data);
+      if (!result || result.id !== screen.id || result.playerId) throw Error('Unexpected API response');
+      setScreenList(prev => prev && ({...prev, items: prev.items.map(item => item.id === result.id ? result : item)}));
+      setUnbindId(''); setMessage(`Aparelho desconectado da tela “${result.name}”. Ele pode ser conectado a outra tela.`);
     } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
     finally { setBusy(false); }
   }
@@ -170,6 +207,23 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
         {writable && !editorOpen && next.action === 'attention' && <Button type="button" disabled={busy} onClick={() => setReload(v => v + 1)}>Verificar situação</Button>}
         {writable && !editorOpen && <Button type="button" variant={next.action === 'content' ? 'default' : 'outline'} disabled={busy || mode !== 'enabled'} onClick={() => setContentScreenId(screen.id)}>{preferredMediaId ? 'Usar mídia nesta tela' : screen.status === 'WAITING_FOR_PROGRAMMING' ? 'Adicionar conteúdo' : 'Gerenciar conteúdo'}</Button>}
         {pairScreenId === screen.id && <DoohContextualPairing key={screen.id} screen={screen} writable={writable} onClose={() => { setPairScreenId(''); setReload(v=>v+1); }} onLinked={linked => { setPairScreenId(''); setScreenList(prev => prev && ({...prev, items: prev.items.map(item => item.id === linked.id ? linked : item)})); setMessage(`Aparelho conectado à tela “${linked.name}”. Agora escolha o conteúdo.`); setContentScreenId(linked.id); }} />}
+        {writable && !editorOpen && editId !== screen.id && <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => startEdit(screen)}>Editar tela</Button>
+          {screen.player && <Button type="button" variant="ghost" disabled={busy} aria-expanded={unbindId === screen.id} onClick={() => { setEditId(''); setUnbindId(v => v === screen.id ? '' : screen.id); }}>Desconectar aparelho</Button>}
+        </div>}
+        {writable && !editorOpen && editId === screen.id && <form onSubmit={e => void saveScreen(e, screen)} className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm" aria-label={`Editar ${screen.name}`}>
+          <label className="block space-y-1"><span>Nome da tela</span><input className="w-full rounded-md border bg-white p-2" value={editDraft.name} maxLength={120} required onChange={e => setEditDraft(v => ({...v, name: e.target.value}))} disabled={busy} /></label>
+          <label className="block space-y-1"><span>Local (opcional)</span><input className="w-full rounded-md border bg-white p-2" value={editDraft.locationLabel} maxLength={160} onChange={e => setEditDraft(v => ({...v, locationLabel: e.target.value}))} disabled={busy} /></label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="space-y-1"><span>Posição</span><select className="w-full rounded-md border bg-white p-2" value={editDraft.orientation} onChange={e => setEditDraft(v => ({...v, orientation: e.target.value as 'LANDSCAPE' | 'PORTRAIT'}))} disabled={busy}><option value="LANDSCAPE">Horizontal</option><option value="PORTRAIT">Vertical</option></select></label>
+            <label className="space-y-1"><span>Ajuste</span><select className="w-full rounded-md border bg-white p-2" value={editDraft.fitMode} onChange={e => setEditDraft(v => ({...v, fitMode: e.target.value as 'CONTAIN' | 'COVER'}))} disabled={busy}><option value="CONTAIN">Mostrar inteira</option><option value="COVER">Preencher a tela (pode cortar)</option></select></label>
+          </div>
+          <div className="flex gap-2"><Button type="submit" disabled={busy || !editDraft.name.trim()}>Salvar</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setEditId('')}>Cancelar</Button></div>
+        </form>}
+        {writable && !editorOpen && unbindId === screen.id && screen.player && <div role="alertdialog" aria-label="Confirmar desconexão" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+          <p>Desconectar <strong>{screen.player.name}</strong> desta tela? O aparelho continua pareado à empresa e pode ser conectado a outra tela. A programação desta tela não é apagada.</p>
+          <div className="flex gap-2"><Button type="button" disabled={busy} onClick={() => void unbindPlayer(screen)}>Desconectar</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setUnbindId('')}>Cancelar</Button></div>
+        </div>}
         {screen.player ? <p className="text-sm text-gray-700">Aparelho: <strong>{screen.player.name}</strong>{screen.commercialUnit ? ` · Inventário: ${screen.commercialUnit.label}` : ''}</p> : writable && !editorOpen ? <div className="space-y-2">
           <p className="text-sm text-gray-700">A tela ainda não tem um aparelho vinculado.</p>
           <Button type="button" variant={deviceChoice[screen.id] ? "outline" : "default"} disabled={busy} onClick={() => setPairScreenId(screen.id)}>Conectar um novo aparelho</Button>

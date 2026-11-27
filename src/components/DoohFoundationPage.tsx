@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { DoohMarketplaceCampaignSelection } from './campaigns/DoohMarketplaceCampaignSelection';
-import { DoohGettingStarted } from './DoohGettingStarted';
 import { DoohOverview } from './DoohOverview';
 import { useAuth } from '../contexts/AuthContext';
 import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
@@ -12,21 +11,19 @@ import { DoohPlayerOperations } from './DoohPlayerOperations';
 import { DoohPlayerPairingAndAssignment } from './DoohPlayerPairingAndAssignment';
 import { DoohPlayerAuditReadOnly } from './DoohPlayerAuditReadOnly';
 import { DoohGroupMembersSafeEditor } from './DoohGroupMembersSafeEditor';
-import { DoohPlayerRestartQa } from './DoohPlayerRestartQa';
 import { DoohMediaLibraryReadOnly } from './DoohMediaLibraryReadOnly';
 import { DoohPlaylistCatalogReadOnly } from './DoohPlaylistCatalogReadOnly';
 import { DoohScheduleCatalogReadOnly } from './DoohScheduleCatalogReadOnly';
 import { DOOH_SECTION_LABELS, type DoohFoundationSection } from '../lib/productNavigation';
 
-type ScreensTask = 'my-screens' | 'connect' | 'manage' | 'technical';
+type ScreensTask = 'my-screens' | 'technical';
 type ProgrammingTask = 'screens' | 'advanced' | 'marketplace';
+// F12: one place for screens. Connecting, renaming and disconnecting happen on each screen card.
 const screenTasks = [
-  { id: 'my-screens', label: 'Minhas telas', description: 'Crie uma tela pelo nome, conecte um aparelho e veja o que falta para exibir conteúdo.' },
-  { id: 'connect', label: 'Conectar uma tela', description: 'Escolha ou crie uma tela e conecte um aparelho pelo código.' },
-  { id: 'manage', label: 'Gerenciar dispositivos', description: 'Altere nomes e organize grupos quando tiver permissão.' },
+  { id: 'my-screens', label: 'Minhas telas', description: 'Crie uma tela, conecte o aparelho pelo código e escolha o que exibir.' },
 ] as const;
-// F11d: support-only tools stay reachable for TI, out of everyone else's way.
-const technicalTask = { id: 'technical', label: 'Suporte técnico', description: 'Histórico de comandos e grupos, para a equipe de TI.' } as const;
+// Support-only tools stay reachable for TI, out of everyone else's way.
+const technicalTask = { id: 'technical', label: 'Suporte técnico', description: 'Aparelhos, grupos e histórico de comandos, para a equipe de TI.' } as const;
 const programmingTasks = [
   { id: 'screens', label: 'Por tela', description: 'Escolha uma tela e defina o conteúdo e os horários em um só lugar.' },
   { id: 'marketplace', label: 'Campanhas do Marketplace', description: 'Vincule campanhas aprovadas conforme as regras da plataforma.' },
@@ -48,13 +45,11 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
   const screenTabs = isTechnical ? [...screenTasks, technicalTask] : screenTasks;
   const urlView = () => typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('ux') : null;
   const [advancedView, setAdvancedView] = useState<AdvancedView>(() => urlView() === 'agendas' ? 'schedules' : 'playlists');
-  const [screenTask, setScreenTask] = useState<ScreensTask>(() =>
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('ux') === 'connect'
-      ? 'connect' : 'my-screens');
+  const [screenTask, setScreenTask] = useState<ScreensTask>('my-screens');
   const [programmingTask, setProgrammingTask] = useState<ProgrammingTask>(() =>
     urlView() === 'agendas' || urlView() === 'listas' ? 'advanced' : 'screens');
   useEffect(() => {
-    if (section === 'screens') setScreenTask(new URLSearchParams(window.location.search).get('ux') === 'connect' ? 'connect' : 'my-screens');
+    if (section === 'screens') setScreenTask('my-screens');
     if (section === 'scheduling') {const view=urlView();setProgrammingTask(view==='agendas'||view==='listas'?'advanced':'screens');if(view==='agendas')setAdvancedView('schedules');else if(view==='listas')setAdvancedView('playlists');}
   }, [section]);
   const mode = snapshot?.modules.DOOH.accessMode;
@@ -66,28 +61,29 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{section === 'home' ? 'Vamos colocar sua tela para funcionar' : DOOH_SECTION_LABELS[section]}</h1>
           <p className="text-sm leading-6 text-gray-600">{explanations[section]}</p>
         </div>
-        <p className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-700" aria-label="Permissão do módulo">
-          {mode === 'FULL' ? 'Acesso: visualizar e editar' : mode === 'READ_ONLY' ? 'Acesso: somente consulta' : 'Acesso não concedido'}
-        </p>
+        {mode !== 'FULL' && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" aria-label="Permissão do módulo">
+          {mode === 'READ_ONLY' ? 'Acesso somente para consulta' : 'Acesso não concedido'}
+        </p>}
       </div>
     </header>
     {section === 'home' && <>
       <DoohOverview />
-      <DoohOperationalScreensPanel disabledFallback={<DoohGettingStarted />} />
+      <DoohOperationalScreensPanel />
     </>}
     {section === 'screens' && <>
       <DoohWorkspaceTabs tabs={screenTabs} selected={screenTask} onSelect={setScreenTask} label="Tarefas de telas e dispositivos" />
-      {screenTask === 'my-screens' && <DoohOperationalScreensPanel disabledFallback={<DoohPlayerInventoryReadOnly />} initialMediaId={new URLSearchParams(window.location.search).get('media') ?? undefined} />}
-      {screenTask === 'connect' && <DoohOperationalScreensPanel disabledFallback={<DoohPlayerPairingAndAssignment />} />}
-      {screenTask === 'manage' && <div className="space-y-4"><DoohPlayerInventoryReadOnly /><DoohPlayerOperations /><details className="rounded-xl border bg-white p-4"><summary className="cursor-pointer font-medium">Associação comercial opcional</summary><DoohPlayerPairingAndAssignment /></details></div>}
+      {screenTask === 'my-screens' && <>
+        <DoohOperationalScreensPanel initialMediaId={new URLSearchParams(window.location.search).get('media') ?? undefined} />
+        <details className="rounded-xl border bg-white p-4"><summary className="cursor-pointer font-medium">Ligar um aparelho a um ponto do inventário OOH (Marketplace)</summary><DoohPlayerPairingAndAssignment /></details>
+      </>}
       {screenTask === 'technical' && isTechnical && <div className="space-y-4">
-        <DoohPlayerAuditReadOnly /><DoohGroupMembersSafeEditor /><DoohPlayerRestartQa />
+        <DoohPlayerInventoryReadOnly /><DoohPlayerOperations /><DoohPlayerAuditReadOnly /><DoohGroupMembersSafeEditor />
       </div>}
     </>}
     {section === 'library' && <DoohMediaLibraryReadOnly />}
     {section === 'scheduling' && <>
       <DoohWorkspaceTabs tabs={programmingTasks} selected={programmingTask} onSelect={setProgrammingTask} label="Áreas de programação" />
-      {programmingTask === 'screens' && <DoohOperationalScreensPanel contentOnly disabledFallback={<DoohPlaylistCatalogReadOnly />} />}
+      {programmingTask === 'screens' && <DoohOperationalScreensPanel contentOnly />}
       {programmingTask === 'advanced' && <div className="space-y-4">
         <p className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700">Para a maioria dos casos, use “Por tela”. O modo avançado serve para reaproveitar a mesma lista ou agenda em várias telas.</p>
         <DoohWorkspaceTabs tabs={[

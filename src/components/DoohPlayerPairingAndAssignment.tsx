@@ -235,7 +235,7 @@ export function DoohPlayerPairingAndAssignment() {
         </label>
         <label className="flex items-start gap-2 text-xs text-gray-700">
           <input type="checkbox" className="mt-1" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} disabled={!writable || busy} />
-          <span>Reconheço que o pareamento, quando autorizado, pode ativar uma licença e que não devo utilizá-lo em produção durante o smoke sem aprovação.</span>
+          <span>Entendo que conectar este aparelho pode ocupar uma licença de player da empresa.</span>
         </label>
         <Button type="submit" disabled={!pairAllowed}>Confirmar pareamento</Button>
         {!writable && <p className="text-xs text-gray-600">Requer acesso FULL e papel técnico.</p>}

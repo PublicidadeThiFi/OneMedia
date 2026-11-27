@@ -7,10 +7,10 @@ import { doohUxMillisecondsFromSeconds } from '../src/lib/doohUxDuration.ts';
 const read = file => readFileSync(join(process.cwd(), 'src', file), 'utf8');
 
 test('UX01: mantém rotas, exibe próxima ação e evita afirmar reprodução por registros', () => {
-  const nav=read('lib/productNavigation.ts'), home=read('components/DoohGettingStarted.tsx');
+  const nav=read('lib/productNavigation.ts');
   assert.match(nav, /'\/app\/dooh\/screens'/); assert.match(nav, /'Telas e dispositivos'/);
-  assert.match(home,/Próximo passo/); assert.match(home,/não exibição comprovada/);
-  assert.match(home,/AbortController/); assert.match(home,/parseDoohJourneySummary/);
+  // F12: the next action lives on each screen card (screenNextStep), not in a separate pilot guide.
+  assert.match(read('components/DoohOperationalScreensPanel.tsx'),/screenNextStep\(screen, writable\)/);
 });
 test('UX02: pareamento e associação são etapas separadas, API e idempotência intactas', () => {
   const form=read('components/DoohPlayerPairingAndAssignment.tsx');
