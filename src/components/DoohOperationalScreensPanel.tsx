@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { DoohContextualPairing } from './DoohContextualPairing';
 import { isUuidV4 } from '../lib/doohPlayerPairingContract';
 import { DoohScreenContentWizard } from './DoohScreenContentWizard';
+import { DoohArchivedScreens } from './DoohArchivedScreens';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
 import { friendlyOperationalScreenError, playerErrorText, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
@@ -55,6 +56,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
   const [editId, setEditId] = useState('');
   const [editDraft, setEditDraft] = useState<{ name: string; locationLabel: string; orientation: 'LANDSCAPE' | 'PORTRAIT'; fitMode: 'CONTAIN' | 'COVER' }>({ name: '', locationLabel: '', orientation: 'LANDSCAPE', fitMode: 'CONTAIN' });
   const [unbindId, setUnbindId] = useState('');
+  const [archiveId, setArchiveId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   // F11: keep installation/playback state current without manual reloads. Silent refresh of
@@ -145,6 +147,19 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
     } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
     finally { setBusy(false); }
   }
+  // F12: only an empty screen (no device, no Marketplace link) can be archived; the server checks it again.
+  async function archiveScreen(screen: OperationalScreen) {
+    if (!writable || busy || screen.playerId || screen.commercialUnit) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const { data } = await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/archive`);
+      const result = parseOperationalScreen(data);
+      if (!result || result.id !== screen.id || !result.archivedAt) throw Error('Unexpected API response');
+      setArchiveId(''); setMessage(`Tela “${result.name}” arquivada. Ela aparece em Telas arquivadas, onde pode ser restaurada.`);
+      setReload(v => v + 1);
+    } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
+    finally { setBusy(false); }
+  }
   async function bindPlayer(screen: OperationalScreen) {
     const playerId = deviceChoice[screen.id];
     if (!writable || busy || editorOpen || !playerId || !players.some(p => p.id === playerId && p.lifecycleStatus === 'ACTIVE' && (!p.currentAssignment || screen.commercialUnit?.id === p.currentAssignment.mediaUnit.id))) return;
@@ -209,7 +224,12 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
         {pairScreenId === screen.id && <DoohContextualPairing key={screen.id} screen={screen} writable={writable} onClose={() => { setPairScreenId(''); setReload(v=>v+1); }} onLinked={linked => { setPairScreenId(''); setScreenList(prev => prev && ({...prev, items: prev.items.map(item => item.id === linked.id ? linked : item)})); setMessage(`Aparelho conectado à tela “${linked.name}”. Agora escolha o conteúdo.`); setContentScreenId(linked.id); }} />}
         {writable && !editorOpen && editId !== screen.id && <div className="flex flex-wrap gap-2">
           <Button type="button" variant="ghost" disabled={busy} onClick={() => startEdit(screen)}>Editar tela</Button>
-          {screen.player && <Button type="button" variant="ghost" disabled={busy} aria-expanded={unbindId === screen.id} onClick={() => { setEditId(''); setUnbindId(v => v === screen.id ? '' : screen.id); }}>Desconectar aparelho</Button>}
+          {screen.player && <Button type="button" variant="ghost" disabled={busy} aria-expanded={unbindId === screen.id} onClick={() => { setEditId(''); setArchiveId(''); setUnbindId(v => v === screen.id ? '' : screen.id); }}>Desconectar aparelho</Button>}
+          {!screen.player && !screen.commercialUnit && <Button type="button" variant="ghost" disabled={busy} aria-expanded={archiveId === screen.id} onClick={() => { setEditId(''); setUnbindId(''); setArchiveId(v => v === screen.id ? '' : screen.id); }}>Arquivar tela</Button>}
+        </div>}
+        {writable && !editorOpen && archiveId === screen.id && !screen.player && !screen.commercialUnit && <div role="alertdialog" aria-label="Confirmar arquivamento" className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+          <p>Arquivar <strong>{screen.name}</strong>? Ela sai desta lista e das contagens. O histórico é mantido e você pode restaurá-la em Telas arquivadas.</p>
+          <div className="flex gap-2"><Button type="button" disabled={busy} onClick={() => void archiveScreen(screen)}>Arquivar</Button><Button type="button" variant="ghost" disabled={busy} onClick={() => setArchiveId('')}>Cancelar</Button></div>
         </div>}
         {writable && !editorOpen && editId === screen.id && <form onSubmit={e => void saveScreen(e, screen)} className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm" aria-label={`Editar ${screen.name}`}>
           <label className="block space-y-1"><span>Nome da tela</span><input className="w-full rounded-md border bg-white p-2" value={editDraft.name} maxLength={120} required onChange={e => setEditDraft(v => ({...v, name: e.target.value}))} disabled={busy} /></label>
@@ -239,6 +259,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
       </article>})}</div>
       {contentScreenId && screenList?.items.some(screen => screen.id === contentScreenId) && <DoohScreenContentWizard key={contentScreenId} screen={screenList.items.find(screen => screen.id === contentScreenId)!} initialMediaId={preferredMediaId} onClose={() => {setContentScreenId('');setPreferredMediaId('');setReload(v=>v+1);}} />}
       {screenList && <div className="flex items-center justify-between text-sm"><span>{screenList.total} tela(s) cadastrada(s) · página {screenList.page}</span><div className="flex gap-2"><Button type="button" variant="outline" disabled={busy || editorOpen || page <= 1} onClick={() => setPage(n => Math.max(n - 1, 1))}>Anterior</Button><Button type="button" variant="outline" disabled={busy || editorOpen || page * 20 >= screenList.total} onClick={() => setPage(n => n + 1)}>Próxima</Button></div></div>}
+      {!contentOnly && <DoohArchivedScreens key={reload} writable={writable} disabled={busy || editorOpen} onRestored={restored => { setMessage(`Tela “${restored.name}” restaurada.`); setReload(v => v + 1); }} />}
       {!writable && <p className="text-xs text-gray-600">Somente leitura: sua permissão não permite cadastrar ou conectar aparelhos.</p>}
     </>}
   </section>;
