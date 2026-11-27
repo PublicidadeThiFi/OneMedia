@@ -8,6 +8,8 @@ export type OperationalScreen = {
   playerId: string | null;
   contentPlaylistId: string | null;
   commercialUnit: { id: string; label: string } | null;
+  /** F12: set when the screen was archived (hidden from the list and counts). */
+  archivedAt?: string | null;
   status: 'WAITING_FOR_PLAYER' | 'PLAYER_INACTIVE' | 'NO_RECENT_CONTACT' | 'UPDATE_PENDING' | 'INSTALL_FAILED' | 'WAITING_FOR_PROGRAMMING' | 'VERSION_REPORTED' | 'PLAYING';
   player: { id: string; name: string; lifecycleStatus: string; lastSeenAt: string | null; currentManifestVersion?: string; desiredManifestVersion?: string; credentialActive?: boolean; appVersion?: string | null; runtime?: PlayerRuntimeReport | null } | null;
 };
@@ -31,7 +33,8 @@ export function parseOperationalScreen(input: unknown): OperationalScreen | null
       (input.playerId !== null && (typeof input.playerId !== 'string' || !uuid.test(input.playerId))) ||
       (input.contentPlaylistId !== undefined && input.contentPlaylistId !== null && (typeof input.contentPlaylistId !== 'string' || !uuid.test(input.contentPlaylistId))) ||
       (input.commercialUnit !== null && !record(input.commercialUnit)) ||
-      (input.player !== null && !record(input.player))) return null;
+      (input.player !== null && !record(input.player)) ||
+      (input.archivedAt !== undefined && input.archivedAt !== null && (typeof input.archivedAt !== 'string' || !Number.isFinite(Date.parse(input.archivedAt))))) return null;
   const player = input.player;
   if (player && (!uuid.test(String(player.id)) || typeof player.name !== 'string' ||
       typeof player.lifecycleStatus !== 'string' ||
@@ -48,6 +51,7 @@ export function parseOperationalScreen(input: unknown): OperationalScreen | null
     locationLabel: input.locationLabel, playerId: input.playerId, contentPlaylistId: (input.contentPlaylistId as string | null | undefined) ?? null, status: input.status as OperationalScreen['status'],
     player: player ? { id: String(player.id), name: String(player.name), lifecycleStatus: String(player.lifecycleStatus), lastSeenAt: player.lastSeenAt as string | null, ...(version(player.currentManifestVersion) && version(player.desiredManifestVersion) ? { currentManifestVersion: player.currentManifestVersion, desiredManifestVersion: player.desiredManifestVersion } : {}), ...(typeof player.credentialActive === 'boolean' ? { credentialActive: player.credentialActive } : {}), ...(player.appVersion !== undefined ? { appVersion: runtimeCode(player.appVersion) } : {}), ...(player.runtime !== undefined ? { runtime: parseRuntime(player.runtime) } : {}) } : null,
     commercialUnit: unit ? { id: String(unit.id), label: String(unit.label) } : null,
+    ...(input.archivedAt !== undefined ? { archivedAt: input.archivedAt as string | null } : {}),
   };
 }
 export function parseOperationalScreenPage(input: unknown): { items: OperationalScreen[]; meta: { page: number; pageSize: number; total: number } } | null {
@@ -91,6 +95,9 @@ export function friendlyOperationalScreenError(error: unknown): string {
   if (code === 'DOOH_PLAYER_LINKED_TO_OTHER_SCREEN') return 'Esse dispositivo já está conectado a outra tela.';
   if (code === 'DOOH_OPERATIONAL_SCREEN_ALREADY_PAIRED') return 'Desconecte o aparelho atual antes de escolher outro.';
   if (code === 'DOOH_PLAYER_NOT_ACTIVE') return 'O dispositivo precisa estar ativo para ser conectado.';
+  if (code === 'DOOH_OPERATIONAL_SCREEN_ARCHIVE_HAS_PLAYER') return 'Desconecte o aparelho antes de arquivar a tela.';
+  if (code === 'DOOH_OPERATIONAL_SCREEN_ARCHIVE_HAS_UNIT') return 'Desfaça o vínculo com o Marketplace antes de arquivar a tela.';
+  if (code === 'DOOH_OPERATIONAL_SCREEN_ARCHIVED') return 'Esta tela está arquivada. Restaure-a antes de usar.';
   if (code === 'DOOH_OPERATIONAL_SCREENS_COMPANY_NOT_ALLOWED') return 'O cadastro simplificado ainda não está liberado para esta empresa.';
   return 'A operação não foi concluída. Atualize a página e tente novamente.';
 }
