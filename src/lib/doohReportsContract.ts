@@ -2,7 +2,7 @@
  * F11b — read-only playback report (D9B `GET /dooh/reports/summary`).
  * Counts are events REPORTED by the devices (proof of play), never a physical verification.
  */
-export type DoohReportPeriod = 'today' | '7d';
+export type DoohReportPeriod = 'today' | 'yesterday' | '7d';
 export type DoohReportGroup = 'PLAYER' | 'MEDIA_VERSION' | 'DAY_UTC';
 export type DoohReportResult = 'PLAYED' | 'INTERRUPTED' | 'FAILED' | 'OTHER';
 export type DoohReportGroupRow = { groupKey: string; total: number; byResult: Record<DoohReportResult, number> };
@@ -22,6 +22,12 @@ const iso = (x: unknown): x is string => typeof x === 'string' && Number.isFinit
 /** Server limit is 7 days and `to` may not be in the future; both windows end "now". */
 export function doohReportWindow(period: DoohReportPeriod, now: Date = new Date()): { from: string; to: string } {
   const to = new Date(Math.floor(now.getTime() / 1000) * 1000);
+  if (period === 'yesterday') {
+    // F12: the whole previous local day; it ends at today's local midnight (never in the future).
+    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+    const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1);
+    return { from: start.toISOString(), to: end.toISOString() };
+  }
   const from = period === 'today'
     ? new Date(to.getFullYear(), to.getMonth(), to.getDate())
     : new Date(to.getTime() - 7 * 86_400_000 + 60_000);
@@ -71,6 +77,25 @@ export const doohReportResultLabel: Record<DoohReportResult, string> = {
 export function doohReportDayLabel(day: string): string {
   const [y, m, d] = day.split('-');
   return `${d}/${m}/${y}`;
+}
+
+const csvCell = (value: string | number) => {
+  const text = String(value);
+  // Quote every text cell; neutralize spreadsheet formulas (=, +, -, @) in names.
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return typeof value === 'number' ? text : `"${safe.replace(/"/g, '""')}"`;
+};
+const groupColumn: Record<DoohReportGroup, string> = { PLAYER: 'Tela', MEDIA_VERSION: 'Mídia', DAY_UTC: 'Dia (UTC)' };
+
+/** F12: CSV of what is on screen (friendly names, never ids), separated by ";" for Excel in pt-BR. */
+export function doohReportCsv(summary: DoohReportSummary, label: (key: string) => string): string {
+  const header = [groupColumn[summary.groupBy], 'Total', doohReportResultLabel.PLAYED, doohReportResultLabel.INTERRUPTED,
+    doohReportResultLabel.FAILED, doohReportResultLabel.OTHER].map(csvCell).join(';');
+  const rows = summary.groups.map(g => [label(g.groupKey), g.total, g.byResult.PLAYED, g.byResult.INTERRUPTED,
+    g.byResult.FAILED, g.byResult.OTHER].map(csvCell).join(';'));
+  const total = ['Total do período', summary.total, summary.byResult.PLAYED, summary.byResult.INTERRUPTED,
+    summary.byResult.FAILED, summary.byResult.OTHER].map(csvCell).join(';');
+  return '\uFEFF' + [header, ...rows, total].join('\r\n') + '\r\n';
 }
 
 export function doohReportErrorText(code: string | undefined): string {
