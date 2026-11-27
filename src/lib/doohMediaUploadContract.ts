@@ -39,6 +39,20 @@ export function normalizeDoohUploadName(raw: string): string | null {
   return name && name.length <= 160 && !/[\u0000-\u001f\u007f]/.test(name) ? name : null;
 }
 
+/**
+ * Suggested library name from the chosen file. Photos exported by iPhone/macOS arrive named by a
+ * random identifier (e.g. "C47F7B10-87B3-424F-959F-2E41C0D76F34.jpeg"), which is meaningless in the
+ * panel; those get "Imagem de 27/11/2026 08:43" instead. The user can always edit the name.
+ */
+export function suggestDoohMediaName(fileName: string, mimeType = '', now: Date = new Date()): string {
+  const base = String(fileName || '').replace(/\.[^/.]+$/, '').trim();
+  const opaque = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(base) || /^[0-9a-f]{24,}$/i.test(base);
+  if (base && !opaque) return base.slice(0, 160);
+  const kind = mimeType.startsWith('video/') ? 'Vídeo' : mimeType === 'application/pdf' ? 'Documento' : 'Imagem';
+  const when = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+  return `${kind} de ${when}`;
+}
+
 export function validDoohUploadFolder(folderId: string | null, folders: readonly DoohLibraryFolder[]): boolean {
   return folderId === null || (UUID.test(folderId) && folders.some((f) => f.id === folderId));
 }

@@ -7,7 +7,7 @@ import { useDoohMediaPilotCapabilities } from '../lib/useDoohMediaPilotCapabilit
 import type { DoohLibraryFolder } from '../lib/doohMediaLibraryContract';
 import {
   canUploadDoohMedia, confirmDoohUploadFinalized, doohUploadError,
-  normalizeDoohUploadName, parseDoohUploadIntent, validateDoohUploadFile,
+  normalizeDoohUploadName, parseDoohUploadIntent, suggestDoohMediaName, validateDoohUploadFile,
   validDoohUploadFolder,
 } from '../lib/doohMediaUploadContract';
 
@@ -148,7 +148,7 @@ export function DoohMediaUpload({ companyId, folders, onChanged }: Props) {
         <input ref={fileInputRef} aria-label="Arquivo de mídia DOOH" type="file" disabled={isBusy || needsFinalize}
           accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.mp4,.webm,.mov,.m4v,.avi,.mkv,.pdf"
           onChange={(e) => { const candidate = e.target.files?.[0] ?? null; setFile(candidate);
-            setNameInput(candidate ? candidate.name.replace(/\.[^/.]+$/, '') : ''); setError(''); }}
+            setNameInput(candidate ? suggestDoohMediaName(candidate.name, candidate.type) : ''); setError(''); }}
           className="w-full rounded-md border border-gray-300 p-2" />
       </label>
       <label className="space-y-1 text-sm"><span className="block">Nome na biblioteca</span>
