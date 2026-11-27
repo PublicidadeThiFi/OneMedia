@@ -10,10 +10,10 @@ import {
 } from '../lib/doohMediaVersionsContract';
 
 const statusLabels = { PENDING: 'Pendente', PROCESSING: 'Processando', READY: 'Pronta', ERROR: 'Erro' } as const;
-interface Props { companyId: string; media: readonly DoohLibraryMedia[]; }
+interface Props { companyId: string; media: readonly DoohLibraryMedia[]; fixedMediaId?: string; }
 
 /** D15B-06 — leitura exclusiva, sem geração de links ou acesso ao binário. */
-export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
+export function DoohMediaVersionsReadOnly({ companyId, media, fixedMediaId }: Props) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const roles = user?.roles ?? [];
@@ -22,7 +22,7 @@ export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
     snapshot?.companyId, access?.granted, access?.accessMode, roles);
   const contextKey = JSON.stringify([user?.id, user?.companyId, companyId, snapshot?.companyId,
     access?.granted, access?.accessMode, [...roles].sort()]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(fixedMediaId ?? '');
   const [refresh, setRefresh] = useState(0);
   const [response, setResponse] = useState<{ key: string; value: DoohVersionInventory } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
   const latestKey = useRef(key);
   latestKey.current = key;
 
-  useEffect(() => { setSelectedId(''); setResponse(null); setError(''); }, [contextKey]);
+  useEffect(() => { setSelectedId(fixedMediaId ?? ''); setResponse(null); setError(''); }, [contextKey]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (selectedId && !media.some((item) => item.id === selectedId)) setSelectedId('');
   }, [selectedId, media]);
@@ -64,9 +64,9 @@ export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
   return <section aria-label="Histórico de versões" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div>
       <h4 className="font-semibold text-gray-900">Histórico de versões</h4>
-      <p className="text-xs text-gray-600">Consulta das últimas 50 versões registradas. A verificação de metadados não atesta integridade real no S3, compatibilidade de codecs, publicação, reprodução ou proof-of-play.</p>
+      <p className="text-xs text-gray-600">Mostra as últimas 50 versões de cada arquivo.</p>
     </div>
-    <div className="flex flex-wrap items-end gap-3">
+    {!fixedMediaId && <div className="flex flex-wrap items-end gap-3">
       <label className="min-w-60 flex-1 space-y-1 text-sm"><span className="block">Mídia</span>
         <select aria-label="Mídia para consulta de versões DOOH" value={selectedId} disabled={loading}
           onChange={(event) => setSelectedId(event.target.value)} className="w-full rounded-md border border-gray-300 bg-white p-2">
@@ -76,7 +76,7 @@ export function DoohMediaVersionsReadOnly({ companyId, media }: Props) {
       </label>
       <Button type="button" variant="outline" disabled={!selectedId || loading}
         onClick={() => setRefresh((number) => number + 1)}>Atualizar versões</Button>
-    </div>
+    </div>}
     {loading && <p role="status" className="text-sm text-gray-600">Consultando versões…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {inventory && <>

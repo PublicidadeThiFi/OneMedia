@@ -83,6 +83,10 @@ export function screenOperationalSummary(screen: OperationalScreen) {
   const attention = !connecting && (!p || p.lifecycleStatus !== 'ACTIVE' || p.credentialActive === false || silent || screen.status === 'INSTALL_FAILED' || current === undefined || desired === undefined || current === '0' || (current !== desired && screen.status !== 'UPDATE_PENDING'));
   return { connection, programming, attention };
 }
+/** F13: a screen without a device is a setup step, not a problem; the home and the screens list count the same way. */
+export function screenNeedsAttention(screen: OperationalScreen): boolean {
+  return !!screen.player && screenOperationalSummary(screen).attention;
+}
 /** F13: one colored badge per screen card. Tone only reflects what the server reported. */
 export type ScreenBadgeTone = 'ok' | 'warn' | 'error' | 'info' | 'muted';
 export function screenStatusBadge(screen: OperationalScreen): { label: string; tone: ScreenBadgeTone } {
@@ -116,7 +120,7 @@ export function summarizeDoohScreens(screens: readonly OperationalScreen[]): Doo
     if (!screen.player) withoutDevice++;
     else if (screenAwaitingDeviceConnection(screen)) connecting++;
     else if (screen.status === 'PLAYING') playing++;
-    if (screen.player && screenOperationalSummary(screen).attention) attention++;
+    if (screenNeedsAttention(screen)) attention++;
   }
   return { total: screens.length, playing, attention, connecting, withoutDevice };
 }
@@ -129,4 +133,25 @@ export function doohOverviewHeadline(o: DoohScreensOverview): string {
   if (o.playing === o.total) return o.total === 1 ? 'Sua tela está exibindo.' : 'Todas as telas estão exibindo.';
   if (o.withoutDevice > 0) return o.withoutDevice === 1 ? '1 tela ainda não tem aparelho conectado.' : `${o.withoutDevice} telas ainda não têm aparelho conectado.`;
   return 'Tudo certo com as suas telas.';
+}
+
+/** F13: the three plain lines at the top of the diagnostic. Only restates what the server reported. */
+export type DiagnosticRow = { label: string; value: string; ok: boolean };
+export function diagnosticSummaryRows(screen: OperationalScreen, p: NonNullable<ScreenDiagnostic['player']>, now: number = Date.now()): DiagnosticRow[] {
+  const seen = p.lastSeenAt ? Date.parse(p.lastSeenAt) : NaN;
+  const minutes = Number.isFinite(seen) ? Math.max(0, Math.round((now - seen) / 60000)) : null;
+  const ago = minutes === null ? 'nunca' : minutes < 1 ? 'agora há pouco' : minutes < 60 ? `há ${minutes} min` : minutes < 48 * 60 ? `há ${Math.round(minutes / 60)} h` : `há ${Math.round(minutes / 1440)} dias`;
+  const silent = minutes === null || screen.status === 'NO_RECENT_CONTACT';
+  const installed = p.integrity === 'INVALID' ? { value: 'inconsistente, fale com o suporte', ok: false }
+    : p.currentManifestVersion === '0' ? { value: 'nenhuma ainda', ok: false }
+    : p.currentManifestVersion === p.desiredManifestVersion ? { value: 'a mais recente', ok: true }
+    : { value: 'aguardando a mais recente', ok: false };
+  const l = p.license;
+  const license = !l ? { value: 'não conferida agora', ok: false } : !l.granted || l.accessMode === 'NONE' ? { value: 'indisponível', ok: false }
+    : l.accessMode === 'READ_ONLY' ? { value: 'só consulta', ok: false } : { value: 'ativa', ok: true };
+  return [
+    { label: 'Comunicação', value: ago, ok: !silent && p.lifecycleStatus === 'ACTIVE' && p.credentialActive !== false },
+    { label: 'Programação instalada', ...installed },
+    { label: 'Licença', ...license },
+  ];
 }

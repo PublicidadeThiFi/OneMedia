@@ -12,10 +12,14 @@ import { buildSchedulePublishCas, canPublishDoohSchedule, parseSchedulePublishRe
 
 const qaUiEnabled = import.meta.env.MODE === 'qa' && import.meta.env.VITE_DOOH_SCHEDULE_PUBLISH_QA_ENABLED === 'true';
 const shortId = (value: string) => `${value.slice(0, 8)}…`;
-const targetNames = { PLAYER: 'Player', GROUP: 'Grupo', MEDIA_UNIT: 'Tela', MEDIA_POINT: 'Ponto' } as const;
+const targetNames = { PLAYER: 'Tela', GROUP: 'Grupo', MEDIA_UNIT: 'Tela do Marketplace', MEDIA_POINT: 'Ponto do Marketplace' } as const;
 interface Props { companyId: string; summary: DoohScheduleSummary; inventory: DoohScheduleTargetInventory; onChanged: () => void }
 
 /** Reviewed CAS publication in isolated QA or an approved three-tenant pilot. No runtime delivery. */
+const PRIORITY: Record<string, string> = { TAKEOVER: 'Prioritária', STANDARD: 'Padrão', FALLBACK: 'Reserva' };
+const DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const when = (iso: string | null) => iso && Number.isFinite(Date.parse(iso)) ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'sem data';
+const hhmm = (minute: number | null) => minute === null ? '—' : `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged }: Props) {
   const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
@@ -30,22 +34,22 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
   const publishUiEnabled = backend.publishEnabled && (!backend.qaOnly || qaUiEnabled);
   const latestKey = useRef(contextKey); latestKey.current = contextKey;
   const pending = useRef<AbortController | null>(null);
-  const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   useEffect(() => {
-    pending.current?.abort(); setBusy(false); setConfirmation(''); setError(''); setNotice('');
+    pending.current?.abort(); setBusy(false); setError(''); setNotice('');
     return () => pending.current?.abort();
   }, [contextKey]);
   const body = buildSchedulePublishCas(summary, inventory);
-  const ready = allowed && publishUiEnabled && !busy && body !== null && confirmation === 'PUBLICAR AGENDA';
+  const ready = allowed && publishUiEnabled && !busy && body !== null;
 
   async function publish() {
     if (!ready || !body) return;
+    // F13: a summary box replaces typing "PUBLICAR AGENDA"; the server still checks every version before publishing.
     if (!await ask(`Publicar a agenda "${summary.name}"?\n` +
-      `${summary.targetCount} destino(s), prioridade ${summary.priority}, janela ${summary.startsAt} — ${summary.endsAt}.\n` +
-      'Publicar os horários e as telas desta programação?')) return;
+      `${inventory.targets.length} tela(s) · prioridade ${PRIORITY[summary.priority]} · ${when(summary.startsAt)} até ${when(summary.endsAt)}.\n` +
+      'Depois, envie para cada TV em Minhas telas.', 'Publicar agenda')) return;
     const controller = new AbortController(); pending.current = controller;
     const key = contextKey;
     const valid = () => !controller.signal.aborted && latestKey.current === key;
@@ -68,9 +72,8 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
       if (!valid()) return;
       const receipt = parseSchedulePublishReceipt(response.data, summary);
       if (!receipt) { setError('Não conseguimos confirmar a publicação. Atualize a agenda para conferir.'); return; }
-      setConfirmation('');
-      setNotice(`Agenda registrada como PUBLISHED em ${new Date(receipt.publishedAt).toLocaleString('pt-BR')}. ` +
-        `Players alcançados na validação: ${receipt.activePlayerCount}. Nenhum manifest foi distribuído.`);
+      setNotice(`Agenda publicada em ${new Date(receipt.publishedAt).toLocaleString('pt-BR')}. ` +
+        `${receipt.activePlayerCount} aparelho(s) ativo(s) nas telas escolhidas. Nada foi enviado às TVs ainda.`);
       onChanged();
     } catch (cause: unknown) { if (valid()) setError(schedulePublishError(cause)); }
     finally { if (pending.current === controller) pending.current = null; if (valid()) setBusy(false); }
@@ -82,22 +85,16 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
     <h4 className="text-sm font-semibold text-gray-900">Publicar horários e telas</h4>
     <p className="text-xs text-amber-900">Publicar confirma os horários e as telas. Depois, envie para cada TV em Minhas telas.</p>
     <div className="grid gap-1 text-xs text-gray-700">
-      <p><strong>Agenda:</strong> {summary.name} · {shortId(summary.id)}</p>
-      <p><strong>Playlist:</strong> {shortId(summary.playlistVersionId)} · <strong>Prioridade:</strong> {summary.priority}</p>
-      <p><strong>Fuso:</strong> {summary.timezone} · <strong>Janela:</strong> {summary.startsAt ?? 'Sem início'} → {summary.endsAt ?? 'Sem fim'}</p>
-      <p><strong>Faixa diária:</strong> {summary.dailyStartMinute ?? '—'} — {summary.dailyEndMinute ?? '—'} · <strong>Dias ISO:</strong> {summary.weekdays.join(', ') || 'Todos'}</p>
-      <p><strong>Destinos:</strong> {inventory.targets.length} vínculo(s) revisado(s)</p>
+      <p><strong>Agenda:</strong> {summary.name} · <strong>Prioridade:</strong> {PRIORITY[summary.priority]}</p>
+      <p><strong>Período:</strong> {when(summary.startsAt)} até {when(summary.endsAt)} ({summary.timezone})</p>
+      <p><strong>Horário diário:</strong> {summary.dailyStartMinute === null ? 'o dia todo' : `${hhmm(summary.dailyStartMinute)} às ${hhmm(summary.dailyEndMinute)}`} · <strong>Dias:</strong> {summary.weekdays.length ? summary.weekdays.map(d => DAYS[d - 1]).join(', ') : 'todos'}</p>
+      <p><strong>Telas:</strong> {inventory.targets.length}</p>
     </div>
     <ul className="max-h-36 overflow-auto space-y-1 text-xs text-gray-700">
       {inventory.targets.map((target) => <li key={target.id}>{targetNames[target.targetType]} · {shortId(target.targetId)}</li>)}
     </ul>
     {!body && <p role="status" className="text-xs text-amber-900">Confira o período (com data final) e as telas, e atualize antes de publicar.</p>}
     {!publishUiEnabled && <p className="text-xs text-amber-900">A publicação não está liberada para a sua empresa.</p>}
-    <label className="block text-xs text-gray-800">Digite PUBLICAR AGENDA para confirmar
-      <input aria-label="Confirmação textual de publicação de agenda" value={confirmation} maxLength={20}
-        onChange={(event) => setConfirmation(event.target.value)} disabled={busy || !publishUiEnabled || !body}
-        className="mt-1 block w-full rounded-md border bg-white p-2" />
-    </label>
     <Button type="button" disabled={!ready} onClick={() => { void publish(); }}>{busy ? 'Conferindo…' : 'Publicar agenda'}</Button>
     {error && <p role="alert" className="text-xs text-red-800">{error}</p>}
     {notice && <p role="status" className="text-xs text-green-800">{notice}</p>}

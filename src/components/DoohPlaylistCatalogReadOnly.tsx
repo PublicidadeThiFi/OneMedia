@@ -3,7 +3,6 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
-import { DoohWorkspaceTabs } from './DoohWorkspaceTabs';
 import { DoohPlaylistCreateRename } from './DoohPlaylistCreateRename';
 import { DoohPlaylistDraftEditor } from './DoohPlaylistDraftEditor';
 import { DoohPlaylistDraftReorder } from './DoohPlaylistDraftReorder';
@@ -91,14 +90,8 @@ export function DoohPlaylistCatalogReadOnly() {
       </div>
       <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setAction('create')}>Criar sequência</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar</Button></div>
     </div>
-    <DoohWorkspaceTabs label="Etapas da lista de exibição" selected={action} onSelect={setAction} tabs={[
-      { id: 'list', label: 'Todas', description: 'Publicar não envia às telas; isso é feito em “Horários e telas”.' },
-      { id: 'create', label: 'Criar ou renomear', description: 'Dê um nome à sequência.' },
-      { id: 'edit', label: 'Adicionar mídias', description: 'Escolha a sequência e adicione mídias prontas.' },
-      { id: 'order', label: 'Ordenar', description: 'Defina a sequência das mídias antes de publicar.' },
-      { id: 'publish', label: 'Revisar e publicar', description: 'Confira as mídias e publique.' },
-      { id: 'history', label: 'Versões', description: 'Versões anteriores.' },
-    ]} />
+    {/* F13: no third level of tabs; each row has its own actions. */}
+    {action !== 'list' && <Button type="button" variant="ghost" size="sm" onClick={() => { setAction('list'); setSelectedId(''); }}>← Voltar às sequências</Button>}
     <p className="text-xs text-gray-600">Mostrando as 100 sequências mais recentes.</p>
     <details className="text-xs text-gray-600"><summary className="cursor-pointer">Como funciona</summary>
       <p className="mt-1">Publicar uma sequência deixa ela pronta para usar. Ela só vai para as TVs depois que você escolher horários e telas.</p>
@@ -110,24 +103,30 @@ export function DoohPlaylistCatalogReadOnly() {
       {action === 'list' && <p className="text-xs text-gray-600">{entries.length} {entries.length === 1 ? 'sequência' : 'sequências'}.</p>}
       {action !== 'list' ? null : entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma sequência ainda. Comece em Criar sequência.</p> :
         <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm">
-          <thead className="border-b bg-gray-50"><tr><th className="p-3">Sequência</th><th className="p-3">Situação</th><th className="p-3">Atualizada</th><th className="p-3"><span className="sr-only">Ações</span></th></tr></thead>
+          <thead className="border-b bg-gray-50"><tr><th className="p-3">Sequência</th><th className="p-3">Situação</th><th className="p-3">Atualizada</th><th className="p-3 text-right">Ações</th></tr></thead>
           <tbody>{entries.map((playlist) => <tr key={playlist.id} className="border-b text-gray-700">
             <td className="p-3 break-words font-medium">{playlist.name}</td>
             <td className="p-3">{(() => { const st = playlist.status !== 'ACTIVE' ? { t: 'Arquivada', c: 'bg-gray-100 text-gray-700 ring-gray-200' } : playlist.currentVersion === 0 ? { t: 'Ainda não publicada', c: 'bg-gray-100 text-gray-700 ring-gray-200' } : { t: 'Publicada', c: 'bg-emerald-50 text-emerald-800 ring-emerald-200' }; return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${st.c}`}>{st.t}</span>; })()}</td>
             <td className="p-3">{dateText(playlist.updatedAt)}</td>
-            <td className="p-3"><Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(playlist.id); setAction('history'); }}
-              aria-label={`Abrir ${playlist.name}`}>Abrir</Button></td>
+            <td className="p-3"><div className="flex flex-wrap justify-end gap-2">
+              {playlist.status === 'ACTIVE' && <Button type="button" variant="outline" size="sm" aria-label={`Editar ${playlist.name}`} onClick={() => { setSelectedId(playlist.id); setAction('edit'); setSuccessMessage(''); }}>Editar</Button>}
+              {playlist.status === 'ACTIVE' && playlist.draftVersion !== null && <Button type="button" variant="outline" size="sm" aria-label={`Publicar ${playlist.name}`} onClick={() => { setSelectedId(playlist.id); setAction('publish'); setSuccessMessage(''); }}>Publicar</Button>}
+              <Button type="button" variant="ghost" size="sm" aria-label={`Versões de ${playlist.name}`} onClick={() => { setSelectedId(playlist.id); setAction('history'); setSuccessMessage(''); }}>Versões</Button>
+            </div></td>
           </tr>)}</tbody>
         </table></div>}
     </>}
     {action === 'create' && entries && companyId && <DoohPlaylistCreateRename companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
-    {action === 'edit' && entries && companyId && <DoohPlaylistDraftEditor companyId={companyId} playlists={entries} onChanged={() => { setRefresh((n) => n + 1); setSuccessMessage('Itens da lista atualizados. Continue para ordenar ou revisar antes de publicar.'); }} />}
-    {action === 'order' && entries && companyId && <DoohPlaylistDraftReorder companyId={companyId} playlists={entries} onChanged={() => setRefresh((n) => n + 1)} />}
-    {action === 'publish' && entries && companyId && <DoohPlaylistPublishQa companyId={companyId} playlists={entries} onChanged={() => { setRefresh((n) => n + 1); setAction('list'); setSuccessMessage('Sequência publicada. Agora escolha horários e telas.'); }} />}
+    {action === 'edit' && entries && companyId && <div className="space-y-4">
+      <DoohPlaylistDraftEditor companyId={companyId} playlists={entries} initialPlaylistId={selectedId} onChanged={() => { setRefresh((n) => n + 1); setSuccessMessage('Mídias atualizadas. Ajuste a ordem abaixo e depois publique.'); }} />
+      <DoohPlaylistDraftReorder companyId={companyId} playlists={entries} initialPlaylistId={selectedId} onChanged={() => setRefresh((n) => n + 1)} />
+      {entries.some((p) => p.id === selectedId && p.draftVersion !== null) && <Button type="button" onClick={() => setAction('publish')}>Continuar para publicar</Button>}
+    </div>}
+    {action === 'publish' && entries && companyId && <DoohPlaylistPublishQa companyId={companyId} playlists={entries} initialPlaylistId={selectedId} onChanged={() => { setRefresh((n) => n + 1); setAction('list'); setSuccessMessage('Sequência publicada. Agora escolha horários e telas.'); }} />}
     {action === 'history' && !selectedExists && <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-600">Escolha uma sequência em “Minhas sequências” para ver as versões e definir horários e telas.</p>}
     {action === 'history' && selectedExists && <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-semibold text-gray-900">Versões da sequência</h4>
-        <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(''); setAction('list'); }}>Voltar às listas</Button></div>
+</div>
       {detailLoading && <p role="status" className="text-sm text-gray-600">Consultando versões…</p>}
       {detailError && <p role="alert" className="text-sm text-red-800">{detailError}</p>}
       {selected && <>

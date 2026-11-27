@@ -68,7 +68,7 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
     </header>
     {section === 'home' && <>
       <DoohOverview />
-      <DoohOperationalScreensPanel />
+      <DoohOperationalScreensPanel attentionOnly />
     </>}
     {section === 'screens' && <>
       {/* F13: a single tab is just a repeated title; tabs only appear when TI also sees "Suporte técnico". */}

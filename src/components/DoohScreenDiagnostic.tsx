@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import type { OperationalScreen } from '../lib/doohOperationalScreenContract';
-import { parseScreenDiagnostic, diagnosticScheduleText, type ScreenDiagnostic } from '../lib/doohScreenDiagnosticContract';
+import { parseScreenDiagnostic, diagnosticScheduleText, diagnosticSummaryRows, type ScreenDiagnostic } from '../lib/doohScreenDiagnosticContract';
 import { Button } from './ui/button';
 const when = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('pt-BR') : 'Não informado';
 const events = { PLAYED: 'Reprodução reportada', FAILED: 'Falha reportada', INTERRUPTED: 'Interrupção reportada', OTHER: 'Outro evento técnico' };
@@ -25,13 +25,19 @@ export function DoohScreenDiagnostic({ companyId, screen }: { companyId: string;
     return () => controller.abort();
   }, [companyId, screen, reload]);
   const p = data?.player;
-  return <section className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm" aria-label="Diagnóstico avançado">
-    <div className="flex flex-wrap justify-between gap-2"><h4 className="font-semibold">Diagnóstico avançado</h4><Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => setReload(v=>v+1)}>Consultar novamente</Button></div>
+  return <section className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm" aria-label="Diagnóstico da tela">
+    <div className="flex flex-wrap justify-between gap-2"><h4 className="font-semibold">Diagnóstico</h4><Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => setReload(v=>v+1)}>Consultar novamente</Button></div>
     {loading && <p role="status">Consultando registros…</p>}
     {error && <p role="alert" className="text-red-800">{error}</p>}
     {data && <p className="text-xs text-gray-600">Consulta em {when(data.observedAt)}. Não envia comandos ao aparelho.</p>}
     {data && !p && <p>Nenhum aparelho vinculado.</p>}
-    {p && <>
+    {p && <ul className="space-y-1.5" aria-label="Resumo do diagnóstico">
+      {diagnosticSummaryRows(screen, p).map(row => <li key={row.label} className="flex items-center gap-2">
+        <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${row.ok ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+        <span className="text-gray-600">{row.label}:</span> <strong className={row.ok ? 'text-gray-900' : 'text-amber-900'}>{row.value}</strong>
+      </li>)}
+    </ul>}
+    {p && <details className="rounded-md border border-gray-200 bg-white p-3"><summary className="cursor-pointer font-medium text-gray-700">Detalhes para o suporte</summary><div className="mt-2 space-y-2">
       <p className="font-medium">{p.lifecycleStatus !== 'ACTIVE' || !p.credentialActive ? 'Autorização do aparelho indisponível. Verifique o cadastro.' : 'Dispositivo ativo e credencial cadastrada; isso não confirma autorização de reprodução.'}</p>
       <dl className="grid gap-2 sm:grid-cols-2">
         <div><dt className="text-xs text-gray-600">Última comunicação</dt><dd>{when(p.lastSeenAt)}</dd></div>
@@ -50,6 +56,6 @@ export function DoohScreenDiagnostic({ companyId, screen }: { companyId: string;
       {p.window && <p className="text-xs text-gray-600">Janela registrada: {when(p.window.from)} — {when(p.window.to)}</p>}
       <p>{p.lastEvent ? `${events[p.lastEvent.result]} em ${when(p.lastEvent.startedAt)} (recebido em ${when(p.lastEvent.receivedAt)}).` : 'Nenhum evento de reprodução registrado.'}</p>
       <p className="text-xs text-gray-600">Mostra o último registro enviado pelo aparelho. Para saber o que passou, veja Relatórios.</p>
-    </>}
+    </div></details>}
   </section>;
 }

@@ -50,3 +50,13 @@ export function timelineEmptyText(state: ScreenTimeline['state']): string {
   if (state === 'UNAVAILABLE') return 'Não foi possível conferir a programação instalada agora.';
   return 'Nada programado nas próximas horas.';
 }
+
+/** F13: one line for compact lists, e.g. "Agora: Promo Natal · 18:00 Cardápio". Empty when nothing is installed. */
+export function timelineNowText(timeline: ScreenTimeline, now: Date = new Date()): string {
+  const t = now.getTime();
+  const index = timeline.segments.findIndex(s => Date.parse(s.from) <= t && t < Date.parse(s.to));
+  if (index < 0) return timeline.segments.length ? `A seguir: ${timelineContentText(timeline.segments[0])}` : '';
+  const next = timeline.segments.slice(index + 1).find(s => s.status === 'READY' && timelineContentText(s) !== timelineContentText(timeline.segments[index]));
+  const hour = next ? new Date(next.from).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+  return `Agora: ${timelineContentText(timeline.segments[index])}${next ? ` · ${hour} ${timelineContentText(next)}` : ''}`;
+}

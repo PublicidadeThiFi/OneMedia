@@ -3,7 +3,9 @@ import apiClient from '../lib/apiClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { screenNextStep } from '../lib/doohJourneyGuidance';
-import { screenOperationalSummary, screenAwaitingDeviceConnection, screenStatusBadge, type ScreenBadgeTone } from '../lib/doohScreenDiagnosticContract';
+import { screenAwaitingDeviceConnection, screenNeedsAttention, screenOperationalSummary, screenStatusBadge, type ScreenBadgeTone } from '../lib/doohScreenDiagnosticContract';
+import { DoohScreenNowLine } from './DoohScreenNowLine';
+import { DOOH_SECTION_PATHS } from '../lib/productNavigation';
 import { DoohScreenDiagnostic } from './DoohScreenDiagnostic';
 import { Button } from './ui/button';
 import { DoohContextualPairing } from './DoohContextualPairing';
@@ -20,15 +22,17 @@ const BADGE_DOT: Record<ScreenBadgeTone, string> = { ok: 'bg-emerald-500', warn:
 const MENU_ITEM = 'block w-full rounded-md px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none';
 
 /** Tenant-scoped screens: create, connect, edit, disconnect and program each screen. */
-type OperationalScreensProps = { initialMediaId?: string; contentOnly?: boolean };
+type OperationalScreensProps = { initialMediaId?: string; contentOnly?: boolean; attentionOnly?: boolean };
 
-export function DoohOperationalScreensPanel({ initialMediaId, contentOnly }: OperationalScreensProps) {
+export function DoohOperationalScreensPanel({ initialMediaId, contentOnly, attentionOnly }: OperationalScreensProps) {
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const key = JSON.stringify([user?.id, user?.companyId, snapshot?.companyId, snapshot?.modules.DOOH.granted, snapshot?.modules.DOOH.accessMode, [...(user?.roles ?? [])].sort()]);
-  return <OperationalScreensForContext key={key} initialMediaId={initialMediaId} contentOnly={contentOnly} />;
+  return <OperationalScreensForContext key={key} initialMediaId={initialMediaId} contentOnly={contentOnly} attentionOnly={attentionOnly} />;
 }
-function OperationalScreensForContext({ initialMediaId, contentOnly }: OperationalScreensProps) {
+function OperationalScreensForContext({ initialMediaId, contentOnly, attentionOnly }: OperationalScreensProps) {
+  // F13: the home only lists the screens that need attention, so it reads one larger page.
+  const pageSize = attentionOnly ? 100 : 20;
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const companyId = user?.companyId ?? null;
@@ -83,20 +87,20 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
     if (!available || mode !== 'enabled') return;
     const timer = window.setInterval(() => {
       if (document.hidden || busy) return;
-      void apiClient.get<unknown>('/dooh/operational-screens', { params: { page, pageSize: 20 } }).then(screens => {
+      void apiClient.get<unknown>('/dooh/operational-screens', { params: { page, pageSize } }).then(screens => {
         const parsed = parseOperationalScreenPage(screens.data);
         if (parsed) setScreenList({ items: parsed.items, total: parsed.meta.total, page: parsed.meta.page });
       }).catch(() => undefined);
     }, 20000);
     return () => window.clearInterval(timer);
-  }, [available, mode, busy, page]);
+  }, [available, mode, busy, page, pageSize]);
   useEffect(() => {
     setScreenList(null); setDiagnosticId(''); setError('');
     if (!available) { setMode('disabled'); return; }
     const controller = new AbortController();
     setMode('loading');
     void Promise.all([
-      apiClient.get<unknown>('/dooh/operational-screens', { params: { page, pageSize: 20 }, signal: controller.signal }),
+      apiClient.get<unknown>('/dooh/operational-screens', { params: { page, pageSize }, signal: controller.signal }),
       apiClient.get<unknown>('/dooh/players', { params: { page: 1, pageSize: 100, ...(playerQuery ? {q: playerQuery} : {}) }, signal: controller.signal }),
     ]).then(([screens, devices]) => {
       if (controller.signal.aborted) return;
@@ -113,7 +117,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
       else { setMode('error'); setError('Não foi possível carregar as telas. Tente novamente em instantes.'); }
     });
     return () => controller.abort();
-  }, [available, page, reload, playerQuery]);
+  }, [available, page, pageSize, reload, playerQuery]);
   // F12: the old pilot screens are gone; a company without the module sees one plain sentence.
   if (!available || mode === 'disabled') return <section className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
     As telas digitais ainda não estão liberadas para a sua empresa ou para o seu perfil. Fale com a OneMedia.
@@ -191,6 +195,26 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
     } catch (err: unknown) { setError(friendlyOperationalScreenError(err)); }
     finally { setBusy(false); }
   }
+  if (attentionOnly) {
+    const needing = screenList?.items.filter(screenNeedsAttention) ?? [];
+    return <section aria-label="Telas que precisam de atenção" className="space-y-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold text-gray-900">Precisa de atenção</h2>
+        <a href={DOOH_SECTION_PATHS.screens} className="text-sm font-medium text-indigo-700 hover:underline">Ver todas as telas</a>
+      </div>
+      {mode === 'loading' && <p role="status" className="text-sm text-gray-600">Carregando telas…</p>}
+      {mode === 'error' && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {mode === 'enabled' && screenList?.total === 0 && <p className="text-sm text-gray-600">Você ainda não tem telas. Comece em <a className="font-medium text-indigo-700 hover:underline" href={`${DOOH_SECTION_PATHS.screens}?ux=connect`}>Telas</a>.</p>}
+      {mode === 'enabled' && screenList?.total !== 0 && needing.length === 0 && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Tudo certo: nenhuma tela precisa de atenção agora.</p>}
+      {needing.length > 0 && <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">
+        {needing.map(screen => { const badge = screenStatusBadge(screen); const next = screenNextStep(screen, writable); return <li key={screen.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3">
+          <span className="min-w-0 flex-1"><span className="block truncate font-medium text-gray-900">{screen.name}</span><span className="block text-sm text-gray-600">{next.text}</span></span>
+          <span data-tone={badge.tone} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${BADGE_CLASS[badge.tone]}`}><span aria-hidden="true" className={`size-2 rounded-full ${BADGE_DOT[badge.tone]}`} />{badge.label}</span>
+          <a href={DOOH_SECTION_PATHS.screens} className="shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50">Abrir</a>
+        </li>; })}
+      </ul>}
+    </section>;
+  }
   return <section aria-label="Telas operacionais" className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50/60 p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <h2 className="text-lg font-bold text-gray-900">{contentOnly ? "Escolha a tela para programar" : "Minhas telas"}</h2>
@@ -219,12 +243,22 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="text-sm text-green-700">{message}</p>}
       {screenList?.total === 0 && <p className="rounded-lg border border-dashed p-4 text-sm text-gray-600">{writable ? 'Nenhuma tela cadastrada. Comece pelo nome no formulário acima.' : 'Nenhuma tela cadastrada nesta empresa.'}</p>}
-      {screenList && screenList.items.length > 0 && (() => { const attentionCount = screenList.items.filter(s => screenOperationalSummary(s).attention).length; return <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+      {screenList && screenList.items.length > 0 && (() => { const attentionCount = screenList.items.filter(s => screenNeedsAttention(s)).length; return <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <p className="text-gray-700">{attentionCount === 0 ? 'Nenhuma tela precisa de atenção.' : <><strong>{attentionCount}</strong> de {screenList.items.length} {screenList.items.length === 1 ? 'tela precisa' : 'telas precisam'} de atenção.</>} <span className="text-xs text-gray-500">Atualiza sozinho a cada 20 segundos.</span></p>
         {attentionCount > 0 && <Button type="button" size="sm" variant={onlyAttention ? 'default' : 'outline'} aria-pressed={onlyAttention} disabled={busy || editorOpen} onClick={() => { setOnlyAttention(v => !v); setDiagnosticId(''); }}>{onlyAttention ? 'Mostrando só com atenção' : 'Mostrar só as que precisam de atenção'}</Button>}
       </div>; })()}
-      {onlyAttention && screenList?.items.length && !screenList.items.some(s=>screenOperationalSummary(s).attention) ? <p className="text-sm text-gray-600">Nenhuma tela desta página sinalizada.</p> : null}
-      <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">{screenList?.items.filter(s=>!onlyAttention || screenOperationalSummary(s).attention || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); const badge = screenStatusBadge(screen); const showDevice = screen.player && (screen.player.name !== screen.name || screen.commercialUnit); const lastSeen = screen.player?.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : ''; return <article key={screen.id} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      {onlyAttention && screenList?.items.length && !screenList.items.some(s=>screenNeedsAttention(s)) ? <p className="text-sm text-gray-600">Nenhuma tela desta página sinalizada.</p> : null}
+      <div className={contentOnly ? "grid gap-2" : "grid gap-3 lg:grid-cols-2 2xl:grid-cols-3"}>{screenList?.items.filter(s=>!onlyAttention || screenNeedsAttention(s) || s.id===contentScreenId || s.id===pairScreenId).map(screen => { const next = screenAwaitingDeviceConnection(screen) ? { action: 'wait', text: 'O aparelho está concluindo a conexão. Isso leva alguns segundos com a tela do Player aberta.' } : screen.player?.credentialActive === false ? { action: 'attention', text: 'Verifique a autorização do aparelho na área de diagnóstico.' } : screenNextStep(screen, writable); const summary = screenOperationalSummary(screen); const badge = screenStatusBadge(screen); const showDevice = screen.player && (screen.player.name !== screen.name || screen.commercialUnit); const lastSeen = screen.player?.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : '';
+        // F13: Programação › Por tela is for programming only: one compact row per screen.
+        if (contentOnly) return <article key={screen.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-gray-900">{screen.name}</h3>
+              <span data-tone={badge.tone} className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${BADGE_CLASS[badge.tone]}`}><span aria-hidden="true" className={`size-2 rounded-full ${BADGE_DOT[badge.tone]}`} />{badge.label}</span></div>
+            {screen.player ? <DoohScreenNowLine screenId={screen.id} versionKey={`${screen.playerId}:${screen.player.currentManifestVersion ?? ''}`} /> : <p className="text-sm text-gray-600">Sem aparelho: você pode preparar o conteúdo agora.</p>}
+          </div>
+          {writable && !editorOpen && <Button type="button" variant={screen.player ? 'default' : 'outline'} disabled={busy || mode !== 'enabled'} onClick={() => setContentScreenId(screen.id)}>{preferredMediaId ? 'Usar mídia nesta tela' : 'Editar programação'}</Button>}
+        </article>;
+        return <article key={screen.id} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0"><h3 className="truncate font-semibold text-gray-900">{screen.name}</h3>
             <p className="text-xs text-gray-500">{screen.orientation === 'LANDSCAPE' ? 'Horizontal' : 'Vertical'} · {screen.fitMode === 'CONTAIN' ? 'Mostrar inteira' : 'Preencher a tela'}{screen.locationLabel ? ` · ${screen.locationLabel}` : ''}</p></div>
@@ -244,7 +278,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
           {(screen.player || (writable && editId !== screen.id)) && <div className="relative ml-auto" data-screen-menu>
             <Button type="button" variant="ghost" aria-haspopup="menu" aria-expanded={menuId === screen.id} aria-label={`Mais opções de ${screen.name}`} disabled={busy} onClick={() => setMenuId(v => v === screen.id ? '' : screen.id)}>Mais opções ⋯</Button>
             {menuId === screen.id && <div role="menu" className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
-              {screen.player && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setDiagnosticId(v => v === screen.id ? '' : screen.id); }}>{diagnosticId === screen.id ? 'Fechar diagnóstico' : 'Diagnóstico avançado'}</button>}
+              {screen.player && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setDiagnosticId(v => v === screen.id ? '' : screen.id); }}>{diagnosticId === screen.id ? 'Fechar diagnóstico' : 'Diagnóstico'}</button>}
               {writable && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); startEdit(screen); }}>Editar tela</button>}
               {writable && screen.player && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setEditId(''); setArchiveId(''); setUnbindId(screen.id); }}>Desconectar aparelho</button>}
               {writable && !screen.player && !screen.commercialUnit && <button type="button" role="menuitem" className={MENU_ITEM} onClick={() => { setMenuId(''); setEditId(''); setUnbindId(''); setArchiveId(screen.id); }}>Arquivar tela</button>}
