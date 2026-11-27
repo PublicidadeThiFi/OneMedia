@@ -10,7 +10,7 @@ import { DoohContextualPairing } from './DoohContextualPairing';
 import { isUuidV4 } from '../lib/doohPlayerPairingContract';
 import { DoohScreenContentWizard } from './DoohScreenContentWizard';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
-import { friendlyOperationalScreenError, parseOperationalScreen, parseOperationalScreenPage,
+import { friendlyOperationalScreenError, playerErrorText, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
 
 /** UX09: opt-in, tenant-scoped operational registry. Legacy inventory remains below. */
@@ -53,6 +53,19 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
   const [deviceChoice, setDeviceChoice] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  // F11: keep installation/playback state current without manual reloads. Silent refresh of
+  // the screen list only, paused while an editor is open or the tab is hidden.
+  useEffect(() => {
+    if (!available || mode !== 'enabled' || editorOpen) return;
+    const timer = window.setInterval(() => {
+      if (document.hidden || busy) return;
+      void apiClient.get<unknown>('/dooh/operational-screens', { params: { page, pageSize: 20 } }).then(screens => {
+        const parsed = parseOperationalScreenPage(screens.data);
+        if (parsed) setScreenList({ items: parsed.items, total: parsed.meta.total, page: parsed.meta.page });
+      }).catch(() => undefined);
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [available, mode, editorOpen, busy, page]);
   useEffect(() => {
     setScreenList(null); setDiagnosticId(''); setError('');
     if (!available) { setMode('disabled'); return; }
@@ -146,7 +159,8 @@ function OperationalScreensForContext({ disabledFallback, initialMediaId, conten
         <div className="rounded-md bg-gray-50 p-2 text-sm space-y-1">
           <p className="font-medium">{summary.programming}</p>
           {screen.player && <><p className="text-xs text-gray-600">Última comunicação: {screen.player.lastSeenAt && Number.isFinite(Date.parse(screen.player.lastSeenAt)) ? new Date(screen.player.lastSeenAt).toLocaleString('pt-BR') : 'Não informada'}</p>
-          <details className="text-xs text-gray-600"><summary>Versões da programação</summary><p>Desejada: {screen.player.desiredManifestVersion === undefined ? 'Indisponível' : screen.player.desiredManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.desiredManifestVersion}`} · Reportada: {screen.player.currentManifestVersion === undefined ? 'Indisponível' : screen.player.currentManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.currentManifestVersion}`}</p></details></>}
+          {screen.status === 'INSTALL_FAILED' && playerErrorText(screen.player.runtime?.lastErrorCode) && <p role="alert" className="text-xs text-red-700">{playerErrorText(screen.player.runtime?.lastErrorCode)}</p>}
+          <details className="text-xs text-gray-600"><summary>Versões da programação</summary><p>Desejada: {screen.player.desiredManifestVersion === undefined ? 'Indisponível' : screen.player.desiredManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.desiredManifestVersion}`} · Instalada no aparelho: {screen.player.currentManifestVersion === undefined ? 'Indisponível' : screen.player.currentManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.currentManifestVersion}`}</p>{screen.player.appVersion && <p>Versão do Player: {screen.player.appVersion}</p>}</details></>}
         </div>
         <p className="text-sm text-indigo-900">{next.text}</p>
         {screen.player && !editorOpen && <Button type="button" variant="outline" aria-expanded={diagnosticId===screen.id} onClick={()=>setDiagnosticId(v=>v===screen.id?'':screen.id)}>{diagnosticId===screen.id?'Fechar diagnóstico':'Diagnóstico avançado'}</Button>}

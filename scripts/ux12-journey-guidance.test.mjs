@@ -6,11 +6,12 @@ import { guidedPublishError } from '../src/lib/doohGuidedPublicationContract.ts'
 const screen = status => ({status});
 const input = overrides => ({uploadOpen:false, trackingUpload:false, readyCount:0, itemCount:0, unavailableItems:false, orderDirty:false, selectedMedia:false, canAdd:false, busy:false,...overrides});
 test('UX12 next screen action follows actual status and access',()=>{
- for(const [status,action] of Object.entries({WAITING_FOR_PLAYER:'connect',PLAYER_INACTIVE:'attention',NO_RECENT_CONTACT:'attention',UPDATE_PENDING:'attention',WAITING_FOR_PROGRAMMING:'content',VERSION_REPORTED:'content'})){
+ for(const [status,action] of Object.entries({WAITING_FOR_PLAYER:'connect',PLAYER_INACTIVE:'attention',NO_RECENT_CONTACT:'attention',UPDATE_PENDING:'wait',INSTALL_FAILED:'attention',WAITING_FOR_PROGRAMMING:'content',VERSION_REPORTED:'content',PLAYING:'content'})){
   assert.equal(screenNextStep(screen(status),true).action,action);
   assert.equal(screenNextStep(screen(status),false).action,'view');
  }
- assert.match(screenNextStep(screen('VERSION_REPORTED'),true).text,/não confirma/);
+ assert.match(screenNextStep(screen('VERSION_REPORTED'),true).text,/ainda não informou que está exibindo/);
+ assert.match(screenNextStep(screen('PLAYING'),true).text,/informou que está exibindo/);
 });
 test('UX12 content progression uses existing readiness and selected media',()=>{
  assert.equal(contentNextStep(input({})).action,'upload');
