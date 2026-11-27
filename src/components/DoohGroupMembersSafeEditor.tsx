@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -34,6 +35,7 @@ export function DoohGroupMembersSafeEditor() {
   const [playerId, setPlayerId] = useState('');
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useInlineConfirm();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const groupKey = JSON.stringify([queryKey, groupId]);
@@ -52,7 +54,7 @@ export function DoohGroupMembersSafeEditor() {
       const players = parseDoohPlayerInventoryResponse(resPlayers.data);
       const groups = parseDoohPlayerGroups(resGroups.data);
       if (!players || players.meta.page !== 1 || players.meta.pageSize !== 100 || !groups) {
-        setError('O contrato de listagem da API não pôde ser validado. Edição bloqueada.'); return;
+        setError('Não foi possível carregar a lista. Tente de novo em instantes.'); return;
       }
       setLists({ key: queryKey, players: players.items, total: players.meta.total, groups });
     }).catch((e: unknown) => { if (!ctrl.signal.aborted) setError(safeAuditReadError(e)); })
@@ -88,7 +90,7 @@ export function DoohGroupMembersSafeEditor() {
     if (!canSubmit || !detail || !selectedPlayer || !selectedGroup || !draft) return;
     const userKey = contextRef.current;
     const label = operation === 'add' ? 'adicionar ao' : 'remover do';
-    if (!window.confirm(`Confirma ${label} grupo “${selectedGroup.name}” o player “${selectedPlayer.name}”? Alterações em grupos podem afetar a programação das telas.`)) return;
+    if (!await ask(`Confirma ${label} grupo “${selectedGroup.name}” o player “${selectedPlayer.name}”? Alterações em grupos podem afetar a programação das telas.`)) return;
     setBusy(true); setError(''); setNotice('');
     try {
       // Re-read prior to mutation; the backend repeats the comparison atomically.
@@ -104,19 +106,18 @@ export function DoohGroupMembersSafeEditor() {
         `/dooh/player-groups/${encodeURIComponent(selectedGroup.id)}/members/compare-and-set`, draft);
       if (contextRef.current !== userKey) return;
       if (!isExpectedMembershipResult(result.data, selectedGroup.id, draft.playerIds)) {
-        setError('A API não confirmou o conjunto de membros esperado. Consulte o grupo antes de repetir.'); return;
+        setError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.'); return;
       }
-      setNotice('Alteração confirmada pela API. Atualize para obter o estado mais recente.');
+      setNotice('Alteração salva.');
       setReload((v) => v + 1);
     } catch (e: unknown) { if (contextRef.current === userKey) setError(safeMembershipError(e)); }
     finally { if (contextRef.current === userKey) setBusy(false); }
   }
 
   if (!authorized) return null;
-  return <section aria-label="Edição segura de membros DOOH D15A1-04" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
-    <h3 className="font-semibold">Membros de grupos — edição protegida D15A1-04</h3>
-    <p className="text-sm text-gray-600">Uma alteração por vez, com comparação atômica no backend. Não utiliza o endpoint legado de substituição cega. Grupos vinculados a programações não podem ser modificados aqui.</p>
-    <p className="text-xs text-amber-800">Requer backend D15A1-04 publicado e licença DOOH FULL. Não altere grupos reais antes de aprovação de homologação.</p>
+  return <section aria-label="Membros de grupos" className="space-y-4 rounded-xl border border-indigo-200 bg-white p-5">
+    <h3 className="font-semibold">Membros de grupos</h3>
+    <p className="text-sm text-gray-600">Adicione ou remova uma tela por vez. Grupos que já estão em uma programação não podem ser alterados aqui.</p>
     <form className="flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim().slice(0, 160)); }}>
       <label className="flex-1 min-w-48 text-sm">Buscar candidato (até 100 resultados)
         <input className="mt-1 w-full rounded-md border p-2" value={searchInput} maxLength={160} onChange={(e) => setSearchInput(e.target.value)} />
@@ -125,6 +126,7 @@ export function DoohGroupMembersSafeEditor() {
       <Button type="button" variant="outline" disabled={loading || busy} onClick={() => setReload((v) => v + 1)}>Atualizar</Button>
     </form>
     {loading && <p role="status">Consultando membros e permissões…</p>}
+    {confirmUi}
     {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {visible && <form onSubmit={(e) => void applyChange(e)} className="grid gap-3 rounded-lg border p-4 md:grid-cols-2">

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useDoohSchedulePublishCapabilities } from '../lib/useDoohSchedulePublishCapabilities';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
@@ -16,6 +17,7 @@ interface Props { companyId: string; summary: DoohScheduleSummary; inventory: Do
 
 /** Reviewed CAS publication in isolated QA or an approved three-tenant pilot. No runtime delivery. */
 export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged }: Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const moduleAccess = snapshot?.modules.DOOH;
@@ -41,7 +43,7 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
 
   async function publish() {
     if (!ready || !body) return;
-    if (!window.confirm(`Publicar a agenda "${summary.name}"?\n` +
+    if (!await ask(`Publicar a agenda "${summary.name}"?\n` +
       `${summary.targetCount} destino(s), prioridade ${summary.priority}, janela ${summary.startsAt} — ${summary.endsAt}.\n` +
       'Publicar os horários e as telas desta programação?')) return;
     const controller = new AbortController(); pending.current = controller;
@@ -65,7 +67,7 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
         { signal: controller.signal });
       if (!valid()) return;
       const receipt = parseSchedulePublishReceipt(response.data, summary);
-      if (!receipt) { setError('Resposta não confirmada. Consulte a agenda antes de repetir.'); return; }
+      if (!receipt) { setError('Não conseguimos confirmar a publicação. Atualize a agenda para conferir.'); return; }
       setConfirmation('');
       setNotice(`Agenda registrada como PUBLISHED em ${new Date(receipt.publishedAt).toLocaleString('pt-BR')}. ` +
         `Players alcançados na validação: ${receipt.activePlayerCount}. Nenhum manifest foi distribuído.`);
@@ -76,7 +78,7 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
 
   if (!allowed) return <p className="text-xs text-gray-600">Só administradores com acesso completo podem publicar.</p>;
   if (summary.status !== 'DRAFT') return null;
-  return <section aria-label="Publicação controlada de agenda" className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
+  return <section aria-label="Publicar agenda" className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/40 p-4">
     <h4 className="text-sm font-semibold text-gray-900">Publicar horários e telas</h4>
     <p className="text-xs text-amber-900">Publicar confirma os horários e as telas. Depois, envie para cada TV em Minhas telas.</p>
     <div className="grid gap-1 text-xs text-gray-700">
@@ -99,5 +101,6 @@ export function DoohSchedulePublishQa({ companyId, summary, inventory, onChanged
     <Button type="button" disabled={!ready} onClick={() => { void publish(); }}>{busy ? 'Conferindo…' : 'Publicar agenda'}</Button>
     {error && <p role="alert" className="text-xs text-red-800">{error}</p>}
     {notice && <p role="status" className="text-xs text-green-800">{notice}</p>}
+    {confirmUi}
   </section>;
 }

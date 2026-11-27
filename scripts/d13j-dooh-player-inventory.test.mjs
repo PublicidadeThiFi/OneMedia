@@ -74,6 +74,6 @@ test('12 UI enforces roles and granted module before fetch, with cancellation', 
 });
 test('13 no license, manifest or heartbeat is equated with certified impressions', () => {
   const s = readFileSync(join(root,'src/components/DoohPlayerInventoryReadOnly.tsx'),'utf8');
-  assert.match(s,/não comprovam reprodução física/);
-  assert.match(s,/ACTIVE ocupa licença mesmo offline/);
+  assert.match(s,/não comprova que o conteúdo foi exibido/);
+  assert.match(s,/ocupa uma licença mesmo quando está desligado/);
 });

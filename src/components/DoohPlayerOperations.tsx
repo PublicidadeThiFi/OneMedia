@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -32,6 +33,7 @@ export function DoohPlayerOperations() {
   const [groups, setGroups] = useState<{ key: string; items: DoohPlayerGroupSummary[] } | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useInlineConfirm();
   const [loadError, setLoadError] = useState('');
   const [actionError, setActionError] = useState('');
   const [notice, setNotice] = useState('');
@@ -64,7 +66,7 @@ export function DoohPlayerOperations() {
       const players = parseDoohPlayerInventoryResponse(playersResult.data);
       const groupList = parseDoohPlayerGroups(groupsResult.data);
       if (!players || players.meta.page !== 1 || players.meta.pageSize !== 100 || !groupList) {
-        setLoadError('A API devolveu um contrato inesperado. Nenhuma operação será habilitada.');
+        setLoadError('Não foi possível carregar os aparelhos. Tente de novo em instantes.');
         return;
       }
       setInventory({ key: requestKey, items: players.items, total: players.meta.total });
@@ -86,13 +88,13 @@ export function DoohPlayerOperations() {
     event.preventDefault();
     const name = normalizedOperationalName(playerName);
     if (!canSubmit || !selectedPlayer || !name || name === selectedPlayer.name) return;
-    if (!window.confirm(`Confirma a alteração do nome de "${selectedPlayer.name}" para "${name}"?`)) return;
+    if (!await ask(`Confirma a alteração do nome de "${selectedPlayer.name}" para "${name}"?`)) return;
     setBusy(true); setActionError(''); setNotice('');
     try {
       const response = await apiClient.patch<unknown>(`/dooh/players/${encodeURIComponent(selectedPlayer.id)}`, { name });
       const updated = parseDoohPlayerDetail(response.data, selectedPlayer.id);
       if (!updated || updated.name !== name) {
-        setActionError('A API não confirmou o nome esperado. Atualize e verifique antes de repetir.');
+        setActionError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.');
         return;
       }
       setNotice('Nome do player atualizado. Recarregando dados da empresa.');
@@ -106,7 +108,7 @@ export function DoohPlayerOperations() {
     const name = normalizedOperationalName(groupName);
     if (!canSubmit || !name || (groupMode === 'rename' && (!selectedGroup || name === selectedGroup.name))) return;
     const action = groupMode === 'create' ? `Criar grupo "${name}"?` : `Renomear o grupo "${selectedGroup?.name}" para "${name}"?`;
-    if (!window.confirm(action)) return;
+    if (!await ask(action)) return;
     setBusy(true); setActionError(''); setNotice('');
     try {
       const response = groupMode === 'create'
@@ -115,7 +117,7 @@ export function DoohPlayerOperations() {
       const created = response.data;
       if (!created || typeof created !== 'object' || !('name' in created) || created.name !== name ||
           !('id' in created) || typeof created.id !== 'string') {
-        setActionError('A API não confirmou o grupo esperado. Atualize a lista antes de repetir.');
+        setActionError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.');
         return;
       }
       setNotice(groupMode === 'create' ? 'Grupo criado. Recarregando a lista.' : 'Grupo renomeado. Recarregando a lista.');
@@ -139,6 +141,7 @@ export function DoohPlayerOperations() {
     </form>
     {loading && <p role="status" className="text-sm text-gray-600">Carregando permissões e registros operacionais…</p>}
     {loadError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{loadError}</p>}
+    {confirmUi}
     {actionError && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{actionError}</p>}
     {notice && <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {shownPlayers && shownGroups && <div className="grid gap-6 lg:grid-cols-2">

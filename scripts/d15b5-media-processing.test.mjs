@@ -119,7 +119,7 @@ test('D15B05-11: interface conecta leitura e gate, sem iniciar worker ou publica
   assert.match(ui, /apiClient\.get<unknown>\(`\/dooh\/media\/\$\{encodeURIComponent\(selectedId\)\}\/processing`/);
   assert.match(ui, /apiClient\.post<unknown>\(`\/dooh\/media\/\$\{encodeURIComponent\(selected.id\)\}\/process`/);
   assert.match(ui, /confirmation === 'PROCESSAR'/);
-  assert.match(ui, /window\.confirm/);
+  assert.match(ui, /await ask\(/);
   assert.doesNotMatch(ui, /\/worker|\/publish|\/manifest|\/delete|setInterval/);
 });
 

@@ -1,6 +1,7 @@
 import { doohMediaDisplayName } from '../lib/doohMediaDisplayName';
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { contentNextStep } from '../lib/doohJourneyGuidance';
@@ -20,6 +21,7 @@ interface Props { screen: OperationalScreen; onClose: () => void; initialMediaId
 
 /** UX10/F3A: friendly, tenant-scoped content draft editor. NEVER publishes schedules or manifests. */
 export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const companyId = user?.companyId ?? '';
@@ -229,7 +231,7 @@ export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Pro
   return <section aria-label={`Conteúdo de ${screen.name}`} className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div><h4 ref={heading} tabIndex={-1} className="font-semibold text-gray-900">Conteúdo de {screen.name}</h4><p className="text-xs text-gray-600">Escolha os arquivos e organize a sequência. Nada começa a tocar ao salvar.</p></div>
-      <Button variant="outline" type="button" onClick={() => { if (!orderDirty || window.confirm('Descartar a ordem ainda não salva?')) onClose(); }} disabled={busy || uploadOpen}>Fechar</Button>
+      <Button variant="outline" type="button" onClick={() => void (async () => { if (!orderDirty || await ask('Descartar a ordem ainda não salva?', 'Descartar')) onClose(); })()} disabled={busy || uploadOpen}>Fechar</Button>
     </div>
     {!writable && <p className="text-sm text-amber-800">Sua conta permite consultar esta tela, mas não editar o conteúdo.</p>}
     {loadingList && <p role="status" className="text-sm text-gray-600">Buscando arquivos e sequência…</p>}
@@ -254,13 +256,14 @@ export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Pro
         {items.length === 0 ? <p className="text-sm text-gray-600">Sua sequência está vazia. Você pode deixar a tela cadastrada sem conteúdo.</p> : <ol className="space-y-2">{plannedOrder.map((id, index) => {
           const item = items.find(v => v.id === id);
           if (!item) return null;
-          return <li key={item.id} draggable={!busy && !loadingList && !uploadOpen} onDragStart={event => { draggedItem.current=id;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',id); }} onDragEnd={() => {draggedItem.current=null;}} onDragOver={event => {if(draggedItem.current && !busy && !loadingList && !uploadOpen)event.preventDefault();}} onDrop={event => {event.preventDefault();const from=draggedItem.current;draggedItem.current=null;if(!from || busy || loadingList || uploadOpen)return;setPlannedOrder(old=>{const i=old.indexOf(from), j=old.indexOf(id);if(i<0||j<0||i===j)return old;const next=[...old];next.splice(i,1);next.splice(j,0,from);return next;});}} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><div className="min-w-0"><strong className="break-words">{index + 1}. {doohMediaDisplayName(item.mediaName)}</strong><p className="text-xs text-gray-600">{(item.durationMs / 1000).toLocaleString('pt-BR')} segundos {item.mediaStatus !== 'READY' ? '· arquivo indisponível para publicação' : ''}</p></div><div className="flex flex-wrap gap-1"><Button type="button" size="sm" variant="outline" disabled={busy || loadingList || uploadOpen || index === 0} onClick={() => shift(id, -1)}>Subir</Button><Button type="button" size="sm" variant="outline" disabled={busy || loadingList || uploadOpen || index === items.length - 1} onClick={() => shift(id, 1)}>Descer</Button><Button type="button" size="sm" variant="outline" disabled={busy || orderDirty || uploadOpen || loadingList} onClick={() => { if (window.confirm(`Remover “${doohMediaDisplayName(item.mediaName)}” da sequência em edição?`)) void mutate('remove', item.id); }}>Remover</Button></div></li>;
+          return <li key={item.id} draggable={!busy && !loadingList && !uploadOpen} onDragStart={event => { draggedItem.current=id;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',id); }} onDragEnd={() => {draggedItem.current=null;}} onDragOver={event => {if(draggedItem.current && !busy && !loadingList && !uploadOpen)event.preventDefault();}} onDrop={event => {event.preventDefault();const from=draggedItem.current;draggedItem.current=null;if(!from || busy || loadingList || uploadOpen)return;setPlannedOrder(old=>{const i=old.indexOf(from), j=old.indexOf(id);if(i<0||j<0||i===j)return old;const next=[...old];next.splice(i,1);next.splice(j,0,from);return next;});}} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><div className="min-w-0"><strong className="break-words">{index + 1}. {doohMediaDisplayName(item.mediaName)}</strong><p className="text-xs text-gray-600">{(item.durationMs / 1000).toLocaleString('pt-BR')} segundos {item.mediaStatus !== 'READY' ? '· arquivo indisponível para publicação' : ''}</p></div><div className="flex flex-wrap gap-1"><Button type="button" size="sm" variant="outline" disabled={busy || loadingList || uploadOpen || index === 0} onClick={() => shift(id, -1)}>Subir</Button><Button type="button" size="sm" variant="outline" disabled={busy || loadingList || uploadOpen || index === items.length - 1} onClick={() => shift(id, 1)}>Descer</Button><Button type="button" size="sm" variant="outline" disabled={busy || orderDirty || uploadOpen || loadingList} onClick={() => void (async () => { if (await ask(`Remover “${doohMediaDisplayName(item.mediaName)}” da sequência em edição?`, 'Remover')) void mutate('remove', item.id); })()}>Remover</Button></div></li>;
         })}</ol>}
         {draft && (() => { const snapshot = guidedSnapshotToCas(draft); return snapshot && draftOrderChanged(snapshot, plannedOrder) ? <Button type="button" disabled={busy || loadingList || uploadOpen} onClick={() => void saveOrder()}>Salvar nova ordem</Button> : null; })()}
-        {orderDirty && <Button type="button" variant="outline" disabled={busy || loadingList} onClick={() => { if (window.confirm('Descartar a ordem ainda não salva?')) { setPlannedOrder(items.map(item => item.id)); setRefresh(n => n + 1); } }}>Descartar alteração de ordem</Button>}
+        {orderDirty && <Button type="button" variant="outline" disabled={busy || loadingList} onClick={() => void (async () => { if (await ask('Descartar a ordem ainda não salva?', 'Descartar')) { setPlannedOrder(items.map(item => item.id)); setRefresh(n => n + 1); } })()}>Descartar alteração de ordem</Button>}
         <p className="text-xs text-gray-600">O rascunho é salvo na empresa e permanece ligado a esta tela. Não modifica listas já publicadas.</p>
       </div>
       <DoohScreenPublicationWizard screen={screen} draft={draft} editorBlocked={editingBusy||loadingList||orderDirty||uploadOpen} recommendPublication={guidance.action === 'publish'} onPublishingChange={setPublishing} onChanged={() => setRefresh(n => n + 1)} />
     </>}
+    {confirmUi}
   </section>;
 }

@@ -71,7 +71,7 @@ test('D15C03-11 erros fixos não refletem payloads ou segredos', () => {
 test('D15C03-12 UI usa apenas rotas add-cas/remove-cas e confirmação explícita', () => {
   const code = src('src/components/DoohPlaylistDraftEditor.tsx');
   assert.match(code,/\/add-cas/);assert.match(code,/\/remove-cas\//);
-  assert.match(code,/window\.confirm/);
+  assert.match(code,/await ask\(/);
   assert.match(code,/draftStillCurrent/);
   assert.doesNotMatch(code,/\/publish|\/draft\/items\/order|\.delete\(/);
 });

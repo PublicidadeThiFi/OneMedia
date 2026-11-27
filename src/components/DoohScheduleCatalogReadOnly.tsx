@@ -115,8 +115,8 @@ export function DoohScheduleCatalogReadOnly() {
     return () => controller.abort();
   }, [allowed, companyId, current, targetsKey]);
 
-  if (!allowed) return <section aria-label="Agendas DOOH D15D-01" className="rounded-xl border bg-gray-50 p-5 text-sm text-gray-600">
-    Consulta de agendas requer empresa autorizada, grant DOOH e função ADMINISTRATIVO ou TI. Nenhum dado foi consultado.
+  if (!allowed) return <section aria-label="Minhas agendas" className="rounded-xl border bg-gray-50 p-5 text-sm text-gray-600">
+    Seu perfil não tem acesso aos horários. Peça acesso a um administrador.
   </section>;
   const targetInventory = targets?.key === targetsKey ? targets.items : null;
   return <section aria-label="Minhas agendas DOOH" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -175,7 +175,7 @@ export function DoohScheduleCatalogReadOnly() {
         {selectedAction === 'details' && <div className="grid gap-2 text-sm text-gray-700 md:grid-cols-2">
           <p><strong>Nome:</strong> {current.name}</p><p><strong>Estado:</strong> {statusText[current.status]}</p>
           <p><strong>Prioridade:</strong> {priorityText[current.priority]}</p><p><strong>Fuso:</strong> {current.timezone}</p>
-          <p><strong>Lista escolhida:</strong> Versão publicada (identificador nos detalhes técnicos)</p>
+          <p><strong>Lista escolhida:</strong> Versão publicada</p>
           <p><strong>Publicação:</strong> {current.publishedAt ? stamp(current.publishedAt) : 'Não registrada'}</p>
           <p><strong>Início:</strong> {stamp(current.startsAt)}</p><p><strong>Fim:</strong> {stamp(current.endsAt)}</p>
           <p><strong>Dias:</strong> {current.weekdays.length ? current.weekdays.map((d) => dayText[d - 1]).join(', ') : 'Sem restrição de dia configurada'}</p>

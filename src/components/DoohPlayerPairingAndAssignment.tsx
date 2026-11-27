@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -31,6 +32,7 @@ export function DoohPlayerPairingAndAssignment() {
   const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useInlineConfirm();
   const [failure, setFailure] = useState('');
   const [notice, setNotice] = useState<{ key: string; message: string } | null>(null);
   const [code, setCode] = useState('');
@@ -154,7 +156,7 @@ export function DoohPlayerPairingAndAssignment() {
     const normalizedCode = validPairingCode(code);
     const normalizedName = normalizedOperationalName(name);
     if (!pairAllowed || !normalizedCode || !normalizedName) return;
-    if (!window.confirm('Parear este dispositivo? Se permitido pelo backend, isto poderá ativar uma licença ACTIVE_PLAYER. A pausa e a quota não serão alteradas.')) return;
+    if (!await ask('Conectar este aparelho? Isso pode ocupar uma licença de player do seu plano.', 'Conectar')) return;
     if (!globalThis.crypto?.randomUUID) {
       setFailure('Navegador sem geração segura de chave de idempotência. Operação bloqueada.'); return;
     }
@@ -181,7 +183,7 @@ export function DoohPlayerPairingAndAssignment() {
   async function submitAssignment(event: FormEvent) {
     event.preventDefault();
     if (!assignAllowed || !selectedPlayer || !checkedScreen || !companyId) return;
-    if (!window.confirm(`Associar “${selectedPlayer.name}” à tela “${checkedScreen.label}”? A associação anterior deste player pode ser encerrada.`)) return;
+    if (!await ask(`Associar “${selectedPlayer.name}” à tela “${checkedScreen.label}”? A associação anterior deste player pode ser encerrada.`)) return;
     setBusy(true); setFailure(''); setNotice(null);
     try {
       // Validate ownership, type and current active state immediately before mutation.
@@ -199,7 +201,7 @@ export function DoohPlayerPairingAndAssignment() {
       if (!parseAssignmentResult(response.data, selectedPlayer.id, checkedScreen.id)) {
         setFailure('O servidor não confirmou a associação esperada. Confira o player antes de repetir.'); return;
       }
-      setNotice({ key: operationKey, message: 'Tela associada com confirmação da API. Atualização do inventário solicitada.' });
+      setNotice({ key: operationKey, message: 'Tela ligada ao ponto do Marketplace.' });
       setReload((v) => v + 1);
     } catch (error: unknown) { setFailure(safePairingError(error)); }
     finally { setBusy(false); }
@@ -212,6 +214,7 @@ export function DoohPlayerPairingAndAssignment() {
       <p className="text-xs text-amber-800">A conexão só será concluída se a autorização e as licenças da empresa permitirem. Nenhuma credencial será exibida nesta página.</p>
     </div>
     {loading && <p role="status" className="text-sm text-gray-600">Consultando os players existentes…</p>}
+    {confirmUi}
     {failure && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{failure}</p>}
     {notice?.key === operationKey && <p role="status" className="rounded-md bg-green-50 p-3 text-sm text-green-800">{notice.message}</p>}
     <a href="https://player.onemediaap.com.br" target="_blank" rel="noopener noreferrer"
@@ -283,8 +286,8 @@ export function DoohPlayerPairingAndAssignment() {
         {isUuidV4(screenId) && !screenLoading && !checkedScreen && <p className="text-xs text-amber-800">A tela não pôde ser validada para associação.</p>}
         {selectedPlayer?.currentAssignment && <p className="text-xs text-gray-600">Associação atual: {selectedPlayer.currentAssignment.mediaUnit.label}.</p>}
         <Button type="submit" disabled={!assignAllowed}>Confirmar associação</Button>
-        {!canValidateScreen && <p className="text-xs text-amber-800">Pré-validação da SCREEN exige papel ADMINISTRATIVO no contrato atual da API OOH.</p>}
-        <p className="text-xs text-gray-600">Este bloco não remove associações nem apaga históricos. A API recusa telas ocupadas, inativas ou fora do tenant.</p>
+        {!canValidateScreen && <p className="text-xs text-amber-800">Só administradores podem ligar telas a pontos do Marketplace.</p>}
+        <p className="text-xs text-gray-600">Nada é apagado. Pontos já ocupados ou inativos não aparecem como opção.</p>
       </form>}
     </div>
   </section>;

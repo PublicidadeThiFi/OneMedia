@@ -1,6 +1,7 @@
 import { doohMediaDisplayName } from '../lib/doohMediaDisplayName';
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -50,6 +51,7 @@ const DENIED: Caps = {guided:false,playlist:false,schedule:false,qaOnly:true,man
 
 /** UX10/F3B: explicit, independently confirmable CAS stages. No automatic retries or background publication. */
 export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocked=false,recommendPublication=false,onPublishingChange}:Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const {user}=useAuth();const {snapshot}=useProductAccess();
   const companyId=user?.companyId??'';
   const roles=user?.roles??[];
@@ -263,7 +265,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
 
   async function revokeRenewal(ctl:AbortController,key:string){
     const grant=renewalGrant;
-    if(!grant||!window.confirm('Revogar a renovação automática? Isso interrompe novas renovações, mas não interrompe imediatamente uma programação já autorizada.'))return;
+    if(!grant||!await ask('Revogar a renovação automática? Isso interrompe novas renovações, mas não interrompe imediatamente uma programação já autorizada.'))return;
     const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/renewal/${encodeURIComponent(grant.id)}/revoke`,undefined,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!renewalRevoked(result.data,screen.id,grant.id))throw Error('Renewal revocation not confirmed');
@@ -273,7 +275,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
 
   async function pausePublication(ctl:AbortController,key:string){
     if(!pauseBody||futureIntent?.status==='PENDING')throw Error('Pause unavailable');
-    if(!window.confirm('Pausar esta tela? A renovação automática será revogada. Uma tela sem internet pode continuar exibindo até a autorização local expirar.'))return;
+    if(!await ask('Pausar esta tela? A renovação automática será revogada. Uma tela sem internet pode continuar exibindo até a autorização local expirar.'))return;
     const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/pause-publication`,pauseBody,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parsePausePublicationReceipt(result.data,screen.id,pauseBody))throw Error('Unconfirmed pause');
@@ -283,7 +285,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   async function resumePublication(ctl:AbortController,key:string){
     const body=resumeBody(Date.now());
     if(!body||futureIntent?.status==='PENDING')throw Error('Resume unavailable');
-    if(!window.confirm('Retomar o conteúdo anteriormente publicado com o período e a autorização agora escolhidos? O rascunho em edição não será publicado.'))return;
+    if(!await ask('Retomar o conteúdo anteriormente publicado com o período e a autorização agora escolhidos? O rascunho em edição não será publicado.'))return;
     const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/resume-publication`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseRepublicationReceipt(result.data,screen.id,body.expectedPlayerId,body.expectedScheduleId,body.playlistVersionId,body.expectedManifestVersion))throw Error('Unconfirmed resume');
@@ -294,7 +296,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   async function restorePublication(ctl:AbortController,key:string){
     const body=restoreBody(Date.now());
     if(!body||futureIntent?.status==='PENDING')throw Error('Restore unavailable');
-    if(!window.confirm('Restaurar esta programação anterior em uma nova publicação? Os horários serão preservados, o período será novo e a renovação automática anterior será revogada. Somente a nova autorização escolhida poderá ser registrada. Rascunhos alterados não serão sobrescritos.'))return;
+    if(!await ask('Restaurar esta programação anterior em uma nova publicação? Os horários serão preservados, o período será novo e a renovação automática anterior será revogada. Somente a nova autorização escolhida poderá ser registrada. Rascunhos alterados não serão sobrescritos.'))return;
     const response=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/restore-publication`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseRestoreReceipt(response.data,screen.id,body))throw Error('Unconfirmed restoration');
@@ -306,7 +308,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     const body=replacementBody(Date.now());
     if(!replaceAllowed||!body||futureIntent?.status==='PENDING')throw Error('Replacement unavailable');
     if(scheduleFuture){
-      if(!futureEnabled||!window.confirm(`Agendar alteração para ${new Date(body.startsAt).toLocaleString('pt-BR')}? A programação atual não será alterada agora. A ativação depende das permissões e da sincronização.`))return;
+      if(!futureEnabled||!await ask(`Agendar alteração para ${new Date(body.startsAt).toLocaleString('pt-BR')}? A programação atual não será alterada agora. A ativação depende das permissões e da sincronização.`))return;
       const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/future-republication`,body,{signal:ctl.signal});
       if(ctl.signal.aborted||activeKey.current!==key)return;
       if(!futureRepublicationReceipt(result.data,screen.id,body.startsAt,body.endsAt))throw Error('Unconfirmed future publication');
@@ -322,7 +324,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
 
   async function cancelFuture(ctl:AbortController,key:string){
     const intent=futureIntent;
-    if(!intent||intent.status!=='PENDING'||!window.confirm('Cancelar a alteração agendada? A programação atual será mantida.'))return;
+    if(!intent||intent.status!=='PENDING'||!await ask('Cancelar a alteração agendada? A programação atual será mantida.'))return;
     const result=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/future-republication/${encodeURIComponent(intent.id)}/cancel`,undefined,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!futureRepublicationCancelled(result.data,screen.id,intent.id))throw Error('Unconfirmed cancellation');
@@ -354,7 +356,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     const fresh=parsePlaylistDraft(draftResp.data,before.playlistId),current=parseDoohPlaylistDetail(latest.data,companyId,before.playlistId);
     if(!fresh||!draftStillCurrent(before,fresh)||!current||current.currentVersion!==playlist.currentVersion)
       throw Error('Review changed');
-    if(!window.confirm(`Publicar ${before.items.length} mídia(s) desta tela? Isso cria uma versão de conteúdo; ainda não envia aos aparelhos.`))return;
+    if(!await ask(`Publicar ${before.items.length} mídia(s) desta tela? Isso cria uma versão de conteúdo; ainda não envia aos aparelhos.`))return;
     const res=await apiClient.post<unknown>(`/dooh/playlists/${id}/publish-cas`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     const receipt=parsePlaylistPublished(res.data,before,current.currentVersion);
@@ -364,7 +366,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
 
   async function createSchedule(ctl:AbortController,key:string){
     if(!screen.playerId||!plan||!chosen)throw Error('Schedule plan unavailable');
-    if(!window.confirm(`Criar programação para ${screen.name}?\nDe ${new Date(plan.startsAt).toLocaleString('pt-BR')} até ${new Date(plan.endsAt).toLocaleString('pt-BR')}.\nA agenda ficará em rascunho até sua confirmação seguinte.`))return;
+    if(!await ask(`Criar programação para ${screen.name}?\nDe ${new Date(plan.startsAt).toLocaleString('pt-BR')} até ${new Date(plan.endsAt).toLocaleString('pt-BR')}.\nA agenda ficará em rascunho até sua confirmação seguinte.`))return;
     const {data}=await apiClient.post<unknown>(`/dooh/operational-screens/${encodeURIComponent(screen.id)}/content-schedule`,plan,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     const receipt=parseGuidedScheduleReceipt(data,screen.id,screen.playerId,chosen.id);
@@ -384,7 +386,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
     const body=buildSchedulePublishCas(summary,targets);
     if(!body)throw Error('Schedule not publishable');
     if(ctl.signal.aborted||activeKey.current!==key)return;
-    if(!window.confirm(`Publicar os horários da tela “${screen.name}”? Isso registra a agenda; a atualização do aparelho ainda será uma etapa separada.`))return;
+    if(!await ask(`Publicar os horários da tela “${screen.name}”? Isso registra a agenda; a atualização do aparelho ainda será uma etapa separada.`))return;
     const receipt=await apiClient.post<unknown>(`/dooh/schedules/${id}/publish-cas`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!parseSchedulePublishReceipt(receipt.data,summary))throw Error('Unconfirmed schedule publication');
@@ -424,7 +426,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       throw Error('Preflight changed');
     const body=buildManifestCasRequest(latest,true,caps.mode==='PILOT'?'PILOT':'QA');
     if(!body)throw Error('Manifest request invalid');
-    if(!window.confirm('Confirmar envio da atualização para este aparelho? O servidor poderá disponibilizar a nova programação; isso não comprova que ela já está na tela.'))return;
+    if(!await ask('Confirmar envio da atualização para este aparelho? O servidor poderá disponibilizar a nova programação; isso não comprova que ela já está na tela.'))return;
     const receipt=await apiClient.post<unknown>(`/dooh/manifests/players/${encodeURIComponent(screen.playerId)}/publish-cas`,body,{signal:ctl.signal});
     if(ctl.signal.aborted||activeKey.current!==key)return;
     if(!manifestCasResult(receipt.data,latest))throw Error('Manifest publication not confirmed');
@@ -552,5 +554,6 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
         </>}
       </>}
     </>}
+    {confirmUi}
   </div>;
 }

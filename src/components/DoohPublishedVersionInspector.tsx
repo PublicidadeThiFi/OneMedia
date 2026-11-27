@@ -61,8 +61,8 @@ export function DoohPublishedVersionInspector({ companyId, detail }: Props) {
 
   if (!allowed) return <p className="text-xs text-gray-600">Consulta de versões requer acesso DOOH e função técnica.</p>;
   const inspected = result?.key === requestKey ? result.value : null;
-  return <section aria-label="D15C-06 inspeção de versões publicadas" className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
-    <h5 className="text-sm font-semibold text-gray-900">Verificação de versões publicadas — D15C-06</h5>
+  return <section aria-label="Detalhes da versão publicada" className="space-y-3 rounded-xl border border-gray-200 bg-white p-4">
+    <h5 className="text-sm font-semibold text-gray-900">Detalhes da versão publicada</h5>
     <p className="text-xs text-amber-800">Verificação estrutural dos registros: NÃO comprova integridade criptográfica dos arquivos,
       disponibilidade no S3, distribuição, reprodução, audiência ou Proof-of-Play.</p>
     {detail.versionsTruncated && <p className="text-xs text-amber-800">O histórico exibido contém somente as 50 versões mais recentes; outras versões não estão disponíveis nesta consulta.</p>}
@@ -85,7 +85,7 @@ export function DoohPublishedVersionInspector({ companyId, detail }: Props) {
     {inspected && <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
       <p className="text-xs font-medium text-gray-800">Versão {inspected.version} · {inspected.items.length} item(ns) · duração total {duration(inspected.totalDurationMs)}</p>
       <p className="text-xs text-gray-600">Registro publicado em {timestamp(inspected.publishedAt)} · SHA-256 registrado: {inspected.checksumPrefix}…</p>
-      <p className="text-xs text-amber-800">Identidade da versão, prefixo do checksum, quantidade, posições e durações conferem com os metadados consultados. O SHA-256 completo não foi recalculado.</p>
+      <p className="text-xs text-amber-800">As mídias, a ordem e as durações desta versão conferem com o que foi salvo.</p>
       <div className="max-h-64 overflow-y-auto"><ol className="space-y-1">{inspected.items.map((item) =>
         <li key={item.id} className="rounded-md border border-gray-200 bg-white p-2 text-xs text-gray-700">
           Posição {item.position + 1} · versão de mídia {item.mediaVersionId.slice(0, 8)}… · {duration(item.durationMs)}

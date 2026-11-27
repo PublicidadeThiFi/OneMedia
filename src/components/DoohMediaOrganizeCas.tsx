@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -35,6 +36,7 @@ export function DoohMediaOrganizeCas({ companyId, folders, media, onChanged }: P
   const [nameInput, setNameInput] = useState('');
   const [targetFolder, setTargetFolder] = useState('root');
   const [busy, setBusy] = useState(false);
+  const { ask, confirmUi } = useInlineConfirm();
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -65,13 +67,13 @@ export function DoohMediaOrganizeCas({ companyId, folders, media, onChanged }: P
       const before = await apiClient.get<unknown>(`/dooh/media/${encodeURIComponent(selected.id)}`);
       const current = parseDoohMediaCasSnapshot(before.data, companyId, selected.id, folders);
       if (!current || !unchangedDoohMediaSnapshot(selected, current)) {
-        setError('A mídia foi alterada desde a última consulta. Atualize a Biblioteca.');
+        setError('Alguém alterou esta mídia há pouco. Atualize e confira antes de salvar.');
         return;
       }
       if (liveContext.current !== requestContext) return;
       const confirmed = operation === 'rename'
-        ? window.confirm(`Renomear a mídia "${selected.name}" para "${targetName}"? Apenas o nome será alterado.`)
-        : window.confirm(`Mover a mídia "${selected.name}" de "${folders.find((f) => f.id === selected.folderId)?.name ?? 'Raiz'}" para "${folders.find((f) => f.id === destination)?.name ?? 'Raiz'}"? Nenhum arquivo será excluído.`);
+        ? await ask(`Renomear a mídia "${selected.name}" para "${targetName}"? Apenas o nome será alterado.`)
+        : await ask(`Mover a mídia "${selected.name}" de "${folders.find((f) => f.id === selected.folderId)?.name ?? 'Raiz'}" para "${folders.find((f) => f.id === destination)?.name ?? 'Raiz'}"? Nenhum arquivo será excluído.`);
       if (!confirmed || liveContext.current !== requestContext) return;
       const payload = prepareDoohMediaCasPayload(current, operation, nameInput, destination, folders);
       if (!payload) return;
@@ -79,7 +81,7 @@ export function DoohMediaOrganizeCas({ companyId, folders, media, onChanged }: P
       if (liveContext.current !== requestContext) return;
       if (!verifyDoohMediaCasResponse(response.data, companyId, current, operation,
         operation === 'rename' ? targetName : destination, folders)) {
-        setError('A API não confirmou o estado esperado da mídia. Atualize a Biblioteca antes de repetir.');
+        setError('Não conseguimos confirmar se a alteração foi salva. Atualize para conferir.');
         return;
       }
       setSelectedId(''); setNameInput(''); setTargetFolder('root');
@@ -90,10 +92,10 @@ export function DoohMediaOrganizeCas({ companyId, folders, media, onChanged }: P
     } finally { setBusy(false); }
   }
 
-  return <section aria-label="Organizar mídias DOOH D15B-03" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+  return <section aria-label="Renomear ou mover mídia" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <div>
-      <h4 className="font-semibold text-gray-900">Organização de mídias — D15B-03</h4>
-      <p className="text-xs text-gray-600">Renomear ou mover uma mídia entre pastas. O backend compara nome, pasta e versão antes de gravar. Nenhuma mídia é excluída ou publicada.</p>
+      <h4 className="font-semibold text-gray-900">Renomear ou mover mídia</h4>
+      <p className="text-xs text-gray-600">Troque o nome de uma mídia ou mude a pasta dela. Nada é apagado e nada muda nas telas.</p>
     </div>
     <form onSubmit={(event) => void submit(event)} className="grid gap-3 md:grid-cols-3">
       <label className="space-y-1 text-sm"><span className="block">Mídia</span>
@@ -124,6 +126,7 @@ export function DoohMediaOrganizeCas({ companyId, folders, media, onChanged }: P
         <p className="text-xs text-gray-600">Somente até 100 mídias carregadas por filtro. Em caso de conflito, atualize antes de repetir.</p>
       </div>
     </form>
+    {confirmUi}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
   </section>;

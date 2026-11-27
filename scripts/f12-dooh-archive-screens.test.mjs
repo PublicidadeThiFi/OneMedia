@@ -22,7 +22,7 @@ test('motivos de recusa do arquivamento em linguagem simples', () => {
 
 test('só tela vazia oferece arquivar, com confirmação; arquivadas carregam só quando abertas', () => {
   const panel = readFileSync(new URL('../src/components/DoohOperationalScreensPanel.tsx', import.meta.url), 'utf8');
-  assert.match(panel, /!screen\.player && !screen\.commercialUnit && <Button.*>Arquivar tela<\/Button>/);
+  assert.match(panel, /!screen\.player && !screen\.commercialUnit && <button.*>Arquivar tela<\/button>/);
   assert.match(panel, /role="alertdialog" aria-label="Confirmar arquivamento"/);
   assert.match(panel, /\/archive`\)/);
   const archived = readFileSync(new URL('../src/components/DoohArchivedScreens.tsx', import.meta.url), 'utf8');

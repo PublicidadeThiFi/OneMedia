@@ -78,7 +78,7 @@ test('D15C02-10: UI cria somente POST e renomeia apenas via CAS',()=>{
   assert.match(ui,/apiClient\.post<unknown>\('\/dooh\/playlists'/);
   assert.match(ui,/\/rename-cas`/);
   assert.doesNotMatch(ui,/apiClient\.(put|delete)|\/publish|\/draft\/items|\/worker/);
-  assert.match(ui,/window\.confirm/); assert.match(ui,/AbortController/);
+  assert.match(ui,/await ask\(/); assert.match(ui,/AbortController/);
 });
 test('D15C02-11: edição faz GET preflight e transmite nome e timestamp originais',()=>{
   const ui=source('src/components/DoohPlaylistCreateRename.tsx');

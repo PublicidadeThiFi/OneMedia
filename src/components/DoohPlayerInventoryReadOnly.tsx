@@ -93,7 +93,7 @@ export function DoohPlayerInventoryReadOnly() {
       <p className="text-sm text-gray-600">Confira as telas da sua empresa, o último contato e a programação disponível.</p>
       <p className="text-sm text-gray-600">Licença ativa e contato recente não comprovam que uma mídia esteja sendo exibida.</p>
       <details className="text-xs text-gray-600"><summary className="cursor-pointer">Entenda os estados</summary>
-        <p className="mt-1">Uma licença ACTIVE ocupa licença mesmo offline. Heartbeat e versões de manifest não comprovam reprodução física ou audiência.</p>
+        <p className="mt-1">Um aparelho ativo ocupa uma licença mesmo quando está desligado. Estar conectado não comprova que o conteúdo foi exibido.</p>
       </details>
     </div>
     <form className="grid gap-3 md:grid-cols-[minmax(160px,1fr)_auto_auto_auto] md:items-end" onSubmit={submitSearch}>

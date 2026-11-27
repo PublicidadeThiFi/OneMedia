@@ -79,7 +79,7 @@ export function DoohPlaylistCatalogReadOnly() {
   }, [allowed, companyId, selectedId, selectedExists, detailKey]);
 
   if (!allowed) return <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-sm text-gray-600">
-    O catálogo de playlists exige acesso DOOH e função ADMINISTRATIVO ou TI. Nenhum dado foi consultado.
+    Seu perfil não tem acesso às sequências. Peça acesso a um administrador.
   </div>;
   const selected = detail?.key === detailKey && selectedExists ? detail.item : null;
   return <section aria-label="Listas de exibição DOOH" className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -92,7 +92,7 @@ export function DoohPlaylistCatalogReadOnly() {
       <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setAction('create')}>Criar sequência</Button><Button type="button" variant="outline" disabled={loading} onClick={() => setRefresh((n) => n + 1)}>Atualizar</Button></div>
     </div>
     <DoohWorkspaceTabs label="Etapas da lista de exibição" selected={action} onSelect={setAction} tabs={[
-      { id: 'list', label: 'Minhas listas', description: 'Suas sequências. Publicar não envia às telas; isso é feito em “Horários e telas”.' },
+      { id: 'list', label: 'Todas', description: 'Publicar não envia às telas; isso é feito em “Horários e telas”.' },
       { id: 'create', label: 'Criar ou renomear', description: 'Dê um nome à sequência.' },
       { id: 'edit', label: 'Adicionar mídias', description: 'Escolha a sequência e adicione mídias prontas.' },
       { id: 'order', label: 'Ordenar', description: 'Defina a sequência das mídias antes de publicar.' },
@@ -107,18 +107,16 @@ export function DoohPlaylistCatalogReadOnly() {
     {loading && <p role="status" className="text-sm text-gray-600">Carregando sequências…</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {entries && <>
-      {action === 'list' && <p className="text-xs text-gray-600">{entries.length} lista(s) encontradas.</p>}
+      {action === 'list' && <p className="text-xs text-gray-600">{entries.length} {entries.length === 1 ? 'sequência' : 'sequências'}.</p>}
       {action !== 'list' ? null : entries.length === 0 ? <p className="rounded-md bg-gray-50 p-3 text-sm text-gray-600">Nenhuma sequência ainda. Comece em Criar sequência.</p> :
         <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm">
-          <thead className="border-b bg-gray-50"><tr><th className="p-3">Lista</th><th className="p-3">Estado</th>
-            <th className="p-3">Versão atual</th><th className="p-3">Versões</th><th className="p-3">Atualização</th><th className="p-3">Detalhe</th></tr></thead>
+          <thead className="border-b bg-gray-50"><tr><th className="p-3">Sequência</th><th className="p-3">Situação</th><th className="p-3">Atualizada</th><th className="p-3"><span className="sr-only">Ações</span></th></tr></thead>
           <tbody>{entries.map((playlist) => <tr key={playlist.id} className="border-b text-gray-700">
-            <td className="p-3 break-words font-medium">{playlist.name}</td><td className="p-3">{playlist.status === 'ACTIVE' ? 'Ativa' : 'Arquivada'}</td>
-            <td className="p-3">{playlist.currentVersion === 0 ? 'Ainda não publicada' : playlist.currentVersion}</td>
-            <td className="p-3">{playlist.versionCount}{playlist.draftVersion !== null ? ` · rascunho v${playlist.draftVersion}` : ''}</td>
+            <td className="p-3 break-words font-medium">{playlist.name}</td>
+            <td className="p-3">{(() => { const st = playlist.status !== 'ACTIVE' ? { t: 'Arquivada', c: 'bg-gray-100 text-gray-700 ring-gray-200' } : playlist.currentVersion === 0 ? { t: 'Ainda não publicada', c: 'bg-gray-100 text-gray-700 ring-gray-200' } : { t: 'Publicada', c: 'bg-emerald-50 text-emerald-800 ring-emerald-200' }; return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${st.c}`}>{st.t}</span>; })()}</td>
             <td className="p-3">{dateText(playlist.updatedAt)}</td>
             <td className="p-3"><Button type="button" variant="outline" size="sm" onClick={() => { setSelectedId(playlist.id); setAction('history'); }}
-              aria-label={`Consultar detalhes de ${playlist.name}`}>Ver versões</Button></td>
+              aria-label={`Abrir ${playlist.name}`}>Abrir</Button></td>
           </tr>)}</tbody>
         </table></div>}
     </>}

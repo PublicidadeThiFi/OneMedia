@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -16,6 +17,7 @@ interface Props { companyId: string; playlists: readonly DoohPlaylistSummary[]; 
 
 /** D15C-03 — só altera itens do draft via CAS. Publicação, reorder e agendas fora do escopo. */
 export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const roles = user?.roles ?? [];
@@ -59,7 +61,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
       .then(({ data }) => {
         if (controller.signal.aborted || currentKey.current !== requestKey) return;
         const parsed = parsePlaylistDraft(data, playlistId);
-        if (!parsed) { setError('Rascunho incompatível com o contrato da API.'); return; }
+        if (!parsed) { setError('Não foi possível carregar a sequência. Tente de novo em instantes.'); return; }
         setDraft(parsed);
       }).catch((err: unknown) => {
         if (!controller.signal.aborted && currentKey.current === requestKey) setError(playlistDraftError(err));
@@ -74,7 +76,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
       .then(({ data }) => {
         if (controller.signal.aborted) return;
         const parsed = parsePlaylistMediaOptions(data, companyId);
-        if (!parsed) { setError('Catálogo de mídia incompatível com a API.'); return; }
+        if (!parsed) { setError('Não foi possível carregar as mídias. Tente de novo em instantes.'); return; }
         setMedia(parsed);
       }).catch((err: unknown) => { if (!controller.signal.aborted) setError(playlistDraftError(err)); });
     return () => controller.abort();
@@ -87,7 +89,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
       .then(({ data }) => {
         if (controller.signal.aborted) return;
         const parsed = parseDoohVersions(data, mediaId);
-        if (!parsed) { setError('Versões de mídia incompatíveis com a API.'); return; }
+        if (!parsed) { setError('Não foi possível carregar as versões da mídia. Tente de novo em instantes.'); return; }
         setVersions(parsed.versions.filter((v) => v.status === 'READY' && v.verification === 'READY_METADATA_OK'));
       }).catch((err: unknown) => { if (!controller.signal.aborted) setError(playlistDraftError(err)); });
     return () => controller.abort();
@@ -106,7 +108,7 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
     if (operation === 'remove' && (!itemId || !draft.items.some((item) => item.id === itemId))) return;
     const before = draft;
     const selectedVersion = versionId;
-    if (!window.confirm(operation === 'add'
+    if (!await ask(operation === 'add'
       ? `Adicionar a versão ${selectedVersion} ao rascunho de "${selected.name}" por ${Number(durationText).toLocaleString('pt-BR')} segundo(s)? Nenhuma publicação ocorrerá.`
       : `Remover o item ${itemId} do rascunho de "${selected.name}"? Versões publicadas não serão modificadas.`)) return;
     const controller = new AbortController();
@@ -141,14 +143,14 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
   }
 
   function submit(event: FormEvent) { event.preventDefault(); void mutate('add'); }
-  return <section aria-label="Editor de itens do rascunho D15C-03" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
+  return <section aria-label="Adicionar mídias à sequência" className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-4">
     <h4 className="font-semibold text-gray-900">Mídias desta lista</h4>
     <p className="text-xs text-gray-600">Selecione uma lista em edição, escolha a mídia pelo nome e defina por quantos segundos ela aparece.</p>
     <div className="flex gap-2 items-end">
       <label className="flex-1 space-y-1 text-sm"><span className="block">Lista em edição</span>
-        <select aria-label="Playlist para editar itens" value={playlistId} disabled={busy} className="w-full rounded-md border border-gray-300 bg-white p-2"
+        <select aria-label="Sequência" value={playlistId} disabled={busy} className="w-full rounded-md border border-gray-300 bg-white p-2"
           onChange={(e) => { setPlaylistId(e.target.value); setError(''); setNotice(''); }}>
-          <option value="">Selecione uma playlist</option>
+          <option value="">Selecione uma sequência</option>
           {playlists.filter((p) => p.status === 'ACTIVE' && p.draftVersion !== null).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </label>
@@ -183,5 +185,6 @@ export function DoohPlaylistDraftEditor({ companyId, playlists, onChanged }: Pro
     <p className="text-xs text-amber-800">Somente arquivos com uma versão pronta e validada podem ser adicionados. Isso não publica nem inicia exibição.</p>
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
+    {confirmUi}
   </section>;
 }

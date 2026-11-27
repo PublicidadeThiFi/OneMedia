@@ -32,7 +32,7 @@ const programmingTasks = [
 type AdvancedView = 'playlists' | 'schedules';
 const explanations: Record<DoohFoundationSection, string> = {
   home: 'Veja o que está passando em cada tela e o que precisa da sua atenção.',
-  screens: 'Crie suas telas e conecte os aparelhos. Inventário comercial é opcional.',
+  screens: 'Crie suas telas, conecte os aparelhos e escolha o que cada uma exibe.',
   library: 'Envie imagens e vídeos e escolha onde exibir.',
   scheduling: 'Escolha o conteúdo e os horários de cada tela.',
   reports: 'Veja quantas vezes cada mídia foi exibida em cada tela.',
@@ -57,7 +57,7 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
     <header className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-3xl space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">OneMedia · Telas digitais</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">DOOH</p>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{section === 'home' ? 'Vamos colocar sua tela para funcionar' : DOOH_SECTION_LABELS[section]}</h1>
           <p className="text-sm leading-6 text-gray-600">{explanations[section]}</p>
         </div>
@@ -71,10 +71,11 @@ export function DoohFoundationPage({ section }: { section: DoohFoundationSection
       <DoohOperationalScreensPanel />
     </>}
     {section === 'screens' && <>
-      <DoohWorkspaceTabs tabs={screenTabs} selected={screenTask} onSelect={setScreenTask} label="Tarefas de telas e dispositivos" />
+      {/* F13: a single tab is just a repeated title; tabs only appear when TI also sees "Suporte técnico". */}
+      {screenTabs.length > 1 && <DoohWorkspaceTabs tabs={screenTabs} selected={screenTask} onSelect={setScreenTask} label="Tarefas de telas e dispositivos" />}
       {screenTask === 'my-screens' && <>
         <DoohOperationalScreensPanel initialMediaId={new URLSearchParams(window.location.search).get('media') ?? undefined} />
-        <details className="rounded-xl border bg-white p-4"><summary className="cursor-pointer font-medium">Ligar um aparelho a um ponto do inventário OOH (Marketplace)</summary><DoohPlayerPairingAndAssignment /></details>
+        <details className="rounded-xl border border-gray-200 bg-white p-4"><summary className="cursor-pointer font-medium text-gray-800">Ligar uma tela a um ponto do Marketplace <span className="font-normal text-gray-500">(opcional)</span></summary><DoohPlayerPairingAndAssignment /></details>
       </>}
       {screenTask === 'technical' && isTechnical && <div className="space-y-4">
         <DoohPlayerInventoryReadOnly /><DoohPlayerOperations /><DoohPlayerAuditReadOnly /><DoohGroupMembersSafeEditor />

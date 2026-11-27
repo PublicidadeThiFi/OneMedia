@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useInlineConfirm } from './DoohInlineConfirm';
 import { useAuth } from '../contexts/AuthContext';
 import { useProductAccess } from '../contexts/ProductAccessContext';
 import { Button } from './ui/button';
@@ -15,6 +16,7 @@ const qaUiEnabled = import.meta.env.MODE === 'qa' && import.meta.env.VITE_DOOH_P
 
 /** D15C-05: QA-only immutable version registration; does NOT schedule or distribute to players. */
 export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props) {
+  const { ask, confirmUi } = useInlineConfirm();
   const { user } = useAuth();
   const { snapshot } = useProductAccess();
   const roles = user?.roles ?? [];
@@ -73,7 +75,7 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     const before = draft;
     const payload = publishCasPayload(before);
     if (!payload) return;
-    if (!window.confirm(`Confirma a publicação da versão ${selected.currentVersion + 1} de "${selected.name}"?\n` +
+    if (!await ask(`Confirma a publicação da versão ${selected.currentVersion + 1} de "${selected.name}"?\n` +
       `${before.items.length} itens. Cria uma versão IMUTÁVEL no banco; NÃO distribui nem agenda conteúdos.`)) return;
     const controller = new AbortController();
     write.current = controller;
@@ -103,12 +105,12 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     finally { if (write.current === controller) write.current = null; if (valid()) setBusy(false); }
   }
 
-  return <section aria-label="Publicação controlada de playlist" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4">
+  return <section aria-label="Revisar e publicar sequência" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4">
     <h4 className="font-semibold text-gray-900">Publicar a sequência</h4>
     <p className="text-xs text-amber-900">Publicar guarda esta versão da sequência. Ela ainda não vai para as TVs.</p>
     <div className="flex flex-wrap gap-2 items-end">
       <label className="flex-1 min-w-[220px] space-y-1 text-sm"><span className="block">Sequência</span>
-        <select aria-label="Playlist para revisão de publicação" className="w-full rounded-md border border-gray-300 bg-white p-2"
+        <select aria-label="Sequência" className="w-full rounded-md border border-gray-300 bg-white p-2"
           value={playlistId} disabled={busy} onChange={(e) => { write.current?.abort(); setPlaylistId(e.target.value); }}>
           <option value="">Escolha a sequência</option>
           {playlists.filter((p) => p.status === 'ACTIVE' && p.draftVersion !== null).map((p) =>
@@ -134,5 +136,6 @@ export function DoohPlaylistPublishQa({ companyId, playlists, onChanged }: Props
     {!publishUiEnabled && <p className="text-xs text-amber-800">A publicação não está liberada para a sua empresa.</p>}
     {error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-800">{notice}</p>}
+    {confirmUi}
   </section>;
 }

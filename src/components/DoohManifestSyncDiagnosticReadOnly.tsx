@@ -42,7 +42,7 @@ export function DoohManifestSyncDiagnosticReadOnly({ companyId, player }: {
       if (!active()) return;
       const projection = parseManifestSyncDiagnostic(data, companyId, player);
       if (!projection) {
-        setError('Resposta incompatível ou revisão do player alterada. Reabra o detalhe.');
+        setError('Não foi possível carregar. Atualize o aparelho e tente de novo.');
         return;
       }
       setResult({ key: requestKey, value: projection });
@@ -53,7 +53,7 @@ export function DoohManifestSyncDiagnosticReadOnly({ companyId, player }: {
   const current = result?.key === key ? result.value : null;
   return <section aria-label="Diagnóstico de sincronização de manifest" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h5 className="text-sm font-semibold text-gray-900">Sincronização técnica — D16A05</h5>
+      <div><h5 className="text-sm font-semibold text-gray-900">Sincronização com o aparelho</h5>
         <p className="text-xs text-gray-600">Consulta única do estado registrado no backend. Nenhuma comunicação é iniciada com o player.</p></div>
       <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void inspect()}>
         {busy ? 'Consultando…' : 'Verificar versões e heartbeat'}

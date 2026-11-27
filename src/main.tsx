@@ -1,6 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+// F13: utilities missing from the precompiled index.css (DOOH module).
+import "./styles/dooh-utilities.css";
 // Leaflet base styles (map). Import global para garantir que carregue antes do componente.
 import "leaflet/dist/leaflet.css";
 import { manualCacheRescueIfRequested, ensureLatestBuild } from "./versionGuard";

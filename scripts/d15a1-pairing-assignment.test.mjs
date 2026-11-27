@@ -75,7 +75,7 @@ test('D15A1-02-11 UI pareia apenas via admin; nunca faz start/complete ou despau
   assert.match(s,/if \(!authorized\) return null/);
   assert.match(s,/if \(!pairAllowed/);
   assert.match(s,/if \(!assignAllowed/);
-  assert.match(s,/window\.confirm\(/);
+  assert.match(s,/await ask\(/);
   assert.match(s, /apiClient\.post<unknown>\('\/dooh\/players\/pair'/);
   assert.match(s,/Idempotency-Key/);
   assert.match(s,/apiClient\.put<unknown>\(`\/dooh\/players\/\$\{encodeURIComponent\(selectedPlayer.id\)\}\/assignment`/);
@@ -97,5 +97,5 @@ test('D15A1-02-13 inventário read only anterior e módulo D15A1-01 preservados'
  // F12: inventory and operations are TI-only; the OOH link stays reachable from Minhas telas.
  assert.match(f, /screenTask === 'technical' && isTechnical[\s\S]*?<DoohPlayerInventoryReadOnly \/>/);
  assert.match(f, /screenTask === 'technical'[\s\S]*?<DoohPlayerOperations \/>/);
- assert.match(f, /screenTask === 'my-screens'[\s\S]*?inventário OOH \(Marketplace\)[\s\S]*?<DoohPlayerPairingAndAssignment \/>/);
+ assert.match(f, /screenTask === 'my-screens'[\s\S]*?ponto do Marketplace[\s\S]*?<DoohPlayerPairingAndAssignment \/>/);
 });

@@ -105,7 +105,7 @@ export function DoohReportsPanel() {
     </div>
     <div className="flex flex-wrap gap-2" role="group" aria-label="Período">
       {periods.map(p => <Button key={p.id} type="button" size="sm" variant={period === p.id ? 'default' : 'outline'} aria-pressed={period === p.id} onClick={() => setPeriod(p.id)}>{p.label}</Button>)}
-      <span className="mx-2 w-px bg-gray-200" aria-hidden />
+      <span className="mx-2 hidden w-px bg-gray-200 sm:block" aria-hidden />
       {groupings.map(g => <Button key={g.id} type="button" size="sm" variant={groupBy === g.id ? 'default' : 'outline'} aria-pressed={groupBy === g.id} onClick={() => { setNames({}); setGroupBy(g.id); }}>{g.label}</Button>)}
     </div>
     {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
@@ -113,14 +113,17 @@ export function DoohReportsPanel() {
     {summary && <>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg bg-indigo-50 p-4"><p className="text-xs text-gray-600">Exibições registradas</p><p className="text-2xl font-semibold text-gray-900">{summary.total.toLocaleString('pt-BR')}</p></div>
-        <div className="rounded-lg bg-gray-50 p-4"><p className="text-xs text-gray-600">{doohReportResultLabel.PLAYED}</p><p className="text-2xl font-semibold text-gray-900">{summary.byResult.PLAYED.toLocaleString('pt-BR')}</p></div>
+        <div className="rounded-lg bg-gray-50 p-4"><p className="text-xs text-gray-600">{doohReportResultLabel.PLAYED}</p><p className="text-2xl font-semibold text-gray-900">{summary.byResult.PLAYED.toLocaleString('pt-BR')}</p>{summary.total > 0 && <p className="text-xs text-gray-500">{Math.round((summary.byResult.PLAYED / summary.total) * 100)}% do total</p>}</div>
         <div className="rounded-lg bg-gray-50 p-4"><p className="text-xs text-gray-600">{doohReportResultLabel.INTERRUPTED}</p><p className="text-2xl font-semibold text-gray-900">{summary.byResult.INTERRUPTED.toLocaleString('pt-BR')}</p></div>
       </div>
       {summary.total === 0
         ? <p className="rounded-lg border border-dashed p-6 text-center text-sm text-gray-600">Nenhuma exibição registrada neste período. Os aparelhos com o Player atualizado começam a enviar assim que exibirem conteúdo.</p>
         : <ol className="space-y-2">{summary.groups.map(g => <li key={g.groupKey} className="space-y-1">
             <div className="flex justify-between gap-3 text-sm"><span className="truncate font-medium text-gray-900">{label(g.groupKey)}</span><span className="tabular-nums text-gray-700">{g.total.toLocaleString('pt-BR')}</span></div>
-            <div className="h-2 rounded-full bg-gray-100"><div className="h-2 rounded-full bg-indigo-500" style={{ width: `${Math.max(2, Math.round((g.total / max) * 100))}%` }} /></div>
+            <div className="flex h-2 overflow-hidden rounded-full bg-gray-100" aria-hidden="true"><div className="flex h-2" style={{ width: `${Math.max(2, Math.round((g.total / max) * 100))}%` }}>
+              <div className="h-2 bg-indigo-500" style={{ width: `${g.total ? Math.round(((g.total - g.byResult.INTERRUPTED - g.byResult.FAILED) / g.total) * 100) : 100}%` }} />
+              <div className="h-2 bg-amber-500" style={{ width: `${g.total ? Math.round(((g.byResult.INTERRUPTED + g.byResult.FAILED) / g.total) * 100) : 0}%` }} />
+            </div></div>
             {g.byResult.INTERRUPTED + g.byResult.FAILED > 0 && <p className="text-xs text-gray-500">{g.byResult.INTERRUPTED} interrompidas{g.byResult.FAILED ? ` · ${g.byResult.FAILED} com falha` : ''}</p>}
           </li>)}</ol>}
       <p className="text-xs text-gray-500">Período: {new Date(summary.from).toLocaleString('pt-BR')} até {new Date(summary.to).toLocaleString('pt-BR')}.{groupBy === 'DAY_UTC' ? ' Dias contados em UTC (3 horas à frente de Brasília).' : ''} Atualizado em {new Date(summary.generatedAt).toLocaleTimeString('pt-BR')}.</p>

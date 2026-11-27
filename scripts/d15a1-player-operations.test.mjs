@@ -59,7 +59,7 @@ test('D15A1-07 componente separado do D13J/K não executa ações críticas', ()
   assert.match(s, /isOperationalWriteAllowed\(/);
   assert.match(s, /if \(!authorized\) return null/);
   assert.match(s, /canSubmit = writable && !busy && !loading/);
-  assert.match(s, /window\.confirm\(/);
+  assert.match(s, /await ask\(/);
   assert.match(s, /controller\.abort\(\)/);
   assert.match(s, /parseDoohPlayerInventoryResponse\(/);
   assert.match(s, /parseDoohPlayerGroups\(/);

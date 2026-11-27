@@ -39,7 +39,7 @@ export function DoohManifestInventoryReadOnly({ companyId, player }: { companyId
         `/dooh/manifests/players/${encodeURIComponent(player.id)}/inventory`, { signal: ctl.signal });
       if (!active()) return;
       const parsed = parseDoohManifestInventory(data, companyId, player);
-      if (!parsed) { setError('Resposta incompatível ou revisão diferente. Atualize o detalhe do player.'); return; }
+      if (!parsed) { setError('Não foi possível carregar. Atualize o aparelho e tente de novo.'); return; }
       setResult({ key: requestKey, value: parsed });
     } catch (cause: unknown) { if (active()) setError(manifestInventoryError(cause)); }
     finally { if (ongoing.current === ctl) ongoing.current = null; if (active()) setLoading(false); }
@@ -49,7 +49,7 @@ export function DoohManifestInventoryReadOnly({ companyId, player }: { companyId
   const current = result?.key === key ? result.value : null;
   return <section aria-label="Inventário de manifests do player" className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><h5 className="text-sm font-semibold text-gray-900">Inventário de manifests — D16A01</h5>
+      <div><h5 className="text-sm font-semibold text-gray-900">Programações enviadas ao aparelho</h5>
         <p className="text-xs text-gray-600">Consulta sob demanda de metadados persistidos do player selecionado.</p></div>
       <Button type="button" variant="outline" size="sm" disabled={loading} onClick={() => void inspect()}>
         {loading ? 'Consultando…' : 'Consultar manifests'}
@@ -68,7 +68,7 @@ export function DoohManifestInventoryReadOnly({ companyId, player }: { companyId
         <thead><tr><th className="py-2 pr-3">Versão</th><th className="py-2 pr-3">Checksum registrado (prefixo)</th><th className="py-2">Gravado em</th></tr></thead>
         <tbody>{current.records.map((item) => <tr key={item.version} className="border-t"><td className="py-2 pr-3">{item.version}</td>
           <td className="py-2 pr-3 font-mono">{item.checksumShort}</td><td className="py-2">{new Date(item.publishedAt).toLocaleString('pt-BR')}</td></tr>)}</tbody>
-      </table></div> : <p className="text-xs">Nenhum manifest registrado na janela de consulta.</p>}
+      </table></div> : <p className="text-xs">Nenhuma programação enviada neste período.</p>}
       {manifestInventorySignals(current).length > 0 && <ul className="list-disc space-y-1 pl-5 text-xs text-amber-900">
         {manifestInventorySignals(current).map((s) => <li key={s}>{s}</li>)}
       </ul>}
