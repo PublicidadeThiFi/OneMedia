@@ -62,8 +62,8 @@ export function screenOperationalSummary(screen: OperationalScreen) {
   const p = screen.player;
   const current = p?.currentManifestVersion, desired = p?.desiredManifestVersion;
   const connection = !p ? 'Sem aparelho vinculado' : p.lifecycleStatus !== 'ACTIVE' ? 'Dispositivo inativo' : p.credentialActive === false ? 'Autorização do aparelho indisponível' : screen.status === 'NO_RECENT_CONTACT' ? 'Sem contato recente' : 'Contato recente na última consulta';
-  const programming = !p ? 'Sem aparelho' : current === undefined || desired === undefined ? 'Versões indisponíveis' : BigInt(current) > BigInt(desired) ? 'Divergência de versões' : current !== desired ? 'Aguardando atualização' : current === '0' ? 'Aguardando programação' : 'Programação instalada informada';
-  const attention = !p || p.lifecycleStatus !== 'ACTIVE' || p.credentialActive === false || screen.status === 'NO_RECENT_CONTACT' || current === undefined || desired === undefined || current !== desired || current === '0';
+  const programming = !p ? 'Sem aparelho' : screen.status === 'PLAYING' ? 'Em exibição' : screen.status === 'INSTALL_FAILED' ? 'Falha ao instalar a programação' : current === undefined || desired === undefined ? 'Versões indisponíveis' : BigInt(current) > BigInt(desired) ? 'Divergência de versões' : current !== desired ? 'Instalando a nova programação' : current === '0' ? 'Aguardando programação' : 'Programação instalada';
+  const attention = !p || p.lifecycleStatus !== 'ACTIVE' || p.credentialActive === false || screen.status === 'NO_RECENT_CONTACT' || screen.status === 'INSTALL_FAILED' || current === undefined || desired === undefined || current === '0' || (current !== desired && screen.status !== 'UPDATE_PENDING');
   return { connection, programming, attention };
 }
 export function diagnosticScheduleText(p: NonNullable<ScreenDiagnostic['player']>) {
