@@ -10,6 +10,7 @@ import { DoohContextualPairing } from './DoohContextualPairing';
 import { isUuidV4 } from '../lib/doohPlayerPairingContract';
 import { DoohScreenContentWizard } from './DoohScreenContentWizard';
 import { DoohArchivedScreens } from './DoohArchivedScreens';
+import { DoohScreenTimeline } from './DoohScreenTimeline';
 import { parseDoohPlayerInventoryResponse, type DoohPlayerInventoryItem } from '../lib/doohPlayerInventoryContract';
 import { friendlyOperationalScreenError, playerErrorText, parseOperationalScreen, parseOperationalScreenPage,
   type OperationalScreen } from '../lib/doohOperationalScreenContract';
@@ -216,6 +217,7 @@ function OperationalScreensForContext({ initialMediaId, contentOnly }: Operation
           <details className="text-xs text-gray-600"><summary>Versões da programação</summary><p>Desejada: {screen.player.desiredManifestVersion === undefined ? 'Indisponível' : screen.player.desiredManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.desiredManifestVersion}`} · Instalada no aparelho: {screen.player.currentManifestVersion === undefined ? 'Indisponível' : screen.player.currentManifestVersion === '0' ? 'Nenhuma' : `v${screen.player.currentManifestVersion}`}</p>{screen.player.appVersion && <p>Versão do Player: {screen.player.appVersion}</p>}</details></>}
         </div>
         <p className="text-sm text-indigo-900">{next.text}</p>
+        {screen.player && !editorOpen && <DoohScreenTimeline screenId={screen.id} versionKey={`${screen.playerId}:${screen.player.currentManifestVersion ?? ''}`} />}
         {screen.player && !editorOpen && <Button type="button" variant="outline" aria-expanded={diagnosticId===screen.id} onClick={()=>setDiagnosticId(v=>v===screen.id?'':screen.id)}>{diagnosticId===screen.id?'Fechar diagnóstico':'Diagnóstico avançado'}</Button>}
         {diagnosticId===screen.id && companyId && !editorOpen && <DoohScreenDiagnostic key={`${companyId}:${screen.id}:${screen.playerId}`} companyId={companyId} screen={screen} />}
 
