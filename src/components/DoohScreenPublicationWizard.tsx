@@ -61,6 +61,11 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const activeKey=useRef(contextKey);activeKey.current=contextKey;
   const pending=useRef<AbortController|null>(null);
   const [refresh,setRefresh]=useState(0);
+  // F17: "not released" only when the server capability says so; a failed read is a retryable error.
+  const [serverDenied,setServerDenied]=useState(false);
+  const [loadFailed,setLoadFailed]=useState(false);
+  const autoRetried=useRef(false);
+  const loadErrorShown=useRef(false);
   const [caps,setCaps]=useState<Caps>(DENIED);
   const [playlist,setPlaylist]=useState<DoohPlaylistDetail|null>(null);
   const [link,setLink]=useState<GuidedScheduleLink|null>(null);
@@ -108,7 +113,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
   const [renewalGrant,setRenewalGrant]=useState<RenewalGrantView|null>(null);
   useEffect(()=>()=>{pending.current?.abort();onPublishingChange?.(false);},[onPublishingChange]);
 
-  useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setReview(null);
+  useEffect(()=>{pending.current?.abort();setLoaded(false);setPlaylist(null);setLink(null);setCaps(DENIED);setServerDenied(false);setLoadFailed(false);autoRetried.current=false;setReview(null);
     setManifestWindow(null);setError('');setNotice('');setBusy(false);setConsent(false);setSingle(false);setLinkedSchedule(null);setPrepared(false);setReplaceEnabled(false);setPauseEnabled(false);setHistory(null);setHistoryId('');setRestoreEnd('');setRestoreChoice('NONE');setResumeSnapshot(null);setReplacePlayer(null);replaceRevision.current='';setReplaceEnd('');setFutureEnabled(false);setFutureIntent(null);setFutureStart('');setScheduleFuture(false);setInitialRenewal(NO_RENEWAL);setReplaceRenewal(NO_RENEWAL);setRenewalChoice('NONE');initialChoiceInitialized.current=false;setStartNow(true);setLimitedHours(false);setRenewalGrant(null);onPublishingChange?.(false);},[contextKey]);
 
   useEffect(()=>{
@@ -120,7 +125,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       if(ctl.signal.aborted||activeKey.current!==key)return;
       const enabled=parseGuidedScheduleCapability(c.data);
       if(enabled===null)throw Error('Invalid schedule capability');
-      if(!enabled){setCaps(DENIED);setSingle(false);setLink(null);setPlaylist(null);return;}
+      if(!enabled){setServerDenied(true);setLoadFailed(false);setCaps(DENIED);setSingle(false);setLink(null);setPlaylist(null);return;}
       const [p,s,pl,sc,m,initial,republication]=await Promise.all([
         apiClient.get<unknown>('/dooh/playlists/publish-capabilities',{signal:ctl.signal}),
         apiClient.get<unknown>('/dooh/schedules/publish-capabilities',{signal:ctl.signal}),
@@ -135,6 +140,7 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
         mm=parseManifestCapability(sc.data),ll=parseGuidedScheduleLink(pl.data,screen.id);
       const detail=draft?.playlistId?parseDoohPlaylistDetail(m.data,companyId,draft.playlistId):null;
       if(pp===null||!ss||!mm||!ll||(draft?.playlistId&&!detail))throw Error('Invalid publication contract');
+      setServerDenied(false);setLoadFailed(false);autoRetried.current=false;if(loadErrorShown.current){loadErrorShown.current=false;setError('');}
       setCaps({guided:true,playlist:pp,schedule:ss.enabled,qaOnly:ss.qaOnly,manifest:mm.enabled,mode:mm.mode});
       let saved:DoohScheduleSummary|null=null;
       const initialEnabled=initialPublicationEnabled(initial.data);
@@ -197,7 +203,9 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       if(!initialChoiceInitialized.current){initialChoiceInitialized.current=true;if(initialEnabled && initialRenewalCap.enabled && !ll.scheduleId)setRenewalChoice('CONTINUOUS');}
       if(!initialRenewalCap.enabled && !replaceRenewalCap.enabled)setRenewalChoice('NONE');
     };
-    void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setSingle(false);setError(guidedPublishError(cause));}})
+    void read().catch((cause:unknown)=>{if(!ctl.signal.aborted&&activeKey.current===key){setCaps(DENIED);setSingle(false);setLoadFailed(true);loadErrorShown.current=true;setError(guidedPublishError(cause));
+      // One quiet automatic retry: right after publishing, the schedule and the device change for a few seconds.
+      if(!autoRetried.current){autoRetried.current=true;window.setTimeout(()=>{if(activeKey.current===key)setRefresh(v=>v+1);},3000);}}})
       .finally(()=>{if(!ctl.signal.aborted&&activeKey.current===key)setLoaded(true);});
     return()=>ctl.abort();
   },[allowed,show,contextKey,screen.id,draft?.playlistId,refresh,companyId]);
@@ -452,7 +460,8 @@ export function DoohScreenPublicationWizard({screen,draft,onChanged,editorBlocke
       {error&&<p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">{error}</p>}
       {notice&&<p role="status" className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">{notice}</p>}
       {prepared&&screen.player&&<p role="status" className="rounded border border-indigo-200 bg-indigo-50 p-2 text-sm text-indigo-900">Situação da TV: <strong>{screenOperationalSummary(screen).programming}</strong>. Atualiza sozinho a cada 20 segundos.</p>}
-      {!caps.guided&&loaded&&<p className="text-sm text-amber-800">A publicação ainda não está liberada para a sua empresa. Suas mídias e a sequência ficam salvas.</p>}
+      {!caps.guided&&loaded&&serverDenied&&<p className="text-sm text-amber-800">A publicação ainda não está liberada para a sua empresa. Suas mídias e a sequência ficam salvas.</p>}
+      {!caps.guided&&loaded&&!serverDenied&&loadFailed&&<div className="flex flex-wrap items-center gap-2 text-sm text-gray-700"><span>Não conseguimos carregar a situação da publicação agora. Suas mídias e a sequência ficam salvas.</span><Button type="button" size="sm" variant="outline" disabled={isBusy} onClick={()=>setRefresh(v=>v+1)}>Tentar de novo</Button></div>}
       {caps.guided&&<>
         {renewalGrant&&<div className="rounded border p-3 space-y-2 text-sm"><strong>{renewalGrant.mode==='CONTINUOUS'?'Exibindo sempre, até você pausar':`Exibindo até ${new Date(renewalGrant.authorizedEndAt!).toLocaleString('pt-BR')}`}</strong>
           <p className="text-xs">Para mudar, publique de novo com a nova escolha. "Não renovar mais" faz a TV parar no fim do período atual.</p>

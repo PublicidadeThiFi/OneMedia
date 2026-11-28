@@ -133,7 +133,8 @@ test('D15B05-12: rota backend preexistente, gating servidor e worker manual isol
   assert.match(controller, /@Post\(':id\/process'\)/);
   assert.match(service, /DOOH_MEDIA_PROCESSING_ENABLED/);
   assert.match(service, /accessMode !== ModuleAccessMode\.FULL/);
-  assert.match(service, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+  // F16: the serializable options live in a shared constant with longer waits.
+  assert.match(service, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable|DOOH_MEDIA_SERIALIZABLE_TX/);
   assert.match(worker, /DOOH_MEDIA_WORKER_ENABLED/);
   assert.match(worker, /process\.env\.NODE_ENV === 'production'/);
 });

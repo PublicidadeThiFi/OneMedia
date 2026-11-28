@@ -100,7 +100,8 @@ test('B03-12 backend impõe CAS atômico e isolamento sem migrations', (t) => {
   const service = readFileSync(path, 'utf8');
   assert.match(service, /async organizeCas\(/);
   assert.match(service, /updatedAt: expectedDate/);
-  assert.match(service, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable/);
+  // F16: the serializable options live in a shared constant with longer waits.
+  assert.match(service, /isolationLevel: Prisma\.TransactionIsolationLevel\.Serializable|DOOH_MEDIA_SERIALIZABLE_TX/);
   assert.match(service, /doohMedia\.updateMany/);
 });
 test('B03-13 mantém GET de Biblioteca e conecta editor separado', () => {

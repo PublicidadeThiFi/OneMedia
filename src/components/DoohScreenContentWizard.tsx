@@ -41,6 +41,10 @@ export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Pro
   const [media, setMedia] = useState<DoohLibraryMedia[]>([]);
   const [folders, setFolders] = useState<DoohLibraryFolder[]>([]);
   const [enabled, setEnabled] = useState(false);
+  // F17: "not enabled for this company" only when the server says so; a failed load is a retryable error.
+  const [denied, setDenied] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const autoRetried = useRef(false);
   const [loaded, setLoaded] = useState(false);
   const [editingBusy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -65,7 +69,7 @@ export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Pro
   const [loadingList, setLoadingList] = useState(false);
 
   useEffect(() => {
-    inFlight.current?.abort(); setDraft(null); setMedia([]); setFolders([]); setEnabled(false); setLoaded(false);
+    inFlight.current?.abort(); setDraft(null); setMedia([]); setFolders([]); setEnabled(false); setDenied(false); setLoadFailed(false); autoRetried.current = false; setLoaded(false);
     setSelectedMedia(''); setVersions([]); setVersionId(''); setDuration('10'); setPlannedOrder([]);
     setError(''); setNotice(''); setBusy(false); setUploadOpen(false); setUploadedId(''); setAutoProcessing(false); autoSelectedUpload.current = ''; initialSelectionDone.current = false; setChecks(0);
   }, [contextKey]);
@@ -94,14 +98,16 @@ export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Pro
         const specific = response && parseDoohLibraryMedia([response.data], companyId, 'all', nextFolders);
         if (specific?.[0]?.id === specificId) nextMedia.push(specific[0]);
       }
-      setEnabled(cap); setDraft(nextDraft); setFolders(nextFolders); setMedia(nextMedia);
+      setEnabled(cap); setDenied(!cap); setLoadFailed(false); autoRetried.current = false; setDraft(nextDraft); setFolders(nextFolders); setMedia(nextMedia);
       if (!initialSelectionDone.current && initialMediaId) { initialSelectionDone.current = true; if (nextMedia.some(item => item.id === initialMediaId && item.status === 'READY' && ['IMAGE','VIDEO'].includes(item.kind))) setSelectedMedia(initialMediaId); else setError('A mídia selecionada não está disponível entre os arquivos prontos desta empresa. Escolha outro arquivo.'); }
       setPlannedOrder(nextDraft.items.map(item => item.id));
       setLoaded(true);
     }).catch((cause: unknown) => {
       if (controller.signal.aborted || contextRef.current !== key) return;
-      setLoaded(true); setEnabled(false);
+      setLoaded(true); setEnabled(false); setLoadFailed(true);
       setError(guidedContentError(cause));
+      // One quiet automatic retry for a transient failure (e.g. right after adding a media).
+      if (!autoRetried.current) { autoRetried.current = true; window.setTimeout(() => { if (contextRef.current === key) setRefresh(n => n + 1); }, 3000); }
     }).finally(() => {
       if (!controller.signal.aborted && contextRef.current === key) setLoadingList(false);
     });
@@ -250,7 +256,8 @@ export function DoohScreenContentWizard({ screen, onClose, initialMediaId }: Pro
     </div>
     {!writable && <p className="text-sm text-amber-800">Sua conta permite consultar esta tela, mas não editar o conteúdo.</p>}
     {loadingList && <p role="status" className="text-sm text-gray-600">Buscando arquivos e sequência…</p>}
-    {loaded && !enabled && <p className="text-sm text-amber-800">A preparação guiada ficará disponível quando a atualização do servidor for ativada para esta empresa.</p>}
+    {loaded && denied && <p className="text-sm text-amber-800">A preparação guiada ficará disponível quando a atualização do servidor for ativada para esta empresa.</p>}
+    {loaded && !enabled && !denied && loadFailed && writable && <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700"><span>Não conseguimos carregar o conteúdo desta tela agora.</span><Button type="button" size="sm" variant="outline" disabled={loadingList} onClick={() => setRefresh(n => n + 1)}>Tentar de novo</Button></div>}
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {enabled && loaded && writable && <>
